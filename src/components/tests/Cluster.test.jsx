@@ -189,6 +189,7 @@ vi.mock('../ClusterStatGrids.jsx', () => {
 
 describe('ClusterOverview', () => {
     beforeEach(() => {
+        vi.stubEnv('VITE_AI_AGENT_URL', '');
         vi.clearAllMocks();
 
         Storage.prototype.getItem = vi.fn(() => mockToken);
@@ -229,6 +230,7 @@ describe('ClusterOverview', () => {
     });
 
     afterEach(() => {
+        vi.unstubAllEnvs();
         vi.restoreAllMocks();
     });
 
@@ -280,6 +282,19 @@ describe('ClusterOverview', () => {
         expect(screen.getByTestId('kind-count')).toHaveTextContent('2');
         expect(screen.getByTestId('kind-Pod')).toBeInTheDocument();
         expect(screen.getByTestId('kind-Service')).toBeInTheDocument();
+    });
+
+    test('configured AI assistant is accessible from cluster overview', async () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
+        render(<MemoryRouter><ClusterOverview/></MemoryRouter>);
+        fireEvent.click(await screen.findByRole('button', {name: 'AI Assistant'}));
+        expect(mockNavigate).toHaveBeenCalledWith('/ai');
+    });
+
+    test('cluster overview hides the AI entry when not configured', async () => {
+        render(<MemoryRouter><ClusterOverview/></MemoryRouter>);
+        await screen.findByText('Cluster Overview');
+        expect(screen.queryByRole('button', {name: 'AI Assistant'})).not.toBeInTheDocument();
     });
 
     test('fetches data on mount with auth token', async () => {

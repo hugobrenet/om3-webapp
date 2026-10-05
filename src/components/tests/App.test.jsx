@@ -31,6 +31,7 @@ vi.mock('../ObjectDetails', () => ({default: () => <div data-testid="object-deta
 vi.mock('../Network', () => ({default: () => <div data-testid="network">Network</div>}));
 vi.mock('../NetworkDetails', () => ({default: () => <div data-testid="network-details">NetworkDetails</div>}));
 vi.mock('../WhoAmI', () => ({default: () => <div data-testid="whoami">WhoAmI</div>}));
+vi.mock('../AiChat.jsx', () => ({default: () => <div data-testid="ai-chat">AI Assistant</div>}));
 vi.mock('../SilentRenew.jsx', () => ({default: () => <div data-testid="silent-renew">SilentRenew</div>}));
 vi.mock('../AuthChoice.jsx', () => ({default: () => <div data-testid="auth-choice">AuthChoice</div>}));
 vi.mock('../OidcCallback', () => ({default: () => <div data-testid="auth-callback">OidcCallback</div>}));
@@ -160,6 +161,7 @@ const setupOidcAuth = (token = 'dummy') => {
 // --- Tests ---
 describe('App Component', () => {
     beforeEach(() => {
+        vi.stubEnv('VITE_AI_AGENT_URL', '');
         vi.useRealTimers();
         mockAuthDispatch.mockClear();
         mockLocalStorage.getItem.mockClear().mockReturnValue(null);
@@ -184,10 +186,47 @@ describe('App Component', () => {
     });
 
     afterEach(() => {
+        vi.unstubAllEnvs();
         vi.useRealTimers();
     });
 
     // --- Routing ---
+    test('AI page is protected and requires an authenticated session', async () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
+        renderApp(['/ai']);
+        expect(await screen.findByTestId('auth-choice')).toBeInTheDocument();
+        expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
+    });
+
+    test('configured AI page is accessible with the existing OpenID session', async () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
+        setupOidcAuth();
+        renderApp(['/ai']);
+        expect(await screen.findByTestId('ai-chat')).toBeInTheDocument();
+    });
+
+    test('unconfigured AI route redirects to cluster overview', async () => {
+        setupBasicAuth();
+        renderApp(['/ai']);
+        expect(await screen.findByTestId('cluster')).toBeInTheDocument();
+        expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
+    });
+
+    test('configured AI page is accessible with the existing Basic session', async () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
+        setupBasicAuth();
+        renderApp(['/ai']);
+        expect(await screen.findByTestId('ai-chat')).toBeInTheDocument();
+    });
+
+    test('configured AI route rejects an expired Basic session', async () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
+        setupBasicAuth(-3600);
+        renderApp(['/ai']);
+        expect(await screen.findByTestId('auth-choice')).toBeInTheDocument();
+        expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
+    });
+
     test('renders NavBar and redirects / to /cluster', async () => {
         setupBasicAuth();
         renderApp(['/']);

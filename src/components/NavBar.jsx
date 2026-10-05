@@ -10,7 +10,8 @@ import {
     FaDatabase,
     FaCubes,
     FaNetworkWired,
-    FaTag
+    FaTag,
+    FaRobot
 } from "react-icons/fa";
 import {useAuth} from "../context/AuthProvider.jsx";
 import {useEffect, useState, useMemo, useCallback} from "react";
@@ -21,6 +22,7 @@ import logger from '../utils/logger.js';
 import FiberManualRecordIcon from "@mui/icons-material/FiberManualRecord";
 import {red, orange} from "@mui/material/colors";
 import Tooltip from "@mui/material/Tooltip";
+import {getAiAgentConfig} from "../config/ai-agent.js";
 
 const NavBar = () => {
     const navigate = useNavigate();
@@ -39,6 +41,7 @@ const NavBar = () => {
 
     const navRoutes = [
         {path: "/cluster", name: "Cluster", icon: <FaHome/>},
+        ...(getAiAgentConfig().enabled ? [{path: "/ai", name: "AI Assistant", icon: <FaRobot/>}] : []),
         {path: "/namespaces", name: "Namespaces", icon: <FaList/>},
         {path: "/heartbeats", name: "Heartbeats", icon: <FaHeartbeat/>},
         {path: "/nodes", name: "Nodes", icon: <FaServer/>},

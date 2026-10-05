@@ -136,11 +136,13 @@ function renderNavBar() {
 // ── Tests ───────────────────────────────────────────────────────────────
 describe('NavBar', () => {
     beforeEach(() => {
+        vi.stubEnv('VITE_AI_AGENT_URL', '');
         vi.clearAllMocks();
         setupMocks();
     });
 
     afterEach(() => {
+        vi.unstubAllEnvs();
         vi.useRealTimers?.();
     });
 
@@ -368,6 +370,19 @@ describe('NavBar', () => {
     });
 
     // ---------- WhoAmI link ----------
+    test('configured AI assistant is accessible from the burger menu', () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
+        renderNavBar();
+        fireEvent.click(screen.getByRole('button', {name: 'Open navigation menu'}));
+        fireEvent.click(screen.getByRole('menuitem', {name: 'AI Assistant'}));
+        expect(mockNavigate).toHaveBeenCalledWith('/ai');
+    });
+
+    test('AI assistant is hidden from the menu when not configured', () => {
+        renderNavBar();
+        fireEvent.click(screen.getByRole('button', {name: 'Open navigation menu'}));
+        expect(screen.queryByRole('menuitem', {name: 'AI Assistant'})).not.toBeInTheDocument();
+    });
     test('WhoAmI button navigates to /whoami', () => {
         renderNavBar();
         expect(screen.getByRole('link', {name: /view user information/i})).toHaveAttribute('href', '/whoami');

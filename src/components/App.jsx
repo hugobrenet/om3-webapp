@@ -23,6 +23,7 @@ import {ThemeProvider, createTheme} from '@mui/material/styles';
 import {prepareForNavigation} from "../eventSourceManager";
 
 import {decodeToken as decodeTokenFromLogin} from "./Login.jsx";
+import {getAiAgentConfig} from "../config/ai-agent.js";
 
 // Lazy load components for code splitting
 const NodesTable = lazy(() => import("./NodesTable"));
@@ -37,6 +38,7 @@ const Pools = lazy(() => import("./Pools"));
 const Network = lazy(() => import("./Network"));
 const NetworkDetails = lazy(() => import("./NetworkDetails"));
 const WhoAmI = lazy(() => import("./WhoAmI"));
+const AiChat = lazy(() => import("./AiChat.jsx"));
 
 // Loading component for Suspense fallback
 const Loading = () => (
@@ -306,6 +308,7 @@ const App = () => {
     const mainRef = useRef(null);
 
     const authInfo = useAuthInfo();
+    const aiEnabled = getAiAgentConfig().enabled;
 
     useEffect(() => {
         if (mainRef.current) {
@@ -355,6 +358,7 @@ const App = () => {
                                         <Route path="/" element={<Navigate to="/cluster" replace/>}/>
                                         <Route path="/cluster"
                                                element={<ProtectedRoute><ClusterOverview/></ProtectedRoute>}/>
+                                        <Route path="/ai" element={<ProtectedRoute>{aiEnabled ? <AiChat/> : <Navigate to="/cluster" replace/>}</ProtectedRoute>}/>
                                         <Route path="/namespaces"
                                                element={<ProtectedRoute><Namespaces/></ProtectedRoute>}/>
                                         <Route path="/kinds" element={<ProtectedRoute><Kinds/></ProtectedRoute>}/>

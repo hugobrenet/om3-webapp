@@ -1,7 +1,9 @@
 import logger from '../utils/logger.js';
 import React, {useEffect, useState, useRef, useMemo, useCallback, memo, useDeferredValue} from "react";
 import {useNavigate} from "react-router-dom";
-import {Box, Typography} from "@mui/material";
+import {Box, Button, Typography} from "@mui/material";
+import {FaRobot} from "react-icons/fa";
+import {getAiAgentConfig} from "../config/ai-agent.js";
 import axios from "axios";
 import {
     GridNodes,
@@ -220,9 +222,10 @@ const ClusterOverview = () => {
             p: 3,
             m: 0,
         }}>
-            <Typography variant="h4" gutterBottom sx={{mb: 4}}>
-                Cluster Overview
-            </Typography>
+            <Box sx={{display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', justifyContent: 'space-between', mb: 4}}>
+                <Typography variant="h4">Cluster Overview</Typography>
+                {getAiAgentConfig().enabled && <Button variant="outlined" startIcon={<FaRobot/>} onClick={handleNavigate("/ai")}>AI Assistant</Button>}
+            </Box>
 
             <Box sx={{
                 display: 'grid',
