@@ -133,6 +133,7 @@ describe('NavBar', () => {
 
     afterEach(() => {
         vi.useRealTimers?.();
+        vi.unstubAllEnvs();
     });
 
     test('renders cluster breadcrumb and WhoAmI link on /cluster', () => {
@@ -326,5 +327,17 @@ describe('NavBar', () => {
     test('WhoAmI button navigates to /whoami', () => {
         renderNavBar();
         expect(screen.getByRole('link', {name: /view user information/i})).toHaveAttribute('href', '/whoami');
+    });
+
+    test('configured AI assistant is reached from the top bar', () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
+        renderNavBar();
+        expect(screen.getByRole('link', {name: 'Open the AI assistant'})).toHaveAttribute('href', '/ai');
+    });
+
+    test('AI assistant is hidden from the top bar when not configured', () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', '');
+        renderNavBar();
+        expect(screen.queryByRole('link', {name: 'Open the AI assistant'})).not.toBeInTheDocument();
     });
 });

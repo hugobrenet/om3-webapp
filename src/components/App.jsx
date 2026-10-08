@@ -18,6 +18,7 @@ import {
 } from "../context/AuthProvider";
 import oidcConfiguration from "../config/oidcConfiguration.js";
 import useAuthInfo from "../hooks/AuthInfo.jsx";
+import {getAiAgentConfig} from "../config/ai-agent.js";
 import logger from "../utils/logger.js";
 import {prepareForNavigation} from "../eventSourceManager";
 
@@ -35,6 +36,7 @@ const Pools = lazy(() => import("./Pools"));
 const Network = lazy(() => import("./Network"));
 const NetworkDetails = lazy(() => import("./NetworkDetails"));
 const WhoAmI = lazy(() => import("./WhoAmI"));
+const AiChat = lazy(() => import("./AiChat"));
 
 // Loading component for Suspense fallback
 const Loading = () => (
@@ -278,6 +280,7 @@ const App = () => {
     const mainRef = useRef(null);
 
     const authInfo = useAuthInfo();
+    const aiEnabled = getAiAgentConfig().enabled;
     const [sidebarOpen, toggleSidebar] = useSidebarOpen();
     // The sign-in screens have no view to navigate to: no menu there.
     const showSidebar = !AUTH_PATHS.some((path) => location.pathname.startsWith(path));
@@ -350,6 +353,7 @@ const App = () => {
                                         <Route path="/nodes/:node/objects/:objectName"
                                                element={<ProtectedRoute><ObjectInstanceView/></ProtectedRoute>}/>
                                         <Route path="/whoami" element={<ProtectedRoute><WhoAmI/></ProtectedRoute>}/>
+                                        <Route path="/ai" element={<ProtectedRoute>{aiEnabled ? <AiChat/> : <Navigate to="/" replace/>}</ProtectedRoute>}/>
                                         <Route path="/silent-renew" element={<SilentRenew/>}/>
                                         <Route path="/auth-callback" element={<OidcCallback/>}/>
                                         <Route path="/auth-choice" element={<AuthChoice authInfo={authInfo}/>}/>

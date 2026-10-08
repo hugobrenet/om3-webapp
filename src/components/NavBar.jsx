@@ -1,5 +1,5 @@
 import {Link, useLocation} from "react-router-dom";
-import {SidebarIcon, UserIcon} from "../ui/icons";
+import {ChatIcon, SidebarIcon, UserIcon} from "../ui/icons";
 import {StateGlyph} from "../ui/components/StateGlyph";
 import opensvcLogo from "../ui/assets/opensvc-logo.svg";
 import {useAuth} from "../context/AuthProvider.jsx";
@@ -7,6 +7,7 @@ import {useEffect, useState, useCallback} from "react";
 import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 import logger from '../utils/logger.js';
+import {getAiAgentConfig} from "../config/ai-agent.js";
 
 // Header icon buttons, as in the oc3 top bar: muted ink, darker on hover.
 const HEADER_BUTTON =
@@ -19,6 +20,8 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
     const [breadcrumb, setBreadcrumb] = useState([]);
     const [storedClusterName, setStoredClusterName] = useState(null);
     const online = useOnlineStatus();
+    // Built once: the AI entry depends on the build configuration only.
+    const aiEnabled = getAiAgentConfig().enabled;
 
     const getPathBreadcrumbs = useCallback(() => {
         const pathParts = location.pathname.split("/").filter(Boolean);
@@ -179,6 +182,12 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                         <StateGlyph state="down" className="h-2 w-2"/>
                         Offline
                     </span>
+                )}
+
+                {aiEnabled && (
+                    <Link to="/ai" aria-label="Open the AI assistant" title="Open the AI assistant" className={HEADER_BUTTON}>
+                        <ChatIcon width={16} height={16}/>
+                    </Link>
                 )}
 
                 <Link to="/whoami" aria-label="View user information" title="View user information" className={HEADER_BUTTON}>
