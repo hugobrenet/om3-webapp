@@ -879,3 +879,24 @@ export function HashIcon(props: IconProps) {
     </Svg>
   );
 }
+
+/** AI assistant: a speech bubble holding three dots, the conversations with the agent. */
+export function ChatIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path
+        fillRule="evenodd"
+        d="M4.5 3.5h15a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8.2l-4.6 3.6a.8.8 0 0 1-1.3-.6v-3h-.9a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2ZM6.2 10.5a1.4 1.4 0 1 0 2.8 0 1.4 1.4 0 1 0-2.8 0Zm4.4 0a1.4 1.4 0 1 0 2.8 0 1.4 1.4 0 1 0-2.8 0Zm4.4 0a1.4 1.4 0 1 0 2.8 0 1.4 1.4 0 1 0-2.8 0Z"
+      />
+    </Svg>
+  );
+}
+
+/** Sending a message: a paper plane. */
+export function SendIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3.2 3.6a.8.8 0 0 1 .9-.1l16.8 7.8a.8.8 0 0 1 0 1.4L4.1 20.5a.8.8 0 0 1-1.1-.9l1.6-6.4 8.4-1.2-8.4-1.2L3 4.5a.8.8 0 0 1 .2-.9Z" />
+    </Svg>
+  );
+}

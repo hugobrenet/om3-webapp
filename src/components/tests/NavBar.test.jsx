@@ -133,6 +133,7 @@ describe('NavBar', () => {
 
     afterEach(() => {
         vi.useRealTimers?.();
+        vi.unstubAllEnvs();
     });
 
     test('the cluster tag left out of the bar short of room, below 1200px as the menu folds; the product name in the About page, not the bar', () => {
@@ -358,5 +359,17 @@ describe('NavBar', () => {
         render(<MemoryRouter><NavBar showSidebarToggle/></MemoryRouter>);
         expect(screen.queryByRole('button', {name: /shortcuts/i})).not.toBeInTheDocument();
         expect(document.querySelector('[aria-keyshortcuts="?"]')).toBeNull();
+    });
+
+    test('configured AI assistant is reached from the top bar', () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
+        renderNavBar();
+        expect(screen.getByRole('link', {name: 'Open the AI assistant'})).toHaveAttribute('href', '/ai');
+    });
+
+    test('AI assistant is hidden from the top bar when not configured', () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', '');
+        renderNavBar();
+        expect(screen.queryByRole('link', {name: 'Open the AI assistant'})).not.toBeInTheDocument();
     });
 });

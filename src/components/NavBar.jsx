@@ -1,6 +1,6 @@
 import {Link, useLocation} from "react-router-dom";
 import {useTranslation} from "react-i18next";
-import {SidebarIcon, UserIcon} from "../ui/icons";
+import {ChatIcon, SidebarIcon, UserIcon} from "../ui/icons";
 import {AlertMark} from "../ui/components/AlertMark";
 import {cn} from "../ui/cn";
 import {GlobalSearch} from "../app/GlobalSearch";
@@ -12,6 +12,7 @@ import {useEffect, useState, useCallback} from "react";
 import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 import logger from '../utils/logger.js';
+import {getAiAgentConfig} from "../config/ai-agent.js";
 
 // Header icon buttons: outlined, as every button that neither creates nor deletes; muted ink, darker on hover.
 const HEADER_BUTTON =
@@ -35,6 +36,8 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
     const [storedClusterName, setStoredClusterName] = useState(null);
     const online = useOnlineStatus();
     const {t} = useTranslation();
+    // Built once: the AI entry depends on the build configuration only.
+    const aiEnabled = getAiAgentConfig().enabled;
 
     const getPathBreadcrumbs = useCallback(() => {
         const pathParts = location.pathname.split("/").filter(Boolean);
@@ -225,6 +228,12 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                         {/* The shortcuts list opens with the "?" key: no button for it, which read as a help. */}
                         <GlobalSearch loadIndex={loadSearchIndex}/>
                     </>
+                )}
+
+                {aiEnabled && (
+                    <Link to="/ai" aria-label="Open the AI assistant" title="Open the AI assistant" className={HEADER_BUTTON}>
+                        <ChatIcon width={16} height={16}/>
+                    </Link>
                 )}
 
                 <Link to="/whoami" aria-label={t("nav.viewUser")} title={t("nav.viewUser")} className={HEADER_BUTTON}>
