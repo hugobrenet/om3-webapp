@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {useAuth} from "../context/AuthProvider.jsx";
 import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus.jsx";
 import useAiAgent from "../hooks/useAiAgent.js";
@@ -9,7 +9,7 @@ import {Button} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
 import {Field, Input, Textarea} from "../ui/components/Field";
 import {Spinner} from "../ui/components/Spinner";
-import {ChatIcon, PencilIcon, PlusIcon, RefreshIcon, SendIcon, StopIcon, TrashIcon} from "../ui/icons";
+import {ChatIcon, PencilIcon, PlusIcon, SendIcon, StopIcon, TrashIcon} from "../ui/icons";
 import {cn} from "../ui/cn";
 
 const PANEL = "flex min-w-0 flex-col rounded-(--radius-panel) border border-line bg-surface-raised";
@@ -76,7 +76,8 @@ const AiChat = () => {
         setTitle("");
     }, [scope, ready, chat.conversation?.id, chat.historyReady]);
 
-    useEffect(() => {
+    // Before paint: prepended messages keep the reading position without a jump.
+    useLayoutEffect(() => {
         if (!transcript.current) return;
         const anchor = scrollAnchor.current;
         transcript.current.scrollTop =
@@ -153,19 +154,14 @@ const AiChat = () => {
                             <h2 id="ai-conversations" className="font-semibold">Conversations</h2>
                         </div>
                         <div className="space-y-2 p-3">
-                            <div className="flex flex-wrap gap-2">
-                                <Button
-                                    variant="primary"
-                                    icon={<PlusIcon/>}
-                                    disabled={busy}
-                                    onClick={() => chat.createConversation()}
-                                >
-                                    New conversation
-                                </Button>
-                                <Button icon={<RefreshIcon/>} disabled={busy} onClick={() => chat.refreshConversations()}>
-                                    Refresh conversations
-                                </Button>
-                            </div>
+                            <Button
+                                variant="primary"
+                                icon={<PlusIcon/>}
+                                disabled={busy}
+                                onClick={() => chat.createConversation()}
+                            >
+                                New conversation
+                            </Button>
                             {chat.pending === "loading" && <Spinner label="Loading conversations"/>}
                             {!chat.conversations.length && !busy && (
                                 <p className="text-ink-muted">No conversations yet.</p>
@@ -220,12 +216,6 @@ const AiChat = () => {
                                 </div>
                             )}
                         </div>
-                        {chat.resumed && (
-                            <Alert tone="info" className="mx-3 mt-3">
-                                History shows completed exchanges only. Past tool activity and token usage are not
-                                available.
-                            </Alert>
-                        )}
                         <div
                             ref={transcript}
                             role="log"
