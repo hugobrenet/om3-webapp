@@ -296,6 +296,23 @@ const useAiChat = ({client, ready, scope}) => {
                     }));
                 },
             });
+            // The agent titles a conversation after its first completed turn: read
+            // it back, so the list does not keep an untitled entry.
+            if (!conversation.title && !signal.aborted) {
+                try {
+                    const titled = await client.getConversation(conversation.id, {signal});
+                    update((previous) => ({
+                        ...previous,
+                        conversation:
+                            previous.conversation?.id === titled.id ? titled : previous.conversation,
+                        conversations: previous.conversations.map((item) =>
+                            item.id === titled.id ? titled : item
+                        ),
+                    }));
+                } catch {
+                    // The title is cosmetic: the turn itself succeeded.
+                }
+            }
             return true;
         });
     };

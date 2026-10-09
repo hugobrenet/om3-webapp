@@ -136,13 +136,12 @@ describe('AI chatbot page', () => {
             expect(screen.queryByRole('button', {name: 'Stop'})).not.toBeInTheDocument();
         }
     );
-    test('loads saved messages and explains the historical display limitations', async () => {
+    test('loads saved messages of a resumed conversation without sending a turn', async () => {
         await renderReady();
         fireEvent.click(screen.getByRole('button', {name: 'Previous diagnostic'}));
-        expect(
-            await screen.findByText(/History shows completed exchanges only/)
-        ).toBeInTheDocument();
-        expect(screen.getByRole('log')).toHaveTextContent('Send a prompt');
+        await waitFor(() => expect(mocks.client.getMessages).toHaveBeenCalledWith('existing', expect.anything()));
+        expect(await screen.findByRole('log')).toHaveTextContent('Send a prompt');
+        expect(screen.queryByText(/History shows completed exchanges only/)).not.toBeInTheDocument();
         expect(mocks.client.sendTurn).not.toHaveBeenCalled();
     });
     test('displays interrupted output and stops without retrying', async () => {

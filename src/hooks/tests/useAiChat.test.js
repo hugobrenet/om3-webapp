@@ -82,6 +82,28 @@ describe('useAiChat', () => {
         expect(client.createConversation).toHaveBeenCalledTimes(1);
         expect(client.sendTurn).toHaveBeenCalledTimes(2);
     });
+    it('reads the agent title back after the first turn of an untitled conversation', async () => {
+        const untitled = {id: 'untitled', title: ''};
+        client.createConversation.mockResolvedValue(untitled);
+        client.getConversation.mockResolvedValue({id: 'untitled', title: 'Cluster health'});
+        const {result} = await setup();
+        await act(async () => {
+            await result.current.send('cluster health?');
+        });
+        expect(client.getConversation).toHaveBeenCalledWith('untitled', expect.anything());
+        expect(result.current.conversation.title).toBe('Cluster health');
+        expect(result.current.conversations[0]).toEqual({id: 'untitled', title: 'Cluster health'});
+    });
+    it('keeps a successful turn when reading the title back fails', async () => {
+        client.createConversation.mockResolvedValue({id: 'untitled', title: ''});
+        client.getConversation.mockRejectedValue(new Error('unavailable'));
+        const {result} = await setup();
+        await act(async () => {
+            await result.current.send('cluster health?');
+        });
+        expect(result.current.error).toBeFalsy();
+        expect(result.current.messages.at(-1)).toMatchObject({role: 'assistant', status: 'completed'});
+    });
     it('loads saved messages before continuing the server conversation', async () => {
         const {result} = await setup();
         await act(async () => {
