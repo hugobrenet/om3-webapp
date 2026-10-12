@@ -49,9 +49,9 @@ describe('AI agent conversations client', () => {
         expect(await client.listConversations()).toEqual([metadata]);
         expect(await client.getConversation(metadata.id)).toEqual(metadata);
         expect(fetchMock.mock.calls.map(([url, request]) => [url, request.method])).toEqual([
-            [`${baseUrl}/v1/conversations`, 'POST'],
-            [`${baseUrl}/v1/conversations`, 'GET'],
-            [`${baseUrl}/v1/conversations/conversation-1`, 'GET'],
+            [`${baseUrl}/v1/om3/conversations`, 'POST'],
+            [`${baseUrl}/v1/om3/conversations`, 'GET'],
+            [`${baseUrl}/v1/om3/conversations/conversation-1`, 'GET'],
         ]);
         for (const [, options] of fetchMock.mock.calls) {
             expect(options).toMatchObject({
@@ -82,8 +82,8 @@ describe('AI agent conversations client', () => {
         credentials.accessToken = 'renewed-token';
         await client.getMessages(metadata.id, {limit: 10, before: '1:1'});
         expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-            `${baseUrl}/v1/conversations/conversation-1/messages?limit=50`,
-            `${baseUrl}/v1/conversations/conversation-1/messages?limit=10&before=1%3A1`,
+            `${baseUrl}/v1/om3/conversations/conversation-1/messages?limit=50`,
+            `${baseUrl}/v1/om3/conversations/conversation-1/messages?limit=10&before=1%3A1`,
         ]);
         expect(fetchMock.mock.calls[1][1]).toMatchObject({
             method: 'GET',
@@ -235,7 +235,7 @@ describe('AI agent conversations client', () => {
             renamed
         );
         expect(fetchMock).toHaveBeenCalledWith(
-            `${baseUrl}/v1/conversations/conversation-1`,
+            `${baseUrl}/v1/om3/conversations/conversation-1`,
             expect.objectContaining({
                 method: 'PATCH',
                 body: JSON.stringify({title: 'Cluster health'}),
@@ -271,7 +271,7 @@ describe('AI agent conversations client', () => {
         await expect(client.deleteConversation(metadata.id)).resolves.toBeUndefined();
         expect(json).not.toHaveBeenCalled();
         expect(fetchMock).toHaveBeenCalledWith(
-            `${baseUrl}/v1/conversations/conversation-1`,
+            `${baseUrl}/v1/om3/conversations/conversation-1`,
             expect.objectContaining({
                 method: 'DELETE',
                 credentials: 'omit',
@@ -394,7 +394,7 @@ describe('AI agent conversations client', () => {
         expect(await client.sendTurn(metadata.id, '  diagnostic  ', {onEvent})).toEqual(events[4]);
         expect(onEvent.mock.calls.map(([event]) => event)).toEqual(events);
         expect(fetchMock).toHaveBeenCalledWith(
-            `${baseUrl}/v1/conversations/conversation-1/turns`,
+            `${baseUrl}/v1/om3/conversations/conversation-1/turns`,
             expect.objectContaining({
                 method: 'POST',
                 body: JSON.stringify({prompt: '  diagnostic  '}),

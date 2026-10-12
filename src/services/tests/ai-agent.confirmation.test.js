@@ -65,7 +65,7 @@ describe('AI agent action confirmation client', () => {
         const result = await client.confirmTurn('conversation-1', 'turn-1', 'confirmation-1', 'approve');
         expect(result.type).toBe('completed');
         const [url, request] = fetchMock.mock.calls[0];
-        expect(url).toBe(`${baseUrl}/v1/conversations/conversation-1/turns/turn-1/confirmation`);
+        expect(url).toBe(`${baseUrl}/v1/om3/conversations/conversation-1/turns/turn-1/confirmation`);
         expect(request.method).toBe('POST');
         expect(JSON.parse(request.body)).toEqual({confirmation_id: 'confirmation-1', decision: 'approve'});
         expect(request.headers).toMatchObject({Authorization: 'Bearer token', 'X-OpenSVC-Cluster-ID': 'cluster-id'});
