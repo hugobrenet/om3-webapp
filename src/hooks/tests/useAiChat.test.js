@@ -31,6 +31,12 @@ describe('useAiChat', () => {
             listConversations: vi.fn().mockResolvedValue([existing]),
             createConversation: vi.fn().mockResolvedValue(created),
             getConversation: vi.fn().mockResolvedValue(existing),
+            // The resumed conversation, without a pending confirmation unless a test sets one.
+            getConversationState: vi.fn(async (id, options) => ({
+                conversation: await client.getConversation(id, options),
+                confirmation: null,
+            })),
+            confirmTurn: vi.fn(),
             getMessages: vi.fn().mockResolvedValue({messages: [], next_cursor: ''}),
             renameConversation: vi.fn().mockResolvedValue({...created, title: 'Renamed'}),
             deleteConversation: vi.fn().mockResolvedValue(undefined),
@@ -494,5 +500,85 @@ describe('useAiChat', () => {
         await waitFor(() => expect(result.current.pending).toBe(''));
         expect(client.createConversation).not.toHaveBeenCalled();
         expect(client.sendTurn).not.toHaveBeenCalled();
+    });
+
+    describe('action confirmation', () => {
+        const confirmation = {
+            id: 'confirmation-1',
+            turn_id: 'turn-1',
+            tool: {name: 'stop_object', title: 'Stop object', destructive: true},
+            arguments: {path: 'prod/svc/web'},
+            expires_at: '2026-10-09T17:45:00Z',
+        };
+        const suspendTurn = () =>
+            client.sendTurn.mockImplementation(async (_id, _prompt, {onEvent}) => {
+                const event = {type: 'confirmation_required', confirmation};
+                onEvent({type: 'text_delta', text_delta: 'I will stop it.'});
+                onEvent(event);
+                return event;
+            });
+        it('waits for a decision when a turn requests a confirmation', async () => {
+            suspendTurn();
+            const {result} = await setup();
+            await act(async () => {
+                await result.current.send('stop web');
+            });
+            expect(result.current.confirmation).toMatchObject({...confirmation, conversationId: 'new'});
+            expect(result.current.messages.at(-1)).toMatchObject({status: 'awaiting_confirmation', text: 'I will stop it.'});
+            await act(async () => {
+                await result.current.send('another');
+            });
+            expect(client.sendTurn).toHaveBeenCalledTimes(1);
+        });
+        it.each(['approve', 'reject'])('sends %s and streams the rest of the turn', async (decision) => {
+            suspendTurn();
+            client.confirmTurn.mockImplementation(async (_id, _turn, _confirmation, _decision, {onEvent}) => {
+                onEvent({type: 'text_delta', text_delta: ' Done.'});
+                onEvent({type: 'completed'});
+                return {type: 'completed'};
+            });
+            const {result} = await setup();
+            await act(async () => {
+                await result.current.send('stop web');
+            });
+            await act(async () => {
+                await result.current[decision]();
+            });
+            expect(client.confirmTurn).toHaveBeenCalledWith('new', 'turn-1', 'confirmation-1', decision, expect.anything());
+            expect(result.current.confirmation).toBeNull();
+            expect(result.current.messages.at(-1)).toMatchObject({status: 'completed', text: 'I will stop it. Done.'});
+        });
+        it('shows the confirmation again after a reload', async () => {
+            client.getConversationState.mockResolvedValue({conversation: existing, confirmation});
+            client.confirmTurn.mockImplementation(async (_id, _turn, _confirmation, _decision, {onEvent}) => {
+                onEvent({type: 'completed'});
+                return {type: 'completed'};
+            });
+            const {result} = await setup();
+            await act(async () => {
+                await result.current.resumeConversation('existing');
+            });
+            expect(result.current.confirmation).toMatchObject({id: 'confirmation-1', conversationId: 'existing'});
+            await act(async () => {
+                await result.current.reject();
+            });
+            expect(client.confirmTurn).toHaveBeenCalledWith('existing', 'turn-1', 'confirmation-1', 'reject', expect.anything());
+            expect(result.current.messages.at(-1)).toMatchObject({role: 'assistant', status: 'completed'});
+        });
+        it('reports an expired confirmation and frees the conversation', async () => {
+            suspendTurn();
+            client.confirmTurn.mockRejectedValue(
+                new AiAgentError('http_error', 'The confirmation request expired. The action was not run.', 410)
+            );
+            const {result} = await setup();
+            await act(async () => {
+                await result.current.send('stop web');
+            });
+            await act(async () => {
+                await result.current.approve();
+            });
+            expect(result.current.confirmation).toBeNull();
+            expect(result.current.error).toBe('The confirmation request expired. The action was not run.');
+        });
     });
 });

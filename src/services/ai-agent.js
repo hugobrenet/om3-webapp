@@ -11,8 +11,16 @@ const EVENT_TYPES = new Set([
     'tool_finished',
     'usage',
     'completed',
+    'confirmation_required',
     'error',
 ]);
+const DECISIONS = new Set(['approve', 'reject']);
+// A confirmation decision answers 409 when the action no longer waits and 410
+// when its request expired, not when the conversation is busy or expired.
+const CONFIRMATION_HTTP_MESSAGES = {
+    409: 'This action no longer waits for a decision.',
+    410: 'The confirmation request expired. The action was not run.',
+};
 const HTTP_MESSAGES = {
     401: 'Authentication required. Renew your session before trying again.',
     403: 'Access denied to the agent or target cluster.',
@@ -132,6 +140,45 @@ const readMessagePage = async (response, signal, limit, before) => {
     }
 };
 
+const MAX_CONFIRMATION_ARGUMENTS_BYTES = 256 * 1024;
+const confirmationIdPattern = /^[A-Za-z0-9_.~-]{1,128}$/;
+
+// Validate a tool call waiting for the decision of the user: the card shows
+// these fields only, never the model text describing the action.
+export const parseConfirmation = (value) => {
+    if (
+        !value ||
+        typeof value !== 'object' ||
+        typeof value.id !== 'string' ||
+        !confirmationIdPattern.test(value.id) ||
+        typeof value.turn_id !== 'string' ||
+        !confirmationIdPattern.test(value.turn_id) ||
+        !value.tool ||
+        typeof value.tool.name !== 'string' ||
+        !/^[A-Za-z0-9_.-]{1,128}$/.test(value.tool.name) ||
+        typeof value.tool.title !== 'string' ||
+        value.tool.title.length > 256 ||
+        typeof value.tool.destructive !== 'boolean' ||
+        !value.arguments ||
+        typeof value.arguments !== 'object' ||
+        Array.isArray(value.arguments) ||
+        new TextEncoder().encode(JSON.stringify(value.arguments)).length > MAX_CONFIRMATION_ARGUMENTS_BYTES ||
+        typeof value.expires_at !== 'string' ||
+        value.expires_at.length > 64 ||
+        !Number.isFinite(Date.parse(value.expires_at))
+    )
+        throw protocolError();
+    return {
+        id: value.id,
+        turn_id: value.turn_id,
+        tool: {name: value.tool.name, title: value.tool.title || value.tool.name, destructive: value.tool.destructive},
+        arguments: value.arguments,
+        expires_at: value.expires_at,
+    };
+};
+
+// A turn ends with completed, or with confirmation_required when a tool call
+// waits for the decision of the user.
 const readTurn = async (response, signal, onEvent) => {
     // EventSource cannot POST or set Bearer headers; use fetch and a streaming reader.
     if (
@@ -173,10 +220,13 @@ const readTurn = async (response, signal, onEvent) => {
                 // Do not surface arbitrary upstream error messages (which may contain secrets).
                 throw new AiAgentError('turn_failed', 'The AI turn failed. It was not retried.');
             }
+            if (event.type === 'confirmation_required') {
+                event = {...event, confirmation: parseConfirmation(event.confirmation)};
+            }
             checkAborted(signal);
             onEvent?.(event);
             checkAborted(signal);
-            return event.type === 'completed' ? event : null;
+            return ['completed', 'confirmation_required'].includes(event.type) ? event : null;
         }
         if (line.startsWith(':')) return null;
         const separator = line.indexOf(':');
@@ -247,7 +297,7 @@ export const createAiAgentClient = ({baseUrl, getCredentials}) => {
     if (!origin) throw new AiAgentError('disabled', 'The AI agent is not configured.');
     const requests = new Set();
 
-    const request = async (path, options, consume, signal) => {
+    const request = async (path, options, consume, signal, httpMessages = HTTP_MESSAGES) => {
         const {accessToken, clusterId} = getCredentials() || {};
         if (
             typeof accessToken !== 'string' ||
@@ -293,7 +343,7 @@ export const createAiAgentClient = ({baseUrl, getCredentials}) => {
                 await response.body?.cancel().catch(() => {});
                 throw new AiAgentError(
                     'http_error',
-                    HTTP_MESSAGES[response.status] || 'AI agent request failed.',
+                    httpMessages[response.status] || HTTP_MESSAGES[response.status] || 'AI agent request failed.',
                     response.status
                 );
             }
@@ -343,6 +393,31 @@ export const createAiAgentClient = ({baseUrl, getCredentials}) => {
             jsonRequest('/v1/conversations', 'GET', 'conversations', options),
         getConversation: (id, options) =>
             jsonRequest(conversationPath(id), 'GET', 'conversation', options),
+        // The conversation with the tool call it waits on, if any.
+        getConversationState: (id, {signal} = {}) =>
+            request(
+                conversationPath(id),
+                {method: 'GET', headers: {Accept: 'application/json'}},
+                async (response, requestSignal) => {
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch {
+                        checkAborted(requestSignal);
+                        throw protocolError();
+                    }
+                    checkAborted(requestSignal);
+                    if (!result?.conversation || typeof result.conversation.id !== 'string') throw protocolError();
+                    return {
+                        conversation: result.conversation,
+                        confirmation:
+                            result.pending_confirmation === undefined
+                                ? null
+                                : parseConfirmation(result.pending_confirmation),
+                    };
+                },
+                signal
+            ),
         getMessages: (id, {limit = 50, before = '', signal} = {}) => {
             const path = conversationPath(id);
             if (
@@ -418,6 +493,31 @@ export const createAiAgentClient = ({baseUrl, getCredentials}) => {
                 },
                 (response, requestSignal) => readTurn(response, requestSignal, onEvent),
                 signal
+            );
+        },
+        // Answer the confirmation a turn waits on. The decision applies to the
+        // stored call; the response streams the rest of the turn.
+        confirmTurn: (id, turnId, confirmationId, decision, {signal, onEvent} = {}) => {
+            const path = conversationPath(id);
+            if (
+                typeof turnId !== 'string' ||
+                !confirmationIdPattern.test(turnId) ||
+                typeof confirmationId !== 'string' ||
+                !confirmationIdPattern.test(confirmationId) ||
+                !DECISIONS.has(decision)
+            ) {
+                throw new AiAgentError('invalid_confirmation', 'A valid confirmation and decision are required.');
+            }
+            return request(
+                `${path}/turns/${encodeURIComponent(turnId)}/confirmation`,
+                {
+                    method: 'POST',
+                    headers: {Accept: 'text/event-stream', 'Content-Type': 'application/json'},
+                    body: JSON.stringify({confirmation_id: confirmationId, decision}),
+                },
+                (response, requestSignal) => readTurn(response, requestSignal, onEvent),
+                signal,
+                CONFIRMATION_HTTP_MESSAGES
             );
         },
         cancelAll: () => {

@@ -12,11 +12,45 @@ const emptyState = (scope) => ({
     pending: '',
     error: '',
     notice: '',
+    // The tool call the current conversation waits on, as the agent sent it.
+    confirmation: null,
 });
 const errorMessage = (error) =>
     error instanceof AiAgentError ? error.message : 'The AI request failed. It was not retried.';
 const historyMessages = (messages) =>
     messages.map((message) => ({...message, status: 'completed', tools: [], usage: null}));
+
+// Apply one turn event to the assistant message it belongs to.
+const applyTurnEvent = (message, event, toolId) => {
+    const toolName = typeof event.tool_name === 'string' ? event.tool_name : 'Tool';
+    switch (event.type) {
+        case 'text_delta':
+            return typeof event.text_delta === 'string'
+                ? {...message, text: message.text + event.text_delta}
+                : message;
+        case 'tool_started':
+            return {...message, tools: [...message.tools, {id: toolId, name: toolName, status: 'running'}]};
+        case 'tool_finished': {
+            const index = message.tools.findIndex(
+                (tool) => tool.name === toolName && tool.status === 'running'
+            );
+            return {
+                ...message,
+                tools: message.tools.map((tool, i) =>
+                    i === index ? {...tool, status: event.tool_error ? 'failed' : 'completed'} : tool
+                ),
+            };
+        }
+        case 'usage':
+            return {...message, usage: event.usage};
+        case 'completed':
+            return {...message, status: 'completed'};
+        case 'confirmation_required':
+            return {...message, status: 'awaiting_confirmation'};
+        default:
+            return message;
+    }
+};
 
 // Only metadata is loaded automatically. Creation and turns require explicit user actions.
 const useAiChat = ({client, ready, scope}) => {
@@ -119,6 +153,7 @@ const useAiChat = ({client, ready, scope}) => {
                 resumed: false,
                 historyReady: true,
                 historyCursor: '',
+                confirmation: null,
             }));
             return conversation;
         });
@@ -133,8 +168,9 @@ const useAiChat = ({client, ready, scope}) => {
                 resumed: false,
                 historyReady: false,
                 historyCursor: '',
+                confirmation: null,
             }));
-            const conversation = await client.getConversation(id, {signal});
+            const {conversation, confirmation} = await client.getConversationState(id, {signal});
             if (signal.aborted) return;
             const page = await client.getMessages(id, {signal});
             update((previous) => ({
@@ -144,6 +180,8 @@ const useAiChat = ({client, ready, scope}) => {
                 resumed: true,
                 historyReady: true,
                 historyCursor: page.next_cursor,
+                // A confirmation left waiting is shown again after a reload.
+                confirmation: confirmation ? {...confirmation, conversationId: conversation.id, assistantId: null} : null,
             }));
             return conversation;
         });
@@ -207,13 +245,62 @@ const useAiChat = ({client, ready, scope}) => {
                 conversations: previous.conversations.filter((item) => item.id !== id),
                 historyReady: true,
                 historyCursor: '',
+                confirmation: null,
             }));
             return true;
         });
     };
 
+    const turnEvents = (assistantId, update) => (event) => {
+        const toolId = event.type === 'tool_started' ? ++nextId.current : null;
+        update((previous) => ({
+            ...previous,
+            messages: previous.messages.map((message) =>
+                message.id === assistantId ? applyTurnEvent(message, event, toolId) : message
+            ),
+        }));
+    };
+
+    const awaitConfirmation = (confirmation, conversationId, assistantId, update) =>
+        update((previous) => ({...previous, confirmation: {...confirmation, conversationId, assistantId}}));
+
+    // Answer the tool call the conversation waits on, then stream the rest of
+    // the turn into the assistant message, or a new one after a reload.
+    const decide = (decision) => {
+        const confirmation = state.scope === scope ? state.confirmation : null;
+        if (!confirmation || !['approve', 'reject'].includes(decision)) return;
+        return perform('confirming', async ({signal, update}) => {
+            let assistantId = confirmation.assistantId;
+            const exists = state.messages.some((message) => message.id === assistantId);
+            if (!exists) assistantId = ++nextId.current;
+            update((previous) => ({
+                ...previous,
+                confirmation: null,
+                messages: exists
+                    ? previous.messages.map((message) =>
+                          message.id === assistantId ? {...message, status: 'running'} : message
+                      )
+                    : [
+                          ...previous.messages,
+                          {id: assistantId, role: 'assistant', text: '', tools: [], status: 'running', usage: null},
+                      ],
+            }));
+            const result = await client.confirmTurn(
+                confirmation.conversationId,
+                confirmation.turn_id,
+                confirmation.id,
+                decision,
+                {signal, onEvent: turnEvents(assistantId, update)}
+            );
+            if (result?.type === 'confirmation_required') {
+                awaitConfirmation(result.confirmation, confirmation.conversationId, assistantId, update);
+            }
+            return true;
+        });
+    };
+
     const send = (prompt) => {
-        if (!state.historyReady || typeof prompt !== 'string' || !prompt.trim()) return;
+        if (!state.historyReady || state.confirmation || typeof prompt !== 'string' || !prompt.trim()) return;
         return perform('turn', async ({signal, update}) => {
             const userId = ++nextId.current;
             const assistantId = ++nextId.current;
@@ -244,58 +331,14 @@ const useAiChat = ({client, ready, scope}) => {
                 }));
             }
             if (signal.aborted) return;
-            await client.sendTurn(conversation.id, prompt, {
+            const result = await client.sendTurn(conversation.id, prompt, {
                 signal,
-                onEvent: (event) => {
-                    const toolId = event.type === 'tool_started' ? ++nextId.current : null;
-                    const toolName = typeof event.tool_name === 'string' ? event.tool_name : 'Tool';
-                    update((previous) => ({
-                        ...previous,
-                        messages: previous.messages.map((message) => {
-                            if (message.id !== assistantId) return message;
-                            switch (event.type) {
-                                case 'text_delta':
-                                    return typeof event.text_delta === 'string'
-                                        ? {...message, text: message.text + event.text_delta}
-                                        : message;
-                                case 'tool_started':
-                                    return {
-                                        ...message,
-                                        tools: [
-                                            ...message.tools,
-                                            {id: toolId, name: toolName, status: 'running'},
-                                        ],
-                                    };
-                                case 'tool_finished': {
-                                    const index = message.tools.findIndex(
-                                        (tool) =>
-                                            tool.name === toolName && tool.status === 'running'
-                                    );
-                                    return {
-                                        ...message,
-                                        tools: message.tools.map((tool, i) =>
-                                            i === index
-                                                ? {
-                                                      ...tool,
-                                                      status: event.tool_error
-                                                          ? 'failed'
-                                                          : 'completed',
-                                                  }
-                                                : tool
-                                        ),
-                                    };
-                                }
-                                case 'usage':
-                                    return {...message, usage: event.usage};
-                                case 'completed':
-                                    return {...message, status: 'completed'};
-                                default:
-                                    return message;
-                            }
-                        }),
-                    }));
-                },
+                onEvent: turnEvents(assistantId, update),
             });
+            if (result?.type === 'confirmation_required') {
+                awaitConfirmation(result.confirmation, conversation.id, assistantId, update);
+                return true;
+            }
             // The agent titles a conversation after its first completed turn: read
             // it back, so the list does not keep an untitled entry.
             if (!conversation.title && !signal.aborted) {
@@ -336,6 +379,8 @@ const useAiChat = ({client, ready, scope}) => {
         loadOlderMessages,
         send,
         stop,
+        approve: () => decide('approve'),
+        reject: () => decide('reject'),
     };
 };
 

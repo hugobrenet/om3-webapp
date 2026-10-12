@@ -9,7 +9,7 @@ import {Button} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
 import {Field, Input, Textarea} from "../ui/components/Field";
 import {Spinner} from "../ui/components/Spinner";
-import {ChatIcon, PencilIcon, PlusIcon, SendIcon, StopIcon, TrashIcon} from "../ui/icons";
+import {AlertTriangleIcon, ChatIcon, PencilIcon, PlusIcon, SendIcon, StopIcon, TrashIcon} from "../ui/icons";
 import {cn} from "../ui/cn";
 
 const PANEL = "flex min-w-0 flex-col rounded-(--radius-panel) border border-line bg-surface-raised";
@@ -38,6 +38,9 @@ function Message({message}) {
                 </ul>
             )}
             {message.status === "running" && <Spinner label="Working…" className="mt-1 text-data"/>}
+            {message.status === "awaiting_confirmation" && (
+                <p className="mt-1 text-data text-state-warn">Waiting for your decision on the action below.</p>
+            )}
             {["stopped", "failed"].includes(message.status) && (
                 <p className="mt-1 text-data text-state-warn">
                     Incomplete response — {message.status}. No automatic retry.
@@ -47,6 +50,54 @@ function Message({message}) {
                 <p className="mt-1 text-data text-ink-muted">Tokens: {message.usage.total_tokens}</p>
             )}
         </li>
+    );
+}
+
+/** One argument of the call, its value as JSON when it is not a plain string. */
+const argumentValue = (value) => (typeof value === "string" ? value : JSON.stringify(value));
+
+/**
+ * The tool call waiting for the decision of the user. It shows the call as the
+ * agent stored it, the one that runs if approved, never the model text.
+ */
+function ConfirmationCard({confirmation, busy, onApprove, onReject}) {
+    const expires = new Date(confirmation.expires_at).toLocaleTimeString();
+    const entries = Object.entries(confirmation.arguments);
+    return (
+        <section
+            aria-label="Action waiting for confirmation"
+            className="mx-3 mb-2 space-y-2 rounded-(--radius-control) border border-state-warn bg-state-warn-soft p-3"
+        >
+            <p className="flex items-center gap-2 font-semibold text-state-warn">
+                <AlertTriangleIcon width={16} height={16}/>
+                {confirmation.tool.destructive ? "Destructive action to confirm" : "Action to confirm"}
+            </p>
+            <p className="[overflow-wrap:anywhere]">
+                <span className="font-medium">{confirmation.tool.title}</span>{" "}
+                <code className="text-data text-ink-muted">{confirmation.tool.name}</code>
+            </p>
+            {entries.length > 0 ? (
+                <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-data">
+                    {entries.map(([name, value]) => (
+                        <div key={name} className="contents">
+                            <dt className="font-medium">{name}</dt>
+                            <dd className="[overflow-wrap:anywhere]"><code>{argumentValue(value)}</code></dd>
+                        </div>
+                    ))}
+                </dl>
+            ) : (
+                <p className="text-data text-ink-muted">No arguments.</p>
+            )}
+            <p className="text-data text-ink-muted">Expires at {expires}. Nothing runs without your approval.</p>
+            <div className="flex justify-end gap-2">
+                <Button disabled={busy} onClick={onReject}>
+                    Reject
+                </Button>
+                <Button variant={confirmation.tool.destructive ? "danger" : "primary"} disabled={busy} onClick={onApprove}>
+                    Approve
+                </Button>
+            </div>
+        </section>
     );
 }
 
@@ -63,7 +114,8 @@ const AiChat = () => {
     const transcript = useRef(null);
     const scrollAnchor = useRef(null);
     const busy = Boolean(chat.pending);
-    const turning = chat.pending === "turn";
+    const turning = chat.pending === "turn" || chat.pending === "confirming";
+    const waiting = Boolean(chat.confirmation);
     const promptTooLarge = new TextEncoder().encode(draft).length > 32 * 1024;
 
     useEffect(() => {
@@ -103,7 +155,7 @@ const AiChat = () => {
 
     const submit = (event) => {
         event.preventDefault();
-        if (!ready || !chat.historyReady || busy || !draft.trim() || promptTooLarge) return;
+        if (!ready || !chat.historyReady || busy || waiting || !draft.trim() || promptTooLarge) return;
         const prompt = draft;
         setDraft("");
         void chat.send(prompt);
@@ -244,12 +296,26 @@ const AiChat = () => {
                                 ))}
                             </ul>
                         </div>
+                        {chat.confirmation && (
+                            <ConfirmationCard
+                                confirmation={chat.confirmation}
+                                busy={busy}
+                                onApprove={() => void chat.approve()}
+                                onReject={() => void chat.reject()}
+                            />
+                        )}
                         {chat.error && <Alert className="mx-3 mb-2">{chat.error}</Alert>}
                         {chat.notice && <Alert tone="info" className="mx-3 mb-2">{chat.notice}</Alert>}
                         <form onSubmit={submit} className="space-y-2 border-t border-line p-3">
                             <Field
                                 label="Message"
-                                hint={promptTooLarge ? undefined : "Enter to send; Shift+Enter for a new line. Uses your current cluster permissions."}
+                                hint={
+                                    promptTooLarge
+                                        ? undefined
+                                        : waiting
+                                            ? "Approve or reject the action above before sending a new message."
+                                            : "Enter to send; Shift+Enter for a new line. Uses your current cluster permissions."
+                                }
                                 error={promptTooLarge ? "The prompt must not exceed 32 KiB." : undefined}
                             >
                                 {(control) => (
@@ -258,7 +324,7 @@ const AiChat = () => {
                                         rows={3}
                                         className="max-h-48 resize-y"
                                         value={draft}
-                                        disabled={busy || !chat.historyReady}
+                                        disabled={busy || waiting || !chat.historyReady}
                                         onChange={(event) => setDraft(event.target.value)}
                                         onKeyDown={(event) => {
                                             if (
@@ -284,7 +350,7 @@ const AiChat = () => {
                                     type="submit"
                                     variant="primary"
                                     icon={<SendIcon/>}
-                                    disabled={busy || !chat.historyReady || !draft.trim() || promptTooLarge}
+                                    disabled={busy || waiting || !chat.historyReady || !draft.trim() || promptTooLarge}
                                 >
                                     Send
                                 </Button>
