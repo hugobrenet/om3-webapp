@@ -46,11 +46,13 @@ const protocolError = () =>
 const checkAborted = (signal) => {
     if (signal.aborted) throw new DOMException('Request canceled.', 'AbortError');
 };
+// The agent serves each backend under its own routes; the webapp talks to om3.
+const CONVERSATIONS_PATH = '/v1/om3/conversations';
 const conversationPath = (id) => {
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) {
         throw new AiAgentError('invalid_conversation', 'A valid conversation ID is required.');
     }
-    return `/v1/conversations/${encodeURIComponent(id)}`;
+    return `${CONVERSATIONS_PATH}/${encodeURIComponent(id)}`;
 };
 
 const validHistoryCursor = (cursor) =>
@@ -388,9 +390,9 @@ export const createAiAgentClient = ({baseUrl, getCredentials}) => {
 
     return {
         createConversation: (options) =>
-            jsonRequest('/v1/conversations', 'POST', 'conversation', options),
+            jsonRequest(CONVERSATIONS_PATH, 'POST', 'conversation', options),
         listConversations: (options) =>
-            jsonRequest('/v1/conversations', 'GET', 'conversations', options),
+            jsonRequest(CONVERSATIONS_PATH, 'GET', 'conversations', options),
         getConversation: (id, options) =>
             jsonRequest(conversationPath(id), 'GET', 'conversation', options),
         // The conversation with the tool call it waits on, if any.
