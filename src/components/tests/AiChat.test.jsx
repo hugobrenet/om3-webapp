@@ -48,6 +48,11 @@ describe('AI chatbot page', () => {
             listConversations: vi.fn().mockResolvedValue([existing]),
             createConversation: vi.fn().mockResolvedValue(created),
             getConversation: vi.fn().mockResolvedValue(existing),
+            getConversationState: vi.fn(async (id, options) => ({
+                conversation: await mocks.client.getConversation(id, options),
+                confirmation: null,
+            })),
+            confirmTurn: vi.fn(),
             getMessages: vi.fn().mockResolvedValue({messages: [], next_cursor: ''}),
             renameConversation: vi.fn().mockResolvedValue({...created, title: 'Renamed'}),
             deleteConversation: vi.fn().mockResolvedValue(undefined),
@@ -368,4 +373,41 @@ describe('AI chatbot page', () => {
             expect(mocks.client.sendTurn).not.toHaveBeenCalled();
         }
     );
+
+    describe('action confirmation', () => {
+        const confirmation = {
+            id: 'confirmation-1',
+            turn_id: 'turn-1',
+            tool: {name: 'stop_object', title: 'Stop object', destructive: true},
+            arguments: {path: 'prod/svc/web'},
+            expires_at: '2026-10-09T17:45:00Z',
+        };
+        test('shows the exact call to confirm and sends the decision', async () => {
+            mocks.client.sendTurn = vi.fn(async (_id, _prompt, {onEvent}) => {
+                const event = {type: 'confirmation_required', confirmation};
+                onEvent({type: 'text_delta', text_delta: 'I will only freeze it.'});
+                onEvent(event);
+                return event;
+            });
+            mocks.client.confirmTurn = vi.fn(async (_id, _turn, _confirmation, _decision, {onEvent}) => {
+                onEvent({type: 'completed'});
+                return {type: 'completed'};
+            });
+            await renderReady();
+            await submit('stop web');
+            const card = await screen.findByRole('region', {name: 'Action waiting for confirmation'});
+            expect(within(card).getByText('Destructive action to confirm')).toBeInTheDocument();
+            expect(within(card).getByText('Stop object')).toBeInTheDocument();
+            expect(within(card).getByText('stop_object')).toBeInTheDocument();
+            expect(within(card).getByText('prod/svc/web')).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Send'})).toBeDisabled();
+            fireEvent.click(within(card).getByRole('button', {name: 'Approve'}));
+            await waitFor(() =>
+                expect(mocks.client.confirmTurn).toHaveBeenCalledWith('new', 'turn-1', 'confirmation-1', 'approve', expect.anything())
+            );
+            await waitFor(() =>
+                expect(screen.queryByRole('region', {name: 'Action waiting for confirmation'})).not.toBeInTheDocument()
+            );
+        });
+    });
 });
