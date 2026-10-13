@@ -15,6 +15,12 @@ const EVENT_TYPES = new Set([
     'error',
 ]);
 const DECISIONS = new Set(['approve', 'reject']);
+// The turn error codes the webapp explains. The agent message is never shown:
+// any other code gets the generic failure message.
+const TURN_ERROR_MESSAGES = {
+    tool_call_limit:
+        'This question needs more tools at once than the agent runs. Ask a narrower question. It was not retried.',
+};
 // A confirmation decision answers 409 when the action no longer waits and 410
 // when its request expired, not when the conversation is busy or expired.
 const CONFIRMATION_HTTP_MESSAGES = {
@@ -219,7 +225,11 @@ const readTurn = async (response, signal, onEvent) => {
                 throw protocolError();
             eventName = '';
             if (event.type === 'error') {
-                // Do not surface arbitrary upstream error messages (which may contain secrets).
+                // Do not surface arbitrary upstream error messages (which may contain secrets):
+                // only a known code selects a message of the webapp.
+                if (Object.hasOwn(TURN_ERROR_MESSAGES, event.code)) {
+                    throw new AiAgentError(event.code, TURN_ERROR_MESSAGES[event.code]);
+                }
                 throw new AiAgentError('turn_failed', 'The AI turn failed. It was not retried.');
             }
             if (event.type === 'confirmation_required') {
