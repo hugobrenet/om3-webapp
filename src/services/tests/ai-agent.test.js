@@ -429,9 +429,20 @@ describe('AI agent conversations client', () => {
         ['event: text_delta\ndata: invalid-secret\n\n', 'invalid_response'],
         ['event: completed\ndata: {"type":"text_delta"}\n\n', 'invalid_response'],
         [frame('error', {code: 'agent_failed', message: 'secret upstream'}), 'turn_failed'],
+        [frame('error', {code: 'toString', message: 'secret upstream'}), 'turn_failed'],
     ])('rejects incomplete or invalid streams without retrying', async (input, code) => {
         fetchMock.mockResolvedValue(streamResponse([input]));
         await expect(client.sendTurn(metadata.id, 'hello')).rejects.toMatchObject({code});
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    it('explains the tool call limit with its own message, never the agent one', async () => {
+        fetchMock.mockResolvedValue(
+            streamResponse([frame('error', {code: 'tool_call_limit', message: 'secret upstream'})])
+        );
+        const error = await client.sendTurn(metadata.id, 'hello').catch((error) => error);
+        expect(error).toMatchObject({code: 'tool_call_limit'});
+        expect(error.message).toContain('Ask a narrower question');
+        expect(error.message).not.toContain('secret');
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
     it('rejects oversized streams', async () => {
