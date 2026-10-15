@@ -14,11 +14,22 @@ const emptyState = (scope) => ({
     notice: '',
     // The tool call the current conversation waits on, as the agent sent it.
     confirmation: null,
+    // The feedback of the user per turn ID: {feedback, pending, error}.
+    ratings: {},
 });
 const errorMessage = (error) =>
     error instanceof AiAgentError ? error.message : 'The AI request failed. It was not retried.';
 const historyMessages = (messages) =>
-    messages.map((message) => ({...message, status: 'completed', tools: [], usage: null}));
+    messages.map(({feedback, ...message}) => ({...message, status: 'completed', tools: [], usage: null}));
+// The feedback the agent returned with the messages, per turn, without
+// replacing what the user changed since.
+const historyRatings = (messages, ratings = {}) => {
+    const result = {...ratings};
+    for (const message of messages)
+        if (message.feedback && !result[message.turn_id])
+            result[message.turn_id] = {feedback: message.feedback, pending: false, error: ''};
+    return result;
+};
 
 // Apply one turn event to the assistant message it belongs to.
 const applyTurnEvent = (message, event, toolId) => {
@@ -44,7 +55,8 @@ const applyTurnEvent = (message, event, toolId) => {
         case 'usage':
             return {...message, usage: event.usage};
         case 'completed':
-            return {...message, status: 'completed'};
+            // The agent names the stored turn, for its answer to be rated.
+            return {...message, status: 'completed', turn_id: event.turn_id || message.turn_id};
         case 'confirmation_required':
             return {...message, status: 'awaiting_confirmation'};
         default:
@@ -58,6 +70,8 @@ const useAiChat = ({client, ready, scope}) => {
     const epoch = useRef(0);
     const active = useRef(null);
     const nextId = useRef(0);
+    // Feedback requests run beside turns and are canceled with the scope.
+    const feedbackRequests = useRef(new Set());
 
     const perform = useCallback(
         async (kind, action) => {
@@ -139,6 +153,8 @@ const useAiChat = ({client, ready, scope}) => {
             epoch.current++;
             active.current?.controller.abort();
             active.current = null;
+            for (const controller of feedbackRequests.current) controller.abort();
+            feedbackRequests.current.clear();
         };
     }, [ready, scope, refreshConversations]);
 
@@ -154,6 +170,7 @@ const useAiChat = ({client, ready, scope}) => {
                 historyReady: true,
                 historyCursor: '',
                 confirmation: null,
+                ratings: {},
             }));
             return conversation;
         });
@@ -169,6 +186,7 @@ const useAiChat = ({client, ready, scope}) => {
                 historyReady: false,
                 historyCursor: '',
                 confirmation: null,
+                ratings: {},
             }));
             const {conversation, confirmation} = await client.getConversationState(id, {signal});
             if (signal.aborted) return;
@@ -177,6 +195,7 @@ const useAiChat = ({client, ready, scope}) => {
                 ...previous,
                 conversation,
                 messages: historyMessages(page.messages),
+                ratings: historyRatings(page.messages),
                 resumed: true,
                 historyReady: true,
                 historyCursor: page.next_cursor,
@@ -209,6 +228,7 @@ const useAiChat = ({client, ready, scope}) => {
                         ...previous.messages,
                     ],
                     historyCursor: page.next_cursor,
+                    ratings: historyRatings(page.messages, previous.ratings),
                 };
             });
             return true;
@@ -246,9 +266,40 @@ const useAiChat = ({client, ready, scope}) => {
                 historyReady: true,
                 historyCursor: '',
                 confirmation: null,
+                ratings: {},
             }));
             return true;
         });
+    };
+
+    // Give, replace (feedback) or withdraw (null) the feedback of the user on
+    // the turn of an answer of the current conversation.
+    const rateTurn = async (turnId, feedback) => {
+        const conversationId = state.scope === scope ? state.conversation?.id : null;
+        if (!ready || !client || !conversationId || typeof turnId !== 'string' || state.ratings[turnId]?.pending) return false;
+        const requestEpoch = epoch.current;
+        const controller = new AbortController();
+        feedbackRequests.current.add(controller);
+        const setRating = (change) =>
+            setState((previous) =>
+                previous.scope === scope && previous.conversation?.id === conversationId && epoch.current === requestEpoch
+                    ? {...previous, ratings: {...previous.ratings, [turnId]: change(previous.ratings[turnId])}}
+                    : previous
+            );
+        setRating((rating) => ({feedback: rating?.feedback || null, pending: true, error: ''}));
+        try {
+            const stored = feedback
+                ? await client.setFeedback(conversationId, turnId, feedback, {signal: controller.signal})
+                : (await client.deleteFeedback(conversationId, turnId, {signal: controller.signal}), null);
+            setRating(() => ({feedback: stored, pending: false, error: ''}));
+            return true;
+        } catch (error) {
+            if (!controller.signal.aborted && error?.name !== 'AbortError')
+                setRating((rating) => ({feedback: rating?.feedback || null, pending: false, error: errorMessage(error)}));
+            return false;
+        } finally {
+            feedbackRequests.current.delete(controller);
+        }
     };
 
     const turnEvents = (assistantId, update) => (event) => {
@@ -381,6 +432,8 @@ const useAiChat = ({client, ready, scope}) => {
         stop,
         approve: () => decide('approve'),
         reject: () => decide('reject'),
+        rate: (turnId, feedback) => rateTurn(turnId, feedback),
+        unrate: (turnId) => rateTurn(turnId, null),
     };
 };
 

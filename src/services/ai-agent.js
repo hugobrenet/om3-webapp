@@ -15,6 +15,20 @@ const EVENT_TYPES = new Set([
     'error',
 ]);
 const DECISIONS = new Set(['approve', 'reject']);
+// The reasons of a negative feedback, in the order the agent keeps them.
+export const FEEDBACK_REASONS = [
+    'not_answered',
+    'missing_information',
+    'incorrect_or_outdated',
+    'hard_to_understand',
+    'action_not_done',
+];
+export const MAX_FEEDBACK_EXPECTED_CHARACTERS = 1000;
+const FEEDBACK_HTTP_MESSAGES = {
+    400: 'The feedback is invalid.',
+    404: 'This answer can no longer be rated.',
+    409: 'The agent keeps no more feedback for now.',
+};
 // The turn error codes the webapp explains. The agent message is never shown:
 // any other code gets the generic failure message.
 const TURN_ERROR_MESSAGES = {
@@ -128,6 +142,9 @@ const readMessagePage = async (response, signal, limit, before) => {
                 !Number.isFinite(Date.parse(message.created_at))
             )
                 throw protocolError();
+            // Only an assistant message carries the feedback of its turn.
+            const feedback = message.feedback === undefined ? undefined : parseFeedback(message.feedback);
+            if (feedback === null || (feedback && message.role !== 'assistant')) throw protocolError();
             ids.add(message.id);
             return {
                 id: message.id,
@@ -135,6 +152,7 @@ const readMessagePage = async (response, signal, limit, before) => {
                 role: message.role,
                 text: message.text,
                 created_at: message.created_at,
+                ...(feedback ? {feedback} : {}),
             };
         });
         return {messages, next_cursor: page.next_cursor};
@@ -146,6 +164,39 @@ const readMessagePage = async (response, signal, limit, before) => {
         await reader.cancel().catch(() => {});
         reader.releaseLock();
     }
+};
+
+const turnIdPattern = /^[A-Za-z0-9_.~-]{1,128}$/;
+
+// Validate and normalize a feedback: a rating, the reasons of a negative one
+// and what the user expected, as the agent accepts and returns them.
+export const parseFeedback = (value) => {
+    if (
+        !value ||
+        typeof value !== 'object' ||
+        !['up', 'down'].includes(value.rating) ||
+        (value.reasons !== undefined && !Array.isArray(value.reasons)) ||
+        (value.expected !== undefined && typeof value.expected !== 'string')
+    )
+        return null;
+    const reasons = value.reasons || [];
+    if (
+        (value.rating === 'up' && reasons.length) ||
+        reasons.some((reason) => !FEEDBACK_REASONS.includes(reason)) ||
+        new Set(reasons).size !== reasons.length
+    )
+        return null;
+    const expected = (value.expected || '').trim();
+    if (
+        Array.from(expected).length > MAX_FEEDBACK_EXPECTED_CHARACTERS ||
+        /[\x00-\x08\x0b-\x1f\x7f]/.test(expected)
+    )
+        return null;
+    return {
+        rating: value.rating,
+        reasons: FEEDBACK_REASONS.filter((reason) => reasons.includes(reason)),
+        expected,
+    };
 };
 
 const MAX_CONFIRMATION_ARGUMENTS_BYTES = 256 * 1024;
@@ -235,6 +286,13 @@ const readTurn = async (response, signal, onEvent) => {
             if (event.type === 'confirmation_required') {
                 event = {...event, confirmation: parseConfirmation(event.confirmation)};
             }
+            // A completed turn names the stored turn, to rate its answer.
+            if (
+                event.type === 'completed' &&
+                event.turn_id !== undefined &&
+                (typeof event.turn_id !== 'string' || !turnIdPattern.test(event.turn_id))
+            )
+                throw protocolError();
             checkAborted(signal);
             onEvent?.(event);
             checkAborted(signal);
@@ -530,6 +588,57 @@ export const createAiAgentClient = ({baseUrl, getCredentials}) => {
                 (response, requestSignal) => readTurn(response, requestSignal, onEvent),
                 signal,
                 CONFIRMATION_HTTP_MESSAGES
+            );
+        },
+        // Give or replace the feedback of the user on a completed turn.
+        setFeedback: (id, turnId, feedback, {signal} = {}) => {
+            const path = conversationPath(id);
+            const normalized = parseFeedback(feedback);
+            if (typeof turnId !== 'string' || !turnIdPattern.test(turnId) || !normalized) {
+                throw new AiAgentError('invalid_feedback', 'A valid answer and feedback are required.');
+            }
+            return request(
+                `${path}/turns/${encodeURIComponent(turnId)}/feedback`,
+                {
+                    method: 'PUT',
+                    headers: {Accept: 'application/json', 'Content-Type': 'application/json'},
+                    body: JSON.stringify(normalized),
+                },
+                async (response, requestSignal) => {
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch {
+                        checkAborted(requestSignal);
+                        throw protocolError();
+                    }
+                    checkAborted(requestSignal);
+                    const stored = parseFeedback(result?.feedback);
+                    if (!stored) throw protocolError();
+                    return stored;
+                },
+                signal,
+                FEEDBACK_HTTP_MESSAGES
+            );
+        },
+        // Withdraw the feedback of the user on a turn.
+        deleteFeedback: (id, turnId, {signal} = {}) => {
+            const path = conversationPath(id);
+            if (typeof turnId !== 'string' || !turnIdPattern.test(turnId)) {
+                throw new AiAgentError('invalid_feedback', 'A valid answer and feedback are required.');
+            }
+            return request(
+                `${path}/turns/${encodeURIComponent(turnId)}/feedback`,
+                {method: 'DELETE', headers: {Accept: 'application/json'}},
+                async (response, requestSignal) => {
+                    checkAborted(requestSignal);
+                    if (response.status !== 204) {
+                        await response.body?.cancel().catch(() => {});
+                        throw protocolError();
+                    }
+                },
+                signal,
+                FEEDBACK_HTTP_MESSAGES
             );
         },
         cancelAll: () => {
