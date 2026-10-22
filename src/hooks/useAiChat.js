@@ -69,9 +69,10 @@ const holding = (message, id) =>
         ? message
         : {...message, messageIds: [...message.messageIds, id], turn_id: message.turn_id || turnOf(id) || undefined};
 
-// Apply one event of a run to the answer it streams. resumedTool names the
-// call a resumed run gives the result of, when the answer does not hold it.
-const applyRunEvent = (message, event, resumedTool) => {
+// Apply one event of a run to the answer it streams. resumed is the call a
+// resumed run gives the result of first: its name, when the answer does not
+// hold it, and the arguments the user edited it with.
+const applyRunEvent = (message, event, resumed) => {
     switch (event.type) {
         case 'TEXT_MESSAGE_START':
             return holding(message, event.messageId);
@@ -88,13 +89,16 @@ const applyRunEvent = (message, event, resumedTool) => {
         }
         case 'TOOL_CALL_RESULT': {
             const status = event.rejected ? 'rejected' : 'completed';
+            // The stream gave the call as the model proposed it: it ran with
+            // the arguments the user edited.
+            const edits = resumed?.editedArgs ? {editedArgs: resumed.editedArgs} : {};
             if (message.tools.some((tool) => tool.id === event.toolCallId))
                 return {
                     ...message,
-                    tools: message.tools.map((tool) => (tool.id === event.toolCallId ? {...tool, status} : tool)),
+                    tools: message.tools.map((tool) => (tool.id === event.toolCallId ? {...tool, status, ...edits} : tool)),
                 };
-            return resumedTool
-                ? {...message, tools: [...message.tools, {id: event.toolCallId, name: resumedTool, status}]}
+            return resumed?.name
+                ? {...message, tools: [...message.tools, {id: event.toolCallId, name: resumed.name, status, ...edits}]}
                 : message;
         }
         default:
@@ -428,18 +432,25 @@ const useAiChat = ({client, ready, scope}) => {
     };
 
     // Stream the events of a run into the answer it belongs to; a snapshot
-    // replaces the thread first.
-    const runEvents = (answerId, update, resumedTool) => (event) =>
-        update((previous) =>
-            event.type === 'MESSAGES_SNAPSHOT'
-                ? applySnapshot(previous, event, answerId)
-                : {
-                      ...previous,
-                      messages: previous.messages.map((message) =>
-                          message.id === answerId ? applyRunEvent(message, event, resumedTool) : message
-                      ),
-                  }
-        );
+    // replaces the thread first. resumed applies to the first result of a
+    // resumed run, the one of the confirmed call.
+    const runEvents = (answerId, update, resumed) => {
+        let pending = resumed;
+        return (event) => {
+            const call = event.type === 'TOOL_CALL_RESULT' ? pending : undefined;
+            if (call) pending = undefined;
+            update((previous) =>
+                event.type === 'MESSAGES_SNAPSHOT'
+                    ? applySnapshot(previous, event, answerId)
+                    : {
+                          ...previous,
+                          messages: previous.messages.map((message) =>
+                              message.id === answerId ? applyRunEvent(message, event, call) : message
+                          ),
+                      }
+            );
+        };
+    };
 
     // End the answer with the result of its run, and show the call it waits
     // on for a decision.
@@ -457,9 +468,11 @@ const useAiChat = ({client, ready, scope}) => {
 
     // Answer the tool call the conversation waits on with a run that resumes
     // it, streamed into the answer of its turn, or a new one after a reload.
-    const decide = (approved) => {
+    // editedArgs, with an approval of an editable call, are the arguments the
+    // user edited, a full replacement of those of the call.
+    const decide = (approved, editedArgs) => {
         const confirmation = state.scope === scope ? state.confirmation : null;
-        if (!confirmation || typeof approved !== 'boolean') return;
+        if (!confirmation || typeof approved !== 'boolean' || (editedArgs !== undefined && (!approved || !confirmation.editable))) return;
         const held = heldMessages(state.messages);
         return perform('confirming', async ({signal, update}) => {
             let answerId = confirmation.assistantId;
@@ -474,11 +487,28 @@ const useAiChat = ({client, ready, scope}) => {
                       )
                     : [...previous.messages, assistantMessage(answerId, {turn_id: confirmation.turn_id})],
             }));
-            const result = await client.run(
-                confirmation.conversationId,
-                {held, resume: {interruptId: confirmation.id, approved}},
-                {signal, onEvent: runEvents(answerId, update, confirmation.tool.name)}
-            );
+            let result;
+            try {
+                result = await client.run(
+                    confirmation.conversationId,
+                    {held, resume: {interruptId: confirmation.id, approved, ...(editedArgs ? {editedArgs} : {})}},
+                    {signal, onEvent: runEvents(answerId, update, {name: confirmation.tool.name, editedArgs})}
+                );
+            } catch (error) {
+                // The agent refused the edit: the action still waits, for the
+                // user to correct the form.
+                if (error?.code === 'invalid_edited_arguments')
+                    update((previous) => ({
+                        ...previous,
+                        confirmation,
+                        messages: exists
+                            ? previous.messages.map((message) =>
+                                  message.id === answerId ? {...message, status: 'awaiting_confirmation'} : message
+                              )
+                            : previous.messages.filter((message) => message.id !== answerId),
+                    }));
+                throw error;
+            }
             finish(result, confirmation.conversationId, answerId, update);
             return true;
         });
@@ -559,7 +589,7 @@ const useAiChat = ({client, ready, scope}) => {
         loadOlderMessages,
         send,
         stop,
-        approve: () => decide(true),
+        approve: (editedArgs) => decide(true, editedArgs),
         reject: () => decide(false),
         rate: (turnId, feedback) => rateTurn(turnId, feedback),
         unrate: (turnId) => rateTurn(turnId, null),

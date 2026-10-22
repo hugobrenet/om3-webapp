@@ -422,6 +422,75 @@ describe('AI chatbot page', () => {
             fireEvent.click(screen.getByRole('button', {name: 'Previous diagnostic'}));
             const card = await screen.findByRole('region', {name: 'Action waiting for confirmation'});
             expect(card.querySelector('pre').textContent).toBe('first\n  second');
+            // A call that takes no edits offers none.
+            expect(within(card).queryByRole('button', {name: 'Edit'})).not.toBeInTheDocument();
+        });
+        test('edits the arguments in a form built from the input schema, and approves with them', async () => {
+            mocks.client.run.mockImplementationOnce(replayRun('confirmation')).mockImplementationOnce(replayRun('resume_edited'));
+            await renderReady();
+            await submit('Start web with /bin/true');
+            const card = await screen.findByRole('region', {name: 'Action waiting for confirmation'});
+            fireEvent.click(within(card).getByRole('button', {name: 'Edit'}));
+            const form = within(card).getByRole('form', {name: 'Arguments of the action'});
+            // The labels and descriptions come from the schema, the values from the call.
+            const path = within(form).getByRole('textbox', {name: /path/});
+            const yaml = within(form).getByRole('textbox', {name: /yaml/});
+            expect(path).toHaveValue('web');
+            expect(path).toHaveAttribute('aria-required', 'true');
+            expect(yaml).toHaveValue('app#1:\n  start: /bin/true\n');
+            expect(yaml).toHaveClass('font-mono');
+            expect(within(form).getByText('application/yaml')).toBeInTheDocument();
+            expect(within(form).getByText('The configuration to apply.')).toBeInTheDocument();
+            expect(within(form).getByRole('checkbox', {name: /wait/})).not.toBeChecked();
+            expect(within(card).getByRole('button', {name: 'Approve'})).toBeEnabled();
+            fireEvent.change(yaml, {target: {value: 'app#1:\n  start: /bin/false\n'}});
+            fireEvent.click(within(card).getByRole('button', {name: 'Approve with my changes'}));
+            await waitFor(() =>
+                expect(mocks.client.run).toHaveBeenLastCalledWith(
+                    'new',
+                    expect.objectContaining({
+                        resume: {
+                            interruptId: 'confirmation-1',
+                            approved: true,
+                            editedArgs: {path: 'web', yaml: 'app#1:\n  start: /bin/false\n'},
+                        },
+                    }),
+                    expect.anything()
+                )
+            );
+            expect(await screen.findByText(/update_object_config — completed\s*\(with your changes\)/)).toBeInTheDocument();
+        });
+        test('checks the form against the schema before sending it, and discards the changes', async () => {
+            mocks.client.getConversationState.mockResolvedValue({
+                conversation: existing,
+                confirmation: {
+                    id: 'confirmation-1',
+                    turn_id: 'turn-1',
+                    tool: {name: 'scale_object', title: 'Scale object', destructive: true},
+                    arguments: {path: 'web', count: 2},
+                    argument_types: {},
+                    editable: true,
+                    input_schema: {
+                        type: 'object',
+                        properties: {path: {type: 'string', minLength: 1}, count: {type: 'integer', minimum: 1}},
+                        required: ['path'],
+                    },
+                    expires_at: '2026-10-09T17:45:00Z',
+                },
+            });
+            await renderReady();
+            fireEvent.click(screen.getByRole('button', {name: 'Previous diagnostic'}));
+            const card = await screen.findByRole('region', {name: 'Action waiting for confirmation'});
+            fireEvent.click(within(card).getByRole('button', {name: 'Edit'}));
+            fireEvent.change(within(card).getByRole('textbox', {name: /count/}), {target: {value: 'many'}});
+            expect(within(card).getByText('A number is required.')).toBeInTheDocument();
+            fireEvent.change(within(card).getByRole('textbox', {name: /count/}), {target: {value: '0'}});
+            expect(within(card).getByText('must be >= 1')).toBeInTheDocument();
+            expect(within(card).getByRole('button', {name: 'Approve with my changes'})).toBeDisabled();
+            fireEvent.click(within(card).getByRole('button', {name: 'Discard changes'}));
+            expect(within(card).getByRole('button', {name: 'Approve'})).toBeEnabled();
+            expect(within(card).getByText('2')).toBeInTheDocument();
+            expect(mocks.client.run).not.toHaveBeenCalled();
         });
     });
 });

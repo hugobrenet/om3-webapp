@@ -34,9 +34,15 @@ describe('AI agent pending confirmation', () => {
     it('reads the confirmation a conversation waits on, with the types of its arguments', async () => {
         expect(await read({...confirmation, argument_types: {yaml: 'application/yaml'}})).toEqual({
             conversation: {id: 'conversation-1'},
-            confirmation: {...confirmation, argument_types: {yaml: 'application/yaml'}},
+            confirmation: {...confirmation, argument_types: {yaml: 'application/yaml'}, editable: false},
         });
         expect((await read(confirmation)).confirmation.argument_types).toEqual({});
+        // An editable call carries the input schema of its tool.
+        const inputSchema = {type: 'object', properties: {path: {type: 'string'}}};
+        expect((await read({...confirmation, editable: true, input_schema: inputSchema})).confirmation).toMatchObject({
+            editable: true,
+            input_schema: inputSchema,
+        });
         fetchMock.mockResolvedValueOnce(Response.json({conversation: {id: 'conversation-1'}}));
         expect(await client.getConversationState('conversation-1')).toEqual({
             conversation: {id: 'conversation-1'},
@@ -52,6 +58,10 @@ describe('AI agent pending confirmation', () => {
         {...confirmation, argument_types: ['yaml']},
         {...confirmation, argument_types: {yaml: 42}},
         {...confirmation, argument_types: {yaml: 'application/yaml\n'}},
+        {...confirmation, editable: 'yes'},
+        {...confirmation, editable: true},
+        {...confirmation, editable: true, input_schema: {type: 'string'}},
+        {...confirmation, editable: true, input_schema: {type: 'object', description: 'x'.repeat(64 * 1024)}},
         {...confirmation, argument_types: Object.fromEntries(Array.from({length: 33}, (_, index) => [`a${index}`, 'text/plain']))},
     ])('rejects a malformed confirmation %#', async (pending) => {
         await expect(read(pending)).rejects.toMatchObject({code: 'invalid_response'});

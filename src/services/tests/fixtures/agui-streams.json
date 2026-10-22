@@ -35,7 +35,7 @@
     },
     "status": 200,
     "contentType": "text/event-stream; charset=utf-8",
-    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:2\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:2\",\"delta\":\"I will apply this configuration.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:2\"}\n\ndata: {\"type\":\"TOOL_CALL_START\",\"timestamp\":1760000000000,\"toolCallId\":\"call-7\",\"toolCallName\":\"update_object_config\",\"parentMessageId\":\"turn-c:2\"}\n\ndata: {\"type\":\"TOOL_CALL_ARGS\",\"timestamp\":1760000000000,\"delta\":\"{\\\"path\\\":\\\"web\\\",\\\"yaml\\\":\\\"app#1:\\\\n  start: /bin/true\\\\n\\\"}\",\"toolCallId\":\"call-7\"}\n\ndata: {\"type\":\"TOOL_CALL_END\",\"timestamp\":1760000000000,\"toolCallId\":\"call-7\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"interrupt\",\"interrupts\":[{\"id\":\"confirmation-1\",\"reason\":\"tool_call\",\"message\":\"Confirm the action Update object config with the arguments of its call.\",\"toolCallId\":\"call-7\",\"responseSchema\":{\"additionalProperties\":false,\"properties\":{\"approved\":{\"type\":\"boolean\"}},\"required\":[\"approved\"],\"type\":\"object\"},\"expiresAt\":\"2026-10-09T17:45:00Z\",\"metadata\":{\"argumentTypes\":{\"yaml\":\"application/yaml\"},\"tool\":{\"destructive\":true,\"name\":\"update_object_config\",\"title\":\"Update object config\"},\"turnId\":\"turn-c\"}}]},\"usage\":[{\"inputTokens\":300,\"outputTokens\":40,\"totalTokens\":340}]}\n\n"
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:2\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:2\",\"delta\":\"I will apply this configuration.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:2\"}\n\ndata: {\"type\":\"TOOL_CALL_START\",\"timestamp\":1760000000000,\"toolCallId\":\"call-7\",\"toolCallName\":\"update_object_config\",\"parentMessageId\":\"turn-c:2\"}\n\ndata: {\"type\":\"TOOL_CALL_ARGS\",\"timestamp\":1760000000000,\"delta\":\"{\\\"path\\\":\\\"web\\\",\\\"yaml\\\":\\\"app#1:\\\\n  start: /bin/true\\\\n\\\"}\",\"toolCallId\":\"call-7\"}\n\ndata: {\"type\":\"TOOL_CALL_END\",\"timestamp\":1760000000000,\"toolCallId\":\"call-7\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"interrupt\",\"interrupts\":[{\"id\":\"confirmation-1\",\"reason\":\"tool_call\",\"message\":\"Confirm the action Update object config with the arguments of its call.\",\"toolCallId\":\"call-7\",\"responseSchema\":{\"additionalProperties\":false,\"properties\":{\"approved\":{\"type\":\"boolean\"},\"editedArgs\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\",\"description\":\"The path of the object.\"},\"yaml\":{\"type\":\"string\",\"contentMediaType\":\"application/yaml\",\"description\":\"The configuration to apply.\"},\"wait\":{\"type\":\"boolean\",\"description\":\"Wait until every live node has it.\"}},\"required\":[\"path\",\"yaml\"],\"additionalProperties\":false}},\"required\":[\"approved\"],\"type\":\"object\"},\"expiresAt\":\"2026-10-09T17:45:00Z\",\"metadata\":{\"argumentTypes\":{\"yaml\":\"application/yaml\"},\"editable\":true,\"tool\":{\"destructive\":true,\"name\":\"update_object_config\",\"title\":\"Update object config\"},\"turnId\":\"turn-c\"}}]},\"usage\":[{\"inputTokens\":300,\"outputTokens\":40,\"totalTokens\":340}]}\n\n"
   },
   {
     "name": "resume_approved",
@@ -186,6 +186,66 @@
     "status": 200,
     "contentType": "text/event-stream; charset=utf-8",
     "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"MESSAGES_SNAPSHOT\",\"timestamp\":1760000000000,\"messages\":[{\"id\":\"u-1\",\"role\":\"user\",\"content\":\"How many nodes?\"},{\"id\":\"turn-1:2\",\"role\":\"assistant\",\"content\":\"Two nodes.\"},{\"id\":\"u-c\",\"role\":\"user\",\"content\":\"Start web with /bin/true\"},{\"id\":\"turn-c:2\",\"role\":\"assistant\",\"content\":\"I will apply this configuration.\",\"toolCalls\":[{\"id\":\"call-7\",\"type\":\"function\",\"function\":{\"name\":\"update_object_config\",\"arguments\":\"{\\\"path\\\":\\\"web\\\",\\\"yaml\\\":\\\"app#1:\\\\n  start: /bin/true\\\\n\\\"}\"}}]}]}\n\ndata: {\"type\":\"TOOL_CALL_RESULT\",\"timestamp\":1760000000000,\"messageId\":\"call-7-result\",\"role\":\"tool\",\"toolCallId\":\"call-7\",\"content\":\"{\\\"rejected\\\":true,\\\"message\\\":\\\"the user rejected this action; it did not run\\\"}\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\",\"delta\":\"I did not apply it.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"success\"},\"result\":{\"turnId\":\"turn-c\"}}\n\n"
+  },
+  {
+    "name": "resume_edited",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-c",
+          "role": "user"
+        },
+        {
+          "id": "turn-c:2",
+          "role": "assistant"
+        }
+      ],
+      "tools": [],
+      "resume": [
+        {
+          "interruptId": "confirmation-1",
+          "status": "resolved",
+          "payload": {
+            "approved": true,
+            "editedArgs": {
+              "path": "web",
+              "yaml": "app#1:\n  start: /bin/false\n"
+            }
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TOOL_CALL_RESULT\",\"timestamp\":1760000000000,\"messageId\":\"call-7-result\",\"role\":\"tool\",\"toolCallId\":\"call-7\",\"content\":\"{\\\"content\\\":[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"The user edited the arguments before approving; the call ran with: {\\\\\\\"path\\\\\\\":\\\\\\\"web\\\\\\\",\\\\\\\"yaml\\\\\\\":\\\\\\\"app#1:\\\\\\\\n  start: /bin/false\\\\\\\\n\\\\\\\"}\\\"},{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"updated\\\"}]}\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\",\"delta\":\"Done: web starts with /bin/false, as you set it.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"success\"},\"result\":{\"turnId\":\"turn-c\"}}\n\n"
+  },
+  {
+    "name": "invalid_edited_arguments",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [],
+      "tools": [],
+      "resume": [
+        {
+          "interruptId": "confirmation-1",
+          "status": "resolved",
+          "payload": {
+            "approved": true,
+            "editedArgs": {
+              "path": "web"
+            }
+          }
+        }
+      ]
+    },
+    "status": 400,
+    "contentType": "application/json",
+    "body": "{\"error\":{\"code\":\"invalid_edited_arguments\",\"message\":\"the edited arguments are invalid: validating root: required: missing properties: [\\\"yaml\\\"]\"}}\n"
   },
   {
     "name": "confirmation_not_pending",
