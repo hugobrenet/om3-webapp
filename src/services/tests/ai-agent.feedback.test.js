@@ -1,5 +1,4 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {ReadableStream} from 'node:stream/web';
 import {AiAgentError, createAiAgentClient, parseFeedback} from '../ai-agent.js';
 
 const baseUrl = 'https://agent.example.com:8090';
@@ -11,18 +10,6 @@ const answer = {
     text: 'Answer',
     created_at: '2026-10-05T12:00:01Z',
 };
-const frame = (type, fields = {}) => `event: ${type}\ndata: ${JSON.stringify({type, ...fields})}\n\n`;
-const streamResponse = (text) =>
-    new Response(
-        new ReadableStream({
-            start(controller) {
-                controller.enqueue(new TextEncoder().encode(text));
-                controller.close();
-            },
-        }),
-        {headers: {'Content-Type': 'text/event-stream'}}
-    );
-
 describe('parseFeedback', () => {
     it('normalizes the reasons order and the expected text', () => {
         expect(
@@ -111,15 +98,5 @@ describe('AI agent feedback client', () => {
         await expect(client.getMessages('conversation-1')).rejects.toMatchObject({code: 'invalid_response'});
         await expect(client.getMessages('conversation-1')).rejects.toMatchObject({code: 'invalid_response'});
         expect((await client.getMessages('conversation-1')).messages[0]).not.toHaveProperty('feedback');
-    });
-    it('passes the turn ID of the completed event and refuses an invalid one', async () => {
-        fetchMock
-            .mockResolvedValueOnce(streamResponse(frame('completed', {finish_reason: 'completed', turn_id: 'turn-9'})))
-            .mockResolvedValueOnce(streamResponse(frame('completed', {turn_id: '../turn'})));
-        const events = [];
-        const result = await client.sendTurn('conversation-1', 'hello', {onEvent: (event) => events.push(event)});
-        expect(result.turn_id).toBe('turn-9');
-        expect(events[0].turn_id).toBe('turn-9');
-        await expect(client.sendTurn('conversation-1', 'hello')).rejects.toMatchObject({code: 'invalid_response'});
     });
 });

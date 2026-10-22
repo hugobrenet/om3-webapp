@@ -33,9 +33,11 @@ describe('AI chatbot feedback', () => {
                 ],
                 next_cursor: '',
             }),
-            sendTurn: vi.fn(async (_id, _prompt, {onEvent}) => {
-                onEvent({type: 'text_delta', text_delta: 'Streamed answer.'});
-                onEvent({type: 'completed', turn_id: 'turn-live'});
+            newId: vi.fn(() => 'prompt-1'),
+            run: vi.fn(async (_id, _input, {onEvent}) => {
+                onEvent({type: 'TEXT_MESSAGE_START', messageId: 'turn-live:2'});
+                onEvent({type: 'TEXT_MESSAGE_CONTENT', messageId: 'turn-live:2', delta: 'Streamed answer.'});
+                return {type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-live', tokens: null};
             }),
             setFeedback: vi.fn(async (_id, _turnId, feedback) => ({reasons: [], expected: '', ...feedback})),
             deleteFeedback: vi.fn().mockResolvedValue(undefined),

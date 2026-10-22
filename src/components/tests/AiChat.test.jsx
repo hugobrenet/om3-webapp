@@ -3,6 +3,7 @@ import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import AiChat from '../AiChat.jsx';
 import {AiAgentError} from '../../services/ai-agent.js';
+import {replayRun} from '../../services/tests/agui-fixtures.js';
 
 const mocks = vi.hoisted(() => ({
     auth: null,
@@ -29,6 +30,12 @@ vi.mock('../../hooks/useAiAgent.js', () => ({
         configurationError: null,
     }),
 }));
+// The events of a run as the client gives them.
+const text = (delta, messageId = 'turn-9:2') => [
+    {type: 'TEXT_MESSAGE_START', messageId},
+    {type: 'TEXT_MESSAGE_CONTENT', messageId, delta},
+];
+const completed = (tokens = null) => ({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-9', tokens});
 const existing = {id: 'existing', title: 'Previous diagnostic'};
 const created = {id: 'new', title: 'New diagnostic'};
 const oldMessage = {
@@ -52,20 +59,15 @@ describe('AI chatbot page', () => {
                 conversation: await mocks.client.getConversation(id, options),
                 confirmation: null,
             })),
-            confirmTurn: vi.fn(),
             getMessages: vi.fn().mockResolvedValue({messages: [], next_cursor: ''}),
             renameConversation: vi.fn().mockResolvedValue({...created, title: 'Renamed'}),
             deleteConversation: vi.fn().mockResolvedValue(undefined),
-            sendTurn: vi.fn(async (_id, _prompt, {onEvent}) => {
-                onEvent({type: 'tool_started', tool_name: 'get_cluster_health'});
-                onEvent({
-                    type: 'tool_finished',
-                    tool_name: 'get_cluster_health',
-                    tool_error: false,
-                });
-                onEvent({type: 'text_delta', text_delta: 'Cluster looks healthy.'});
-                onEvent({type: 'usage', usage: {total_tokens: 12}});
-                onEvent({type: 'completed'});
+            newId: vi.fn(() => 'prompt-1'),
+            run: vi.fn(async (_id, _input, {onEvent}) => {
+                onEvent({type: 'TOOL_CALL_START', toolCallId: 'call-1', toolCallName: 'get_cluster_health', parentMessageId: 'turn-9:2'});
+                onEvent({type: 'TOOL_CALL_RESULT', toolCallId: 'call-1', rejected: false});
+                for (const event of text('Cluster looks healthy.', 'turn-9:4')) onEvent(event);
+                return completed(12);
             }),
         };
     });
@@ -79,17 +81,17 @@ describe('AI chatbot page', () => {
     const submit = async (prompt) => {
         fireEvent.change(screen.getByRole('textbox', {name: 'Message'}), {target: {value: prompt}});
         fireEvent.click(screen.getByRole('button', {name: 'Send'}));
-        await waitFor(() => expect(mocks.client.sendTurn).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(mocks.client.run).toHaveBeenCalledTimes(1));
     };
     test('sends a prompt with Enter without adding a newline', async () => {
         await renderReady();
         const input = screen.getByRole('textbox', {name: 'Message'});
         fireEvent.change(input, {target: {value: 'Keyboard diagnostic'}});
         expect(fireEvent.keyDown(input, {key: 'Enter'})).toBe(false);
-        await waitFor(() => expect(mocks.client.sendTurn).toHaveBeenCalledTimes(1));
-        expect(mocks.client.sendTurn).toHaveBeenCalledWith(
+        await waitFor(() => expect(mocks.client.run).toHaveBeenCalledTimes(1));
+        expect(mocks.client.run).toHaveBeenCalledWith(
             'new',
-            'Keyboard diagnostic',
+            {prompt: 'Keyboard diagnostic', promptId: 'prompt-1', held: []},
             expect.any(Object)
         );
         expect(input).toHaveValue('');
@@ -99,7 +101,7 @@ describe('AI chatbot page', () => {
         const input = screen.getByRole('textbox', {name: 'Message'});
         fireEvent.change(input, {target: {value: 'First line'}});
         expect(fireEvent.keyDown(input, {key: 'Enter', shiftKey: true})).toBe(true);
-        expect(mocks.client.sendTurn).not.toHaveBeenCalled();
+        expect(mocks.client.run).not.toHaveBeenCalled();
         expect(input).toHaveValue('First line');
     });
     test.each([{isComposing: true}, {keyCode: 229}])(
@@ -109,13 +111,13 @@ describe('AI chatbot page', () => {
             const input = screen.getByRole('textbox', {name: 'Message'});
             fireEvent.change(input, {target: {value: 'Composing'}});
             expect(fireEvent.keyDown(input, {key: 'Enter', ...composition})).toBe(true);
-            expect(mocks.client.sendTurn).not.toHaveBeenCalled();
+            expect(mocks.client.run).not.toHaveBeenCalled();
         }
     );
     test('does not submit an empty prompt with Enter', async () => {
         await renderReady();
         fireEvent.keyDown(screen.getByRole('textbox', {name: 'Message'}), {key: 'Enter'});
-        expect(mocks.client.sendTurn).not.toHaveBeenCalled();
+        expect(mocks.client.run).not.toHaveBeenCalled();
         expect(mocks.client.createConversation).not.toHaveBeenCalled();
     });
     test('renders the target and loads metadata without creating or sending a turn', async () => {
@@ -124,7 +126,7 @@ describe('AI chatbot page', () => {
         expect(screen.getByText('Lab cluster')).toBeInTheDocument();
         expect(mocks.fetchNodes).toHaveBeenCalledWith('token');
         expect(mocks.client.createConversation).not.toHaveBeenCalled();
-        expect(mocks.client.sendTurn).not.toHaveBeenCalled();
+        expect(mocks.client.run).not.toHaveBeenCalled();
     });
     test.each(['openid', 'basic', null])(
         'renders the chat and sends a turn for %s login',
@@ -147,15 +149,15 @@ describe('AI chatbot page', () => {
         await waitFor(() => expect(mocks.client.getMessages).toHaveBeenCalledWith('existing', expect.anything()));
         expect(await screen.findByRole('log')).toHaveTextContent('Send a prompt');
         expect(screen.queryByText(/History shows completed exchanges only/)).not.toBeInTheDocument();
-        expect(mocks.client.sendTurn).not.toHaveBeenCalled();
+        expect(mocks.client.run).not.toHaveBeenCalled();
     });
     test('displays interrupted output and stops without retrying', async () => {
         let signal;
-        mocks.client.sendTurn.mockImplementation(
-            (_id, _prompt, options) =>
+        mocks.client.run.mockImplementation(
+            (_id, _input, options) =>
                 new Promise((_resolve, reject) => {
                     signal = options.signal;
-                    options.onEvent({type: 'text_delta', text_delta: 'Partial response'});
+                    for (const event of text('Partial response')) options.onEvent(event);
                     signal.addEventListener(
                         'abort',
                         () => reject(new DOMException('Canceled', 'AbortError')),
@@ -169,7 +171,7 @@ describe('AI chatbot page', () => {
         expect(await screen.findByText(/Incomplete response — stopped/)).toBeInTheDocument();
         expect(screen.getByText('Partial response')).toBeInTheDocument();
         expect(signal.aborted).toBe(true);
-        expect(mocks.client.sendTurn).toHaveBeenCalledTimes(1);
+        expect(mocks.client.run).toHaveBeenCalledTimes(1);
     });
     test.each(['openid', 'basic'])(
         'restores and pages saved messages for %s without running a turn',
@@ -196,7 +198,7 @@ describe('AI chatbot page', () => {
             expect(log.textContent.indexOf('Older prompt')).toBeLessThan(
                 log.textContent.indexOf('Saved answer')
             );
-            expect(mocks.client.sendTurn).not.toHaveBeenCalled();
+            expect(mocks.client.run).not.toHaveBeenCalled();
             expect(mocks.client.createConversation).not.toHaveBeenCalled();
         }
     );
@@ -232,7 +234,7 @@ describe('AI chatbot page', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('Authentication required.');
         expect(screen.getByRole('textbox', {name: 'Message'})).toBeDisabled();
         expect(screen.getByRole('button', {name: 'Send'})).toBeDisabled();
-        expect(mocks.client.sendTurn).not.toHaveBeenCalled();
+        expect(mocks.client.run).not.toHaveBeenCalled();
         fireEvent.click(screen.getByRole('button', {name: 'Previous diagnostic'}));
         await screen.findByText('Older prompt');
         expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled();
@@ -248,19 +250,19 @@ describe('AI chatbot page', () => {
         expect(container.querySelector('img')).toBeNull();
     });
     test('reports stream errors without a retry button or automatic resubmission', async () => {
-        mocks.client.sendTurn.mockRejectedValue(
+        mocks.client.run.mockRejectedValue(
             new AiAgentError('stream_interrupted', 'The stream was interrupted.')
         );
         await renderReady();
         await submit('hello');
         expect(await screen.findByRole('alert')).toHaveTextContent('The stream was interrupted.');
-        expect(mocks.client.sendTurn).toHaveBeenCalledTimes(1);
+        expect(mocks.client.run).toHaveBeenCalledTimes(1);
     });
     test('renders streamed Markdown without executing model HTML or formatting the prompt', async () => {
-        mocks.client.sendTurn.mockImplementation(async (_id, _prompt, {onEvent}) => {
-            onEvent({type: 'text_delta', text_delta: '**Healthy**\n\n'});
-            onEvent({type: 'text_delta', text_delta: '<img src=x onerror="alert(1)">'});
-            onEvent({type: 'completed'});
+        mocks.client.run.mockImplementation(async (_id, _input, {onEvent}) => {
+            for (const event of text('**Healthy**\n\n')) onEvent(event);
+            onEvent({type: 'TEXT_MESSAGE_CONTENT', messageId: 'turn-9:2', delta: '<img src=x onerror="alert(1)">'});
+            return completed();
         });
         const {container} = await renderReady();
         await submit('**diagnose**');
@@ -277,7 +279,7 @@ describe('AI chatbot page', () => {
         await renderReady();
         fireEvent.click(screen.getByRole('button', {name: 'Previous diagnostic'}));
         expect(await screen.findByText('Saved diagnostic')).toHaveProperty('tagName', 'STRONG');
-        expect(mocks.client.sendTurn).not.toHaveBeenCalled();
+        expect(mocks.client.run).not.toHaveBeenCalled();
     });
     test('allows renaming and requires confirmation before deleting', async () => {
         await renderReady();
@@ -306,11 +308,11 @@ describe('AI chatbot page', () => {
         async (authChoice) => {
             mocks.auth.authChoice = authChoice;
             let signal;
-            mocks.client.sendTurn.mockImplementation(
-                (_id, _prompt, options) =>
+            mocks.client.run.mockImplementation(
+                (_id, _input, options) =>
                     new Promise((_resolve, reject) => {
                         signal = options.signal;
-                        options.onEvent({type: 'text_delta', text_delta: 'Private response'});
+                        for (const event of text('Private response')) options.onEvent(event);
                         signal.addEventListener(
                             'abort',
                             () => reject(new DOMException('Canceled', 'AbortError')),
@@ -327,7 +329,7 @@ describe('AI chatbot page', () => {
             expect(signal.aborted).toBe(true);
             expect(screen.queryByText('Private response')).not.toBeInTheDocument();
             expect(screen.queryByText('private prompt')).not.toBeInTheDocument();
-            expect(mocks.client.sendTurn).toHaveBeenCalledTimes(1);
+            expect(mocks.client.run).toHaveBeenCalledTimes(1);
         }
     );
     test.each(['openid', 'basic'])(
@@ -335,8 +337,8 @@ describe('AI chatbot page', () => {
         async (authChoice) => {
             mocks.auth.authChoice = authChoice;
             let signal;
-            mocks.client.sendTurn.mockImplementation(
-                (_id, _prompt, options) =>
+            mocks.client.run.mockImplementation(
+                (_id, _input, options) =>
                     new Promise((_resolve, reject) => {
                         signal = options.signal;
                         signal.addEventListener(
@@ -353,7 +355,7 @@ describe('AI chatbot page', () => {
                 rerender(<AiChat />);
             });
             expect(signal.aborted).toBe(false);
-            expect(mocks.client.sendTurn).toHaveBeenCalledTimes(1);
+            expect(mocks.client.run).toHaveBeenCalledTimes(1);
             fireEvent.click(screen.getByRole('button', {name: 'Stop'}));
             await screen.findByText(/Incomplete response — stopped/);
         }
@@ -370,44 +372,56 @@ describe('AI chatbot page', () => {
             expect(screen.queryByRole('textbox', {name: 'Message'})).not.toBeInTheDocument();
             expect(mocks.client.listConversations).not.toHaveBeenCalled();
             expect(mocks.client.createConversation).not.toHaveBeenCalled();
-            expect(mocks.client.sendTurn).not.toHaveBeenCalled();
+            expect(mocks.client.run).not.toHaveBeenCalled();
         }
     );
 
     describe('action confirmation', () => {
-        const confirmation = {
-            id: 'confirmation-1',
-            turn_id: 'turn-1',
-            tool: {name: 'stop_object', title: 'Stop object', destructive: true},
-            arguments: {path: 'prod/svc/web'},
-            expires_at: '2026-10-09T17:45:00Z',
-        };
-        test('shows the exact call to confirm and sends the decision', async () => {
-            mocks.client.sendTurn = vi.fn(async (_id, _prompt, {onEvent}) => {
-                const event = {type: 'confirmation_required', confirmation};
-                onEvent({type: 'text_delta', text_delta: 'I will only freeze it.'});
-                onEvent(event);
-                return event;
-            });
-            mocks.client.confirmTurn = vi.fn(async (_id, _turn, _confirmation, _decision, {onEvent}) => {
-                onEvent({type: 'completed'});
-                return {type: 'completed'};
-            });
+        test('shows the exact call to confirm, a YAML by its lines, and answers it with a resume', async () => {
+            mocks.client.run.mockImplementationOnce(replayRun('confirmation')).mockImplementationOnce(replayRun('resume_approved'));
             await renderReady();
-            await submit('stop web');
+            await submit('Start web with /bin/true');
             const card = await screen.findByRole('region', {name: 'Action waiting for confirmation'});
             expect(within(card).getByText('Destructive action to confirm')).toBeInTheDocument();
-            expect(within(card).getByText('Stop object')).toBeInTheDocument();
-            expect(within(card).getByText('stop_object')).toBeInTheDocument();
-            expect(within(card).getByText('prod/svc/web')).toBeInTheDocument();
+            expect(within(card).getByText('Update object config')).toBeInTheDocument();
+            expect(within(card).getByText('update_object_config')).toBeInTheDocument();
+            expect(within(card).getByText('web')).toHaveProperty('tagName', 'CODE');
+            // The YAML keeps its lines and indentation, under its media type.
+            expect(within(card).getByText('application/yaml')).toBeInTheDocument();
+            const yaml = card.querySelector('pre');
+            expect(yaml.textContent).toBe('app#1:\n  start: /bin/true\n');
+            expect(screen.getByText('update_object_config — pending')).toBeInTheDocument();
             expect(screen.getByRole('button', {name: 'Send'})).toBeDisabled();
             fireEvent.click(within(card).getByRole('button', {name: 'Approve'}));
             await waitFor(() =>
-                expect(mocks.client.confirmTurn).toHaveBeenCalledWith('new', 'turn-1', 'confirmation-1', 'approve', expect.anything())
+                expect(mocks.client.run).toHaveBeenLastCalledWith(
+                    'new',
+                    expect.objectContaining({resume: {interruptId: 'confirmation-1', approved: true}}),
+                    expect.anything()
+                )
             );
             await waitFor(() =>
                 expect(screen.queryByRole('region', {name: 'Action waiting for confirmation'})).not.toBeInTheDocument()
             );
+            expect(await screen.findByText('Done: web starts with /bin/true.')).toBeInTheDocument();
+            expect(screen.getByText('update_object_config — completed')).toBeInTheDocument();
+        });
+        test('keeps the line breaks of an untyped text argument', async () => {
+            mocks.client.getConversationState.mockResolvedValue({
+                conversation: existing,
+                confirmation: {
+                    id: 'confirmation-1',
+                    turn_id: 'turn-1',
+                    tool: {name: 'set_note', title: 'Set note', destructive: true},
+                    arguments: {note: 'first\n  second'},
+                    argument_types: {},
+                    expires_at: '2026-10-09T17:45:00Z',
+                },
+            });
+            await renderReady();
+            fireEvent.click(screen.getByRole('button', {name: 'Previous diagnostic'}));
+            const card = await screen.findByRole('region', {name: 'Action waiting for confirmation'});
+            expect(card.querySelector('pre').textContent).toBe('first\n  second');
         });
     });
 });
