@@ -1,0 +1,231 @@
+[
+  {
+    "name": "text_and_tools",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-1",
+          "role": "user",
+          "content": "How many nodes?"
+        }
+      ],
+      "tools": []
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-1:2\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-1:2\",\"delta\":\"Let me check \"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-1:2\",\"delta\":\"the nodes.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-1:2\"}\n\ndata: {\"type\":\"TOOL_CALL_START\",\"timestamp\":1760000000000,\"toolCallId\":\"call-0\",\"toolCallName\":\"search_tools\",\"parentMessageId\":\"turn-1:2\"}\n\ndata: {\"type\":\"TOOL_CALL_ARGS\",\"timestamp\":1760000000000,\"delta\":\"{\\\"query\\\":\\\"nodes\\\"}\",\"toolCallId\":\"call-0\"}\n\ndata: {\"type\":\"TOOL_CALL_END\",\"timestamp\":1760000000000,\"toolCallId\":\"call-0\"}\n\ndata: {\"type\":\"TOOL_CALL_RESULT\",\"timestamp\":1760000000000,\"messageId\":\"call-0-result\",\"role\":\"tool\",\"toolCallId\":\"call-0\",\"content\":\"{\\\"content\\\":[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"list_nodes\\\"}]}\"}\n\ndata: {\"type\":\"TOOL_CALL_START\",\"timestamp\":1760000000000,\"toolCallId\":\"call-1\",\"toolCallName\":\"list_nodes\",\"parentMessageId\":\"turn-1:2\"}\n\ndata: {\"type\":\"TOOL_CALL_ARGS\",\"timestamp\":1760000000000,\"delta\":\"{}\",\"toolCallId\":\"call-1\"}\n\ndata: {\"type\":\"TOOL_CALL_END\",\"timestamp\":1760000000000,\"toolCallId\":\"call-1\"}\n\ndata: {\"type\":\"TOOL_CALL_RESULT\",\"timestamp\":1760000000000,\"messageId\":\"call-1-result\",\"role\":\"tool\",\"toolCallId\":\"call-1\",\"content\":\"{\\\"content\\\":[],\\\"structuredContent\\\":{\\\"nodes\\\":[\\\"n1\\\",\\\"n2\\\"]}}\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-1:4\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-1:4\",\"delta\":\"There are two nodes: **n1** and **n2**.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-1:4\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"success\"},\"result\":{\"turnId\":\"turn-1\"},\"usage\":[{\"inputTokens\":320,\"outputTokens\":50,\"totalTokens\":370}]}\n\n"
+  },
+  {
+    "name": "confirmation",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-c",
+          "role": "user",
+          "content": "Start web with /bin/true"
+        }
+      ],
+      "tools": []
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:2\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:2\",\"delta\":\"I will apply this configuration.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:2\"}\n\ndata: {\"type\":\"TOOL_CALL_START\",\"timestamp\":1760000000000,\"toolCallId\":\"call-7\",\"toolCallName\":\"update_object_config\",\"parentMessageId\":\"turn-c:2\"}\n\ndata: {\"type\":\"TOOL_CALL_ARGS\",\"timestamp\":1760000000000,\"delta\":\"{\\\"path\\\":\\\"web\\\",\\\"yaml\\\":\\\"app#1:\\\\n  start: /bin/true\\\\n\\\"}\",\"toolCallId\":\"call-7\"}\n\ndata: {\"type\":\"TOOL_CALL_END\",\"timestamp\":1760000000000,\"toolCallId\":\"call-7\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"interrupt\",\"interrupts\":[{\"id\":\"confirmation-1\",\"reason\":\"tool_call\",\"message\":\"Confirm the action Update object config with the arguments of its call.\",\"toolCallId\":\"call-7\",\"responseSchema\":{\"additionalProperties\":false,\"properties\":{\"approved\":{\"type\":\"boolean\"}},\"required\":[\"approved\"],\"type\":\"object\"},\"expiresAt\":\"2026-10-09T17:45:00Z\",\"metadata\":{\"argumentTypes\":{\"yaml\":\"application/yaml\"},\"tool\":{\"destructive\":true,\"name\":\"update_object_config\",\"title\":\"Update object config\"},\"turnId\":\"turn-c\"}}]},\"usage\":[{\"inputTokens\":300,\"outputTokens\":40,\"totalTokens\":340}]}\n\n"
+  },
+  {
+    "name": "resume_approved",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-c",
+          "role": "user"
+        },
+        {
+          "id": "turn-c:2",
+          "role": "assistant"
+        }
+      ],
+      "tools": [],
+      "resume": [
+        {
+          "interruptId": "confirmation-1",
+          "status": "resolved",
+          "payload": {
+            "approved": true
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TOOL_CALL_RESULT\",\"timestamp\":1760000000000,\"messageId\":\"call-7-result\",\"role\":\"tool\",\"toolCallId\":\"call-7\",\"content\":\"{\\\"content\\\":[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"updated\\\"}]}\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\",\"delta\":\"Done: web starts with /bin/true.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"success\"},\"result\":{\"turnId\":\"turn-c\"},\"usage\":[{\"inputTokens\":400,\"outputTokens\":15,\"totalTokens\":415}]}\n\n"
+  },
+  {
+    "name": "resume_rejected",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-c",
+          "role": "user"
+        },
+        {
+          "id": "turn-c:2",
+          "role": "assistant"
+        }
+      ],
+      "tools": [],
+      "resume": [
+        {
+          "interruptId": "confirmation-1",
+          "status": "resolved",
+          "payload": {
+            "approved": false
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TOOL_CALL_RESULT\",\"timestamp\":1760000000000,\"messageId\":\"call-7-result\",\"role\":\"tool\",\"toolCallId\":\"call-7\",\"content\":\"{\\\"rejected\\\":true,\\\"message\\\":\\\"the user rejected this action; it did not run\\\"}\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\",\"delta\":\"I did not apply it.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"success\"},\"result\":{\"turnId\":\"turn-c\"}}\n\n"
+  },
+  {
+    "name": "tool_call_limit",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-l",
+          "role": "user",
+          "content": "Check everything"
+        }
+      ],
+      "tools": []
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-l:2\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-l:2\",\"delta\":\"Checking every node\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-l:2\"}\n\ndata: {\"type\":\"RUN_ERROR\",\"timestamp\":1760000000000,\"message\":\"the question needs more tool calls than the agent runs in one answer; ask a narrower question\",\"code\":\"tool_call_limit\"}\n\n"
+  },
+  {
+    "name": "agent_failed",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-f",
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "tools": []
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"RUN_ERROR\",\"timestamp\":1760000000000,\"message\":\"the agent could not complete the request\",\"code\":\"agent_failed\"}\n\n"
+  },
+  {
+    "name": "snapshot",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-2",
+          "role": "user",
+          "content": "Any service?"
+        }
+      ],
+      "tools": []
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"MESSAGES_SNAPSHOT\",\"timestamp\":1760000000000,\"messages\":[{\"id\":\"u-1\",\"role\":\"user\",\"content\":\"How many nodes?\"},{\"id\":\"turn-1:2\",\"role\":\"assistant\",\"toolCalls\":[{\"id\":\"call-1\",\"type\":\"function\",\"function\":{\"name\":\"list_nodes\",\"arguments\":\"{}\"}}]},{\"id\":\"call-1-result\",\"role\":\"tool\",\"content\":\"{\\\"content\\\":[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"n1 n2\\\"}]}\",\"toolCallId\":\"call-1\"},{\"id\":\"turn-1:4\",\"role\":\"assistant\",\"content\":\"Two nodes.\"},{\"id\":\"turn-2:1\",\"role\":\"user\",\"content\":\"Any service?\"}]}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-2:2\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-2:2\",\"delta\":\"No service.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-2:2\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"success\"},\"result\":{\"turnId\":\"turn-2\"}}\n\n"
+  },
+  {
+    "name": "resume_snapshot",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-1",
+          "role": "user"
+        },
+        {
+          "id": "turn-1:2",
+          "role": "assistant"
+        }
+      ],
+      "tools": [],
+      "resume": [
+        {
+          "interruptId": "confirmation-1",
+          "status": "resolved",
+          "payload": {
+            "approved": false
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"MESSAGES_SNAPSHOT\",\"timestamp\":1760000000000,\"messages\":[{\"id\":\"u-1\",\"role\":\"user\",\"content\":\"How many nodes?\"},{\"id\":\"turn-1:2\",\"role\":\"assistant\",\"content\":\"Two nodes.\"},{\"id\":\"u-c\",\"role\":\"user\",\"content\":\"Start web with /bin/true\"},{\"id\":\"turn-c:2\",\"role\":\"assistant\",\"content\":\"I will apply this configuration.\",\"toolCalls\":[{\"id\":\"call-7\",\"type\":\"function\",\"function\":{\"name\":\"update_object_config\",\"arguments\":\"{\\\"path\\\":\\\"web\\\",\\\"yaml\\\":\\\"app#1:\\\\n  start: /bin/true\\\\n\\\"}\"}}]}]}\n\ndata: {\"type\":\"TOOL_CALL_RESULT\",\"timestamp\":1760000000000,\"messageId\":\"call-7-result\",\"role\":\"tool\",\"toolCallId\":\"call-7\",\"content\":\"{\\\"rejected\\\":true,\\\"message\\\":\\\"the user rejected this action; it did not run\\\"}\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_START\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\",\"role\":\"assistant\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\",\"delta\":\"I did not apply it.\"}\n\ndata: {\"type\":\"TEXT_MESSAGE_END\",\"timestamp\":1760000000000,\"messageId\":\"turn-c:4\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"success\"},\"result\":{\"turnId\":\"turn-c\"}}\n\n"
+  },
+  {
+    "name": "confirmation_not_pending",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [],
+      "tools": [],
+      "resume": [
+        {
+          "interruptId": "confirmation-0",
+          "status": "resolved",
+          "payload": {
+            "approved": true
+          }
+        }
+      ]
+    },
+    "status": 409,
+    "contentType": "application/json",
+    "body": "{\"error\":{\"code\":\"confirmation_not_pending\",\"message\":\"the conversation waits on no such interrupt\"}}\n"
+  },
+  {
+    "name": "conversation_busy",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-b",
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "tools": []
+    },
+    "status": 409,
+    "contentType": "application/json",
+    "body": "{\"error\":{\"code\":\"conversation_busy\",\"message\":\"the conversation already has an active turn or an action waiting for a decision\"}}\n"
+  }
+]

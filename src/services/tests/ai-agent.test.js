@@ -11,22 +11,6 @@ const savedMessage = {
     text: 'Previous prompt',
     created_at: '2026-10-05T12:00:00Z',
 };
-const frame = (type, fields = {}) =>
-    `event: ${type}\ndata: ${JSON.stringify({type, ...fields})}\n\n`;
-const streamResponse = (chunks) =>
-    new Response(
-        new ReadableStream({
-            start(controller) {
-                for (const chunk of chunks)
-                    controller.enqueue(
-                        typeof chunk === 'string' ? new TextEncoder().encode(chunk) : chunk
-                    );
-                controller.close();
-            },
-        }),
-        {headers: {'Content-Type': 'text/event-stream; charset=utf-8'}}
-    );
-
 describe('AI agent conversations client', () => {
     let credentials, client, fetchMock;
     beforeEach(() => {
@@ -119,7 +103,8 @@ describe('AI agent conversations client', () => {
         {messages: [savedMessage], next_cursor: '01:1'},
         {messages: [null], next_cursor: ''},
         {messages: [{...savedMessage, role: 'tool'}], next_cursor: ''},
-        {messages: [{...savedMessage, id: 'wrong-id'}], next_cursor: ''},
+        {messages: [{...savedMessage, role: 'assistant', id: 'wrong-id'}], next_cursor: ''},
+        {messages: [{...savedMessage, id: 'wrong id'}], next_cursor: ''},
         {messages: [{...savedMessage, text: null}], next_cursor: ''},
         {messages: [{...savedMessage, created_at: 'invalid'}], next_cursor: ''},
         {messages: [savedMessage, savedMessage], next_cursor: ''},
@@ -141,6 +126,18 @@ describe('AI agent conversations client', () => {
         await expect(client.getMessages(metadata.id, {before: '2:2'})).rejects.toMatchObject({
             code: 'invalid_response',
         });
+    });
+    it('accepts a prompt under the ID the webapp gave it, never an answer', async () => {
+        const prompt = {...savedMessage, id: '0f3c2a9e5b7d4c1a8e6f2b9d0c4a7e13'};
+        fetchMock
+            .mockResolvedValueOnce(Response.json({messages: [prompt], next_cursor: ''}))
+            .mockResolvedValueOnce(
+                Response.json({messages: [{...prompt, role: 'assistant'}], next_cursor: ''})
+            )
+            .mockResolvedValueOnce(Response.json({messages: [{...prompt, id: 'has space'}], next_cursor: ''}));
+        expect((await client.getMessages(metadata.id)).messages).toEqual([prompt]);
+        for (let index = 0; index < 2; index++)
+            await expect(client.getMessages(metadata.id)).rejects.toMatchObject({code: 'invalid_response'});
     });
     it('projects only display fields from a history message', async () => {
         fetchMock.mockResolvedValue(
@@ -375,152 +372,9 @@ describe('AI agent conversations client', () => {
         expect(() => client.getConversation(id)).toThrow('valid conversation ID');
         expect(fetchMock).not.toHaveBeenCalled();
     });
-    it.each(['', ' ', 'é'.repeat(16385)])('rejects empty or oversized UTF-8 prompts', (prompt) => {
-        expect(() => client.sendTurn(metadata.id, prompt)).toThrow('32 KiB');
-        expect(fetchMock).not.toHaveBeenCalled();
-    });
-    it('streams text, tools and usage until completion, using the turns endpoint', async () => {
-        const events = [
-            {type: 'text_delta', text_delta: 'Bonjour'},
-            {type: 'tool_started', tool_name: 'get_cluster_health'},
-            {type: 'tool_finished', tool_name: 'get_cluster_health'},
-            {type: 'usage', usage: {total_tokens: 20}},
-            {type: 'completed', finish_reason: 'stop'},
-        ];
-        fetchMock.mockResolvedValue(
-            streamResponse(events.map((event) => frame(event.type, event)))
-        );
-        const onEvent = vi.fn();
-        expect(await client.sendTurn(metadata.id, '  diagnostic  ', {onEvent})).toEqual(events[4]);
-        expect(onEvent.mock.calls.map(([event]) => event)).toEqual(events);
-        expect(fetchMock).toHaveBeenCalledWith(
-            `${baseUrl}/v1/om3/conversations/conversation-1/turns`,
-            expect.objectContaining({
-                method: 'POST',
-                body: JSON.stringify({prompt: '  diagnostic  '}),
-                headers: expect.objectContaining({
-                    Accept: 'text/event-stream',
-                    'Content-Type': 'application/json',
-                }),
-            })
-        );
-    });
-    it('handles split UTF-8, CRLF, comments and multiline data', async () => {
-        const input =
-            ': heartbeat\r\nevent: text_delta\r\ndata: {"type":"text_delta",\r\ndata: "text_delta":"reçu 😀"}\r\n\r\n' +
-            frame('completed').replaceAll('\n', '\r\n');
-        const bytes = new TextEncoder().encode(input);
-        fetchMock.mockResolvedValue(
-            streamResponse(Array.from(bytes, (byte) => new Uint8Array([byte])))
-        );
-        const onEvent = vi.fn();
-        await client.sendTurn(metadata.id, 'hello', {onEvent});
-        expect(onEvent.mock.calls[0][0].text_delta).toBe('reçu 😀');
-        expect(onEvent).toHaveBeenCalledTimes(2);
-    });
-    it('also accepts CR-only event separators', async () => {
-        fetchMock.mockResolvedValue(streamResponse([frame('completed').replaceAll('\n', '\r')]));
-        await expect(client.sendTurn(metadata.id, 'hello')).resolves.toMatchObject({
-            type: 'completed',
-        });
-    });
-    it.each([
-        [frame('text_delta', {text_delta: 'partial'}), 'stream_interrupted'],
-        ['event: text_delta\ndata: invalid-secret\n\n', 'invalid_response'],
-        ['event: completed\ndata: {"type":"text_delta"}\n\n', 'invalid_response'],
-        [frame('error', {code: 'agent_failed', message: 'secret upstream'}), 'turn_failed'],
-        [frame('error', {code: 'toString', message: 'secret upstream'}), 'turn_failed'],
-    ])('rejects incomplete or invalid streams without retrying', async (input, code) => {
-        fetchMock.mockResolvedValue(streamResponse([input]));
-        await expect(client.sendTurn(metadata.id, 'hello')).rejects.toMatchObject({code});
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-    it('explains the tool call limit with its own message, never the agent one', async () => {
-        fetchMock.mockResolvedValue(
-            streamResponse([frame('error', {code: 'tool_call_limit', message: 'secret upstream'})])
-        );
-        const error = await client.sendTurn(metadata.id, 'hello').catch((error) => error);
-        expect(error).toMatchObject({code: 'tool_call_limit'});
-        expect(error.message).toContain('Ask a narrower question');
-        expect(error.message).not.toContain('secret');
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-    it('rejects oversized streams', async () => {
-        fetchMock.mockResolvedValue(streamResponse([new Uint8Array(16 * 1024 * 1024 + 1)]));
-        await expect(client.sendTurn(metadata.id, 'hello')).rejects.toMatchObject({
-            code: 'stream_limit',
-        });
-    });
-    it('sanitizes a reader failure without retrying the turn', async () => {
-        const body = new ReadableStream({
-            start(controller) {
-                controller.error(new Error('secret reader failure'));
-            },
-        });
-        fetchMock.mockResolvedValue(
-            new Response(body, {headers: {'Content-Type': 'text/event-stream'}})
-        );
-        const error = await client.sendTurn(metadata.id, 'hello').catch((error) => error);
-        expect(error.code).toBe('stream_interrupted');
-        expect(error.message).not.toContain('secret');
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-    });
-    it('stops delivering already buffered events after cancellation', async () => {
-        fetchMock.mockResolvedValue(
-            streamResponse([frame('text_delta', {text_delta: 'partial'}) + frame('completed')])
-        );
-        const onEvent = vi.fn(() => client.cancelAll());
-        await expect(client.sendTurn(metadata.id, 'hello', {onEvent})).rejects.toMatchObject({
-            name: 'AbortError',
-        });
-        expect(onEvent).toHaveBeenCalledTimes(1);
-    });
-    it('rejects non-SSE responses and invalid JSON envelopes', async () => {
-        fetchMock.mockResolvedValueOnce(Response.json({conversation: metadata}));
-        await expect(client.sendTurn(metadata.id, 'hello')).rejects.toMatchObject({
-            code: 'invalid_response',
-        });
+    it('rejects an invalid JSON envelope', async () => {
         fetchMock.mockResolvedValueOnce(Response.json({conversations: null}));
         await expect(client.listConversations()).rejects.toMatchObject({code: 'invalid_response'});
-    });
-    it.each(['application/json', 'text/html', null])(
-        'closes an open non-SSE body before rejecting (%s)',
-        async (contentType) => {
-            const cancel = vi.fn();
-            const body = new ReadableStream({
-                start(controller) {
-                    controller.enqueue(new TextEncoder().encode('unexpected body'));
-                },
-                cancel,
-            });
-            const headers = contentType ? {'Content-Type': contentType} : {};
-            fetchMock.mockResolvedValue(new Response(body, {headers}));
-            await expect(client.sendTurn(metadata.id, 'hello')).rejects.toMatchObject({
-                code: 'invalid_response',
-            });
-            expect(cancel).toHaveBeenCalledTimes(1);
-            expect(body.locked).toBe(false);
-            expect(fetchMock).toHaveBeenCalledTimes(1);
-        }
-    );
-    it('preserves the protocol error if closing a non-SSE body fails', async () => {
-        const body = new ReadableStream({
-            cancel() {
-                throw new Error('secret cleanup failure');
-            },
-        });
-        fetchMock.mockResolvedValue(new Response(body, {headers: {'Content-Type': 'text/html'}}));
-        const error = await client.sendTurn(metadata.id, 'hello').catch((error) => error);
-        expect(error.code).toBe('invalid_response');
-        expect(error.message).not.toContain('secret');
-    });
-    it('rejects a response without a body', async () => {
-        fetchMock.mockResolvedValue(
-            new Response(null, {headers: {'Content-Type': 'text/event-stream'}})
-        );
-        await expect(client.sendTurn(metadata.id, 'hello')).rejects.toMatchObject({
-            code: 'invalid_response',
-        });
     });
     it.each([401, 403, 404, 409, 410, 429, 500, 503])(
         'reports HTTP %s without exposing body or retrying',
@@ -547,21 +401,5 @@ describe('AI agent conversations client', () => {
             name: 'AbortError',
         });
         expect(fetchMock).not.toHaveBeenCalled();
-    });
-    it.each(['signal', 'cancelAll'])('cancels an active stream through %s', async (mode) => {
-        const cancel = vi.fn();
-        const body = new ReadableStream({cancel});
-        fetchMock.mockResolvedValue(
-            new Response(body, {headers: {'Content-Type': 'text/event-stream'}})
-        );
-        const controller = new AbortController();
-        const pending = client.sendTurn(metadata.id, 'hello', {signal: controller.signal});
-        const assertion = expect(pending).rejects.toMatchObject({name: 'AbortError'});
-        await vi.waitFor(() => expect(body.locked).toBe(true));
-        if (mode === 'signal') controller.abort();
-        else client.cancelAll();
-        await assertion;
-        expect(cancel).toHaveBeenCalled();
-        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 });

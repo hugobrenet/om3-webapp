@@ -20,9 +20,11 @@ describe('useAiChat feedback', () => {
             getConversation: vi.fn().mockResolvedValue(created),
             getConversationState: vi.fn().mockResolvedValue({conversation: existing, confirmation: null}),
             getMessages: vi.fn().mockResolvedValue({messages: saved, next_cursor: ''}),
-            sendTurn: vi.fn(async (_id, _prompt, {onEvent}) => {
-                onEvent({type: 'text_delta', text_delta: 'Hello'});
-                onEvent({type: 'completed', turn_id: 'turn-live'});
+            newId: vi.fn(() => 'prompt-1'),
+            run: vi.fn(async (_id, _input, {onEvent}) => {
+                onEvent({type: 'TEXT_MESSAGE_START', messageId: 'turn-live:2'});
+                onEvent({type: 'TEXT_MESSAGE_CONTENT', messageId: 'turn-live:2', delta: 'Hello'});
+                return {type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-live', tokens: null};
             }),
             setFeedback: vi.fn(async (_id, _turnId, feedback) => ({reasons: [], expected: '', ...feedback})),
             deleteFeedback: vi.fn().mockResolvedValue(undefined),

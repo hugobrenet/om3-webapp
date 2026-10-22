@@ -184,6 +184,23 @@ function Message({message, feedback}) {
 const argumentValue = (value) => (typeof value === "string" ? value : JSON.stringify(value));
 
 /**
+ * The value of one argument. A text of the media type the tool declares, such
+ * as a YAML, or holding line breaks, keeps its lines and indentation: the user
+ * confirms the text that runs.
+ */
+function ArgumentValue({value, type}) {
+    if (typeof value !== "string" || (!type && !value.includes("\n"))) return <code>{argumentValue(value)}</code>;
+    return (
+        <div className="space-y-1">
+            {type && <p className="text-ink-muted">{type}</p>}
+            <pre className="max-h-64 overflow-auto whitespace-pre rounded-(--radius-control) border border-line bg-surface p-2 font-mono">
+                {value}
+            </pre>
+        </div>
+    );
+}
+
+/**
  * The tool call waiting for the decision of the user. It shows the call as the
  * agent stored it, the one that runs if approved, never the model text.
  */
@@ -208,7 +225,12 @@ function ConfirmationCard({confirmation, busy, onApprove, onReject}) {
                     {entries.map(([name, value]) => (
                         <div key={name} className="contents">
                             <dt className="font-medium">{name}</dt>
-                            <dd className="[overflow-wrap:anywhere]"><code>{argumentValue(value)}</code></dd>
+                            <dd className="min-w-0 [overflow-wrap:anywhere]">
+                                <ArgumentValue
+                                    value={value}
+                                    type={Object.hasOwn(confirmation.argument_types || {}, name) ? confirmation.argument_types[name] : ""}
+                                />
+                            </dd>
                         </div>
                     ))}
                 </dl>
