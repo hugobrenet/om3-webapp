@@ -36,6 +36,7 @@ const RUN_ERROR_MESSAGES = {
 const RUN_HTTP_CODE_MESSAGES = {
     confirmation_not_pending: 'This action no longer waits for a decision.',
     confirmation_expired: 'The confirmation request expired. The action was not run.',
+    invalid_edited_arguments: 'The agent refused the edited arguments. Check the form; the action still waits.',
 };
 // An agent from before AG-UI answers 404 for the runs, without the code of a
 // conversation not found.
@@ -208,6 +209,9 @@ export const parseFeedback = (value) => {
 };
 
 const MAX_CONFIRMATION_ARGUMENTS_BYTES = 256 * 1024;
+// The input schema of a tool whose call the user may edit, as the agent
+// bounds it.
+const MAX_INPUT_SCHEMA_BYTES = 64 * 1024;
 const MAX_ARGUMENT_TYPES = 32;
 const confirmationIdPattern = /^[A-Za-z0-9_.~-]{1,128}$/;
 const toolNamePattern = /^[A-Za-z0-9_.-]{1,128}$/;
@@ -227,6 +231,16 @@ const parseArgumentTypes = (value) => {
     if (entries.length > MAX_ARGUMENT_TYPES || entries.some(([name, type]) => !isLabel(name) || !isLabel(type)))
         throw protocolError();
     return Object.fromEntries(entries);
+};
+
+const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const jsonBytes = (value) => new TextEncoder().encode(JSON.stringify(value)).length;
+
+// The input schema of a call the user may edit: an object schema, within
+// its bound. Its labels come from the MCP, not from the model.
+const parseInputSchema = (value) => {
+    if (!isPlainObject(value) || value.type !== 'object' || jsonBytes(value) > MAX_INPUT_SCHEMA_BYTES) throw protocolError();
+    return value;
 };
 
 // Validate a tool call waiting for the decision of the user: the card shows
@@ -251,15 +265,20 @@ export const parseConfirmation = (value) => {
         new TextEncoder().encode(JSON.stringify(value.arguments)).length > MAX_CONFIRMATION_ARGUMENTS_BYTES ||
         typeof value.expires_at !== 'string' ||
         value.expires_at.length > 64 ||
-        !Number.isFinite(Date.parse(value.expires_at))
+        !Number.isFinite(Date.parse(value.expires_at)) ||
+        (value.editable !== undefined && typeof value.editable !== 'boolean')
     )
         throw protocolError();
+    // A call the user may edit carries the input schema of its tool.
+    const editable = value.editable === true;
     return {
         id: value.id,
         turn_id: value.turn_id,
         tool: {name: value.tool.name, title: value.tool.title || value.tool.name, destructive: value.tool.destructive},
         arguments: value.arguments,
         argument_types: parseArgumentTypes(value.argument_types),
+        editable,
+        ...(editable ? {input_schema: parseInputSchema(value.input_schema)} : {}),
         expires_at: value.expires_at,
     };
 };
@@ -356,12 +375,17 @@ const finishRun = (event, run) => {
     const call = run.calls.get(interrupt?.toolCallId);
     if (interrupt?.reason !== 'tool_call' || !call) throw protocolError();
     const metadata = interrupt.metadata || {};
+    // The input schema of an editable call is the editedArgs of the response
+    // the interrupt takes.
+    const editable = metadata.editable === true;
     const confirmation = parseConfirmation({
         id: interrupt.id,
         turn_id: metadata.turnId,
         tool: metadata.tool,
         arguments: parseArguments(call.arguments),
         argument_types: metadata.argumentTypes,
+        editable,
+        input_schema: editable ? interrupt.responseSchema?.properties?.editedArgs : undefined,
         expires_at: interrupt.expiresAt,
     });
     if (confirmation.tool.name !== call.name) throw protocolError();
@@ -588,6 +612,7 @@ const readErrorCode = async (response) => {
 // The refusals of a run: the answers to a confirmation by their code, and the
 // 404 of an agent that serves no runs, from the conversation not found.
 const runRefusal = (status, code) => {
+    if (code === 'invalid_edited_arguments') return [code, RUN_HTTP_CODE_MESSAGES[code]];
     if (Object.hasOwn(RUN_HTTP_CODE_MESSAGES, code)) return ['http_error', RUN_HTTP_CODE_MESSAGES[code]];
     if (status === 404 && code !== 'conversation_not_found') return ['agent_outdated', AGENT_OUTDATED_MESSAGE];
     return undefined;
@@ -820,11 +845,19 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                 if (
                     typeof resume?.interruptId !== 'string' ||
                     !confirmationIdPattern.test(resume.interruptId) ||
-                    typeof resume.approved !== 'boolean'
+                    typeof resume.approved !== 'boolean' ||
+                    // Edited arguments, a full replacement of those of the call,
+                    // go with an approval only.
+                    (resume.editedArgs !== undefined &&
+                        (!resume.approved ||
+                            !isPlainObject(resume.editedArgs) ||
+                            jsonBytes(resume.editedArgs) > MAX_CONFIRMATION_ARGUMENTS_BYTES))
                 ) {
                     throw new AiAgentError('invalid_confirmation', 'A valid confirmation and decision are required.');
                 }
-                answer = [{interruptId: resume.interruptId, status: 'resolved', payload: {approved: resume.approved}}];
+                const payload = {approved: resume.approved};
+                if (resume.editedArgs !== undefined) payload.editedArgs = resume.editedArgs;
+                answer = [{interruptId: resume.interruptId, status: 'resolved', payload}];
             }
             const runId = newId();
             const input = {

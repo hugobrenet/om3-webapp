@@ -1,9 +1,10 @@
-import {useEffect, useLayoutEffect, useRef, useState} from "react";
+import {useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {useAuth} from "../context/AuthProvider.jsx";
 import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus.jsx";
 import useAiAgent from "../hooks/useAiAgent.js";
 import useAiChat from "../hooks/useAiChat.js";
 import AiMarkdown from "./AiMarkdown.jsx";
+import AiArgumentsForm, {argumentsOf, compileSchema, draftOf, formFields, sameArguments, schemaErrors} from "./AiArgumentsForm.jsx";
 import {Alert} from "../ui/components/Alert";
 import {Button} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
@@ -159,6 +160,7 @@ function Message({message, feedback}) {
                     {message.tools.map((tool) => (
                         <li key={tool.id} className={tool.status === "failed" ? "text-state-down" : "text-ink-muted"}>
                             {tool.name} — {tool.status}
+                            {tool.editedArgs && " (with your changes)"}
                         </li>
                     ))}
                 </ul>
@@ -207,6 +209,31 @@ function ArgumentValue({value, type}) {
 function ConfirmationCard({confirmation, busy, onApprove, onReject}) {
     const expires = new Date(confirmation.expires_at).toLocaleTimeString();
     const entries = Object.entries(confirmation.arguments);
+    const argumentTypes = confirmation.argument_types || {};
+    // A call the user may edit is shown in a form built from the input schema
+    // of its tool, the arguments the model proposed filled in.
+    const fields = useMemo(
+        () => (confirmation.editable ? formFields(confirmation.input_schema, confirmation.arguments, argumentTypes) : []),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [confirmation]
+    );
+    const validate = useMemo(() => (confirmation.editable ? compileSchema(confirmation.input_schema) : null), [confirmation]);
+    const proposedDrafts = useMemo(
+        () => Object.fromEntries(fields.map((field) => [field.name, draftOf(field, confirmation.arguments[field.name])])),
+        [fields, confirmation]
+    );
+    const [editing, setEditing] = useState(false);
+    const [drafts, setDrafts] = useState(proposedDrafts);
+    useEffect(() => {
+        setEditing(false);
+        setDrafts(proposedDrafts);
+    }, [proposedDrafts]);
+    const edit = editing ? argumentsOf(fields, drafts, confirmation.arguments) : null;
+    const changed = Boolean(edit) && !sameArguments(edit.args, confirmation.arguments);
+    const errors = edit ? {...(changed ? schemaErrors(validate, edit.args) : {}), ...edit.errors} : {};
+    const invalid = Object.keys(errors).length > 0;
+    const approve = () => onApprove(changed ? edit.args : undefined);
+
     return (
         <section
             aria-label="Action waiting for confirmation"
@@ -220,7 +247,23 @@ function ConfirmationCard({confirmation, busy, onApprove, onReject}) {
                 <span className="font-medium">{confirmation.tool.title}</span>{" "}
                 <code className="text-data text-ink-muted">{confirmation.tool.name}</code>
             </p>
-            {entries.length > 0 ? (
+            {editing ? (
+                <form
+                    aria-label="Arguments of the action"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        if (!busy && !invalid) approve();
+                    }}
+                >
+                    <AiArgumentsForm
+                        fields={fields}
+                        drafts={drafts}
+                        errors={errors}
+                        disabled={busy}
+                        onChange={(name, value) => setDrafts((previous) => ({...previous, [name]: value}))}
+                    />
+                </form>
+            ) : entries.length > 0 ? (
                 <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-data">
                     {entries.map(([name, value]) => (
                         <div key={name} className="contents">
@@ -228,7 +271,7 @@ function ConfirmationCard({confirmation, busy, onApprove, onReject}) {
                             <dd className="min-w-0 [overflow-wrap:anywhere]">
                                 <ArgumentValue
                                     value={value}
-                                    type={Object.hasOwn(confirmation.argument_types || {}, name) ? confirmation.argument_types[name] : ""}
+                                    type={Object.hasOwn(argumentTypes, name) ? argumentTypes[name] : ""}
                                 />
                             </dd>
                         </div>
@@ -237,13 +280,36 @@ function ConfirmationCard({confirmation, busy, onApprove, onReject}) {
             ) : (
                 <p className="text-data text-ink-muted">No arguments.</p>
             )}
-            <p className="text-data text-ink-muted">Expires at {expires}. Nothing runs without your approval.</p>
-            <div className="flex justify-end gap-2">
+            <p className="text-data text-ink-muted">
+                Expires at {expires}. Nothing runs without your approval.
+                {changed && " The action will run with your changes."}
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+                {confirmation.editable && !editing && (
+                    <Button icon={<PencilIcon/>} disabled={busy} onClick={() => setEditing(true)}>
+                        Edit
+                    </Button>
+                )}
+                {editing && (
+                    <Button
+                        disabled={busy}
+                        onClick={() => {
+                            setDrafts(proposedDrafts);
+                            setEditing(false);
+                        }}
+                    >
+                        Discard changes
+                    </Button>
+                )}
                 <Button disabled={busy} onClick={onReject}>
                     Reject
                 </Button>
-                <Button variant={confirmation.tool.destructive ? "danger" : "primary"} disabled={busy} onClick={onApprove}>
-                    Approve
+                <Button
+                    variant={confirmation.tool.destructive ? "danger" : "primary"}
+                    disabled={busy || invalid}
+                    onClick={approve}
+                >
+                    {changed ? "Approve with my changes" : "Approve"}
                 </Button>
             </div>
         </section>
@@ -470,7 +536,7 @@ const AiChat = () => {
                             <ConfirmationCard
                                 confirmation={chat.confirmation}
                                 busy={busy}
-                                onApprove={() => void chat.approve()}
+                                onApprove={(editedArgs) => void chat.approve(editedArgs)}
                                 onReject={() => void chat.reject()}
                             />
                         )}

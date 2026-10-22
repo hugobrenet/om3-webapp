@@ -92,6 +92,17 @@ describe('AI agent AG-UI runs', () => {
                     tool: {name: 'update_object_config', title: 'Update object config', destructive: true},
                     arguments: {path: 'web', yaml: 'app#1:\n  start: /bin/true\n'},
                     argument_types: {yaml: 'application/yaml'},
+                    editable: true,
+                    input_schema: {
+                        type: 'object',
+                        properties: {
+                            path: {type: 'string', description: 'The path of the object.'},
+                            yaml: {type: 'string', contentMediaType: 'application/yaml', description: 'The configuration to apply.'},
+                            wait: {type: 'boolean', description: 'Wait until every live node has it.'},
+                        },
+                        required: ['path', 'yaml'],
+                        additionalProperties: false,
+                    },
                     expires_at: '2026-10-09T17:45:00Z',
                 },
             });
@@ -121,6 +132,39 @@ describe('AI agent AG-UI runs', () => {
             expect(result).toEqual({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-c', tokens});
             expect(sent()).toMatchObject(goldenStream(name).request);
             expect(onEvent.mock.calls[1][0]).toEqual({type: 'TOOL_CALL_RESULT', toolCallId: 'call-7', rejected});
+        });
+
+        it('approves a call with the arguments the user edited', async () => {
+            fetchMock.mockResolvedValue(goldenResponse('resume_edited'));
+            const onEvent = vi.fn();
+            const editedArgs = {path: 'web', yaml: 'app#1:\n  start: /bin/false\n'};
+            const result = await client.run(
+                GOLDEN_THREAD,
+                {
+                    held: [
+                        {id: 'u-c', role: 'user'},
+                        {id: 'turn-c:2', role: 'assistant'},
+                    ],
+                    resume: {interruptId: 'confirmation-1', approved: true, editedArgs},
+                },
+                {onEvent}
+            );
+            expect(sent()).toMatchObject(goldenStream('resume_edited').request);
+            expect(result).toMatchObject({outcome: 'success', turnId: 'turn-c'});
+            expect(onEvent.mock.calls[1][0]).toEqual({type: 'TOOL_CALL_RESULT', toolCallId: 'call-7', rejected: false});
+        });
+
+        it('explains an edit the agent refuses, never with its message', async () => {
+            fetchMock.mockResolvedValue(goldenResponse('invalid_edited_arguments'));
+            const error = await client
+                .run(GOLDEN_THREAD, {resume: {interruptId: 'confirmation-1', approved: true, editedArgs: {path: 'web'}}})
+                .catch((error) => error);
+            expect(error).toMatchObject({
+                code: 'invalid_edited_arguments',
+                status: 400,
+                message: 'The agent refused the edited arguments. Check the form; the action still waits.',
+            });
+            expect(error.message).not.toContain('missing properties');
         });
 
         it('gives the thread of a client out of phase before the run', async () => {
@@ -240,6 +284,9 @@ describe('AI agent AG-UI runs', () => {
             [{...prompt('hello', 'u-1'), held: [{id: 'u-0', role: 'tool'}]}, 'invalid'],
             [{resume: {interruptId: 'bad id', approved: true}}, 'valid confirmation'],
             [{resume: {interruptId: 'confirmation-1', approved: 'yes'}}, 'valid confirmation'],
+            [{resume: {interruptId: 'confirmation-1', approved: false, editedArgs: {path: 'web'}}}, 'valid confirmation'],
+            [{resume: {interruptId: 'confirmation-1', approved: true, editedArgs: ['web']}}, 'valid confirmation'],
+            [{resume: {interruptId: 'confirmation-1', approved: true, editedArgs: 'web'}}, 'valid confirmation'],
         ])('refuses an invalid run before HTTP', (input, message) => {
             expect(() => client.run(GOLDEN_THREAD, input)).toThrow(message);
             expect(fetchMock).not.toHaveBeenCalled();

@@ -568,6 +568,17 @@ describe('useAiChat', () => {
             tool: {name: 'update_object_config', title: 'Update object config', destructive: true},
             arguments: {path: 'web', yaml: 'app#1:\n  start: /bin/true\n'},
             argument_types: {yaml: 'application/yaml'},
+            editable: true,
+            input_schema: {
+                type: 'object',
+                properties: {
+                    path: {type: 'string', description: 'The path of the object.'},
+                    yaml: {type: 'string', contentMediaType: 'application/yaml', description: 'The configuration to apply.'},
+                    wait: {type: 'boolean', description: 'Wait until every live node has it.'},
+                },
+                required: ['path', 'yaml'],
+                additionalProperties: false,
+            },
             expires_at: '2026-10-09T17:45:00Z',
         };
         const suspendTurn = () => client.run.mockImplementationOnce(replayRun('confirmation'));
@@ -623,6 +634,52 @@ describe('useAiChat', () => {
                 usage: {total_tokens: tokens},
                 tools: [{id: 'call-7', name: 'update_object_config', status}],
             });
+        });
+        it('approves with the arguments the user edited, shown on the call', async () => {
+            suspendTurn();
+            const {result} = await setup();
+            await act(async () => {
+                await result.current.send('Start web with /bin/true');
+            });
+            const editedArgs = {path: 'web', yaml: 'app#1:\n  start: /bin/false\n'};
+            client.run.mockImplementationOnce(replayRun('resume_edited'));
+            await act(async () => {
+                await result.current.approve(editedArgs);
+            });
+            expect(client.run.mock.calls[1][1].resume).toEqual({interruptId: 'confirmation-1', approved: true, editedArgs});
+            expect(result.current.messages.at(-1)).toMatchObject({
+                status: 'completed',
+                tools: [{id: 'call-7', status: 'completed', editedArgs}],
+            });
+        });
+        it('keeps the confirmation waiting when the agent refuses the edit', async () => {
+            suspendTurn();
+            const {result} = await setup();
+            await act(async () => {
+                await result.current.send('Start web with /bin/true');
+            });
+            client.run.mockImplementationOnce(replayRun('invalid_edited_arguments'));
+            await act(async () => {
+                await result.current.approve({path: 'web'});
+            });
+            expect(result.current.confirmation).toMatchObject({id: 'confirmation-1', editable: true});
+            expect(result.current.error).toContain('Check the form');
+            expect(result.current.messages.at(-1)).toMatchObject({
+                status: 'awaiting_confirmation',
+                tools: [{id: 'call-7', status: 'pending'}],
+            });
+        });
+        it('sends no edit for a call that takes none, nor with a rejection', async () => {
+            client.getConversationState.mockResolvedValue({conversation: existing, confirmation: {...confirmation, editable: false, input_schema: undefined}});
+            const {result} = await setup();
+            await act(async () => {
+                await result.current.resumeConversation('existing');
+            });
+            await act(async () => {
+                await result.current.approve({path: 'db'});
+            });
+            expect(client.run).not.toHaveBeenCalled();
+            expect(result.current.confirmation).toMatchObject({id: 'confirmation-1'});
         });
         it('shows the confirmation again after a reload, and the thread with it once answered', async () => {
             client.getConversationState.mockResolvedValue({conversation: existing, confirmation});
