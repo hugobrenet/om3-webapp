@@ -1,35 +1,40 @@
 import React, {useEffect, useState, useRef, useMemo} from "react";
-import {useNavigate} from "react-router-dom";
 import axios from "axios";
+import {useTranslation} from "react-i18next";
 import {URL_NETWORK} from "../config/apiPath.js";
 import logger from '../utils/logger.js';
 import {Table, HeaderRow, SortHeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
 import {UsageBar} from "../ui/components/UsageBar";
+import {usePanelSearch} from "../app/panel-search";
+import {NetworkDetailPanel} from "./RecordPanels";
 
 const COLUMNS = [
-    {key: "name", label: "Name"},
-    {key: "type", label: "Type"},
-    {key: "network", label: "Network"},
-    {key: "usage", label: "Usage", align: "right"},
+    {key: "name", labelKey: "common.name"},
+    {key: "type", labelKey: "common.type"},
+    {key: "network", labelKey: "networks.columns.network"},
+    {key: "usage", labelKey: "networks.columns.usage"},
 ];
 
 /** The usage percentage, a small bar beside it: the row keeps one line. */
 const Usage = ({network}) => {
-    if (!network.size) return "N/A";
+    const {t} = useTranslation();
     return (
         <UsageBar
-            value={(network.used / network.size) * 100}
+            value={network.size ? (network.used / network.size) * 100 : undefined}
+            missing={t("common.notAvailable")}
             title={`${network.used}/${network.size}`}
-            label={`Usage of ${network.name}`}
+            label={t("networks.usageOf", {name: network.name})}
         />
     );
 };
 
 const Network = () => {
+    const {t} = useTranslation();
     const [networks, setNetworks] = useState([]);
     const [sortColumn, setSortColumn] = useState("name");
     const [sortDirection, setSortDirection] = useState("asc");
-    const navigate = useNavigate();
+    // The network whose panel is open, in the URL.
+    const {sel, select} = usePanelSearch();
     const containerRef = useRef(null);
 
     // Scroll to top on component mount
@@ -88,14 +93,13 @@ const Network = () => {
     return (
         <div ref={containerRef} className="p-4 space-y-3">
             <Table sticky>
-                <caption className="sr-only">Networks</caption>
+                <caption className="sr-only">{t("networks.caption")}</caption>
                 <thead>
                     <HeaderRow>
-                        {COLUMNS.map(({key, label, align}) => (
+                        {COLUMNS.map(({key, labelKey}) => (
                             <SortHeaderCell
                                 key={key}
-                                label={label}
-                                align={align}
+                                label={t(labelKey)}
                                 active={sortColumn === key}
                                 direction={sortDirection}
                                 onSort={() => handleSort(key)}
@@ -107,7 +111,8 @@ const Network = () => {
                     {sortedNetworks.map((network) => (
                         <Row
                             key={network.name}
-                            onActivate={() => navigate(`/network/${network.name}`)}
+                            onActivate={() => select(network.name)}
+                            selected={sel === network.name}
                         >
                             <Cell className="font-medium">{network.name}</Cell>
                             <Cell>{network.type}</Cell>
@@ -116,10 +121,12 @@ const Network = () => {
                         </Row>
                     ))}
                     {sortedNetworks.length === 0 && (
-                        <EmptyRow colSpan={COLUMNS.length}>No networks available.</EmptyRow>
+                        <EmptyRow colSpan={COLUMNS.length}>{t("networks.empty")}</EmptyRow>
                     )}
                 </tbody>
             </Table>
+
+            <NetworkDetailPanel name={sel} onClose={() => select(undefined)}/>
         </div>
     );
 };

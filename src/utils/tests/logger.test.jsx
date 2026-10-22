@@ -127,6 +127,51 @@ describe('logger', () => {
             expect(logSpy).not.toHaveBeenCalled();
             expect(debugSpy).not.toHaveBeenCalled();
         });
+
+        test('warn and error still call the console: what went wrong is said', async () => {
+            const loggerProd = (await import('../logger')).default;
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
+            });
+            const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+            });
+            loggerProd.warn('warn message');
+            loggerProd.error('error message');
+            expect(warnSpy).toHaveBeenCalledWith('warn message');
+            expect(errorSpy).toHaveBeenCalledWith('error message');
+        });
+    });
+
+    describe('in a Vite production build, in a browser', () => {
+        let originalProcess;
+
+        beforeEach(() => {
+            // As in the browser: built by Vite for production, no process to say so.
+            process.env.NODE_ENV = 'development';
+            vi.stubEnv('PROD', 'true');
+            originalProcess = global.process;
+            vi.resetModules();
+        });
+
+        afterEach(() => {
+            global.process = originalProcess;
+            vi.unstubAllEnvs();
+            vi.resetModules();
+        });
+
+        test('traces are silent, warnings and errors said', async () => {
+            const loggerBuilt = (await import('../logger')).default;
+            delete global.process;
+            const spies = ['log', 'info', 'debug', 'warn', 'error'].map((m) => vi.spyOn(console, m).mockImplementation(() => {
+            }));
+            ['log', 'info', 'debug', 'warn', 'error'].forEach((m) => loggerBuilt[m](`${m} message`));
+            global.process = originalProcess;
+            const [log, info, debug, warn, error] = spies;
+            expect(log).not.toHaveBeenCalled();
+            expect(info).not.toHaveBeenCalled();
+            expect(debug).not.toHaveBeenCalled();
+            expect(warn).toHaveBeenCalledWith('warn message');
+            expect(error).toHaveBeenCalledWith('error message');
+        });
     });
 
     describe('serialize', () => {

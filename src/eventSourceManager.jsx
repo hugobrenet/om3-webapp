@@ -1,7 +1,7 @@
 import useEventStore from './hooks/useEventStore.js';
 import useEventLogStore from './hooks/useEventLogStore.js';
 import {EventSourcePolyfill} from 'event-source-polyfill';
-import {URL_NODE_EVENT} from './config/apiPath.js';
+import {URL_NODE_EVENT, URL_OBJECT} from './config/apiPath.js';
 import logger from './utils/logger.js';
 
 // Detect Safari
@@ -19,6 +19,7 @@ export const EVENT_TYPES = {
     INSTANCE_MONITOR_UPDATED: 'InstanceMonitorUpdated',
     INSTANCE_CONFIG_UPDATED: 'InstanceConfigUpdated',
     INSTANCE_CONFIG_DELETED: 'InstanceConfigDeleted',
+    NODE_MONITOR_DELETED: 'NodeMonitorDeleted',
 };
 
 // Event Source connection event types (these are NOT API events)
@@ -47,7 +48,12 @@ const OBJECT_SPECIFIC_FILTERS = [
 let currentEventSource = null;
 let currentLoggerEventSource = null;
 let currentToken = null;
+// Each stream its own reconnections: one opened does not reset the other's count.
 let reconnectAttempts = 0;
+let loggerReconnectAttempts = 0;
+// The reconnection planned of each stream: one at a time, cancelled when it closes.
+let reconnectTimer = null;
+let loggerReconnectTimer = null;
 let isPageActive = true;
 let flushTimeoutId = null;
 let eventCount = 0;
@@ -73,6 +79,29 @@ const SAFARI_MIN_FLUSH_INTERVAL = 100;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const BASE_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
+
+// The ready states of an event source, the polyfill's as the standard's. Connecting
+// after an error, the polyfill reconnects on its own (a connection lost, nothing
+// received for a while); closed, it gave up (a status not 200): ours to open again.
+const CONNECTING = 0;
+const CLOSED = 2;
+
+const clearReconnectTimer = () => {
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+};
+
+const clearLoggerReconnectTimer = () => {
+    if (loggerReconnectTimer) {
+        clearTimeout(loggerReconnectTimer);
+        loggerReconnectTimer = null;
+    }
+};
+
+/** The event types of a stream, read from its address. */
+const filtersOf = (url) => new URLSearchParams(url.split('?')[1]).getAll('filter').map(f => f.split(',')[0]);
 const BATCH_SIZE = isSafari ? SAFARI_BATCH_SIZE : 50;
 const FLUSH_DELAY = isSafari ? SAFARI_FLUSH_DELAY : 10;
 const MIN_FLUSH_INTERVAL = isSafari ? SAFARI_MIN_FLUSH_INTERVAL : 10;
@@ -89,6 +118,7 @@ let buffers = {
     instanceConfig: {},
     configUpdated: new Set(),
     instanceConfigDeleted: [],
+    nodeDeleted: [],
 };
 
 // Deep equality check to detect actual changes
@@ -114,7 +144,7 @@ export const isEqual = (a, b) => {
     return true;
 };
 
-const createQueryString = (filters = DEFAULT_FILTERS, objectName = null, useCache = true) => {
+const createQueryString = (filters = DEFAULT_FILTERS, objectName = null, useCache = true, nodeName = null) => {
     const validFilters = filters.filter(f => Object.values(EVENT_TYPES).includes(f));
     if (validFilters.length < filters.length) {
         logger.warn(`Invalid filters detected: ${filters.filter(f => !validFilters.includes(f)).join(', ')}. Using only valid ones.`);
@@ -128,6 +158,11 @@ const createQueryString = (filters = DEFAULT_FILTERS, objectName = null, useCach
     if (objectName) {
         queryFilters = OBJECT_SPECIFIC_FILTERS.map(
             filter => `${encodeURIComponent(filter)},path=${encodeURIComponent(objectName)}`
+        );
+    } else if (nodeName) {
+        // The events of one node: those labelled with its name.
+        queryFilters = validFilters.map(
+            filter => `${encodeURIComponent(filter)},node=${encodeURIComponent(nodeName)}`
         );
     } else {
         queryFilters = validFilters.map(filter => encodeURIComponent(filter));
@@ -154,6 +189,7 @@ const getAndClearBuffers = () => {
         instanceConfig: buffers.instanceConfig,
         configUpdated: buffers.configUpdated,
         instanceConfigDeleted: buffers.instanceConfigDeleted,
+        nodeDeleted: buffers.nodeDeleted,
     };
 
     buffers = {
@@ -167,6 +203,7 @@ const getAndClearBuffers = () => {
         instanceConfig: {},
         configUpdated: new Set(),
         instanceConfigDeleted: [],
+        nodeDeleted: [],
     };
 
     return buffersToFlush;
@@ -303,6 +340,15 @@ const flushBuffers = () => {
                 store.removePendingDelete(path, node);
             }
         }
+        // A node dropped by the cluster: its status, monitor and stats go, after
+        // the updates flushed with them.
+        if (buffersToFlush.nodeDeleted.length > 0) {
+            const store = useEventStore.getState();
+            for (const node of buffersToFlush.nodeDeleted) {
+                debugLog(`🗑️ Flushing NodeMonitorDeleted: node=${node}`);
+                store.removeNode(node);
+            }
+        }
 
         if (eventCount > 0) {
             debugLog(`✅ Flushed ${eventCount} events`);
@@ -389,6 +435,7 @@ const clearBuffers = () => {
         instanceConfig: {},
         configUpdated: new Set(),
         instanceConfigDeleted: [],
+        nodeDeleted: [],
     };
     if (flushTimeoutId) {
         clearTimeout(flushTimeoutId);
@@ -397,6 +444,55 @@ const clearBuffers = () => {
     eventCount = 0;
     isFlushing = false;
     needsFlush = false;
+};
+
+/**
+ * Drops the objects the daemon no longer knows. The replay of a new connection
+ * only adds objects, and an ObjectDeleted is seen only by a stream open at the
+ * time and subscribed to it: one missed (another page, a reconnection, a closed
+ * browser, the store kept in localStorage) left the object listed for good.
+ *
+ * Only the objects held before the request can go: one created while it runs is
+ * in the store and not in the answer, and must stay.
+ */
+export const reconcileObjects = async (token) => {
+    const state = useEventStore.getState();
+    const held = new Set([
+        ...Object.keys(state.objectStatus),
+        ...Object.keys(state.objectInstanceStatus),
+        ...Object.keys(state.instanceConfig),
+        ...Object.keys(state.instanceMonitor).map((key) => key.slice(key.indexOf(':') + 1)),
+    ]);
+    if (held.size === 0) return;
+    let paths;
+    try {
+        const response = await fetch(`${URL_OBJECT}?path=${encodeURIComponent('**')}`, {
+            headers: {Authorization: `Bearer ${token}`},
+            cache: 'no-cache',
+        });
+        if (!response.ok) {
+            logger.warn(`Object list not reconciled: HTTP ${response.status}`);
+            return;
+        }
+        paths = await response.json();
+    } catch (e) {
+        logger.warn('Object list not reconciled:', e);
+        return;
+    }
+    if (!Array.isArray(paths)) return;
+    const known = new Set(paths);
+    const gone = [...held].filter((name) => !known.has(name));
+    if (gone.length === 0) return;
+    logger.info('🗑️ Dropping objects the daemon no longer knows:', gone);
+    for (const name of gone) {
+        delete buffers.objectStatus[name];
+        delete buffers.instanceStatus[name];
+        delete buffers.instanceConfig[name];
+    }
+    for (const key of Object.keys(buffers.instanceMonitor)) {
+        if (gone.includes(key.slice(key.indexOf(':') + 1))) delete buffers.instanceMonitor[key];
+    }
+    useEventStore.getState().removeObjects(gone);
 };
 
 export const clearEventBuffers = () => {
@@ -423,6 +519,12 @@ const updateBuffer = (bufferName, key, value) => {
         return;
     }
 
+    if (bufferName === 'nodeDeleted') {
+        buffers.nodeDeleted.push(value);
+        scheduleFlush();
+        return;
+    }
+
     if (bufferName === 'instanceConfigDeleted') {
         buffers.instanceConfigDeleted.push(value);
         debugLog(`📝 Buffer[instanceConfigDeleted]:`, value);
@@ -443,12 +545,10 @@ const updateBuffer = (bufferName, key, value) => {
         if (!buffers.instanceStatus[path]) {
             buffers.instanceStatus[path] = {};
         }
-        const existing = buffers.instanceStatus[path][node];
-        buffers.instanceStatus[path][node] = existing ? {...existing, ...value} : value;
-        debugLog(`📝 Buffer[instanceStatus]: ${path}:${node}`, {
-            incoming: value,
-            merged: buffers.instanceStatus[path][node]
-        });
+        // The whole status in each event: the last one is the status, nothing merged
+        // from an earlier one, a field it omits (once empty) is gone.
+        buffers.instanceStatus[path][node] = value;
+        debugLog(`📝 Buffer[instanceStatus]: ${path}:${node}`, value);
     } else if (bufferName === 'instanceConfig') {
         const [path, node] = key.split(':');
         if (!buffers.instanceConfig[path]) {
@@ -483,6 +583,7 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
         return null;
     }
 
+    clearReconnectTimer();
     if (currentEventSource) {
         logger.info('Closing existing EventSource');
         currentEventSource.close();
@@ -519,6 +620,8 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
         if (eventCount > 0) {
             flushBuffers();
         }
+        // Deletions may have been missed while no stream was open.
+        void reconcileObjects(currentToken || token);
     };
 
     // Add event handlers for all API events in the filters
@@ -596,6 +699,11 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
                         updateBuffer('nodeMonitor', data.node, data.node_monitor);
                     }
                     break;
+                case EVENT_TYPES.NODE_MONITOR_DELETED: {
+                    const droppedNode = data.node || data.labels?.node;
+                    if (droppedNode) updateBuffer('nodeDeleted', null, droppedNode);
+                    break;
+                }
                 case EVENT_TYPES.NODE_STATS_UPDATED:
                     if (data.node && data.node_stats) {
                         updateBuffer('nodeStats', data.node, data.node_stats);
@@ -654,7 +762,10 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
             return;
         }
 
-        handleReconnection(url, token, filters);
+        // Reconnecting on its own: a second connection of ours would replace it.
+        if (eventSourceRef.readyState === CONNECTING) return;
+
+        handleReconnection(url, filters);
     };
 
     return currentEventSource;
@@ -697,7 +808,7 @@ const handleAuthError = (token, url) => {
     navigationService.redirectToAuth();
 };
 
-const handleReconnection = (url, token, filters) => {
+const handleReconnection = (url, filters) => {
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS && isPageActive) {
         reconnectAttempts++;
 
@@ -715,10 +826,15 @@ const handleReconnection = (url, token, filters) => {
 
         logger.info(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
 
-        setTimeout(() => {
-            const currentToken = getCurrentToken();
-            if (currentToken && isPageActive) {
-                createEventSource(url, currentToken, filters);
+        const failed = currentEventSource;
+        clearReconnectTimer();
+        reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            // Replaced since (a token updated, other claims): that one is not to be reopened.
+            if (currentEventSource !== failed) return;
+            const token = getCurrentToken();
+            if (token && isPageActive) {
+                createEventSource(url, token, filters);
             }
         }, delay);
     } else if (isPageActive) {
@@ -738,6 +854,7 @@ export const createLoggerEventSource = (url, token, filters) => {
         return null;
     }
 
+    clearLoggerReconnectTimer();
     if (currentLoggerEventSource) {
         logger.info('Closing existing Logger EventSource');
         currentLoggerEventSource.close();
@@ -760,7 +877,8 @@ export const createLoggerEventSource = (url, token, filters) => {
 
     currentLoggerEventSource.onopen = () => {
         logger.info('✅ Logger EventSource connection established');
-        reconnectAttempts = 0;
+        loggerReconnectAttempts = 0;
+        useEventLogStore.getState().setConnected?.(true);
     };
 
     currentLoggerEventSource.onerror = (error) => {
@@ -768,6 +886,7 @@ export const createLoggerEventSource = (url, token, filters) => {
         if (currentLoggerEventSource !== loggerEventSourceRef) return;
 
         logger.error('🚨 Logger EventSource error:', error, 'URL:', url, 'readyState:', currentLoggerEventSource?.readyState);
+        useEventLogStore.getState().setConnected?.(false);
 
         if (error.status === 401) {
             logger.warn('🔐 Authentication error detected in logger');
@@ -795,19 +914,26 @@ export const createLoggerEventSource = (url, token, filters) => {
             }
         }
 
-        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS && isPageActive) {
-            reconnectAttempts++;
+        // Reconnecting on its own: a second connection of ours would replace it.
+        if (loggerEventSourceRef.readyState === CONNECTING) return;
+
+        if (loggerReconnectAttempts < MAX_RECONNECT_ATTEMPTS && isPageActive) {
+            loggerReconnectAttempts++;
             const delay = Math.min(
-                BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts) + Math.random() * 100,
+                BASE_RECONNECT_DELAY * Math.pow(2, loggerReconnectAttempts) + Math.random() * 100,
                 MAX_RECONNECT_DELAY
             );
 
-            logger.info(`🔄 Logger reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+            logger.info(`🔄 Logger reconnecting in ${delay}ms (attempt ${loggerReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
 
-            setTimeout(() => {
-                const currentToken = getCurrentToken();
-                if (currentToken && isPageActive) {
-                    createLoggerEventSource(url, currentToken, filters);
+            clearLoggerReconnectTimer();
+            loggerReconnectTimer = setTimeout(() => {
+                loggerReconnectTimer = null;
+                // Replaced since (a token updated, another feed): that one is not to be reopened.
+                if (currentLoggerEventSource !== loggerEventSourceRef) return;
+                const token = getCurrentToken();
+                if (token && isPageActive) {
+                    createLoggerEventSource(url, token, filters);
                 }
             }, delay);
         } else if (isPageActive) {
@@ -840,43 +966,29 @@ export const createLoggerEventSource = (url, token, filters) => {
     return currentLoggerEventSource;
 };
 
-// Update EventSource token
+// Update EventSource token. A stream the daemon refused (401) is closed by the
+// polyfill before it says so: closed or not, the stream opens again with the new
+// token, on its address, its claims unchanged. The logger stream, on the same token, too.
 export const updateEventSourceToken = (newToken) => {
     if (!newToken) return;
 
     currentToken = newToken;
 
-    if (currentEventSource && currentEventSource.readyState !== EventSource.CLOSED) {
+    if (currentEventSource) {
         logger.info('🔄 Token updated, restarting EventSource');
         const currentUrl = currentEventSource.url;
-        closeEventSource();
-
-        setTimeout(() => {
-            // Extract filters from current URL
-            const urlParams = new URLSearchParams(currentUrl.split('?')[1]);
-            const filters = urlParams.getAll('filter').map(f => {
-                // Remove any path parameters from filter
-                return f.split(',')[0];
-            });
-            createEventSource(currentUrl, newToken, filters);
-        }, 100);
+        createEventSource(currentUrl, newToken, filtersOf(currentUrl));
     }
+    updateLoggerEventSourceToken(newToken);
 };
 
 export const updateLoggerEventSourceToken = (newToken) => {
     if (!newToken) return;
 
-    if (currentLoggerEventSource && currentLoggerEventSource.readyState !== EventSource.CLOSED) {
+    if (currentLoggerEventSource) {
         logger.info('🔄 Token updated, restarting Logger EventSource');
         const currentUrl = currentLoggerEventSource.url;
-        closeLoggerEventSource();
-
-        setTimeout(() => {
-            // Extract filters from current URL
-            const urlParams = new URLSearchParams(currentUrl.split('?')[1]);
-            const filters = urlParams.getAll('filter').map(f => f.split(',')[0]);
-            createLoggerEventSource(currentUrl, newToken, filters);
-        }, 100);
+        createLoggerEventSource(currentUrl, newToken, filtersOf(currentUrl));
     }
 };
 
@@ -903,6 +1015,8 @@ export const closeEventSource = () => {
         currentToken = null;
         reconnectAttempts = 0;
     }
+    clearReconnectTimer();
+    claimedQuery = null;
 };
 
 // Close Logger EventSource
@@ -921,7 +1035,10 @@ export const closeLoggerEventSource = () => {
 
         currentLoggerEventSource.close();
         currentLoggerEventSource = null;
+        loggerReconnectAttempts = 0;
+        useEventLogStore.getState().setConnected?.(false);
     }
+    clearLoggerReconnectTimer();
 };
 
 export const configureEventSource = (token, objectName = null, filters = DEFAULT_FILTERS, useCache = true) => {
@@ -944,24 +1061,100 @@ export const startEventReception = (token, filters = DEFAULT_FILTERS, objectName
     configureEventSource(token, objectName, filters, useCache);
 };
 
-export const configureLoggerEventSource = (token, objectName = null, filters = DEFAULT_FILTERS) => {
+/*
+ * Stream claims. A view and the record panel open over it each need their events
+ * (the Objects list and the panel of one of its objects, say), but the daemon is
+ * listened to through one stream: each claims what it needs, the stream carries
+ * the union of the claims, and it is opened again only when that union changes.
+ * The claims made and released by one render are applied together, once it is done.
+ */
+const streamClaims = new Map();
+let claimSequence = 0;
+let claimedQuery = null;
+let claimsQueued = false;
+
+const validTypes = (filters) => filters.filter(f => Object.values(EVENT_TYPES).includes(f));
+
+/** The query string and the event types of the union of the claims. */
+export const claimsQuery = (claims) => {
+    const queryFilters = new Set();
+    const types = new Set();
+    for (const {filters, objectName} of claims) {
+        const valid = validTypes(filters);
+        valid.forEach(type => types.add(type));
+        if (objectName) {
+            OBJECT_SPECIFIC_FILTERS.forEach(filter => queryFilters.add(
+                `${encodeURIComponent(filter)},path=${encodeURIComponent(objectName)}`
+            ));
+        } else {
+            valid.forEach(filter => queryFilters.add(encodeURIComponent(filter)));
+        }
+    }
+    const query = `cache=true&${[...queryFilters].sort().map(filter => `filter=${filter}`).join('&')}`;
+    return {query, types: [...types]};
+};
+
+const applyClaims = () => {
+    claimsQueued = false;
+    if (streamClaims.size === 0) {
+        closeEventSource();
+        return;
+    }
+    const token = getCurrentToken();
+    if (!token) {
+        logger.error('❌ No token provided for SSE!');
+        return;
+    }
+    const {query, types} = claimsQuery([...streamClaims.values()]);
+    // The same claims on a stream given up on (closed): opened again.
+    if (query === claimedQuery && currentEventSource && currentEventSource.readyState !== CLOSED) return;
+    closeEventSource();
+    currentEventSource = createEventSource(`${URL_NODE_EVENT}?${query}`, token, types);
+    claimedQuery = query;
+};
+
+const queueClaims = () => {
+    if (claimsQueued) return;
+    claimsQueued = true;
+    queueMicrotask(applyClaims);
+};
+
+/**
+ * Claims the events of `filters`, for the object `objectName` only when given, and
+ * returns the function that releases the claim. The stream closes with the last one.
+ */
+export const retainEventReception = (token, filters = DEFAULT_FILTERS, objectName = null) => {
+    if (!token) {
+        logger.error('❌ No token provided for SSE!');
+        return () => {};
+    }
+    currentToken = token;
+    const id = ++claimSequence;
+    streamClaims.set(id, {filters, objectName});
+    queueClaims();
+    return () => {
+        if (streamClaims.delete(id)) queueClaims();
+    };
+};
+
+export const configureLoggerEventSource = (token, objectName = null, filters = DEFAULT_FILTERS, nodeName = null) => {
     if (!token) {
         logger.error('❌ No token provided for Logger SSE!');
         return;
     }
 
-    const queryString = createQueryString(filters, objectName);
+    const queryString = createQueryString(filters, objectName, true, nodeName);
     const url = `${URL_NODE_EVENT}?${queryString}`;
     closeLoggerEventSource();
     currentLoggerEventSource = createLoggerEventSource(url, token, filters);
 };
 
-export const startLoggerReception = (token, filters = DEFAULT_FILTERS, objectName = null) => {
+export const startLoggerReception = (token, filters = DEFAULT_FILTERS, objectName = null, nodeName = null) => {
     if (!token) {
         logger.error('❌ No token provided for Logger SSE!');
         return;
     }
-    configureLoggerEventSource(token, objectName, filters);
+    configureLoggerEventSource(token, objectName, filters, nodeName);
 };
 
 export const setPageActive = (active) => {

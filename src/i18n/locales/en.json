@@ -1,0 +1,1999 @@
+{
+  "actionDialogs": {
+    "chooseFile": "Choose File",
+    "noFileSelected": "No file selected",
+    "noFileChosen": "No file chosen",
+    "acknowledge": {
+      "mayInterruptAria": "Confirm service interruption",
+      "mayInterrupt": "I understand that this may interrupt services.",
+      "dataLossAria": "Confirm data loss",
+      "dataLoss": "I understand data will be lost.",
+      "configLossAria": "Confirm configuration loss",
+      "configLoss": "I understand the configuration will be lost.",
+      "clusterwideAria": "Confirm clusterwide orchestration",
+      "clusterwide": "I understand this action will be orchestrated clusterwide.",
+      "serviceInterruptionAria": "Confirm service interruption",
+      "serviceInterruption": "I understand the selected services may be temporarily interrupted during failover, or durably interrupted if no failover is configured.",
+      "unavailableDuringMoveAria": "Confirm service unavailability",
+      "unavailableDuringMove": "I understand the selected services will be unavailable during move."
+    },
+    "freeze": {
+      "title": "Confirm Freeze",
+      "checkboxAria": "Confirm failover pause",
+      "checkbox": "I understand that the selected service orchestration will be paused.",
+      "confirmAria": "Confirm freeze action"
+    },
+    "stop": {
+      "title": "Confirm Stop",
+      "confirmAria": "Confirm stop action",
+      "confirm": "Stop"
+    },
+    "shutdown": {
+      "title": "Confirm Shutdown",
+      "confirmAria": "Confirm shutdown action",
+      "confirm": "Shutdown",
+      "instancesDownAria": "Confirm instances shutdown",
+      "instancesDown": "I understand all svc and vol instances on this node will be shut down and the daemon will be stopped.",
+      "peerTakeoverAria": "Confirm peer takeover",
+      "peerTakeover": "I understand peer nodes are not notified of a maintenance period and will try to take over services as soon as the instances are down.",
+      "instance": {
+        "instancesDownAria": "Confirm instances shutdown",
+        "instancesDown": "I understand every resource of these instances, standby ones included, will be stopped.",
+        "peerTakeoverAria": "Confirm peer takeover",
+        "peerTakeover": "I understand peer nodes may take over the services as soon as these instances are down."
+      }
+    },
+    "restart": {
+      "title": "Confirm Restart",
+      "confirmAria": "Confirm restart action",
+      "confirm": "Restart"
+    },
+    "clear": {
+      "title": "Confirm Clear",
+      "checkboxAria": "Confirm clear action",
+      "checkbox": "I understand that this will clear node status and logs.",
+      "confirmAria": "Confirm clear action"
+    },
+    "drain": {
+      "title": "Confirm Drain",
+      "checkboxAria": "Confirm service migration",
+      "checkbox": "I understand that this will migrate services away from the selected nodes.",
+      "confirmAria": "Confirm drain action"
+    },
+    "unprovision": {
+      "title": "Confirm Unprovision",
+      "confirmAria": "Confirm unprovision action"
+    },
+    "purge": {
+      "title": "Confirm Purge",
+      "confirmAria": "Confirm purge action"
+    },
+    "delete": {
+      "title": "Confirm Delete",
+      "confirmAria": "Confirm delete action",
+      "instance": {
+        "configLossAria": "Confirm instance configuration loss",
+        "configLoss": "I understand the configuration and states of these instances will be deleted, whatever their status.",
+        "localOnlyAria": "Confirm instance configuration only",
+        "localOnly": "I understand nothing is stopped nor unprovisioned, and the daemon may recreate the configuration from a peer's copy."
+      }
+    },
+    "switch": {
+      "title": "Confirm Switch",
+      "confirmAria": "Confirm switch action"
+    },
+    "giveback": {
+      "title": "Confirm Giveback",
+      "confirmAria": "Confirm giveback action"
+    },
+    "deleteKey": {
+      "title": "Confirm Key Deletion",
+      "confirmAria": "Confirm delete key action",
+      "message": "Are you sure you want to delete the key <strong>{{key}}</strong>?"
+    },
+    "createKey": {
+      "title": "Create New Key",
+      "confirmAria": "Confirm create key action",
+      "confirm": "Create",
+      "keyName": "Key Name",
+      "keyNameAria": "Key name input"
+    },
+    "updateConfig": {
+      "title": "Update Configuration",
+      "confirmAria": "Confirm update config action",
+      "confirm": "Update"
+    },
+    "manageParams": {
+      "title": "Manage Configuration Parameters",
+      "confirmAria": "Apply configuration changes",
+      "confirm": "Apply",
+      "set": "Parameters to set",
+      "setHint": "Add parameters (one per line, e.g., section.param=value)",
+      "setAria": "Parameters to set input",
+      "unset": "Parameter keys to unset",
+      "unsetHint": "Unset parameters (one key per line, e.g., section.param)",
+      "unsetAria": "Parameters to unset input",
+      "deleteSections": "Section keys to delete",
+      "deleteSectionsHint": "Delete sections (one key per line, e.g., section)",
+      "deleteSectionsAria": "Sections to delete input"
+    },
+    "subject": "Acts on <strong>{{target}}</strong>.",
+    "subjectNamesAria": "Targets",
+    "simpleConfirm": {
+      "title": "Confirm {{action}}",
+      "confirmAria": "Confirm {{action}} action",
+      "message": "Are you sure you want to <strong>{{action}}</strong> on {{target}}?",
+      "titleAction": "Confirm {{label}}",
+      "titleGeneric": "Confirm Action",
+      "messageAction": "Are you sure you want to {{action}} on {{target}}?",
+      "messageGeneric": "Are you sure you want to perform this action on {{target}}?"
+    }
+  },
+  "actions": {
+    "labels": {
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "freeze": "Freeze",
+      "unfreeze": "Unfreeze",
+      "provision": "Provision",
+      "unprovision": "Unprovision",
+      "install": "Install",
+      "switch": "Switch",
+      "giveback": "Giveback",
+      "abort": "Abort",
+      "enable": "Enable",
+      "disable": "Disable",
+      "delete": "Delete",
+      "purge": "Purge",
+      "run": "Run",
+      "boot": "Boot",
+      "shutdown": "Shutdown",
+      "startStandby": "Start standby",
+      "prstart": "Prstart",
+      "prstop": "Prstop",
+      "syncIngest": "Sync ingest",
+      "syncUpdate": "Sync update",
+      "syncFull": "Sync full",
+      "syncResync": "Sync resync",
+      "syncSplit": "Sync split",
+      "pgReset": "Pg reset",
+      "pgUpdate": "Pg update",
+      "info": "Info",
+      "status": "Status",
+      "console": "Console",
+      "clear": "Clear",
+      "drain": "Drain",
+      "scsiScan": "Scsi scan",
+      "asset": "Asset",
+      "disk": "Disk",
+      "pkg": "Pkg",
+      "capabilities": "Capabilities",
+      "sysreport": "Sysreport",
+      "restartDaemon": "Restart daemon",
+      "resize": "Resize",
+      "cap": "Cap",
+      "leave": "Leave"
+    }
+  },
+  "alerts": {
+    "details": {
+      "node_one": "{{count}} node",
+      "node_other": "{{count}} nodes",
+      "pool_one": "{{count}} pool",
+      "pool_other": "{{count}} pools",
+      "network_one": "{{count}} network",
+      "network_other": "{{count}} networks",
+      "frozen": "frozen: {{count}}",
+      "full": "full: {{count}}",
+      "highestUsage": "highest usage: {{name}} {{percent}}%"
+    },
+    "objectsDown_one": "{{count}} object down",
+    "objectsDown_other": "{{count}} objects down",
+    "objectsWarn_one": "{{count}} object in warn",
+    "objectsWarn_other": "{{count}} objects in warn",
+    "linksDown_one": "{{count}} of {{total}} heartbeat links down",
+    "linksDown_other": "{{count}} of {{total}} heartbeat links down",
+    "nodesOverloaded_one": "{{count}} of {{total}} nodes overloaded",
+    "nodesOverloaded_other": "{{count}} of {{total}} nodes overloaded"
+  },
+  "auth": {
+    "login": {
+      "title": "Login",
+      "username": "Username",
+      "password": "Password",
+      "changeMethod": "Change Method",
+      "submit": "Submit",
+      "loading": "Loading...",
+      "incorrect": "Incorrect username or password",
+      "error": "An error occurred during authentication",
+      "missingFields": "Please enter both username and password"
+    },
+    "choice": {
+      "title": "Authentication Methods",
+      "prompt": "Please select one of the authentication methods the cluster advertises.",
+      "loading": "Loading authentication methods",
+      "openid": "OpenID",
+      "login": "Login"
+    },
+    "authenticating": {
+      "title": "Authentication",
+      "loading": "Loading...",
+      "redirecting": "You are being redirected to the openid provider.",
+      "reload": "Reload"
+    },
+    "callback": {
+      "logging": "Logging ..."
+    },
+    "silentRenew": {
+      "processing": "Silent renew processing..."
+    }
+  },
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "remove": "Remove",
+    "refresh": "Refresh",
+    "retry": "Retry",
+    "loading": "Loading",
+    "search": "Search",
+    "filter": "Filter",
+    "filters": "Filters",
+    "all": "All",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No",
+    "name": "Name",
+    "node": "Node",
+    "nodes": "Nodes",
+    "status": "Status",
+    "state": "State",
+    "type": "Type",
+    "actions": "Actions",
+    "notAvailable": "N/A",
+    "error": "Error",
+    "unknown": "Unknown",
+    "selected": "{{count}} selected",
+    "copied": "Copied"
+  },
+  "config": {
+    "errors": {
+      "fetchConfig": "Failed to fetch config: {{message}}",
+      "fetchKeywords": "Failed to fetch keywords: {{message}}",
+      "fetchParams": "Failed to fetch existing parameters: {{message}}",
+      "invalidFormat": "Invalid response format: missing items",
+      "timeout": "Request timed out after 60 seconds"
+    },
+    "filePicker": {
+      "choose": "Choose File",
+      "noFile": "No file chosen"
+    },
+    "update": {
+      "title": "Update Configuration",
+      "submit": "Update",
+      "updating": "Updating"
+    },
+    "params": {
+      "title": "Manage Configuration Parameters",
+      "apply": "Apply",
+      "applying": "Applying",
+      "addHeading": "Add parameters",
+      "selectLabel": "Select parameter to add",
+      "selectHint": "Select a parameter to add, then click Add",
+      "selectPlaceholder": "Select parameter",
+      "addButton": "Add Parameter",
+      "tableLabel": "Parameters to add",
+      "section": "Section",
+      "parameter": "Parameter",
+      "value": "Value",
+      "description": "Description",
+      "index": "Index",
+      "indexPlaceholder": "e.g., prod, 1, data",
+      "sectionOptional": "Section (optional)",
+      "sectionPlaceholder": "e.g., database, fs#data",
+      "removeParam": "Remove parameter",
+      "unsetLegend": "Unset parameters",
+      "unsetHint": "Select existing parameters to remove their values",
+      "unsetEmpty": "No parameters set.",
+      "deleteLegend": "Delete sections",
+      "deleteHint": "Select existing sections to delete",
+      "deleteEmpty": "No sections."
+    },
+    "view": {
+      "button": "View Configuration",
+      "title": "Configuration",
+      "saving": "Saving",
+      "editNotice": "Editing the file as stored: secret values are shown in clear. Saving uploads the whole file.",
+      "startOver": "Start over from the current file",
+      "fileLabel": "Configuration file",
+      "secretsMaskedIn": "Secrets masked again in {{time}}.",
+      "secretsHidden": "Secret values are shown as ********.",
+      "hideSecrets": "Hide secrets",
+      "showSecrets": "Show secrets",
+      "editFile": "Edit configuration file",
+      "uploadFile": "Upload new configuration file",
+      "manageParams": "Manage configuration parameters",
+      "noInstance": "No instance selected to view configuration.",
+      "loadingForEdit": "Loading configuration for editing",
+      "loading": "Loading configuration",
+      "empty": "No configuration available.",
+      "noSection": "No section [{{section}}] in the configuration.",
+      "copy": "Copy the configuration shown",
+      "absent": "No configuration yet: it is created with the first change written."
+    },
+    "feedback": {
+      "tokenNotFound": "Auth token not found.",
+      "conflict": "The configuration was changed by someone else since you started editing it. Your changes are not saved.",
+      "updateFailed": "Failed to update config: {{message}}",
+      "fileRequired": "Configuration file is required.",
+      "paramRequired": "Parameter input is required.",
+      "invalidParam": "Invalid parameter: {{name}}",
+      "invalidList": "Invalid value for {{keyword}}: must be comma-separated lowercase strings",
+      "unknownParam": "unknown",
+      "unsetErrorUnknown": "Error unsetting parameter {{keyword}}",
+      "noSelection": "No selection made"
+    },
+    "keywordHelp": {
+      "open": "What {{keyword}} does",
+      "loadError": "The keywords help could not be read: {{message}}",
+      "default": "Default",
+      "candidates": "Values",
+      "example": "Example",
+      "converter": "Type",
+      "scopable": "Scopable",
+      "deprecated": "Deprecated",
+      "replacedBy": "replaced by {{keyword}}"
+    }
+  },
+  "console": {
+    "title": "Console",
+    "titleRid": "Console {{rid}}",
+    "titleNode": "Console on {{node}}",
+    "titleRidNode": "Console {{rid}} on {{node}}",
+    "opening": "Opening console...",
+    "ended": "Session ended (exit code {{code}}).",
+    "certificateHint": "If the certificate of the console port is not trusted by this browser, open <certLink>{{url}}</certLink> to accept it, then open the console again.",
+    "errors": {
+      "tokenNotFound": "Auth token not found.",
+      "sessionFailed": "The console session failed.",
+      "unreachable": "The console could not be reached.",
+      "lost": "The console connection was lost.",
+      "openFailed": "Failed to open console: {{message}}"
+    }
+  },
+  "events": {
+    "title": "Event Logger",
+    "button": "Events",
+    "count": "{{visible}}/{{total}} events",
+    "paused": "PAUSED",
+    "manageSubscriptions": "Manage subscriptions",
+    "pause": "Pause",
+    "resume": "Resume",
+    "clear": "Clear logs",
+    "filterByType": "Filter by type",
+    "filterByTypeColon": "Filter by type:",
+    "pageEvent": "Event of this page",
+    "additionalEvent": "Additional event",
+    "list": "Event list",
+    "loading": "Loading events",
+    "loadingMore": "Loading more events",
+    "empty": "No events logged",
+    "noMatch": "No events match current filters",
+    "resizeHandle": "Resize handle",
+    "dragToResize": "Drag to resize",
+    "subscriptions": {
+      "title": "Event Subscriptions",
+      "close": "Close subscriptions",
+      "intro": "Select which event types you want to SUBSCRIBE to (future events only):",
+      "subscribeAll": "Subscribe to All",
+      "subscribePage": "Subscribe to Page Events",
+      "unsubscribeAll": "Unsubscribe from All",
+      "pageEvents": "Page Events ({{total}})",
+      "additionalEvents": "Additional Events ({{total}})",
+      "received_one": "{{count}} events received",
+      "received_other": "{{count}} events received",
+      "noneSelected": "No event types selected. You won't receive any events.",
+      "apply": "Apply Subscriptions ({{total}})"
+    },
+    "following": "Following",
+    "follow": "Follow",
+    "latest": "Latest events",
+    "newEvents_one": "1 new event",
+    "newEvents_other": "{{count}} new events",
+    "showOlder": "Show older events",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "download": "Download the events shown",
+    "searchPlaceholder": "Search events…",
+    "types": "Types",
+    "allTypes": "All types",
+    "filtersActive": "Filters active",
+    "resetFilters": "Reset the filters",
+    "countOf": "{{shown}} / {{total}} events",
+    "showData": "Show its data",
+    "hideData": "Hide its data"
+  },
+  "heartbeats": {
+    "columns": {
+      "heartbeat": "Heartbeat",
+      "type": "Type",
+      "node": "Node",
+      "direction": "Direction",
+      "peer": "Peer",
+      "desc": "Desc",
+      "routine": "Routine",
+      "beating": "Beating",
+      "since": "Since",
+      "lastBeat": "Last Beat"
+    },
+    "filters": {
+      "routine": "Routine",
+      "beating": "Beating",
+      "id": "ID",
+      "show": "Show filters",
+      "hide": "Hide filters",
+      "driver": "Driver",
+      "clearAll": "Clear all filters"
+    },
+    "marks": {
+      "healthySingleNode": "Healthy (single node)",
+      "beating": "Beating",
+      "stale": "Stale"
+    },
+    "empty": "No heartbeats found matching the current filters.",
+    "mesh": {
+      "title": "Mesh",
+      "groupLabel_one": "{{from}} to {{to}}: {{beating}} of {{count}} link beating",
+      "groupLabel_other": "{{from}} to {{to}}: {{beating}} of {{count}} links beating",
+      "beatingOf_one": "{{beating}} of {{count}} beating",
+      "beatingOf_other": "{{beating}} of {{count}} beating",
+      "legend": {
+        "direction": "→ the way the beats go: from the sender its tx, then past the gap into the receiver its rx",
+        "up": "all beating",
+        "warn": "some beating",
+        "down": "none beating"
+      },
+      "half": {
+        "tx": "Seen from {{node}}, outgoing to {{peer}}",
+        "rx": "Seen from {{node}}, incoming from {{peer}}"
+      },
+      "noLink": "No stream of this end reports this peer.",
+      "routinesStopped_one": "{{stopped}} of {{count}} routine stopped",
+      "routinesStopped_other": "{{stopped}} of {{count}} routines stopped",
+      "details": "Streams",
+      "detailsHint": "Hover an arrow or a node for its details; click an arrow to keep them, the ground of the mesh to let them go.",
+      "overall": {
+        "operational": "streams operational",
+        "up": "optimal",
+        "warn": "degraded",
+        "down": "critical"
+      }
+    },
+    "actions": {
+      "stop": "Stop",
+      "start": "Start",
+      "target": "the {{id}} stream of {{node}}",
+      "restart": "Restart",
+      "menu": "Actions",
+      "selectHint": "Select streams to start, stop or restart them",
+      "selectStream": "Select the {{id}} stream of {{node}}",
+      "selectAll": "Select all the streams shown",
+      "clear": "Clear the selection",
+      "confirm": {
+        "stop": {
+          "title_one": "Stop a heartbeat stream",
+          "title_other": "Stop {{count}} heartbeat streams",
+          "text_one": "Stop this stream? The node stops sending or receiving on it until it is started again.",
+          "text_other": "Stop these streams? The nodes stop sending or receiving on them until they are started again."
+        },
+        "restart": {
+          "title_one": "Restart a heartbeat stream",
+          "title_other": "Restart {{count}} heartbeat streams",
+          "text_one": "Restart this stream? It stops, then starts again: the peer may be missed for a moment.",
+          "text_other": "Restart these streams? Each stops, then starts again: the peers may be missed for a moment."
+        }
+      },
+      "confirmTitle": "Stop a heartbeat stream",
+      "confirmStop": "Stop the {{id}} stream of {{node}}? The node stops sending or receiving on it until it is started again.",
+      "startRoutine": "Start {{name}}",
+      "stopRoutine": "Stop {{name}}",
+      "confirmStart": "Start the {{id}} stream of {{node}}? The node sends or receives on it again.",
+      "confirmTitleStart": "Start a heartbeat stream"
+    },
+    "routine": {
+      "running": "started",
+      "stopped": "stopped"
+    },
+    "direction": {
+      "tx": "sends to",
+      "rx": "receives from"
+    },
+    "summary": {
+      "list": "Heartbeats",
+      "layer": {
+        "network": "network",
+        "storage": "storage",
+        "relay": "relay",
+        "other": "other"
+      },
+      "side": {
+        "tx": "↑ tx",
+        "rx": "↓ rx"
+      },
+      "routines": "Routines",
+      "toggleHint": "Click a routine to stop it, or to start it.",
+      "beatingOf": "{{beating}}/{{count}} beating"
+    },
+    "tabs": {
+      "label": "Heartbeats views",
+      "data": "Data",
+      "logs": "Logs",
+      "overview": "Overview"
+    },
+    "logs": {
+      "changes": "State changes only"
+    },
+    "config": {
+      "title": "{{name}} configuration",
+      "open": "Show the configuration of {{name}}",
+      "edit": "Edit with the wizard",
+      "new": "New heartbeat",
+      "none": "No [{{name}}] section in the cluster configuration.",
+      "readFailed": "The cluster configuration could not be read: {{message}}",
+      "delete": "Delete",
+      "deleting": "Deleting…",
+      "confirmDelete": "Delete [{{name}}] from the cluster configuration? Its streams stop on every node.",
+      "deleteFailed": "The heartbeat could not be deleted: {{message}}",
+      "notDeletable": "It may be deleted once another heartbeat has all its streams up."
+    },
+    "wizard": {
+      "newTitle": "New heartbeat {{name}}",
+      "editTitle": "Edit heartbeat {{name}}",
+      "steps": "Steps",
+      "step": {
+        "type": "Driver",
+        "settings": "Settings",
+        "review": "Review"
+      },
+      "typeQuestion": "How do the nodes beat to one another?",
+      "types": {
+        "unicast": "Over the network, node to node: an address of each node.",
+        "multicast": "Over the network, to a multicast group all the nodes listen to.",
+        "disk": "On a disk shared by the nodes, a slot each.",
+        "relay": "Through a relay, a third site the nodes reach."
+      },
+      "perNode": "An address on each node, the one the others send to: the same on every node would not do.",
+      "onNode": "{{key}} on {{node}}",
+      "required": "{{key}} (required)",
+      "written": "Written to the cluster configuration, the daemons applying it:",
+      "rewrite": "The driver changes from {{from}} to {{to}}: the section is rewritten, the keywords of {{from}} dropped.",
+      "unchanged": "Nothing changed: nothing to write.",
+      "back": "Back",
+      "next": "Next",
+      "save": "Write",
+      "saving": "Writing…",
+      "saveFailed": "The heartbeat could not be written: {{message}}",
+      "trayLabel": "Configure"
+    }
+  },
+  "instance": {
+    "unknown": "unknown",
+    "notProvisionedTitle": "Not Provisioned",
+    "card": {
+      "group": "Instance on node {{node}}",
+      "selectNode": "Select node {{node}}",
+      "viewResources": "View resources",
+      "viewResourcesHint": "(view resources)",
+      "stopped": "Instance on node {{node}} is stopped",
+      "lagging": "Instance on node {{node}} is lagging",
+      "notProvisioned": "Instance on node {{node}} is not provisioned",
+      "actionsMenu": "Node {{node}} actions",
+      "viewLogs": "View logs for instance {{instance}} on node {{node}}"
+    },
+    "view": {
+      "loading": "Loading instance data...",
+      "node": "Node: {{node}}",
+      "stopped": "Instance is stopped",
+      "notProvisioned": "Instance is not provisioned",
+      "viewLogs": "View logs for instance {{name}}",
+      "actionsMenu": "Instance actions",
+      "actionInProgress": "Action in progress",
+      "dismiss": "Dismiss",
+      "resourcesHeading": "Resources ({{count}})"
+    },
+    "resources": {
+      "tableLabel": "Resources",
+      "columns": {
+        "resource": "Resource",
+        "flags": "Flags",
+        "label": "Label"
+      },
+      "empty": "No resources found on this instance.",
+      "noEncapData": "No encapsulated data available for {{rid}}.",
+      "encapNoResources": "Encapsulated data found for {{rid}}, but no resources defined.",
+      "noEncapResources": "No encapsulated resources available for {{rid}}.",
+      "row": "Resource {{rid}}",
+      "notProvisioned": "Resource {{rid}} is not provisioned",
+      "flagsLabel": "Resource {{rid}} status: {{flags}}",
+      "actionsMenu": "Resource {{rid}} actions",
+      "logs": "Logs of resource {{rid}}",
+      "actionsDisabled": "info: actions disabled"
+    },
+    "flags": {
+      "running": "Running",
+      "notRunning": "Not Running",
+      "monitored": "Monitored",
+      "notMonitored": "Not Monitored",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "optional": "Optional",
+      "notOptional": "Not Optional",
+      "encap": "Encap",
+      "notEncap": "Not Encap",
+      "provisioned": "Provisioned",
+      "notProvisioned": "Not Provisioned",
+      "standby": "Standby",
+      "notStandby": "Not Standby",
+      "noRestart": "No Restart",
+      "moreThan10Restarts": "More than 10 Restarts",
+      "restartsRemaining_one": "{{count}} Restart Remaining",
+      "restartsRemaining_other": "{{count}} Restarts Remaining"
+    },
+    "feedback": {
+      "authTokenNotFound": "Auth token not found.",
+      "executingOnResource": "Requesting {{action}} on resource {{rid}}…",
+      "executingOnInstance": "Requesting {{action}} on the instance…",
+      "failed": "Not requested: HTTP {{status}}",
+      "failedWithDetail": "Not requested: HTTP {{status}} - {{detail}}",
+      "succeeded": "'{{action}}' requested",
+      "error": "Error: {{message}}"
+    },
+    "dialogs": {
+      "confirmFreeze": "Confirm Freeze",
+      "freezeAck": "I understand that the selected service orchestration will be paused.",
+      "confirmStop": "Confirm Stop",
+      "stop": "Stop",
+      "stopAck": "I understand that this may interrupt services.",
+      "confirmUnprovision": "Confirm Unprovision",
+      "dataLossAck": "I understand data will be lost.",
+      "serviceInterruptionAck": "I understand the selected services may be temporarily interrupted during failover, or durably interrupted if no failover is configured.",
+      "confirmPurge": "Confirm Purge",
+      "configLossAck": "I understand the configuration will be lost.",
+      "confirmAction": "Confirm {{action}}",
+      "action": "Action",
+      "performThisAction": "perform this action",
+      "questionResource": "Are you sure you want to <strong>{{action}}</strong> on resource {{rid}}?",
+      "questionInstance": "Are you sure you want to <strong>{{action}}</strong> on this instance?"
+    },
+    "events": {
+      "title": "Instance Events - {{node}}/{{name}}",
+      "button": "Instance Events"
+    },
+    "logs": {
+      "title": "Instance Logs - {{node}}/{{name}}",
+      "close": "Close instance logs",
+      "resize": "Resize drawer"
+    },
+    "panel": {
+      "title": "{{path}} @ {{node}}",
+      "avail": "Avail",
+      "overall": "Overall",
+      "provisioned": "Provisioned",
+      "frozen": "Frozen",
+      "monitor": "Monitor",
+      "yes": "yes",
+      "no": "no",
+      "resources": "Resources of the instance",
+      "rid": "Resource",
+      "label": "Label",
+      "noResource": "No resource.",
+      "object": "Object",
+      "node": "Node",
+      "datastores": "Datastores",
+      "actions": "Instance actions",
+      "selectResource": "Select {{rid}}",
+      "selectionHelp": "Check resources to select them.",
+      "volumes": "Volumes"
+    },
+    "on": "on {{node}}"
+  },
+  "keys": {
+    "title": "Object Keys ({{total}})",
+    "add": "Add new key",
+    "loading": "Loading keys",
+    "loadingContent": "Loading key content",
+    "empty": "No keys available.",
+    "tableAria": "keys table",
+    "size": "Size",
+    "bytes": "{{size}} bytes",
+    "editAction": "Edit key {{key}}",
+    "deleteAction": "Delete key {{key}}",
+    "view": {
+      "action": "View key {{key}}",
+      "title": "View Key: {{key}}",
+      "typeText": "Type: Text",
+      "typeBinary": "Type: Binary (Hex View)",
+      "maskedAgain_one": "Masked again in {{count}} second.",
+      "maskedAgain_other": "Masked again in {{count}} seconds.",
+      "hide": "Hide secret",
+      "reveal": "Reveal secret",
+      "hidden": "The content of this secret is masked.",
+      "revealHint": "Use the Reveal secret button to show it.",
+      "contentAria": "Key content",
+      "copy": "Copy the content",
+      "download": "Download the key",
+      "decodeCertificate": "Decode certificate",
+      "showContent": "Show content"
+    },
+    "certificate": {
+      "title": "Certificate",
+      "numbered": "Certificate {{index}} of {{total}}",
+      "authority": "Certificate authority",
+      "subject": "Subject",
+      "issuer": "Issuer",
+      "validity": "Validity",
+      "notBefore": "Not before",
+      "notAfter": "Not after",
+      "expired": "Expired",
+      "notYetValid": "Not yet valid",
+      "expiresIn_one": "Valid, expires in {{count}} day",
+      "expiresIn_other": "Valid, expires in {{count}} days",
+      "altNames": "Alternative names",
+      "publicKey": "Public key",
+      "keyBits": "{{algorithm}} {{bits}} bits",
+      "signature": "Signature algorithm",
+      "keyUsage": "Key usage",
+      "extendedKeyUsage": "Extended key usage",
+      "basicConstraints": "Basic constraints",
+      "critical": "critical",
+      "serial": "Serial number",
+      "version": "Version",
+      "subjectKeyId": "Subject key ID",
+      "authorityKeyId": "Authority key ID",
+      "sha256": "SHA-256 fingerprint",
+      "sha1": "SHA-1 fingerprint",
+      "invalid": "Certificate {{index}} could not be decoded: {{message}}"
+    },
+    "deleteDialog": {
+      "title": "Confirm Key Deletion",
+      "message": "Are you sure you want to delete the key <strong>{{key}}</strong>?",
+      "messageMany": "Are you sure you want to delete the {{count}} keys <strong>{{list}}</strong>?"
+    },
+    "form": {
+      "createTitle": "Create New Key",
+      "updateTitle": "Update Key",
+      "create": "Create",
+      "update": "Update",
+      "name": "Key Name",
+      "fullScreen": "Full screen",
+      "exitFullScreen": "Exit full screen",
+      "content": "Key Content",
+      "contentPlaceholder": "Empty: the key is empty.",
+      "dropHint": "Type or paste the content, or drop a file here —",
+      "browse": "browse…",
+      "dropHere": "Drop to load the file",
+      "binary": "binary, sent as is",
+      "dropFile": "Drop the file, type the content",
+      "sizeOfMax": "{{size}} of up to {{max}}",
+      "tooLarge": "{{size}}: too large, a key holds up to {{max}}",
+      "hiddenSecret": "The content of a secret is hidden: type, paste or drop new content to replace it.",
+      "hiddenBinary": "The content is binary: drop or browse a file to replace it, or type new content.",
+      "hiddenUnread": "The content could not be read: type, paste or drop new content to replace it."
+    },
+    "errors": {
+      "noToken": "Auth token not found.",
+      "fetchKeys": "Failed to fetch keys: {{status}}",
+      "fetchContent": "Failed to fetch key content: {{status}}",
+      "generic": "Error: {{message}}"
+    },
+    "selectKey": "Select key {{key}}",
+    "selectionHelp": "Check keys to select them.",
+    "removeSelected_one": "Remove 1 key",
+    "removeSelected_other": "Remove {{count}} keys",
+    "selectAll": "Select all the keys"
+  },
+  "containerLogs": {
+    "node": "Node of the container",
+    "lines": "Container log lines",
+    "count": "{{shown}} / {{total}} lines",
+    "empty": "The container wrote nothing yet.",
+    "lost": "The container logs of {{node}} were lost (the container stopped, or the daemon restarted): reconnecting…",
+    "forbidden": "Reading the logs of a container takes the root role.",
+    "absent": "No container {{rid}} on {{node}}: it does not run there, or was removed as it stopped. Its logs are read as soon as it runs.",
+    "stopped": "{{rid}} does not run on {{node}}: these are the last lines it wrote. Its logs are followed again as soon as it runs."
+  },
+  "logs": {
+    "subtitle": "{{instance}} on {{node}}",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "loading": "Loading logs",
+    "loadingEllipsis": "Loading logs...",
+    "pause": "Pause",
+    "resume": "Resume",
+    "clear": "Clear logs",
+    "download": "Download logs",
+    "searchPlaceholder": "Search logs...",
+    "levels": "Levels",
+    "allLevels": "All levels",
+    "levelsGroup": "Log levels",
+    "filtersActive": "Filters active - Click any log to clear",
+    "resetFilters": "Reset filters",
+    "count": "{{shown}} / {{total}} logs",
+    "lines": "Log lines",
+    "empty": "No logs available",
+    "noMatch": "No logs match current filters",
+    "errors": {
+      "instanceRequired": "Instance name is required for instance logs",
+      "tokenNotFound": "Authentication token not found",
+      "http": "HTTP error! status: {{status}}",
+      "noStream": "Response has no readable stream",
+      "authFailed": "Authentication failed. Please refresh your token.",
+      "instanceNotFound": "Instance logs endpoint not found for {{instance}} on node {{node}}",
+      "nodeNotFound": "Node logs endpoint not found for node {{node}}",
+      "fetchFailed": "Failed to fetch logs: {{message}}",
+      "reconnecting": "The log stream of {{node}} was lost: reconnecting…"
+    },
+    "following": "Following",
+    "follow": "Follow",
+    "latest": "Latest lines",
+    "newLines_one": "1 new line",
+    "newLines_other": "{{count}} new lines",
+    "loadOlder": "Load older lines",
+    "loadingOlder": "Loading older lines…",
+    "noOlder": "No older lines"
+  },
+  "metrics": {
+    "columns": {
+      "object": "Object",
+      "node": "Node",
+      "instances": "Instances",
+      "cpu": "CPU",
+      "memory": "Memory",
+      "limit": "Limit"
+    },
+    "totals": {
+      "label": "Namespace total",
+      "cpu": "Namespace cpu",
+      "memory": "Namespace memory"
+    },
+    "fetchError": "Failed to fetch metrics: {{error}}",
+    "loading": "Loading metrics",
+    "empty": "No cgroup metrics for the objects of {{namespace}}",
+    "footer": "Summed over the nodes of the cluster, refreshed every {{seconds}} seconds. CPU is in percent of one CPU.",
+    "object": {
+      "total": "Usage of the object",
+      "instances": "Usage by instance",
+      "openInstance": "Open the instance on {{node}}",
+      "none": "No instance.",
+      "footer": "Summed over its instances, refreshed every {{seconds}} seconds. CPU is in percent of one CPU; the limits add up, unlimited if one is."
+    },
+    "instance": {
+      "total": "Usage of the instance",
+      "none": "No cgroup for this instance on {{node}}.",
+      "footer": "On {{node}}, refreshed every {{seconds}} seconds. CPU is in percent of one CPU."
+    }
+  },
+  "namespaces": {
+    "columns": {
+      "namespace": "Name",
+      "services": "Services",
+      "volumes": "Volumes",
+      "sec": "Secrets",
+      "cfg": "Configs",
+      "pools": "Pools",
+      "nets": "Networks",
+      "cpu": "CPU",
+      "memory": "Memory"
+    },
+    "empty": "No namespaces available",
+    "tableLabel": "Namespaces",
+    "show": {
+      "svc_one": "Show the {{count}} {{status}} service of {{namespace}}",
+      "svc_other": "Show the {{count}} {{status}} services of {{namespace}}",
+      "vol_one": "Show the {{count}} {{status}} volume of {{namespace}}",
+      "vol_other": "Show the {{count}} {{status}} volumes of {{namespace}}",
+      "sec_one": "Show the {{count}} secret of {{namespace}}",
+      "sec_other": "Show the {{count}} secrets of {{namespace}}",
+      "cfg_one": "Show the {{count}} configuration of {{namespace}}",
+      "cfg_other": "Show the {{count}} configurations of {{namespace}}"
+    },
+    "usage": {
+      "claimed": "{{name}}: {{used}} of {{total}} claimed ({{percent}})",
+      "unclaimed": "{{name}}: {{used}} of {{total}}, no claim ({{percent}})",
+      "error": "Pool and network usage could not be read: {{message}}",
+      "percentOf": "{{percent}} of {{total}}",
+      "free": "Free",
+      "used": "Used",
+      "total": "Total",
+      "cap": "Cap",
+      "noClaim": "no claim",
+      "share": "Share",
+      "barLabel": "{{title}}: {{parts}}"
+    },
+    "memory": {
+      "used": "{{used}} used"
+    },
+    "panel": {
+      "tabs": {
+        "usage": "Usage",
+        "claims": "Claims",
+        "events": "Events",
+        "config": "Configuration"
+      },
+      "claims": "Claims and usage",
+      "resource": "Resource",
+      "limit": "Limit",
+      "share": "Share",
+      "shareOf": "Share of {{name}} used",
+      "types": {
+        "pool": "Pool",
+        "network": "Network",
+        "cpu": "CPU",
+        "memory": "Memory"
+      },
+      "sizeOf": "{{size}} ({{of}})",
+      "sizeOfType": {
+        "pool": "pool size, no claim",
+        "network": "network size, no claim"
+      },
+      "noClaim": "This namespace claims nothing: it is capped by nothing but the pools and networks themselves.",
+      "nothing": "No pool, network, cpu or memory used.",
+      "pgNode": "CPU and memory are those of the objects on the node serving this page.",
+      "byObject": "CPU and memory by object",
+      "actions": "Namespace actions",
+      "configOf": "the configuration of {{namespace}}"
+    },
+    "claims": {
+      "actions": "Actions",
+      "add": "Add a claim",
+      "edit": "Edit",
+      "editOf": "Edit the claim of {{name}}",
+      "remove": "Remove",
+      "removeOf": "Remove the claim of {{name}}",
+      "claim": "Claim",
+      "claimOf": "Claim of {{name}}",
+      "readOnly": "Only root and the squatters may change the claims of a namespace.",
+      "saveFailed": "The claim could not be written: {{message}}",
+      "removeFailed": "The claim could not be removed: {{message}}",
+      "removeTitle": "Remove the claim of {{name}}",
+      "removeText": "{{namespace}} will no longer be limited to {{limit}} of {{name}}.",
+      "removeEffect": {
+        "pool": "Its volumes will then be capped by nothing but the size of the pool.",
+        "network": "Its objects will then be capped by nothing but the addresses of the network.",
+        "cpu": "Its objects will then use as much cpu as the nodes give them.",
+        "memory": "Its objects will then use as much memory as the nodes give them."
+      },
+      "units": {
+        "m": "MiB",
+        "g": "GiB",
+        "t": "TiB"
+      },
+      "errors": {
+        "positive": "Enter a number greater than 0.",
+        "integer": "Enter a whole number of addresses.",
+        "cpuMin": "Enter at least 0.01 cpu."
+      },
+      "types": {
+        "pool": {
+          "label": "Storage of a pool",
+          "help": "How much its volumes may take of one pool.",
+          "taken": "Every pool is claimed already: edit its claim instead."
+        },
+        "network": {
+          "label": "Addresses of a network",
+          "help": "How many addresses its objects may hold in one network.",
+          "taken": "Every network is claimed already: edit its claim instead."
+        },
+        "cpu": {
+          "label": "CPU",
+          "help": "How many cpus its objects may use together.",
+          "taken": "Claimed already: edit its claim instead."
+        },
+        "memory": {
+          "label": "Memory",
+          "help": "How much memory its objects may use together.",
+          "taken": "Claimed already: edit its claim instead."
+        }
+      },
+      "wizard": {
+        "addTitle": "New claim of {{namespace}}",
+        "editTitle": "Claim of {{name}} by {{namespace}}",
+        "steps": "Steps",
+        "step": {
+          "type": "What",
+          "target": "Which",
+          "limit": "How much",
+          "review": "Review"
+        },
+        "back": "Back",
+        "next": "Next",
+        "save": "Save the claim",
+        "saving": "Saving…",
+        "typeQuestion": "What does the namespace claim?",
+        "targetQuestion": {
+          "pool": "Of which pool?",
+          "network": "Of which network?"
+        },
+        "noTarget": {
+          "pool": "Every pool is claimed already.",
+          "network": "Every network is claimed already."
+        },
+        "targetFigures": "{{used}} used of {{size}}",
+        "limitLabel": {
+          "pool": "Most it may take of {{name}}",
+          "network": "Most addresses it may hold in {{name}}",
+          "cpu": "Most cpus it may use",
+          "memory": "Most memory it may use"
+        },
+        "defaultLabel": {
+          "cpu": "Cpus of a container setting none",
+          "memory": "Memory of a container setting none"
+        },
+        "defaultHint": "The cap of each container of the namespace that sets no cap of its own.",
+        "optional": "{{label}} (optional)",
+        "unit": "Unit",
+        "unitOf": {
+          "network": "addresses",
+          "cpu": "cpus"
+        },
+        "usedNow": "Used now: {{used}}.",
+        "sizeOf": {
+          "pool": "Pool size: {{size}}.",
+          "network": "Network size: {{size}}."
+        },
+        "cpuHint": "0.5 is half a cpu.",
+        "belowUsage": "Below the {{used}} used now: what grows past it will be refused until the usage falls under the claim.",
+        "aboveSize": {
+          "pool": "More than the {{size}} of the pool: the pool caps it first.",
+          "network": "More than the {{size}} addresses of the network: the network caps it first."
+        },
+        "summary": {
+          "pool": "{{namespace}} may take up to {{limit}} of the pool {{name}}.",
+          "network": "{{namespace}} may hold up to {{limit}} addresses in the network {{name}}.",
+          "cpu": "{{namespace}} may use up to {{limit}}.",
+          "memory": "{{namespace}} may use up to {{limit}} of memory."
+        },
+        "summaryDefault": {
+          "cpu": "A container setting no cap of its own gets {{value}}.",
+          "memory": "A container setting no cap of its own gets {{value}}."
+        },
+        "createsConfig": "{{namespace}} has no configuration object yet: it is created with this claim.",
+        "written": "Written in the namespace configuration:"
+      }
+    },
+    "objects": {
+      "tableLabel": "{{list}} of {{namespace}}",
+      "empty": "No {{list}} in {{namespace}}.",
+      "selectAll": "Select all the {{list}}"
+    }
+  },
+  "nav": {
+    "openCluster": "Open the cluster",
+    "routes": {
+      "heartbeats": "Links",
+      "networks": "Networks",
+      "nodes": "Nodes",
+      "objects": "Objects",
+      "kinds": "Kinds",
+      "namespaces": "Namespaces",
+      "pools": "Pools"
+    },
+    "main": "Main",
+    "loading": "Loading...",
+    "hideMenu": "Hide menu",
+    "showMenu": "Show menu",
+    "viewUser": "View user information",
+    "openAi": "Open the AI assistant",
+    "offline": "Offline",
+    "offlineTitle": "You are offline — some features may be limited",
+    "documentTitle": "{{cluster}} · OpenSVC {{product}}",
+    "documentTitleNoCluster": "OpenSVC {{product}}",
+    "breadcrumb": {
+      "label": "Breadcrumb",
+      "navigateTo": "Navigate to {{name}}",
+      "cluster": "Cluster",
+      "loading": "Loading...",
+      "segments": {
+        "heartbeats": "links",
+        "kinds": "kinds",
+        "namespaces": "namespaces",
+        "network": "network",
+        "nodes": "nodes",
+        "objects": "objects",
+        "pools": "pools",
+        "whoami": "whoami"
+      }
+    },
+    "sections": {
+      "cluster": "Cluster",
+      "objects": "Objects"
+    }
+  },
+  "networks": {
+    "columns": {
+      "network": "Network",
+      "usage": "Usage"
+    },
+    "caption": "Networks",
+    "usageOf": "Usage of {{name}}",
+    "empty": "No networks available.",
+    "details": {
+      "title": "Network Details: {{name}} ({{type}})",
+      "loadError": "Failed to load network details. Please try again.",
+      "showFilters": "Show filters",
+      "hideFilters": "Hide filters",
+      "path": "Path",
+      "rid": "RID",
+      "ip": "IP",
+      "loading": "Loading network details",
+      "caption": "Network details",
+      "empty": "No IP details available for this network.",
+      "type": "Type: {{type}}"
+    }
+  },
+  "nodes": {
+    "columns": {
+      "score": "Score",
+      "load15m": "Load (15m)",
+      "memAvail": "Mem Avail",
+      "swapAvail": "Swap Avail",
+      "version": "Version",
+      "bootedAt": "Booted At",
+      "updatedAt": "Updated At"
+    },
+    "bulkActions": "Actions",
+    "selectAll": "Select all nodes",
+    "loading": "Loading nodes",
+    "target": {
+      "node": "node {{node}}",
+      "selected_one": "{{count}} nodes",
+      "selected_other": "{{count}} nodes"
+    },
+    "feedback": {
+      "noToken": "Authentication token not found"
+    },
+    "row": {
+      "lost": "No status: the node is gone or not heard from",
+      "label": "Node {{node}} row",
+      "select": "Select node {{node}}",
+      "connected": "Connected to this node"
+    },
+    "time": {
+      "justNow": "Just now",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago"
+    },
+    "selectHint": "Select nodes to act on them, or open one"
+  },
+  "objectTabs": {
+    "schedules": {
+      "filter": "Filter the schedules",
+      "none": "No task scheduled"
+    },
+    "resources": {
+      "filter": "Filter the resources",
+      "none": "No resource reports information",
+      "noMatch": "No resource matches the filter",
+      "key": "Key",
+      "noneOf": "{{rid}} reports no information.",
+      "table": "Resource information"
+    }
+  },
+  "nodePanel": {
+    "loading": "Reading",
+    "loadError": "Could not read it: {{message}}",
+    "none": "None",
+    "actions": "Node actions",
+    "tabs": {
+      "status": "Status",
+      "inventory": "Inventory",
+      "config": "Configuration",
+      "schedules": "Schedules",
+      "drivers": "Drivers",
+      "daemon": "Daemon",
+      "events": "Events",
+      "logs": "Logs"
+    },
+    "status": {
+      "title": "Node state",
+      "state": "State",
+      "frozen": "Frozen",
+      "leader": "Leader",
+      "overloaded": "Overloaded",
+      "agent": "Agent",
+      "booted": "Booted",
+      "score": "Score",
+      "load15m": "Load (15 min)",
+      "memAvail": "Memory available",
+      "swapAvail": "Swap available",
+      "ofTotal": "{{pct}}% of {{total}}",
+      "properties": "Properties"
+    },
+    "inventory": {
+      "hardware": "Hardware",
+      "disks": "Disks",
+      "addresses": "IP addresses",
+      "initiators": "SAN initiators",
+      "paths": "SAN paths",
+      "packages": "Packages",
+      "filterPackages": "Filter the packages",
+      "users": "Users",
+      "groups": "Groups",
+      "views": {
+        "label": "Inventory views",
+        "hardware": "Hardware",
+        "disks": "Disks",
+        "addresses": "Addresses",
+        "san": "SAN",
+        "packages": "Packages",
+        "accounts": "Accounts"
+      },
+      "filterAddresses": "Filter the addresses"
+    },
+    "config": {
+      "file": "Node configuration file",
+      "edit": "Edit the configuration file",
+      "readFailed": "The configuration could not be read: {{message}}"
+    },
+    "schedules": {
+      "collector": "collector",
+      "provisioned": "provisioned",
+      "unscheduled": "not scheduled"
+    },
+    "drivers": {
+      "filter": "Filter the drivers and capabilities",
+      "drivers": "Drivers",
+      "capabilities": "Capabilities"
+    },
+    "columns": {
+      "property": "Property",
+      "value": "Value",
+      "source": "Source",
+      "class": "Class",
+      "description": "Description",
+      "driver": "Driver",
+      "path": "Path",
+      "device": "Device",
+      "model": "Model",
+      "size": "Size",
+      "objects": "Objects",
+      "interface": "Interface",
+      "address": "Address",
+      "mac": "MAC",
+      "initiator": "Initiator",
+      "target": "Target",
+      "version": "Version",
+      "arch": "Arch",
+      "id": "Id",
+      "action": "Action",
+      "schedule": "Schedule",
+      "lastRun": "Last run",
+      "nextRun": "Next run",
+      "requires": "Requires",
+      "keyword": "Keyword"
+    }
+  },
+  "objectDetails": {
+    "loading": "Loading object data",
+    "loadingText": "Loading object data...",
+    "noInformation": "No information available for object.",
+    "authTokenNotFound": "Auth token not found",
+    "fallbackFailed": "The object could not be read: HTTP {{status}}",
+    "instancesHeading": "Instances ({{count}})",
+    "batchActionsMenu": "Actions on selected nodes ({{count}})",
+    "dialogTarget": "object {{name}}",
+    "feedback": {
+      "authTokenNotFound": "Auth token not found.",
+      "configUpdated": "Instance configuration updated"
+    },
+    "logs": {
+      "instanceTitle": "Instance Logs - {{name}}",
+      "nodeTitle": "Node Logs - {{node}}",
+      "title": "Logs",
+      "close": "Close logs",
+      "resize": "Resize drawer"
+    }
+  },
+  "createObject": {
+    "open": "New object",
+    "title": "New object",
+    "kind": "Kind",
+    "namespace": "Namespace",
+    "path": "Path:",
+    "nscfgName": "A namespace configuration is always named {{name}}.",
+    "source": "Start from",
+    "sources": {
+      "empty": "An empty configuration",
+      "copy": "A copy of an object",
+      "file": "A file"
+    },
+    "copyFrom": "Object to copy",
+    "noObject": "No object matches",
+    "reading": "Reading the configuration",
+    "noFile": "No file chosen",
+    "config": "Configuration",
+    "configHint": "Edited here before it is sent. The new object gets an id of its own.",
+    "provision": "Provision once created",
+    "submit": "Create",
+    "creating": "Creating",
+    "errors": {
+      "empty": "Required.",
+      "tooLong": "63 characters at most.",
+      "firstChar": "Must start with a letter or a digit.",
+      "chars": "Letters, digits, dots and dashes only.",
+      "uppercase": "Lowercase letters only.",
+      "reserved": "This name is reserved by om.",
+      "reservedRoot": "This name is reserved in the root namespace.",
+      "exists": "{{path}} already exists."
+    },
+    "feedback": {
+      "failed": "The object could not be created: {{message}}",
+      "copyFailed": "The configuration of {{path}} could not be read: {{message}}",
+      "readFailed": "The file could not be read: {{message}}"
+    },
+    "datastoreHint": "Created empty: its keys are added next, in its panel."
+  },
+  "objects": {
+    "noInstanceStatus": "No status from {{node}}: the node is gone or not heard from",
+    "flex": {
+      "title": "Flex",
+      "min": "Min instances",
+      "max": "Max instances",
+      "target": "Target instances"
+    },
+    "degraded": "Degraded",
+    "notProvisioned": "Not provisioned",
+    "tableLabel": "Objects",
+    "selectAll": "Select all objects",
+    "selectObject": "Select object {{name}}",
+    "empty": "No objects found matching the current filters.",
+    "actionsMenu": "Actions",
+    "lists": {
+      "label": "Object lists",
+      "services": "Services",
+      "volumes": "Volumes",
+      "configs": "Configurations",
+      "secrets": "Secrets",
+      "users": "Users",
+      "namespaces": "Namespaces",
+      "any": "All"
+    },
+    "columns": {
+      "object": "Object",
+      "orchestrate": "Orchestrate",
+      "topology": "Topology",
+      "keys": "Keys",
+      "keysSize": "Size",
+      "keysSizeHint": "The size of the keys as stored in the configuration, their encoding included",
+      "up": "Up"
+    },
+    "filters": {
+      "show": "Show filters",
+      "hide": "Hide filters",
+      "globalState": "Global State",
+      "namespace": "Namespace",
+      "kind": "Kind",
+      "unprovisioned": "Unprovisioned"
+    },
+    "feedback": {
+      "authTokenNotFound": "Authentication token not found"
+    },
+    "dialogTarget": {
+      "object": "object {{name}}",
+      "objects_one": "{{count}} objects",
+      "objects_other": "{{count}} objects"
+    },
+    "header": {
+      "statusTitle": "Object status: {{status}}",
+      "unknown": "unknown",
+      "notProvisionedTitle": "Not Provisioned",
+      "notProvisionedLabel": "Object is not provisioned",
+      "actionsMenu": "Object actions"
+    },
+    "selectHint": "Select objects to act on them",
+    "selectNamespace": "Select the objects of {{namespace}}",
+    "openInstance": "Open the instance on {{node}}",
+    "openInstanceOf": "Open the instance of {{name}} on {{node}}",
+    "badges": {
+      "datastore": "datastore",
+      "namespace": "namespace"
+    },
+    "openNamespaceConfig": "Open the configuration of {{namespace}}",
+    "configure": "Configure",
+    "configureNamespace": "Configure the namespace {{namespace}}",
+    "createIn": "Create",
+    "createInNamespace": "Create an object in {{namespace}}"
+  },
+  "pools": {
+    "columns": {
+      "volumeCount": "Volume Count",
+      "usage": "Usage",
+      "head": "Head"
+    },
+    "caption": "Pools",
+    "usageOf": "Usage of {{name}}",
+    "loading": "Loading pools",
+    "loadError": "Failed to load pools. Please try again.",
+    "empty": "No pools available."
+  },
+  "ui": {
+    "policies": {
+      "topology": "Topology",
+      "orchestrate": "Orchestrate",
+      "placement": "Placement"
+    },
+    "productTag": {
+      "name": "Cluster",
+      "title": "OpenSVC om3 cluster webapp"
+    },
+    "states": {
+      "up": "up",
+      "warn": "warn",
+      "down": "down",
+      "na": "n/a",
+      "unknown": "unknown"
+    },
+    "stateMarks": {
+      "notProvisioned": "Not provisioned",
+      "stopped": "Stopped",
+      "stoppedTitle": "stopped",
+      "stoppedAt": "stopped at {{date}}",
+      "rpoBreached": "RPO breached"
+    },
+    "frozen": "frozen",
+    "seconds_one": "{{count}} second",
+    "seconds_other": "{{count}} seconds"
+  },
+  "user": {
+    "loading": "Loading user information",
+    "loadError": "Failed to load user information",
+    "myInfo": "My Information",
+    "username": "Username",
+    "authMethod": "Auth Method",
+    "permissions": "Permission Details",
+    "rawPermissions": "Raw Permissions",
+    "server": "Server Information",
+    "connectedNode": "Connected Node",
+    "nodeLoading": "Loading...",
+    "webappVersion": "WebApp Version",
+    "versionLoading": "vLoading...",
+    "versionUnknown": "vUnknown",
+    "productName": "OM3 WebApp",
+    "lightMode": "Light Mode",
+    "darkMode": "Dark Mode",
+    "language": "Language",
+    "logout": "Logout"
+  },
+  "panel": {
+    "resize": "Resize the panel",
+    "tabs": {
+      "status": "Status",
+      "usage": "Usage",
+      "capacity": "Capacity",
+      "events": "Events",
+      "logs": "Logs",
+      "resources": "Resources",
+      "schedules": "Schedules",
+      "keys": "Keys",
+      "config": "Configuration",
+      "info": "Info",
+      "containerLogs": "Container logs"
+    },
+    "crossLink": "Show the {{kind}} here",
+    "kinds": {
+      "object": "object",
+      "network": "network",
+      "namespace": "namespace",
+      "node": "node",
+      "instance": "instance",
+      "resource": "resource"
+    },
+    "logs": {
+      "noNode": "No instance to read the logs of."
+    }
+  },
+  "panelHistory": {
+    "clear": "Clear the history",
+    "remove": "Remove {{name}} from the history",
+    "grouping": {
+      "label": "Group the history",
+      "time": "By time",
+      "kind": "By kind"
+    },
+    "sections": {
+      "now": "Now",
+      "hour": "Last hour",
+      "day": "Last day",
+      "week": "Last week"
+    },
+    "types": {
+      "node": "Nodes",
+      "svc": "Services",
+      "vol": "Volumes",
+      "cfg": "Configurations",
+      "sec": "Secrets",
+      "usr": "Users",
+      "nscfg": "Namespace configurations",
+      "ccfg": "Cluster",
+      "network": "Networks",
+      "namespace": "Namespaces",
+      "instance": "Instances",
+      "resource": "Resources"
+    },
+    "reopen": "Reopen {{name}}"
+  },
+  "statusBoard": {
+    "caption": "Status of {{path}} by node",
+    "notes_one": "Notes ({{count}})",
+    "notes_other": "Notes ({{count}})",
+    "moreInfos_one": "{{count}} more info note",
+    "moreInfos_other": "{{count}} more info notes",
+    "loading": "Reading the status",
+    "loadError": "The status could not be read: {{message}}",
+    "avail": "Avail",
+    "overall": "Overall",
+    "instancesUp": "Instances up",
+    "item": "Item",
+    "description": "Description",
+    "parallel": "parallel",
+    "allNodes": "all nodes",
+    "none": "none",
+    "seeNote": "See note {{marker}}",
+    "rows": {
+      "monitor": "Monitor",
+      "expect": "Expect",
+      "provisioned": "Provisioned",
+      "orchestration": "Orchestration",
+      "resources_one": "Resources ({{count}})",
+      "resources_other": "Resources ({{count}})",
+      "state": "State",
+      "instances_one": "Instances ({{count}})",
+      "instances_other": "Instances ({{count}})"
+    },
+    "states": {
+      "not-provisioned": "not provisioned",
+      "mixed-provisioned": "partly provisioned",
+      "frozen": "frozen",
+      "mixed-frozen": "partly frozen",
+      "non-optimal-placement": "non-optimal placement",
+      "incompatible-versions": "incompatible agent versions"
+    },
+    "marks": {
+      "overallWarn": "some resources in warn",
+      "running": "a run in progress",
+      "drp": "DRP node",
+      "leader": "HA leader",
+      "leaderNonOptimal": "HA leader, not where the placement prefers",
+      "notProvisioned": "not provisioned",
+      "frozen": "frozen",
+      "stopped": "stopped on purpose",
+      "rpoBreached": "RPO breached"
+    },
+    "flags": {
+      "R": "running",
+      "M": "monitored",
+      "D": "disabled",
+      "O": "optional",
+      "E": "encapsulated",
+      "P": "not provisioned",
+      "S": "standby",
+      "X": "stopped on purpose",
+      "restarts_one": "{{count}} restart left",
+      "restarts_other": "{{count}} restarts left"
+    },
+    "levels": {
+      "error": "error",
+      "warn": "warning",
+      "info": "info"
+    },
+    "actions": {
+      "object": "Actions",
+      "allNodes": "all nodes",
+      "clearSelection": "Clear the selection",
+      "selectionHelp": "Check resources or instances to select them.",
+      "selectionResources_one": "Actions on 1 resource",
+      "selectionResources_other": "Actions on {{count}} resources",
+      "selectionInstances_one": "Actions on 1 instance",
+      "selectionInstances_other": "Actions on {{count}} instances"
+    },
+    "subjects": {
+      "instance": "{{path}} on {{where}}",
+      "resource": "{{rid}} of {{path}} on {{where}}",
+      "cells": "{{list}} of {{path}}",
+      "cell": "{{rid}} on {{where}}",
+      "cluster": "the cluster, on all its nodes"
+    },
+    "selectInstance": "Select the instance on {{node}}",
+    "selectResource": "Select {{rid}} on all its nodes",
+    "selectCell": "Select {{rid}} on {{node}}",
+    "openCell": "Open {{rid}} on {{node}}",
+    "policies": "Policies",
+    "issues": "Issues",
+    "details": {
+      "status": "Status: {{status}}"
+    },
+    "datastores": "Datastores",
+    "refresh": "Refresh the status",
+    "refreshAll": "Refresh the status of all the instances",
+    "refreshFailed": "Refresh refused: {{detail}}",
+    "volumes": "Volumes"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "or": "or",
+    "search": "Search the cluster",
+    "panel": "Open the detail panel on the record shown last, or close it",
+    "menu": "Move to the left-hand menu",
+    "menuMove": "In the menu: move between entries, Enter opens",
+    "escape": "Close the panel, a list or this help; leave the menu",
+    "help": "Show this list",
+    "hint": "Single keys act when no field has the focus."
+  },
+  "search": {
+    "title": "Search the cluster",
+    "placeholder": "Objects, namespaces, nodes, networks…",
+    "close": "Close the search",
+    "scopes": "Search in",
+    "all": "All",
+    "results": "Results",
+    "hint": "Type a name: objects, namespaces, nodes and networks are searched.",
+    "searching": "Reading…",
+    "none": "Nothing matches “{{query}}”.",
+    "more": "Show more",
+    "refine": "More match: refine the search.",
+    "kindError": "This kind could not be read.",
+    "keys": {
+      "move": "to move",
+      "open": "to open",
+      "close": "to close",
+      "remove": "to remove"
+    },
+    "kinds": {
+      "object": "Objects",
+      "namespace": "Namespaces",
+      "node": "Nodes",
+      "network": "Networks"
+    },
+    "recent": {
+      "title": "Recently opened",
+      "clear": "Clear",
+      "current": "open",
+      "noneOfKind": "Nothing of this kind opened recently.",
+      "types": {
+        "node": "Node",
+        "svc": "Service",
+        "vol": "Volume",
+        "cfg": "Configuration",
+        "sec": "Secret",
+        "usr": "User",
+        "nscfg": "Namespace configuration",
+        "ccfg": "Cluster",
+        "network": "Network",
+        "namespace": "Namespace",
+        "instance": "Instance",
+        "resource": "Resource"
+      }
+    }
+  },
+  "orchestration": {
+    "label": "Orchestration in progress: {{expect}}",
+    "logs": "Logs",
+    "abort": "Abort",
+    "logsOf": "Logs of orchestration",
+    "allLogs": "Show all the logs"
+  },
+  "pager": {
+    "label": "Pagination",
+    "perPage": "Per page",
+    "rangeOf": "{{from}}–{{to}} of {{total}}",
+    "first": "First",
+    "previous": "Previous",
+    "next": "Next",
+    "last": "Last",
+    "page": "Page {{page}} of {{pages}}"
+  },
+  "nodeDaemon": {
+    "refresh": "Refresh",
+    "pid": "PID {{pid}}",
+    "startedAt": "started",
+    "confirmTitle": "Confirm: {{action}}",
+    "actions": {
+      "label": "Actions",
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "sign": "Sign",
+      "wipe": "Wipe"
+    },
+    "columns": {
+      "component": "Component",
+      "detail": "Detail",
+      "updated": "Updated",
+      "stream": "Stream",
+      "peers": "Peers",
+      "object": "Object",
+      "expect": "Expected state",
+      "started": "Started",
+      "ended": "Ended",
+      "id": "ID",
+      "command": "Command",
+      "origin": "Origin",
+      "ttl": "TTL",
+      "content": "Content"
+    },
+    "components": {
+      "title": "Components",
+      "listener": "API listener",
+      "dns": "DNS",
+      "scheduler": "Scheduler",
+      "runner_imon": "Instance monitor runner",
+      "collector": "Collector",
+      "daemondata": "Daemon data"
+    },
+    "listener": {
+      "confirm": {
+        "start": "Start the {{listener}} listener of {{node}}?",
+        "stop": "Stop the {{listener}} listener of {{node}}? Its API stops answering over the network, this page included if it goes through {{node}}.",
+        "restart": "Restart the {{listener}} listener of {{node}}? Its API stops answering for a moment."
+      },
+      "actionsOf": "Actions on the listener {{listener}}",
+      "target": "the {{listener}} listener of {{node}}"
+    },
+    "heartbeats": {
+      "title": "Heartbeats",
+      "actionsOf": "Actions on {{id}}",
+      "target": "the {{id}} heartbeat stream of {{node}}",
+      "diskTarget": "the hb#{{hb}} disk heartbeat of {{node}}",
+      "confirm": {
+        "start": "Start {{target}}?",
+        "stop": "Stop {{target}}? The node stops sending or receiving on it.",
+        "restart": "Restart {{target}}?",
+        "sign": "Sign {{target}}?",
+        "wipe": "Wipe {{target}}? Its signature and the slots of its peers are erased."
+      }
+    },
+    "orchestrations": {
+      "title": "Orchestrations",
+      "node": "(the node)"
+    },
+    "execs": {
+      "title": "Executions",
+      "filter": "Filter executions",
+      "terminate": "Terminate",
+      "confirm": "Send TERM to \"{{command}}\" on {{node}}?",
+      "target": "\"{{command}}\" on {{node}}"
+    },
+    "dns": {
+      "title": "DNS zone",
+      "filter": "Filter records"
+    },
+    "views": {
+      "label": "Daemon views",
+      "overview": "Overview",
+      "executions": "Executions",
+      "orchestrations": "Orchestrations",
+      "dns": "DNS"
+    },
+    "summary": {
+      "overview": "{{up}} of {{components}} components running, {{beating}} of {{streams}} heartbeat streams beating",
+      "executions": "{{count}} executions, {{running}} running",
+      "orchestrations": "{{count}} orchestrations, {{running}} in progress",
+      "dns": "{{count}} records of {{names}} names",
+      "running_one": "{{count}} running",
+      "running_other": "{{count}} running"
+    }
+  },
+  "resource": {
+    "panel": {
+      "title": "{{rid}} of {{path}}",
+      "titleOnNode": "{{rid}} of {{path}} on {{node}}",
+      "instance": "Instance",
+      "nodes": "The resource on each node",
+      "flags": "Flags",
+      "log": "Last message",
+      "none": "No node reports this resource.",
+      "flag": {
+        "disable": "disabled",
+        "monitor": "monitored",
+        "optional": "optional",
+        "standby": "standby",
+        "encap": "encapsulated"
+      }
+    }
+  },
+  "actionTray": {
+    "label": "Actions asked",
+    "title": "Actions",
+    "running_one": "{{count}} running",
+    "running_other": "{{count}} running",
+    "ended_one": "{{count}} ended",
+    "ended_other": "{{count}} ended",
+    "clear": "Clear the ended actions",
+    "dismiss": "Dismiss {{action}} on {{subject}}",
+    "steps": "The runs of {{action}} on the nodes",
+    "acceptedBy": "accepted by {{node}}",
+    "noStep": "Waiting for the nodes to run it…",
+    "exitCode": "exit code {{code}}",
+    "gone": "the daemon no longer knows how it ended",
+    "reasons": {
+      "unknownObject": "the object is not known",
+      "alreadyFrozen": "already frozen",
+      "alreadyUnfrozen": "not frozen"
+    },
+    "monitor": "{{node}}: the monitor is {{state}}",
+    "subjects": {
+      "cluster": "the cluster",
+      "instance": "{{path}} on {{node}}",
+      "resource": "{{rid}} of {{path}} on {{node}}"
+    },
+    "states": {
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "failed": "Failed",
+      "aborted": "Aborted",
+      "refused": "Refused",
+      "unknown": "Outcome unknown"
+    },
+    "writes": {
+      "configFile": "Update the configuration",
+      "set": "Set {{keyword}} = {{value}}",
+      "unset": "Unset {{keyword}}",
+      "deleteSection": "Delete section {{section}}",
+      "keyCreate": "Add key {{key}}",
+      "keyUpdate": "Update key {{key}}",
+      "keyDelete": "Delete key {{key}}",
+      "claimsUpdate": "Update the claims",
+      "claimDelete": "Remove claim {{section}}",
+      "objectCreate": "Create",
+      "configCreate": "Create the configuration"
+    },
+    "noNews": "no news of it within {{seconds}} s"
+  },
+  "paramActions": {
+    "resize": {
+      "heading": "Size",
+      "intro": "The volume grows to the size asked, or by the amount asked, as om <path> resize does: the size is written to its configuration, then every node converges to it. A resize only grows.",
+      "current": "Size configured:",
+      "none": "none",
+      "size": "New size",
+      "sizeHint": "A size to reach, as 20g or 12Gi, or an amount to add, as +1g. Empty: the size configured, which finishes a resize that stopped part way.",
+      "invalid": "A size, as 20g, 12Gi or +1g",
+      "submit": "Resize"
+    },
+    "cap": {
+      "heading": "Process group caps",
+      "intro": "The process group caps are written to the configuration, then applied to every running instance, as om <path> cap does. An instance not running applies them when it starts.",
+      "section": "Section",
+      "sectionHint": "DEFAULT when empty; a subset#<name> or a resource id.",
+      "node": "Node",
+      "nodeHint": "The value for one node, or for all.",
+      "allNodes": "All nodes",
+      "loading": "Reading the caps",
+      "table": "Process group caps",
+      "keyword": "Keyword",
+      "configured": "Configured",
+      "value": "New value",
+      "valueOf": "New value of {{keyword}}",
+      "liftHint": "A value of default lifts a cap: where a node that never capped anything leaves it.",
+      "nothingSet": "Nothing changed: the caps configured are applied again.",
+      "apply": "Apply the caps configured",
+      "submit_one": "Set {{count}} cap",
+      "submit_other": "Set {{count}} caps"
+    }
+  },
+  "nodeActions": {
+    "groups": {
+      "node": "Node",
+      "inventory": "Inventory",
+      "daemon": "Daemon"
+    },
+    "confirmTitle": "{{label}}: {{target}}",
+    "understood": "I understand",
+    "freeze": {
+      "label": "Freeze",
+      "description": "Stop the daemon orchestrating the instances of the node."
+    },
+    "unfreeze": {
+      "label": "Unfreeze",
+      "description": "Let the daemon orchestrate the instances of the node again."
+    },
+    "abort": {
+      "label": "Abort",
+      "description": "Abort the orchestration of the node in progress."
+    },
+    "asset": {
+      "label": "Asset",
+      "description": "Push the hardware and system inventory to the collector."
+    },
+    "capabilities": {
+      "label": "Capabilities",
+      "description": "Scan what the node can run: the drivers it supports."
+    },
+    "disk": {
+      "label": "Disks",
+      "description": "Push the disks and their usage to the collector."
+    },
+    "pkg": {
+      "label": "Packages",
+      "description": "Push the packages installed to the collector."
+    },
+    "scsiScan": {
+      "label": "SCSI",
+      "description": "Scan the SCSI buses for new disks."
+    },
+    "sysreport": {
+      "label": "Sysreport",
+      "description": "Push the system report, the changes of the files tracked, to the collector."
+    },
+    "clear": {
+      "label": "Clear monitor",
+      "description": "Clear the failed state of the monitor of the node."
+    },
+    "restartDaemon": {
+      "label": "Restart",
+      "description": "Restart the daemon; the instances keep running."
+    },
+    "shutdown": {
+      "label": "Shutdown",
+      "description": "Shut down all the instances hosted, then stop the daemon.",
+      "warning": "All the instances hosted on the node shut down. Starting the daemon again needs a console access to the node."
+    },
+    "stop": {
+      "label": "Stop",
+      "description": "Stop the daemon; the instances keep running, unwatched.",
+      "warning": "Starting the daemon again needs a console access to the node."
+    },
+    "drain": {
+      "label": "Drain",
+      "description": "Freeze the node and shut down all the instances it hosts.",
+      "warning": "All the instances hosted on the node shut down."
+    },
+    "leave": {
+      "label": "Leave",
+      "description": "Evict the node from the cluster, once drained.",
+      "warning": "All the instances hosted on the node shut down and are deleted from it: the node leaves the cluster, restarting alone in a cluster of its own, with no credential to reach its api.",
+      "fromHere": "Ask it from the webapp of another node: this one serves the webapp."
+    }
+  },
+  "secCertificate": {
+    "menu": "Certificate",
+    "confirmTitle": "{{label}}: {{path}}",
+    "create": {
+      "label": "Create",
+      "busy": "Creating the certificate…",
+      "description": "Generate the certificate, self-signed or signed by the ca of the sec, with its private key if none.",
+      "replace": "The current certificate is replaced.",
+      "replaceKeepKey": "The current certificate is replaced; the private key is kept."
+    },
+    "renew": {
+      "label": "Renew",
+      "busy": "Renewing the certificate…",
+      "description": "Renew the certificate when it is due: from the ACME directory the sec names, or generated."
+    },
+    "force": {
+      "label": "Force renew",
+      "busy": "Renewing the certificate…",
+      "description": "Renew the certificate now, even when it is not due.",
+      "warning": "The current certificate is replaced, even one not issued by this sec."
+    },
+    "renewed": "Certificate renewed: {{reason}}",
+    "notRenewed": "Certificate not renewed: {{reason}}",
+    "timeout": "No answer within {{seconds}} s: the keys of the sec say whether a certificate was issued.",
+    "ca": {
+      "legend": "Signed by",
+      "cluster": "Sign with the <a>cluster ca</a>",
+      "other": "or with an <a>other ca</a>",
+      "pick": "Ca of the namespace",
+      "none": "No other sec in the namespace.",
+      "signedBy": "Signed by {{ca}}, written as the ca of the sec.",
+      "selfSigned": "No ca: self-signed.",
+      "reading": "Reading the ca of the sec…"
+    }
+  }
+}

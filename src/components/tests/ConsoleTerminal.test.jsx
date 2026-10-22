@@ -2,6 +2,7 @@ import React from "react";
 import {act, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ConsoleTerminal from "../ConsoleTerminal.jsx";
+import i18n from "../../i18n";
 import {
     consoleCertificateUrl,
     consoleUrl,
@@ -128,6 +129,18 @@ describe("ConsoleTerminal", () => {
         render(<ConsoleTerminal open target={null} onClose={vi.fn()}/>);
         expect(screen.getByText("Console")).toBeInTheDocument();
         expect(requestConsoleTicket).not.toHaveBeenCalled();
+    });
+
+    test("speaks French in a French browser", async () => {
+        requestConsoleTicket.mockReturnValue(new Promise(() => {}));
+        await i18n.changeLanguage("fr");
+        try {
+            render(<ConsoleTerminal open target={target} onClose={vi.fn()}/>);
+            expect(screen.getByText("Console container#1 sur n1")).toBeInTheDocument();
+            expect(screen.getByText("Ouverture de la console...")).toBeInTheDocument();
+        } finally {
+            await act(() => i18n.changeLanguage("en"));
+        }
     });
 
     test("asks for a ticket and opens the session on the console url", async () => {

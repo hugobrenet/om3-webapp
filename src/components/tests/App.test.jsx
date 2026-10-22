@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, screen, waitFor, act} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor, act} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import App from '../App';
 import {vi} from 'vitest';
@@ -18,16 +18,33 @@ vi.mock('../../utils/logger.js', () => ({
         debug: vi.fn(),
     },
 }));
-vi.mock('../NavBar', () => ({default: () => <div data-testid="navbar">NavBar</div>}));
+// The records the anchor would bring back: the gutter of the views follows them.
+const {mockHistory} = vi.hoisted(() => ({mockHistory: {entries: []}}));
+vi.mock('../../app/record-history', async (importOriginal) => ({
+    ...(await importOriginal()),
+    useRecordHistory: () => mockHistory,
+}));
+vi.mock('../NavBar', () => ({default: ({anchor}) => <div data-testid="navbar">NavBar{anchor}</div>}));
 vi.mock('../../hooks/useSidebarAlerts', () => ({default: () => ({})}));
 vi.mock('../NodesTable', () => ({default: () => <div data-testid="nodes">NodesTable</div>}));
-vi.mock('../Namespaces', () => ({default: () => <div data-testid="namespaces">Namespaces</div>}));
 vi.mock('../Heartbeats', () => ({default: () => <div data-testid="heartbeats">Heartbeats</div>}));
 vi.mock('../Pools', () => ({default: () => <div data-testid="pools">Pools</div>}));
-vi.mock('../Objects', () => ({default: () => <div data-testid="objects">Objects</div>}));
-vi.mock('../ObjectDetails', () => ({default: () => <div data-testid="object-details">ObjectDetails</div>}));
-vi.mock('../Network', () => ({default: () => <div data-testid="network">Network</div>}));
-vi.mock('../NetworkDetails', () => ({default: () => <div data-testid="network-details">NetworkDetails</div>}));
+// The lists show the query of their address: the panel state they were given.
+vi.mock('../Objects', async () => {
+    const {useLocation} = await vi.importActual('react-router-dom');
+    return {default: () => <div data-testid="objects">{useLocation().search}</div>};
+});
+vi.mock('../Namespaces', async () => {
+    const {useLocation} = await vi.importActual('react-router-dom');
+    return {default: () => <div data-testid="namespaces">{useLocation().search}</div>};
+});
+vi.mock('../Network', async () => {
+    const {useLocation} = await vi.importActual('react-router-dom');
+    return {default: () => <div data-testid="network">{useLocation().search}</div>};
+});
+vi.mock('../PeekPanel', () => ({PeekPanel: () => <div data-testid="peek-panel"/>}));
+vi.mock('../../app/PanelAnchor', () => ({PanelAnchor: ({inBar}) => <div data-testid="panel-anchor" data-in-bar={String(!!inBar)}/>}));
+vi.mock('../../app/ShortcutsHelp', () => ({ShortcutsHelp: () => <div data-testid="shortcuts-help"/>}));
 vi.mock('../WhoAmI', () => ({default: () => <div data-testid="whoami">WhoAmI</div>}));
 vi.mock('../AiChat', () => ({default: () => <div data-testid="ai-chat">AI Assistant</div>}));
 vi.mock('../SilentRenew.jsx', () => ({default: () => <div data-testid="silent-renew">SilentRenew</div>}));
@@ -211,19 +228,62 @@ describe('App Component', () => {
     });
 
     test.each([
-        ['/namespaces', 'namespaces'],
         ['/nodes', 'nodes'],
         ['/pools', 'pools'],
         ['/network', 'network'],
         ['/objects', 'objects'],
+        ['/namespaces', 'namespaces'],
         ['/whoami', 'whoami'],
-        ['/network/test-network', 'network-details'],
-        ['/objects/test-object', 'object-details'],
     ])('protected route %s renders %s', async (path, testId) => {
         setupBasicAuth();
         const {unmount} = renderApp([path]);
         expect(await screen.findByTestId(testId)).toBeInTheDocument();
         unmount();
+    });
+
+    // The records had pages of their own: their old addresses open the panel over the list.
+    test.each([
+        ['/objects/ns1%2Fsvc%2Fweb', 'objects', '?sel=ns1%2Fsvc%2Fweb'],
+        ['/network/test-network', 'network', '?sel=test-network'],
+        ['/nodes/node1/objects/ns1%2Fsvc%2Fweb', 'objects', '?sel=ns1%2Fsvc%2Fweb'],
+        // The kinds page is the All tab of the Objects page, its filter kept.
+        ['/kinds?kind=sec', 'objects', '?kind=sec&list=any'],
+        // The former namespaces tab is the Namespaces view, the namespace open in it kept.
+        ['/objects?list=namespaces&sel=prod&tab=claims', 'namespaces', '?sel=prod&tab=claims'],
+    ])('old record address %s opens the panel over %s', async (path, testId, search) => {
+        setupBasicAuth();
+        const {unmount} = renderApp([path]);
+        expect(await screen.findByTestId(testId)).toHaveTextContent(search);
+        unmount();
+    });
+
+    test('n moves the focus to the menu, on the entry of the view, unfolding it first', async () => {
+        const token = setupBasicAuth();
+        // The menu folded: "n" unfolds it.
+        mockLocalStorage.getItem.mockImplementation((k) =>
+            k === 'om3.sidebar' ? 'closed' : k === 'authToken' ? token : k === 'authChoice' ? 'basic' : null);
+        renderApp(['/nodes']);
+        await screen.findByTestId('nodes');
+        const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+            cb(0);
+            return 0;
+        });
+        fireEvent.keyDown(document.body, {key: 'n'});
+        expect(document.getElementById('app-sidebar')).not.toHaveAttribute('inert');
+        expect(screen.getByRole('link', {name: 'Nodes'})).toHaveFocus();
+        raf.mockRestore();
+    });
+
+    test('the record panel and its anchor stand over the views, not over the sign-in', async () => {
+        setupBasicAuth();
+        const {unmount} = renderApp(['/objects']);
+        expect(await screen.findByTestId('peek-panel')).toBeInTheDocument();
+        expect(screen.getByTestId('panel-anchor')).toBeInTheDocument();
+        expect(screen.getByTestId('shortcuts-help')).toBeInTheDocument();
+        unmount();
+        renderApp(['/auth/login']);
+        expect(await screen.findByTestId('login')).toBeInTheDocument();
+        expect(screen.queryByTestId('peek-panel')).not.toBeInTheDocument();
     });
 
     test.each([
@@ -377,12 +437,14 @@ describe('App Component', () => {
         await waitFor(() => expect(mockLocalStorage.setItem).toHaveBeenCalledWith('tokenExpiration', expect.any(String)));
     });
 
-    test('expired user from getUser does not trigger SetAccessToken', async () => {
+    test('expired user whose renewal gives no user ends the session', async () => {
         mockUserManager.getUser.mockResolvedValue({profile: {preferred_username: 'x'}, expired: true});
         setupOidcAuth();
         renderApp(['/objects']);
         await waitFor(() => expect(mockUserManager.getUser).toHaveBeenCalled());
-        expect(mockAuthDispatch).not.toHaveBeenCalledWith(expect.objectContaining({type: 'SetAccessToken'}));
+        await waitFor(() => expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'SetAccessToken', data: null}));
+        expect(mockAuthDispatch).not.toHaveBeenCalledWith(expect.objectContaining({type: 'Login'}));
+        expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
     });
 
     test('expired user triggers silent renew; success dispatches tokens', async () => {
@@ -404,13 +466,25 @@ describe('App Component', () => {
         await waitFor(() => expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'Login', data: 'refreshed-user'}));
     });
 
-    test('expired user silent renew failure logs error', async () => {
+    test('expired user whose renewal is not answered keeps the session', async () => {
         mockUserManager.getUser.mockResolvedValue({profile: {preferred_username: 'x'}, expired: true});
-        mockUserManager.signinSilent.mockRejectedValue(new Error('Renew failed'));
+        mockUserManager.signinSilent.mockRejectedValue(new Error('Network Error'));
         setupOidcAuth();
         renderApp(['/objects']);
         await waitFor(() => expect(mockUserManager.signinSilent).toHaveBeenCalled());
-        expect(logger.error).toHaveBeenCalledWith('Silent renew failed:', expect.any(Error));
+        await waitFor(() => expect(logger.warn).toHaveBeenCalledWith(
+            expect.stringContaining('Silent renew not answered (expired user on startup)'), expect.any(Error)));
+        expect(mockNavigate).not.toHaveBeenCalledWith('/auth-choice', expect.anything());
+        expect(mockLocalStorage.removeItem).not.toHaveBeenCalledWith('authToken');
+    });
+
+    test('expired user whose renewal the provider refuses ends the session', async () => {
+        mockUserManager.getUser.mockResolvedValue({profile: {preferred_username: 'x'}, expired: true});
+        mockUserManager.signinSilent.mockRejectedValue({error: 'invalid_grant'});
+        setupOidcAuth();
+        renderApp(['/objects']);
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true}));
+        expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('authToken');
     });
 
     test('getUser rejection logs error', async () => {
@@ -426,26 +500,83 @@ describe('App Component', () => {
         setupOidcAuth();
         renderApp(['/objects']);
         await waitFor(() => expect(mockUserManager.signinSilent).toHaveBeenCalled());
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Silent renew failed or user still expired'));
+        await waitFor(() => expect(logger.warn).toHaveBeenCalledWith(
+            expect.stringContaining('renewal gave no valid user'), ''));
     });
 
-    test('addAccessTokenExpired handler clears storage and navigates', async () => {
+    test('addAccessTokenExpired handler renews, the session ended when no user comes back', async () => {
         setupOidcAuth();
         renderApp(['/objects']);
         await waitFor(() => expect(mockUserManager.events.addAccessTokenExpired).toHaveBeenCalled());
-        act(() => mockUserManager.events.addAccessTokenExpired.mock.calls[0][0]());
+        await act(async () => {
+            await mockUserManager.events.addAccessTokenExpired.mock.calls[0][0]();
+        });
         await waitFor(() => expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('authToken'));
         await waitFor(() => expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('tokenExpiration'));
         await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true}));
     });
 
-    test('addSilentRenewError handler clears storage and navigates', async () => {
+    test('addAccessTokenExpired handler renews and keeps the session', async () => {
+        setupOidcAuth();
+        mockUserManager.signinSilent.mockResolvedValue({
+            profile: {preferred_username: 'u'},
+            access_token: 'renewed-token',
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
+            expired: false,
+        });
+        renderApp(['/objects']);
+        await waitFor(() => expect(mockUserManager.events.addAccessTokenExpired).toHaveBeenCalled());
+        await act(async () => {
+            await mockUserManager.events.addAccessTokenExpired.mock.calls[0][0]();
+        });
+        expect(mockUserManager.signinSilent).toHaveBeenCalled();
+        expect(mockLocalStorage.setItem).toHaveBeenCalledWith('authToken', 'renewed-token');
+        expect(mockLocalStorage.removeItem).not.toHaveBeenCalledWith('authToken');
+        expect(mockNavigate).not.toHaveBeenCalledWith('/auth-choice', expect.anything());
+    });
+
+    test('addAccessTokenExpired handler keeps the session when the renewal is not answered', async () => {
+        setupOidcAuth();
+        mockUserManager.signinSilent.mockRejectedValue(new Error('Network Error'));
+        renderApp(['/objects']);
+        await waitFor(() => expect(mockUserManager.events.addAccessTokenExpired).toHaveBeenCalled());
+        await act(async () => {
+            await mockUserManager.events.addAccessTokenExpired.mock.calls[0][0]();
+        });
+        expect(mockLocalStorage.removeItem).not.toHaveBeenCalledWith('authToken');
+        expect(mockNavigate).not.toHaveBeenCalledWith('/auth-choice', expect.anything());
+    });
+
+    test('addAccessTokenExpired handler ends the session when the provider refuses the renewal', async () => {
+        setupOidcAuth();
+        mockUserManager.signinSilent.mockRejectedValue({error: 'invalid_grant'});
+        renderApp(['/objects']);
+        await waitFor(() => expect(mockUserManager.events.addAccessTokenExpired).toHaveBeenCalled());
+        await act(async () => {
+            await mockUserManager.events.addAccessTokenExpired.mock.calls[0][0]();
+        });
+        expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('authToken');
+        expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
+    });
+
+    test('addSilentRenewError handler ends the session when the provider refused', async () => {
         setupOidcAuth();
         renderApp(['/objects']);
         await waitFor(() => expect(mockUserManager.events.addSilentRenewError).toHaveBeenCalled());
-        act(() => mockUserManager.events.addSilentRenewError.mock.calls[0][0](new Error('renew failed')));
+        act(() => mockUserManager.events.addSilentRenewError.mock.calls[0][0]({error: 'invalid_grant'}));
         await waitFor(() => expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('authToken'));
         await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true}));
+    });
+
+    test('addSilentRenewError handler keeps the session when the renewal was not answered', async () => {
+        setupOidcAuth();
+        renderApp(['/objects']);
+        await waitFor(() => expect(mockUserManager.events.addSilentRenewError).toHaveBeenCalled());
+        act(() => mockUserManager.events.addSilentRenewError.mock.calls[0][0](new Error('Network Error')));
+        expect(logger.warn).toHaveBeenCalledWith(
+            expect.stringContaining('Automatic silent renew not answered'), expect.any(Error));
+        expect(mockLocalStorage.removeItem).not.toHaveBeenCalledWith('authToken');
+        expect(mockNavigate).not.toHaveBeenCalledWith('/auth-choice', expect.anything());
     });
 
     test('addAccessTokenExpiring listener logs debug', async () => {
@@ -456,10 +587,14 @@ describe('App Component', () => {
         expect(logger.debug).toHaveBeenCalled();
     });
 
-    test('removes old event listeners before adding new ones', async () => {
+    test('removes the event listeners it added on unmount', async () => {
         setupOidcAuth();
-        renderApp(['/objects']);
+        const {unmount} = renderApp(['/objects']);
+        await waitFor(() => expect(mockUserManager.events.addUserLoaded).toHaveBeenCalled());
+        const added = mockUserManager.events.addAccessTokenExpired.mock.calls[0][0];
+        unmount();
         await waitFor(() => expect(mockUserManager.events.removeUserLoaded).toHaveBeenCalled());
+        expect(mockUserManager.events.removeAccessTokenExpired).toHaveBeenCalledWith(added);
         await waitFor(() => expect(mockUserManager.events.removeAccessTokenExpired).toHaveBeenCalled());
         await waitFor(() => expect(mockUserManager.events.removeSilentRenewError).toHaveBeenCalled());
     });
@@ -583,7 +718,7 @@ describe('App Component', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
     });
 
-    test('handleCheckAuthOnResume: OIDC expired token without userManager redirects', async () => {
+    test('handleCheckAuthOnResume: OIDC expired token without userManager waits for its startup', async () => {
         __setMockIsInitialized(false);
         const expiredToken = makeTokenWithExp(-3600);
         setupOidcAuth(expiredToken);
@@ -599,7 +734,7 @@ describe('App Component', () => {
         await act(async () => {
             await new Promise(r => setTimeout(r, 600));
         });
-        expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
+        expect(mockNavigate).not.toHaveBeenCalledWith('/auth-choice', expect.anything());
         vi.restoreAllMocks();
         __setMockIsInitialized(true);
     });
@@ -618,11 +753,28 @@ describe('App Component', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
     });
 
-    test('handleCheckAuthOnResume: OIDC silent renew error redirects and logs', async () => {
+    test('handleCheckAuthOnResume: OIDC silent renew not answered keeps the session', async () => {
         const expiredToken = makeTokenWithExp(-3600);
         setupOidcAuth(expiredToken);
         decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) - 3600});
-        mockUserManager.signinSilent.mockRejectedValue(new Error('Renew failed on resume'));
+        mockUserManager.signinSilent.mockRejectedValue(new Error('Network Error'));
+        renderApp(['/objects']);
+        await screen.findByTestId('objects');
+        mockNavigate.mockClear();
+        logger.warn.mockClear();
+        act(() => window.dispatchEvent(new Event('focus')));
+        await act(async () => {
+            await new Promise(r => setTimeout(r, 600));
+        });
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Silent renew not answered (resume)'), expect.any(Error));
+        expect(mockNavigate).not.toHaveBeenCalledWith('/auth-choice', expect.anything());
+    });
+
+    test('handleCheckAuthOnResume: OIDC silent renew refused redirects', async () => {
+        const expiredToken = makeTokenWithExp(-3600);
+        setupOidcAuth(expiredToken);
+        decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) - 3600});
+        mockUserManager.signinSilent.mockRejectedValue({error: 'invalid_grant'});
         renderApp(['/objects']);
         await screen.findByTestId('objects');
         mockNavigate.mockClear();
@@ -631,7 +783,6 @@ describe('App Component', () => {
         await act(async () => {
             await new Promise(r => setTimeout(r, 600));
         });
-        expect(logger.error).toHaveBeenCalledWith('Silent renew error on resume:', expect.any(Error));
         expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
     });
 
@@ -697,7 +848,8 @@ describe('App Component', () => {
         setupOidcAuth();
         renderApp(['/objects']);
         await waitFor(() => expect(mockUserManager.signinSilent).toHaveBeenCalled());
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Silent renew failed or user still expired'));
+        await waitFor(() => expect(logger.warn).toHaveBeenCalledWith(
+            expect.stringContaining('renewal gave no valid user'), ''));
     });
 
     test('handleCheckAuthOnResume handles storage errors gracefully', async () => {
@@ -812,7 +964,6 @@ describe('App Component', () => {
         const {unmount} = renderApp(['/']);
         await screen.findByTestId('navbar');
         unmount();
-        expect(removeListenerSpy).toHaveBeenCalledWith('storage', expect.any(Function));
         expect(removeListenerSpy).toHaveBeenCalledWith('focus', expect.any(Function));
         expect(removeListenerSpy).toHaveBeenCalledWith('om3:auth-redirect', expect.any(Function));
         expect(docRemoveListenerSpy).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
@@ -866,5 +1017,51 @@ describe('App Component', () => {
         renderApp(['/ai']);
         expect(await screen.findByTestId('objects')).toBeInTheDocument();
         expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
+    });
+
+    describe('the gutter of the anchor that brings the panels back', () => {
+        afterEach(() => {
+            mockHistory.entries = [];
+        });
+
+        test('none while there is nothing to bring back', async () => {
+            setupBasicAuth();
+            renderApp(['/objects']);
+            await screen.findByTestId('objects');
+            const main = document.getElementById('app-scroll-container');
+            expect(main.style.paddingRight).toBe('');
+            expect(main.style.paddingLeft).toBe('');
+        });
+
+        test('on the right, where the anchor stands: an Actions menu at the end of a toolbar stays clear of it', async () => {
+            mockHistory.entries = [{kind: 'node', id: 'dev3n1', at: Date.now()}];
+            setupBasicAuth();
+            renderApp(['/nodes']);
+            await screen.findByTestId('nodes');
+            expect(document.getElementById('app-scroll-container').style.paddingRight).toBe('2.5rem');
+            expect(screen.getByTestId('panel-anchor')).toHaveAttribute('data-in-bar', 'false');
+        });
+
+        test('none in a narrow window: the anchor is a button of the header bar', async () => {
+            const matchMedia = window.matchMedia;
+            window.matchMedia = (query) => ({
+                matches: query === '(max-width: 47.95rem)',
+                addEventListener: () => {},
+                removeEventListener: () => {},
+            });
+            try {
+                mockHistory.entries = [{kind: 'node', id: 'dev3n1', at: Date.now()}];
+                setupBasicAuth();
+                renderApp(['/nodes']);
+                await screen.findByTestId('nodes');
+                expect(document.getElementById('app-scroll-container').style.paddingRight).toBe('');
+                const anchors = screen.getAllByTestId('panel-anchor');
+                expect(anchors).toHaveLength(1);
+                expect(screen.getByTestId('navbar')).toContainElement(anchors[0]);
+                expect(anchors[0]).toHaveAttribute('data-in-bar', 'true');
+            } finally {
+                window.matchMedia = matchMedia;
+            }
+        });
     });
 });

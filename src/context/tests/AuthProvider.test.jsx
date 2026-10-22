@@ -488,56 +488,31 @@ describe('AuthProvider', () => {
         });
     });
 
-    describe('OpenID token refresh', () => {
-        const setOpenid = () => click('setAuthChoiceOpenid');
-
-        test('sets up and cleans up accessTokenExpired listener', async () => {
-            const {unmount} = renderProvider();
-            setOpenid();
-            await waitFor(() => expect(mockAddAccessTokenExpired).toHaveBeenCalledWith(expect.any(Function)));
-            unmount();
-            expect(mockRemoveAccessTokenExpired).toHaveBeenCalledWith(expect.any(Function));
+    describe('OpenID session', () => {
+        test('starts with the auth choice kept in localStorage', () => {
+            localStorage.setItem('authChoice', 'openid');
+            renderProvider();
+            expect(getText('authChoice')).toBe('"openid"');
         });
 
-        test('does not setup when userManager is null', async () => {
-            const orig = window.oidcUserManager;
-            window.oidcUserManager = null;
+        // An OpenID token found expired on a reload is the UserManager's to renew:
+        // the basic refresh took it for its own and logged out, every tab with it.
+        test('keeps an expired OpenID token found on a reload', () => {
+            decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) - 10});
+            localStorage.setItem('authChoice', 'openid');
+            localStorage.setItem('authToken', 'expired-oidc-token');
             renderProvider();
-            setOpenid();
-            await waitFor(() => expect(mockAddAccessTokenExpired).not.toHaveBeenCalled());
-            window.oidcUserManager = orig;
+            expect(getText('accessToken')).toBe('"expired-oidc-token"');
+            expect(localStorage.getItem('authToken')).toBe('expired-oidc-token');
+            expect(logger.warn).not.toHaveBeenCalledWith('Token already expired or too close to expiration, no refresh scheduled');
+            expect(broadcastInstance._messages).not.toContainEqual({type: 'logout'});
         });
 
-        test('handleTokenExpired success updates token and broadcasts', async () => {
-            const mockUser = {access_token: 'oidc-token', expires_at: Math.floor(Date.now() / 1000) + 3600};
-            mockSigninSilent.mockResolvedValue(mockUser);
+        test('leaves the token expiry to the UserManager', () => {
             renderProvider();
-            setOpenid();
-            await waitFor(() => expect(mockAddAccessTokenExpired).toHaveBeenCalled());
-
-            await act(async () => {
-                tokenExpiredCallbackRef.current();
-            });
-            expect(logger.warn).toHaveBeenCalledWith('OpenID token expired, attempting silent renew...');
-            expect(mockSigninSilent).toHaveBeenCalled();
-            await waitFor(() => expect(getText('accessToken')).toBe('"oidc-token"'));
-            expect(localStorage.getItem('authToken')).toBe('oidc-token');
-            expect(broadcastInstance._messages).toContainEqual({type: 'tokenUpdated', data: 'oidc-token'});
-        });
-
-        test('handleTokenExpired failure logs out and broadcasts', async () => {
-            mockSigninSilent.mockRejectedValue(new Error('fail'));
-            renderProvider();
-            setOpenid();
-            await waitFor(() => expect(mockAddAccessTokenExpired).toHaveBeenCalled());
-
-            await act(async () => {
-                tokenExpiredCallbackRef.current();
-            });
-            expect(logger.warn).toHaveBeenCalledWith('OpenID token expired, attempting silent renew...');
-            expect(logger.error).toHaveBeenCalledWith('Silent renew failed:', expect.any(Error));
-            await waitFor(() => expect(getText('isAuthenticated')).toBe('false'));
-            expect(broadcastInstance._messages).toContainEqual({type: 'logout'});
+            click('setAuthChoiceOpenid');
+            expect(mockAddAccessTokenExpired).not.toHaveBeenCalled();
+            expect(mockSigninSilent).not.toHaveBeenCalled();
         });
     });
 
@@ -564,6 +539,7 @@ describe('AuthProvider', () => {
 
     describe('initial access token from localStorage', () => {
         test('loads access token from localStorage on initial render', () => {
+            decodeToken.mockReturnValue({exp: Math.floor(Date.now() / 1000) + 60});
             localStorage.setItem('authToken', 'stored-token');
             renderProvider();
             expect(getText('accessToken')).toBe('"stored-token"');

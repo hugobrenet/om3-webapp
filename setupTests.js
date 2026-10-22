@@ -1,6 +1,8 @@
 import {vi, expect} from 'vitest';
 import {TextEncoder, TextDecoder} from 'util';
 import '@testing-library/jest-dom';
+// The webapp strings, in English: jsdom's navigator is en-US.
+import './src/i18n';
 import * as matchers from 'vitest-axe';
 
 expect.extend(matchers);

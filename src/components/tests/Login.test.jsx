@@ -25,10 +25,6 @@ vi.mock('react-router-dom', async (importOriginal) => {
     };
 });
 
-vi.mock('react-i18next', () => ({
-    useTranslation: () => ({t: (key) => key}),
-}));
-
 vi.mock('../../context/AuthProvider.jsx', () => ({
     SetAccessToken: 'SET_ACCESS_TOKEN',
     SetAuthChoice: 'SET_AUTH_CHOICE',

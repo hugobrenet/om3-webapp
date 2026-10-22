@@ -1,0 +1,482 @@
+{
+ "system/property": {
+  "items": [
+   {
+    "data": {
+     "error": "not implemented",
+     "name": "enclosure",
+     "source": "default",
+     "title": "enclosure",
+     "value": ""
+    },
+    "kind": "PropertyItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "error": "",
+     "name": "os_arch",
+     "source": "probe",
+     "title": "os arch",
+     "value": "x86_64"
+    },
+    "kind": "PropertyItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "error": "",
+     "name": "mem_bytes",
+     "source": "probe",
+     "title": "mem bytes",
+     "value": 6144
+    },
+    "kind": "PropertyItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "error": "",
+     "name": "last_boot",
+     "source": "probe",
+     "title": "last boot",
+     "value": "2026-10-10T14:08:50+02:00"
+    },
+    "kind": "PropertyItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "error": "",
+     "name": "cpu_threads",
+     "source": "probe",
+     "title": "cpu threads",
+     "value": 2
+    },
+    "kind": "PropertyItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "error": "",
+     "name": "cpu_model",
+     "source": "probe",
+     "title": "cpu model",
+     "value": "AMD EPYC 7371 16-Core Processor"
+    },
+    "kind": "PropertyItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   }
+  ],
+  "kind": "PropertyList"
+ },
+ "system/hardware": {
+  "items": [
+   {
+    "data": {
+     "class": "Bridge",
+     "description": "Intel Corporation 82G33/G31/P35/P31 Express DRAM Controller (rev 00)",
+     "driver": "",
+     "path": "00:00.0",
+     "type": "pci"
+    },
+    "kind": "HardwareItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "class": "Display controller",
+     "description": "Red Hat, Inc. Virtio 1.0 GPU (rev 01)",
+     "driver": "virtio-pci",
+     "path": "00:01.0",
+     "type": "pci"
+    },
+    "kind": "HardwareItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "class": "Bridge",
+     "description": "Red Hat, Inc. QEMU PCIe Root port (rev 00)",
+     "driver": "pcieport",
+     "path": "00:02.0",
+     "type": "pci"
+    },
+    "kind": "HardwareItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   }
+  ],
+  "kind": "HardwareList"
+ },
+ "system/disk": {
+  "kind": "DiskList",
+  "items": [
+   {
+    "data": {
+     "devpath": "/dev/sr0",
+     "id": "sr0",
+     "model": "QEMU DVD-ROM",
+     "regions": [
+      {
+       "devpath": "/dev/sr0",
+       "group": "",
+       "id": "sr0",
+       "object": "",
+       "size": 382976
+      }
+     ],
+     "size": 382976,
+     "type": "rom",
+     "vendor": "QEMU    "
+    },
+    "kind": "DiskItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "devpath": "/dev/vda",
+     "id": "vda",
+     "model": "",
+     "regions": [
+      {
+       "devpath": "/dev/vda",
+       "group": "",
+       "id": "vda",
+       "object": "",
+       "size": 32212254720
+      }
+     ],
+     "size": 32212254720,
+     "type": "disk",
+     "vendor": "0x1af4"
+    },
+    "kind": "DiskItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   }
+  ]
+ },
+ "system/ipaddress": {
+  "items": [
+   {
+    "data": {
+     "address": "10.44.0.11",
+     "flagdeprecated": false,
+     "intf": "br-prd",
+     "mac": "82:26:b7:17:31:a3",
+     "mask": "24",
+     "type": "ipv4"
+    },
+    "kind": "IPAddressItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "address": "fd01:2345:6789:4400::11",
+     "flagdeprecated": false,
+     "intf": "br-prd",
+     "mac": "82:26:b7:17:31:a3",
+     "mask": "64",
+     "type": "ipv6"
+    },
+    "kind": "IPAddressItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   }
+  ],
+  "kind": "IPAddressList"
+ },
+ "system/san/initiator": {
+  "items": [
+   {
+    "data": {
+     "name": "iqn.2009-11.com.opensvc.srv:dev3n1.storage.initiator",
+     "type": "iscsi"
+    },
+    "kind": "SANPathInitiatorItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   }
+  ],
+  "kind": "SANPathInitiatorList"
+ },
+ "system/san/path": {
+  "items": [
+   {
+    "initiator": {
+     "name": "iqn.2009-11.com.opensvc.srv:dev3n1.storage.initiator",
+     "type": "iscsi"
+    },
+    "target": {
+     "name": "iqn.2009-11.com.opensvc.srv:dev3n1.storage.target.2",
+     "type": "iscsi"
+    }
+   },
+   {
+    "initiator": {
+     "name": "iqn.2009-11.com.opensvc.srv:dev3n1.storage.initiator",
+     "type": "iscsi"
+    },
+    "target": {
+     "name": "iqn.2009-11.com.opensvc.srv:dev3n1.storage.target.1",
+     "type": "iscsi"
+    }
+   }
+  ],
+  "kind": "SANPathList"
+ },
+ "system/package": {
+  "items": [
+   {
+    "data": {
+     "arch": "amd64",
+     "installedat": "2025-09-15T22:57:38.266896068+02:00",
+     "name": "acl",
+     "sig": "",
+     "type": "deb",
+     "version": "2.3.2-1build1.1"
+    },
+    "kind": "PackageItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "arch": "all",
+     "installedat": "2025-02-16T21:57:47+01:00",
+     "name": "adduser",
+     "sig": "",
+     "type": "deb",
+     "version": "3.137ubuntu1"
+    },
+    "kind": "PackageItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "arch": "all",
+     "installedat": "2025-09-15T22:57:41.419910214+02:00",
+     "name": "adwaita-icon-theme",
+     "sig": "",
+     "type": "deb",
+     "version": "46.0-1"
+    },
+    "kind": "PackageItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "arch": "all",
+     "installedat": "2025-09-15T22:57:41.502910586+02:00",
+     "name": "alsa-topology-conf",
+     "sig": "",
+     "type": "deb",
+     "version": "1.2.5.1-2"
+    },
+    "kind": "PackageItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   }
+  ],
+  "kind": "PackageList"
+ },
+ "system/user": {
+  "items": [
+   {
+    "data": {
+     "id": 0,
+     "name": "root"
+    },
+    "kind": "UserItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "id": 1,
+     "name": "daemon"
+    },
+    "kind": "UserItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   }
+  ],
+  "kind": "UserList"
+ },
+ "system/group": {
+  "items": [
+   {
+    "data": {
+     "id": 0,
+     "name": "root"
+    },
+    "kind": "GroupItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "id": 1,
+     "name": "daemon"
+    },
+    "kind": "GroupItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   }
+  ],
+  "kind": "GroupList"
+ },
+ "schedule": {
+  "items": [
+   {
+    "data": {
+     "action": "checks",
+     "key": "checks.schedule",
+     "last_run_at": "2026-10-13T05:26:13.99946806+02:00",
+     "max_parallel": 1,
+     "next_run_at": "2026-10-14T00:41:30.860166945+02:00",
+     "on": [],
+     "pace": "",
+     "require": "",
+     "require_collector": true,
+     "require_provisioned": false,
+     "schedule": "~00:00-06:00"
+    },
+    "kind": "ScheduleItem",
+    "meta": {
+     "node": "dev3n1",
+     "object": ""
+    }
+   },
+   {
+    "data": {
+     "action": "compliance_auto",
+     "key": "compliance.schedule",
+     "last_run_at": "2026-10-13T02:00:00+02:00",
+     "max_parallel": 1,
+     "next_run_at": "2026-10-14T02:00:00+02:00",
+     "on": [],
+     "pace": "",
+     "require": "",
+     "require_collector": true,
+     "require_provisioned": false,
+     "schedule": "02:00-06:00"
+    },
+    "kind": "ScheduleItem",
+    "meta": {
+     "node": "dev3n1",
+     "object": ""
+    }
+   }
+  ],
+  "kind": "ScheduleList"
+ },
+ "drivers": {
+  "items": [
+   {
+    "data": {
+     "name": "app.forking"
+    },
+    "kind": "DriverItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "name": "app.simple"
+    },
+    "kind": "DriverItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "name": "array.freenas"
+    },
+    "kind": "DriverItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "name": "array.hds"
+    },
+    "kind": "DriverItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   }
+  ],
+  "kind": "DriverList"
+ },
+ "capabilities": {
+  "items": [
+   {
+    "data": {
+     "name": "drivers.array.freenas"
+    },
+    "kind": "CapabilityItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "name": "drivers.array.hds"
+    },
+    "kind": "CapabilityItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   },
+   {
+    "data": {
+     "name": "drivers.array.hoc"
+    },
+    "kind": "CapabilityItem",
+    "meta": {
+     "node": "dev3n1"
+    }
+   }
+  ],
+  "kind": "CapabilityList"
+ }
+}

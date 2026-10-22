@@ -1,0 +1,1999 @@
+{
+  "actionDialogs": {
+    "chooseFile": "Choisir un fichier",
+    "noFileSelected": "Aucun fichier sélectionné",
+    "noFileChosen": "Aucun fichier choisi",
+    "acknowledge": {
+      "mayInterruptAria": "Confirmer l'interruption de service",
+      "mayInterrupt": "Je comprends que cela peut interrompre des services.",
+      "dataLossAria": "Confirmer la perte de données",
+      "dataLoss": "Je comprends que des données seront perdues.",
+      "configLossAria": "Confirmer la perte de configuration",
+      "configLoss": "Je comprends que la configuration sera perdue.",
+      "clusterwideAria": "Confirmer l'orchestration sur tout le cluster",
+      "clusterwide": "Je comprends que cette action sera orchestrée sur tout le cluster.",
+      "serviceInterruptionAria": "Confirmer l'interruption de service",
+      "serviceInterruption": "Je comprends que les services sélectionnés peuvent être interrompus temporairement pendant la bascule, ou durablement si aucune bascule n'est configurée.",
+      "unavailableDuringMoveAria": "Confirmer l'indisponibilité des services",
+      "unavailableDuringMove": "Je comprends que les services sélectionnés seront indisponibles pendant le déplacement."
+    },
+    "freeze": {
+      "title": "Confirmer le gel",
+      "checkboxAria": "Confirmer la suspension de la bascule",
+      "checkbox": "Je comprends que l'orchestration des services sélectionnés sera suspendue.",
+      "confirmAria": "Confirmer l'action geler"
+    },
+    "stop": {
+      "title": "Confirmer l'arrêt",
+      "confirmAria": "Confirmer l'action arrêter",
+      "confirm": "Arrêter"
+    },
+    "shutdown": {
+      "title": "Confirmer l'extinction",
+      "confirmAria": "Confirmer l'action éteindre",
+      "confirm": "Éteindre",
+      "instancesDownAria": "Confirmer l'extinction des instances",
+      "instancesDown": "Je comprends que toutes les instances svc et vol de ce nœud seront éteintes et que le démon sera arrêté.",
+      "peerTakeoverAria": "Confirmer la reprise par les pairs",
+      "peerTakeover": "Je comprends que les nœuds pairs ne sont pas prévenus d'une période de maintenance et tenteront de reprendre les services dès que les instances seront arrêtées.",
+      "instance": {
+        "instancesDownAria": "Confirmer l'extinction des instances",
+        "instancesDown": "Je comprends que toutes les ressources de ces instances, celles en standby comprises, seront arrêtées.",
+        "peerTakeoverAria": "Confirmer la reprise par les pairs",
+        "peerTakeover": "Je comprends que les nœuds pairs peuvent reprendre les services dès que ces instances seront arrêtées."
+      }
+    },
+    "restart": {
+      "title": "Confirmer le redémarrage",
+      "confirmAria": "Confirmer l'action redémarrer",
+      "confirm": "Redémarrer"
+    },
+    "clear": {
+      "title": "Confirmer l'effacement",
+      "checkboxAria": "Confirmer l'action effacer",
+      "checkbox": "Je comprends que cela effacera l'état et les journaux du nœud.",
+      "confirmAria": "Confirmer l'action effacer"
+    },
+    "drain": {
+      "title": "Confirmer le drainage",
+      "checkboxAria": "Confirmer la migration des services",
+      "checkbox": "Je comprends que cela migrera les services hors des nœuds sélectionnés.",
+      "confirmAria": "Confirmer l'action drainer"
+    },
+    "unprovision": {
+      "title": "Confirmer le déprovisionnement",
+      "confirmAria": "Confirmer l'action déprovisionner"
+    },
+    "purge": {
+      "title": "Confirmer la purge",
+      "confirmAria": "Confirmer l'action purger"
+    },
+    "delete": {
+      "title": "Confirmer la suppression",
+      "confirmAria": "Confirmer l'action supprimer",
+      "instance": {
+        "configLossAria": "Confirmer la perte de la configuration des instances",
+        "configLoss": "Je comprends que la configuration et les états de ces instances seront supprimés, quel que soit leur statut.",
+        "localOnlyAria": "Confirmer la configuration des instances seule",
+        "localOnly": "Je comprends que rien n'est arrêté ni déprovisionné, et que le démon peut recréer la configuration à partir de la copie d'un pair."
+      }
+    },
+    "switch": {
+      "title": "Confirmer la bascule",
+      "confirmAria": "Confirmer l'action basculer"
+    },
+    "giveback": {
+      "title": "Confirmer la restitution",
+      "confirmAria": "Confirmer l'action restituer"
+    },
+    "deleteKey": {
+      "title": "Confirmer la suppression de la clé",
+      "confirmAria": "Confirmer la suppression de la clé",
+      "message": "Voulez-vous vraiment supprimer la clé <strong>{{key}}</strong> ?"
+    },
+    "createKey": {
+      "title": "Créer une clé",
+      "confirmAria": "Confirmer la création de la clé",
+      "confirm": "Créer",
+      "keyName": "Nom de la clé",
+      "keyNameAria": "Saisie du nom de la clé"
+    },
+    "updateConfig": {
+      "title": "Mettre à jour la configuration",
+      "confirmAria": "Confirmer la mise à jour de la configuration",
+      "confirm": "Mettre à jour"
+    },
+    "manageParams": {
+      "title": "Gérer les paramètres de configuration",
+      "confirmAria": "Appliquer les modifications de configuration",
+      "confirm": "Appliquer",
+      "set": "Paramètres à définir",
+      "setHint": "Ajouter des paramètres (un par ligne, p. ex. section.param=valeur)",
+      "setAria": "Saisie des paramètres à définir",
+      "unset": "Clés de paramètres à retirer",
+      "unsetHint": "Retirer des paramètres (une clé par ligne, p. ex. section.param)",
+      "unsetAria": "Saisie des paramètres à retirer",
+      "deleteSections": "Clés de sections à supprimer",
+      "deleteSectionsHint": "Supprimer des sections (une clé par ligne, p. ex. section)",
+      "deleteSectionsAria": "Saisie des sections à supprimer"
+    },
+    "subject": "Porte sur <strong>{{target}}</strong>.",
+    "subjectNamesAria": "Cibles",
+    "simpleConfirm": {
+      "title": "Confirmer « {{label}} »",
+      "confirmAria": "Confirmer l'action « {{label}} »",
+      "message": "Voulez-vous vraiment exécuter l'action <strong>{{label}}</strong> sur {{target}} ?",
+      "titleAction": "Confirmer « {{label}} »",
+      "titleGeneric": "Confirmer l'action",
+      "messageAction": "Voulez-vous vraiment exécuter l'action « {{label}} » sur {{target}} ?",
+      "messageGeneric": "Voulez-vous vraiment exécuter cette action sur {{target}} ?"
+    }
+  },
+  "actions": {
+    "labels": {
+      "start": "Démarrer",
+      "stop": "Arrêter",
+      "restart": "Redémarrer",
+      "freeze": "Geler",
+      "unfreeze": "Dégeler",
+      "provision": "Provisionner",
+      "unprovision": "Déprovisionner",
+      "install": "Installer",
+      "switch": "Basculer",
+      "giveback": "Restituer",
+      "abort": "Abandonner",
+      "enable": "Activer",
+      "disable": "Désactiver",
+      "delete": "Supprimer",
+      "purge": "Purger",
+      "run": "Exécuter",
+      "boot": "Amorcer",
+      "shutdown": "Éteindre",
+      "startStandby": "Démarrer en standby",
+      "prstart": "Prstart",
+      "prstop": "Prstop",
+      "syncIngest": "Ingérer la synchronisation",
+      "syncUpdate": "Synchroniser les changements",
+      "syncFull": "Synchronisation complète",
+      "syncResync": "Resynchroniser",
+      "syncSplit": "Séparer la réplication",
+      "pgReset": "Réinitialiser le groupe de placement",
+      "pgUpdate": "Mettre à jour le groupe de placement",
+      "info": "Infos",
+      "status": "Statut",
+      "console": "Console",
+      "clear": "Effacer",
+      "drain": "Drainer",
+      "scsiScan": "Scan SCSI",
+      "asset": "Inventaire",
+      "disk": "Disques",
+      "pkg": "Paquets",
+      "capabilities": "Capacités",
+      "sysreport": "Rapport système",
+      "restartDaemon": "Redémarrer le démon",
+      "resize": "Redimensionner",
+      "cap": "Plafonner",
+      "leave": "Quitter"
+    }
+  },
+  "alerts": {
+    "details": {
+      "node_one": "{{count}} nœud",
+      "node_other": "{{count}} nœuds",
+      "pool_one": "{{count}} pool",
+      "pool_other": "{{count}} pools",
+      "network_one": "{{count}} réseau",
+      "network_other": "{{count}} réseaux",
+      "frozen": "gelés : {{count}}",
+      "full": "pleins : {{count}}",
+      "highestUsage": "usage le plus élevé : {{name}} {{percent}} %"
+    },
+    "objectsDown_one": "{{count}} objet down",
+    "objectsDown_other": "{{count}} objets down",
+    "objectsWarn_one": "{{count}} objet en warn",
+    "objectsWarn_other": "{{count}} objets en warn",
+    "linksDown_one": "{{count}} lien de heartbeat sur {{total}} down",
+    "linksDown_other": "{{count}} liens de heartbeat sur {{total}} down",
+    "nodesOverloaded_one": "{{count}} nœud sur {{total}} surchargé",
+    "nodesOverloaded_other": "{{count}} nœuds sur {{total}} surchargés"
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "username": "Nom d'utilisateur",
+      "password": "Mot de passe",
+      "changeMethod": "Changer de méthode",
+      "submit": "Se connecter",
+      "loading": "Chargement...",
+      "incorrect": "Nom d'utilisateur ou mot de passe incorrect",
+      "error": "Une erreur est survenue lors de l'authentification",
+      "missingFields": "Veuillez saisir le nom d'utilisateur et le mot de passe"
+    },
+    "choice": {
+      "title": "Méthodes d'authentification",
+      "prompt": "Veuillez choisir l'une des méthodes d'authentification proposées par le cluster.",
+      "loading": "Chargement des méthodes d'authentification",
+      "openid": "OpenID",
+      "login": "Se connecter"
+    },
+    "authenticating": {
+      "title": "Authentification",
+      "loading": "Chargement...",
+      "redirecting": "Vous êtes redirigé vers le fournisseur OpenID.",
+      "reload": "Recharger"
+    },
+    "callback": {
+      "logging": "Connexion ..."
+    },
+    "silentRenew": {
+      "processing": "Renouvellement silencieux en cours..."
+    }
+  },
+  "common": {
+    "close": "Fermer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "remove": "Retirer",
+    "refresh": "Rafraîchir",
+    "retry": "Réessayer",
+    "loading": "Chargement",
+    "search": "Rechercher",
+    "filter": "Filtre",
+    "filters": "Filtres",
+    "all": "Tous",
+    "none": "Aucun",
+    "yes": "Oui",
+    "no": "Non",
+    "name": "Nom",
+    "node": "Nœud",
+    "nodes": "Nœuds",
+    "status": "Statut",
+    "state": "État",
+    "type": "Type",
+    "actions": "Actions",
+    "notAvailable": "N/D",
+    "error": "Erreur",
+    "unknown": "Inconnu",
+    "selected": "{{count}} sélectionné(s)",
+    "copied": "Copié"
+  },
+  "config": {
+    "errors": {
+      "fetchConfig": "Échec de la récupération de la configuration : {{message}}",
+      "fetchKeywords": "Échec de la récupération des mots-clés : {{message}}",
+      "fetchParams": "Échec de la récupération des paramètres existants : {{message}}",
+      "invalidFormat": "Format de réponse invalide : éléments manquants",
+      "timeout": "La requête a expiré après 60 secondes"
+    },
+    "filePicker": {
+      "choose": "Choisir un fichier",
+      "noFile": "Aucun fichier choisi"
+    },
+    "update": {
+      "title": "Mettre à jour la configuration",
+      "submit": "Mettre à jour",
+      "updating": "Mise à jour"
+    },
+    "params": {
+      "title": "Gérer les paramètres de configuration",
+      "apply": "Appliquer",
+      "applying": "Application",
+      "addHeading": "Ajouter des paramètres",
+      "selectLabel": "Paramètre à ajouter",
+      "selectHint": "Choisissez un paramètre, puis cliquez sur Ajouter",
+      "selectPlaceholder": "Choisir un paramètre",
+      "addButton": "Ajouter le paramètre",
+      "tableLabel": "Paramètres à ajouter",
+      "section": "Section",
+      "parameter": "Paramètre",
+      "value": "Valeur",
+      "description": "Description",
+      "index": "Index",
+      "indexPlaceholder": "ex. : prod, 1, data",
+      "sectionOptional": "Section (facultative)",
+      "sectionPlaceholder": "ex. : database, fs#data",
+      "removeParam": "Retirer le paramètre",
+      "unsetLegend": "Désaffecter des paramètres",
+      "unsetHint": "Choisissez des paramètres existants pour retirer leur valeur",
+      "unsetEmpty": "Aucun paramètre défini.",
+      "deleteLegend": "Supprimer des sections",
+      "deleteHint": "Choisissez des sections existantes à supprimer",
+      "deleteEmpty": "Aucune section."
+    },
+    "view": {
+      "button": "Voir la configuration",
+      "title": "Configuration",
+      "saving": "Enregistrement",
+      "editNotice": "Édition du fichier tel qu'il est stocké : les valeurs secrètes sont affichées en clair. L'enregistrement envoie le fichier entier.",
+      "startOver": "Repartir du fichier actuel",
+      "fileLabel": "Fichier de configuration",
+      "secretsMaskedIn": "Secrets masqués à nouveau dans {{time}}.",
+      "secretsHidden": "Les valeurs secrètes sont affichées comme ********.",
+      "hideSecrets": "Masquer les secrets",
+      "showSecrets": "Afficher les secrets",
+      "editFile": "Éditer le fichier de configuration",
+      "uploadFile": "Envoyer un nouveau fichier de configuration",
+      "manageParams": "Gérer les paramètres de configuration",
+      "noInstance": "Aucune instance sélectionnée pour afficher la configuration.",
+      "loadingForEdit": "Chargement de la configuration pour l'édition",
+      "loading": "Chargement de la configuration",
+      "empty": "Aucune configuration disponible.",
+      "noSection": "Pas de section [{{section}}] dans la configuration.",
+      "copy": "Copier la configuration affichée",
+      "absent": "Pas encore de configuration : elle est créée avec la première modification écrite."
+    },
+    "feedback": {
+      "tokenNotFound": "Jeton d'authentification introuvable.",
+      "conflict": "La configuration a été modifiée par quelqu'un d'autre depuis le début de votre édition. Vos modifications ne sont pas enregistrées.",
+      "updateFailed": "Échec de la mise à jour de la configuration : {{message}}",
+      "fileRequired": "Le fichier de configuration est requis.",
+      "paramRequired": "Un paramètre est requis.",
+      "invalidParam": "Paramètre invalide : {{name}}",
+      "invalidList": "Valeur invalide pour {{keyword}} : une liste de chaînes en minuscules séparées par des virgules est attendue",
+      "unknownParam": "inconnu",
+      "unsetErrorUnknown": "Erreur lors de la désaffectation du paramètre {{keyword}}",
+      "noSelection": "Aucune sélection"
+    },
+    "keywordHelp": {
+      "open": "Ce que fait {{keyword}}",
+      "loadError": "L'aide des mots-clés n'a pas pu être lue : {{message}}",
+      "default": "Défaut",
+      "candidates": "Valeurs",
+      "example": "Exemple",
+      "converter": "Type",
+      "scopable": "Portée par nœud",
+      "deprecated": "Obsolète",
+      "replacedBy": "remplacé par {{keyword}}"
+    }
+  },
+  "console": {
+    "title": "Console",
+    "titleRid": "Console {{rid}}",
+    "titleNode": "Console sur {{node}}",
+    "titleRidNode": "Console {{rid}} sur {{node}}",
+    "opening": "Ouverture de la console...",
+    "ended": "Session terminée (code de sortie {{code}}).",
+    "certificateHint": "Si le certificat du port de la console n'est pas reconnu par ce navigateur, ouvrez <certLink>{{url}}</certLink> pour l'accepter, puis rouvrez la console.",
+    "errors": {
+      "tokenNotFound": "Jeton d'authentification introuvable.",
+      "sessionFailed": "La session de console a échoué.",
+      "unreachable": "La console est injoignable.",
+      "lost": "La connexion à la console a été perdue.",
+      "openFailed": "Échec de l'ouverture de la console : {{message}}"
+    }
+  },
+  "events": {
+    "title": "Journal des événements",
+    "button": "Événements",
+    "count": "{{visible}}/{{total}} événements",
+    "paused": "EN PAUSE",
+    "manageSubscriptions": "Gérer les abonnements",
+    "pause": "Pause",
+    "resume": "Reprendre",
+    "clear": "Vider le journal",
+    "filterByType": "Filtrer par type",
+    "filterByTypeColon": "Filtrer par type :",
+    "pageEvent": "Événement de cette page",
+    "additionalEvent": "Événement supplémentaire",
+    "list": "Liste des événements",
+    "loading": "Chargement des événements",
+    "loadingMore": "Chargement d'autres événements",
+    "empty": "Aucun événement reçu",
+    "noMatch": "Aucun événement ne correspond aux filtres",
+    "resizeHandle": "Poignée de redimensionnement",
+    "dragToResize": "Faire glisser pour redimensionner",
+    "subscriptions": {
+      "title": "Abonnements aux événements",
+      "close": "Fermer les abonnements",
+      "intro": "Choisissez les types d'événements auxquels vous ABONNER (événements futurs uniquement) :",
+      "subscribeAll": "S'abonner à tout",
+      "subscribePage": "S'abonner aux événements de la page",
+      "unsubscribeAll": "Se désabonner de tout",
+      "pageEvents": "Événements de la page ({{total}})",
+      "additionalEvents": "Événements supplémentaires ({{total}})",
+      "received_one": "{{count}} événement reçu",
+      "received_other": "{{count}} événements reçus",
+      "noneSelected": "Aucun type d'événement sélectionné. Vous ne recevrez aucun événement.",
+      "apply": "Appliquer les abonnements ({{total}})"
+    },
+    "following": "Suivi",
+    "follow": "Suivre",
+    "latest": "Derniers événements",
+    "newEvents_one": "1 nouvel événement",
+    "newEvents_other": "{{count}} nouveaux événements",
+    "showOlder": "Afficher les événements plus anciens",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "download": "Télécharger les événements affichés",
+    "searchPlaceholder": "Rechercher des événements…",
+    "types": "Types",
+    "allTypes": "Tous les types",
+    "filtersActive": "Filtres actifs",
+    "resetFilters": "Réinitialiser les filtres",
+    "countOf": "{{shown}} / {{total}} événements",
+    "showData": "Afficher ses données",
+    "hideData": "Masquer ses données"
+  },
+  "heartbeats": {
+    "columns": {
+      "heartbeat": "Heartbeat",
+      "type": "Type",
+      "node": "Nœud",
+      "direction": "Direction",
+      "peer": "Pair",
+      "desc": "Desc",
+      "routine": "Routine",
+      "beating": "Battement",
+      "since": "Depuis",
+      "lastBeat": "Dernier battement"
+    },
+    "filters": {
+      "routine": "Routine",
+      "beating": "Battement",
+      "id": "ID",
+      "show": "Afficher les filtres",
+      "hide": "Masquer les filtres",
+      "driver": "Pilote",
+      "clearAll": "Effacer tous les filtres"
+    },
+    "marks": {
+      "healthySingleNode": "Sain (nœud unique)",
+      "beating": "Actif",
+      "stale": "Périmé"
+    },
+    "empty": "Aucun heartbeat ne correspond aux filtres actuels.",
+    "mesh": {
+      "title": "Maillage",
+      "groupLabel_one": "de {{from}} vers {{to}} : {{beating}} lien sur {{count}} en battement",
+      "groupLabel_other": "de {{from}} vers {{to}} : {{beating}} liens sur {{count}} en battement",
+      "beatingOf_one": "{{beating}} sur {{count}} en battement",
+      "beatingOf_other": "{{beating}} sur {{count}} en battement",
+      "legend": {
+        "direction": "→ le sens des battements : depuis l'émetteur son tx, puis après l'espace vers le récepteur son rx",
+        "up": "tous battent",
+        "warn": "certains battent",
+        "down": "aucun ne bat"
+      },
+      "half": {
+        "tx": "Vu de {{node}}, sortant vers {{peer}}",
+        "rx": "Vu de {{node}}, entrant de {{peer}}"
+      },
+      "noLink": "Aucun flux de cette extrémité ne signale ce pair.",
+      "routinesStopped_one": "{{stopped}} routine sur {{count}} arrêtée",
+      "routinesStopped_other": "{{stopped}} routines sur {{count}} arrêtées",
+      "details": "Flux",
+      "detailsHint": "Survolez une flèche ou un nœud pour ses détails ; cliquez une flèche pour les garder, le fond du maillage pour les relâcher.",
+      "overall": {
+        "operational": "flux opérationnels",
+        "up": "optimal",
+        "warn": "dégradé",
+        "down": "critique"
+      }
+    },
+    "actions": {
+      "stop": "Arrêter",
+      "start": "Démarrer",
+      "target": "le flux {{id}} de {{node}}",
+      "restart": "Redémarrer",
+      "menu": "Actions",
+      "selectHint": "Sélectionnez des flux pour les démarrer, les arrêter ou les redémarrer",
+      "selectStream": "Sélectionner le flux {{id}} de {{node}}",
+      "selectAll": "Sélectionner tous les flux affichés",
+      "clear": "Vider la sélection",
+      "confirm": {
+        "stop": {
+          "title_one": "Arrêter un flux de heartbeat",
+          "title_other": "Arrêter {{count}} flux de heartbeat",
+          "text_one": "Arrêter ce flux ? Le nœud cesse d'y émettre ou d'y recevoir jusqu'à ce qu'il soit redémarré.",
+          "text_other": "Arrêter ces flux ? Les nœuds cessent d'y émettre ou d'y recevoir jusqu'à ce qu'ils soient redémarrés."
+        },
+        "restart": {
+          "title_one": "Redémarrer un flux de heartbeat",
+          "title_other": "Redémarrer {{count}} flux de heartbeat",
+          "text_one": "Redémarrer ce flux ? Il s'arrête puis redémarre : le pair peut manquer un instant.",
+          "text_other": "Redémarrer ces flux ? Chacun s'arrête puis redémarre : les pairs peuvent manquer un instant."
+        }
+      },
+      "confirmTitle": "Arrêter un flux de heartbeat",
+      "confirmStop": "Arrêter le flux {{id}} de {{node}} ? Le nœud cesse d'y émettre ou d'y recevoir jusqu'à ce qu'il soit redémarré.",
+      "startRoutine": "Démarrer {{name}}",
+      "stopRoutine": "Arrêter {{name}}",
+      "confirmStart": "Démarrer le flux {{id}} de {{node}} ? Le nœud émet ou reçoit de nouveau sur lui.",
+      "confirmTitleStart": "Démarrer un flux de heartbeat"
+    },
+    "routine": {
+      "running": "démarrée",
+      "stopped": "arrêtée"
+    },
+    "direction": {
+      "tx": "envoie à",
+      "rx": "reçoit de"
+    },
+    "summary": {
+      "list": "Heartbeats",
+      "layer": {
+        "network": "réseau",
+        "storage": "stockage",
+        "relay": "relais",
+        "other": "autre"
+      },
+      "side": {
+        "tx": "↑ tx",
+        "rx": "↓ rx"
+      },
+      "routines": "Routines",
+      "toggleHint": "Cliquez une routine pour l'arrêter, ou pour la démarrer.",
+      "beatingOf": "{{beating}}/{{count}} battent"
+    },
+    "tabs": {
+      "label": "Vues des heartbeats",
+      "data": "Données",
+      "logs": "Journaux",
+      "overview": "Vue d'ensemble"
+    },
+    "logs": {
+      "changes": "Changements d'état seulement"
+    },
+    "config": {
+      "title": "Configuration de {{name}}",
+      "open": "Afficher la configuration de {{name}}",
+      "edit": "Modifier avec l'assistant",
+      "new": "Nouveau heartbeat",
+      "none": "Pas de section [{{name}}] dans la configuration du cluster.",
+      "readFailed": "La configuration du cluster n'a pas pu être lue : {{message}}",
+      "delete": "Supprimer",
+      "deleting": "Suppression…",
+      "confirmDelete": "Supprimer [{{name}}] de la configuration du cluster ? Ses flux s’arrêtent sur tous les nœuds.",
+      "deleteFailed": "Le heartbeat n'a pas pu être supprimé : {{message}}",
+      "notDeletable": "Il pourra être supprimé quand un autre heartbeat aura tous ses flux actifs."
+    },
+    "wizard": {
+      "newTitle": "Nouveau heartbeat {{name}}",
+      "editTitle": "Modifier le heartbeat {{name}}",
+      "steps": "Étapes",
+      "step": {
+        "type": "Pilote",
+        "settings": "Réglages",
+        "review": "Vérification"
+      },
+      "typeQuestion": "Comment les nœuds battent-ils entre eux ?",
+      "types": {
+        "unicast": "Par le réseau, de nœud à nœud : une adresse de chaque nœud.",
+        "multicast": "Par le réseau, vers un groupe multicast que tous les nœuds écoutent.",
+        "disk": "Sur un disque partagé par les nœuds, un emplacement chacun.",
+        "relay": "Par un relais, un site tiers que les nœuds joignent."
+      },
+      "perNode": "Une adresse sur chaque nœud, celle à laquelle les autres envoient : la même sur tous ne conviendrait pas.",
+      "onNode": "{{key}} sur {{node}}",
+      "required": "{{key}} (requis)",
+      "written": "Écrit dans la configuration du cluster, que les démons appliquent :",
+      "rewrite": "Le pilote passe de {{from}} à {{to}} : la section est réécrite, les mots-clés de {{from}} abandonnés.",
+      "unchanged": "Rien de changé : rien à écrire.",
+      "back": "Retour",
+      "next": "Suivant",
+      "save": "Écrire",
+      "saving": "Écriture…",
+      "saveFailed": "Le heartbeat n'a pas pu être écrit : {{message}}",
+      "trayLabel": "Configurer"
+    }
+  },
+  "instance": {
+    "unknown": "inconnu",
+    "notProvisionedTitle": "Non provisionné",
+    "card": {
+      "group": "Instance sur le nœud {{node}}",
+      "selectNode": "Sélectionner le nœud {{node}}",
+      "viewResources": "Voir les ressources",
+      "viewResourcesHint": "(voir les ressources)",
+      "stopped": "L'instance sur le nœud {{node}} est arrêtée",
+      "lagging": "L'instance sur le nœud {{node}} est en retard",
+      "notProvisioned": "L'instance sur le nœud {{node}} n'est pas provisionnée",
+      "actionsMenu": "Actions du nœud {{node}}",
+      "viewLogs": "Voir les journaux de l'instance {{instance}} sur le nœud {{node}}"
+    },
+    "view": {
+      "loading": "Chargement des données de l'instance…",
+      "node": "Nœud : {{node}}",
+      "stopped": "L'instance est arrêtée",
+      "notProvisioned": "L'instance n'est pas provisionnée",
+      "viewLogs": "Voir les journaux de l'instance {{name}}",
+      "actionsMenu": "Actions sur l'instance",
+      "actionInProgress": "Action en cours",
+      "dismiss": "Fermer",
+      "resourcesHeading": "Ressources ({{count}})"
+    },
+    "resources": {
+      "tableLabel": "Ressources",
+      "columns": {
+        "resource": "Ressource",
+        "flags": "Indicateurs",
+        "label": "Libellé"
+      },
+      "empty": "Aucune ressource trouvée sur cette instance.",
+      "noEncapData": "Aucune donnée encapsulée disponible pour {{rid}}.",
+      "encapNoResources": "Données encapsulées trouvées pour {{rid}}, mais aucune ressource définie.",
+      "noEncapResources": "Aucune ressource encapsulée disponible pour {{rid}}.",
+      "row": "Ressource {{rid}}",
+      "notProvisioned": "La ressource {{rid}} n'est pas provisionnée",
+      "flagsLabel": "Statut de la ressource {{rid}} : {{flags}}",
+      "actionsMenu": "Actions de la ressource {{rid}}",
+      "logs": "Journaux de la ressource {{rid}}",
+      "actionsDisabled": "info : actions désactivées"
+    },
+    "flags": {
+      "running": "En cours d'exécution",
+      "notRunning": "Arrêtée",
+      "monitored": "Surveillée",
+      "notMonitored": "Non surveillée",
+      "enabled": "Activée",
+      "disabled": "Désactivée",
+      "optional": "Optionnelle",
+      "notOptional": "Non optionnelle",
+      "encap": "Encapsulée",
+      "notEncap": "Non encapsulée",
+      "provisioned": "Provisionnée",
+      "notProvisioned": "Non provisionnée",
+      "standby": "Standby",
+      "notStandby": "Pas en standby",
+      "noRestart": "Aucun redémarrage",
+      "moreThan10Restarts": "Plus de 10 redémarrages",
+      "restartsRemaining_one": "{{count}} redémarrage restant",
+      "restartsRemaining_other": "{{count}} redémarrages restants"
+    },
+    "feedback": {
+      "authTokenNotFound": "Jeton d'authentification introuvable.",
+      "executingOnResource": "Demande de {{action}} sur la ressource {{rid}}…",
+      "executingOnInstance": "Demande de {{action}} sur l'instance…",
+      "failed": "Non demandé : HTTP {{status}}",
+      "failedWithDetail": "Non demandé : HTTP {{status}} - {{detail}}",
+      "succeeded": "« {{action}} » demandé",
+      "error": "Erreur : {{message}}"
+    },
+    "dialogs": {
+      "confirmFreeze": "Confirmer le gel",
+      "freezeAck": "Je comprends que l'orchestration du service sélectionné sera suspendue.",
+      "confirmStop": "Confirmer l'arrêt",
+      "stop": "Arrêter",
+      "stopAck": "Je comprends que cela peut interrompre des services.",
+      "confirmUnprovision": "Confirmer le déprovisionnement",
+      "dataLossAck": "Je comprends que des données seront perdues.",
+      "serviceInterruptionAck": "Je comprends que les services sélectionnés peuvent être interrompus temporairement pendant la bascule, ou durablement si aucune bascule n'est configurée.",
+      "confirmPurge": "Confirmer la purge",
+      "configLossAck": "Je comprends que la configuration sera perdue.",
+      "confirmAction": "Confirmer : {{action}}",
+      "action": "Action",
+      "performThisAction": "cette action",
+      "questionResource": "Voulez-vous vraiment exécuter <strong>{{action}}</strong> sur la ressource {{rid}} ?",
+      "questionInstance": "Voulez-vous vraiment exécuter <strong>{{action}}</strong> sur cette instance ?"
+    },
+    "events": {
+      "title": "Événements de l'instance - {{node}}/{{name}}",
+      "button": "Événements de l'instance"
+    },
+    "logs": {
+      "title": "Journaux de l'instance - {{node}}/{{name}}",
+      "close": "Fermer les journaux de l'instance",
+      "resize": "Redimensionner le panneau"
+    },
+    "panel": {
+      "title": "{{path}} @ {{node}}",
+      "avail": "Disponibilité",
+      "overall": "Global",
+      "provisioned": "Provisionné",
+      "frozen": "Gelé",
+      "monitor": "Moniteur",
+      "yes": "oui",
+      "no": "non",
+      "resources": "Ressources de l'instance",
+      "rid": "Ressource",
+      "label": "Libellé",
+      "noResource": "Aucune ressource.",
+      "object": "Objet",
+      "node": "Nœud",
+      "datastores": "Magasins de données",
+      "actions": "Actions sur l'instance",
+      "selectResource": "Sélectionner {{rid}}",
+      "selectionHelp": "Cochez des ressources pour les sélectionner.",
+      "volumes": "Volumes"
+    },
+    "on": "sur {{node}}"
+  },
+  "keys": {
+    "title": "Clés de l'objet ({{total}})",
+    "add": "Ajouter une clé",
+    "loading": "Chargement des clés",
+    "loadingContent": "Chargement du contenu de la clé",
+    "empty": "Aucune clé disponible.",
+    "tableAria": "table des clés",
+    "size": "Taille",
+    "bytes": "{{size}} octets",
+    "editAction": "Modifier la clé {{key}}",
+    "deleteAction": "Supprimer la clé {{key}}",
+    "view": {
+      "action": "Voir la clé {{key}}",
+      "title": "Voir la clé : {{key}}",
+      "typeText": "Type : texte",
+      "typeBinary": "Type : binaire (vue hexadécimale)",
+      "maskedAgain_one": "Masqué à nouveau dans {{count}} seconde.",
+      "maskedAgain_other": "Masqué à nouveau dans {{count}} secondes.",
+      "hide": "Masquer le secret",
+      "reveal": "Afficher le secret",
+      "hidden": "Le contenu de ce secret est masqué.",
+      "revealHint": "Utilisez le bouton Afficher le secret pour le voir.",
+      "contentAria": "Contenu de la clé",
+      "copy": "Copier le contenu",
+      "download": "Télécharger la clé",
+      "decodeCertificate": "Décoder le certificat",
+      "showContent": "Afficher le contenu"
+    },
+    "certificate": {
+      "title": "Certificat",
+      "numbered": "Certificat {{index}} sur {{total}}",
+      "authority": "Autorité de certification",
+      "subject": "Sujet",
+      "issuer": "Émetteur",
+      "validity": "Validité",
+      "notBefore": "Pas avant",
+      "notAfter": "Pas après",
+      "expired": "Expiré",
+      "notYetValid": "Pas encore valide",
+      "expiresIn_one": "Valide, expire dans {{count}} jour",
+      "expiresIn_other": "Valide, expire dans {{count}} jours",
+      "altNames": "Noms alternatifs",
+      "publicKey": "Clé publique",
+      "keyBits": "{{algorithm}} {{bits}} bits",
+      "signature": "Algorithme de signature",
+      "keyUsage": "Usage de la clé",
+      "extendedKeyUsage": "Usage étendu de la clé",
+      "basicConstraints": "Contraintes de base",
+      "critical": "critique",
+      "serial": "Numéro de série",
+      "version": "Version",
+      "subjectKeyId": "Identifiant de la clé du sujet",
+      "authorityKeyId": "Identifiant de la clé de l'autorité",
+      "sha256": "Empreinte SHA-256",
+      "sha1": "Empreinte SHA-1",
+      "invalid": "Le certificat {{index}} n'a pas pu être décodé : {{message}}"
+    },
+    "deleteDialog": {
+      "title": "Confirmer la suppression de la clé",
+      "message": "Voulez-vous vraiment supprimer la clé <strong>{{key}}</strong> ?",
+      "messageMany": "Voulez-vous vraiment supprimer les {{count}} clés <strong>{{list}}</strong> ?"
+    },
+    "form": {
+      "createTitle": "Créer une clé",
+      "updateTitle": "Mettre à jour la clé",
+      "create": "Créer",
+      "update": "Mettre à jour",
+      "name": "Nom de la clé",
+      "fullScreen": "Plein écran",
+      "exitFullScreen": "Quitter le plein écran",
+      "content": "Contenu de la clé",
+      "contentPlaceholder": "Vide : la clé est vide.",
+      "dropHint": "Saisissez ou collez le contenu, ou déposez un fichier ici —",
+      "browse": "parcourir…",
+      "dropHere": "Déposez pour charger le fichier",
+      "binary": "binaire, envoyé tel quel",
+      "dropFile": "Retirer le fichier, saisir le contenu",
+      "sizeOfMax": "{{size}} sur {{max}} au plus",
+      "tooLarge": "{{size}} : trop grand, une clé contient au plus {{max}}",
+      "hiddenSecret": "Le contenu d'un secret est masqué : saisissez, collez ou déposez un nouveau contenu pour le remplacer.",
+      "hiddenBinary": "Le contenu est binaire : déposez ou choisissez un fichier pour le remplacer, ou saisissez un nouveau contenu.",
+      "hiddenUnread": "Le contenu n'a pas pu être lu : saisissez, collez ou déposez un nouveau contenu pour le remplacer."
+    },
+    "errors": {
+      "noToken": "Jeton d'authentification introuvable.",
+      "fetchKeys": "Échec de la récupération des clés : {{status}}",
+      "fetchContent": "Échec de la récupération du contenu de la clé : {{status}}",
+      "generic": "Erreur : {{message}}"
+    },
+    "selectKey": "Sélectionner la clé {{key}}",
+    "selectionHelp": "Cochez des clés pour les sélectionner.",
+    "removeSelected_one": "Supprimer 1 clé",
+    "removeSelected_other": "Supprimer {{count}} clés",
+    "selectAll": "Sélectionner toutes les clés"
+  },
+  "containerLogs": {
+    "node": "Nœud du conteneur",
+    "lines": "Lignes du journal du conteneur",
+    "count": "{{shown}} / {{total}} lignes",
+    "empty": "Le conteneur n'a encore rien écrit.",
+    "lost": "Les journaux du conteneur sur {{node}} ont été perdus (le conteneur s'est arrêté, ou le démon a redémarré) : reconnexion…",
+    "forbidden": "Lire les journaux d'un conteneur demande le rôle root.",
+    "absent": "Aucun conteneur {{rid}} sur {{node}} : il n'y tourne pas, ou a été supprimé à son arrêt. Ses journaux sont lus dès qu'il tourne.",
+    "stopped": "{{rid}} ne tourne pas sur {{node}} : voici les dernières lignes qu'il a écrites. Ses journaux sont suivis de nouveau dès qu'il tourne."
+  },
+  "logs": {
+    "subtitle": "{{instance}} sur {{node}}",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "loading": "Chargement des journaux",
+    "loadingEllipsis": "Chargement des journaux...",
+    "pause": "Pause",
+    "resume": "Reprendre",
+    "clear": "Vider les journaux",
+    "download": "Télécharger les journaux",
+    "searchPlaceholder": "Rechercher dans les journaux...",
+    "levels": "Niveaux",
+    "allLevels": "Tous les niveaux",
+    "levelsGroup": "Niveaux de journal",
+    "filtersActive": "Filtres actifs - Cliquez sur une ligne pour les effacer",
+    "resetFilters": "Réinitialiser les filtres",
+    "count": "{{shown}} / {{total}} lignes",
+    "lines": "Lignes de journal",
+    "empty": "Aucun journal disponible",
+    "noMatch": "Aucune ligne ne correspond aux filtres",
+    "errors": {
+      "instanceRequired": "Le nom de l'instance est requis pour les journaux d'instance",
+      "tokenNotFound": "Jeton d'authentification introuvable",
+      "http": "Erreur HTTP ! statut : {{status}}",
+      "noStream": "La réponse n'a pas de flux lisible",
+      "authFailed": "Échec de l'authentification. Veuillez rafraîchir votre jeton.",
+      "instanceNotFound": "Point d'accès des journaux d'instance introuvable pour {{instance}} sur le nœud {{node}}",
+      "nodeNotFound": "Point d'accès des journaux introuvable pour le nœud {{node}}",
+      "fetchFailed": "Échec de la récupération des journaux : {{message}}",
+      "reconnecting": "Le flux des journaux de {{node}} a été perdu : reconnexion…"
+    },
+    "following": "Suivi",
+    "follow": "Suivre",
+    "latest": "Dernières lignes",
+    "newLines_one": "1 nouvelle ligne",
+    "newLines_other": "{{count}} nouvelles lignes",
+    "loadOlder": "Charger les lignes plus anciennes",
+    "loadingOlder": "Chargement des lignes plus anciennes…",
+    "noOlder": "Pas de ligne plus ancienne"
+  },
+  "metrics": {
+    "columns": {
+      "object": "Objet",
+      "node": "Nœud",
+      "instances": "Instances",
+      "cpu": "CPU",
+      "memory": "Mémoire",
+      "limit": "Limite"
+    },
+    "totals": {
+      "label": "Total du namespace",
+      "cpu": "CPU du namespace",
+      "memory": "Mémoire du namespace"
+    },
+    "fetchError": "Échec de la récupération des métriques : {{error}}",
+    "loading": "Chargement des métriques",
+    "empty": "Aucune métrique cgroup pour les objets de {{namespace}}",
+    "footer": "Additionné sur les nœuds du cluster, rafraîchi toutes les {{seconds}} secondes. Le CPU est en pourcentage d'un CPU.",
+    "object": {
+      "total": "Usage de l'objet",
+      "instances": "Usage par instance",
+      "openInstance": "Ouvrir l'instance sur {{node}}",
+      "none": "Aucune instance.",
+      "footer": "Additionné sur ses instances, rafraîchi toutes les {{seconds}} secondes. Le CPU est en pourcentage d'un CPU ; les limites s'additionnent, illimitées si l'une l'est."
+    },
+    "instance": {
+      "total": "Usage de l'instance",
+      "none": "Aucun cgroup pour cette instance sur {{node}}.",
+      "footer": "Sur {{node}}, rafraîchi toutes les {{seconds}} secondes. Le CPU est en pourcentage d'un CPU."
+    }
+  },
+  "namespaces": {
+    "columns": {
+      "namespace": "Nom",
+      "services": "Services",
+      "volumes": "Volumes",
+      "sec": "Secrets",
+      "cfg": "Configs",
+      "pools": "Pools",
+      "nets": "Réseaux",
+      "cpu": "CPU",
+      "memory": "Mémoire"
+    },
+    "empty": "Aucun namespace disponible",
+    "tableLabel": "Namespaces",
+    "show": {
+      "svc_one": "Afficher le service {{status}} de {{namespace}}",
+      "svc_other": "Afficher les {{count}} services {{status}} de {{namespace}}",
+      "vol_one": "Afficher le volume {{status}} de {{namespace}}",
+      "vol_other": "Afficher les {{count}} volumes {{status}} de {{namespace}}",
+      "sec_one": "Afficher le secret de {{namespace}}",
+      "sec_other": "Afficher les {{count}} secrets de {{namespace}}",
+      "cfg_one": "Afficher la configuration de {{namespace}}",
+      "cfg_other": "Afficher les {{count}} configurations de {{namespace}}"
+    },
+    "usage": {
+      "claimed": "{{name}} : {{used}} sur {{total}} réclamé ({{percent}})",
+      "unclaimed": "{{name}} : {{used}} sur {{total}}, sans réclamation ({{percent}})",
+      "error": "L'usage des pools et des réseaux n'a pas pu être lu : {{message}}",
+      "percentOf": "{{percent}} de {{total}}",
+      "free": "Libre",
+      "used": "Utilisé",
+      "total": "Total",
+      "cap": "Plafond",
+      "noClaim": "aucune réclamation",
+      "share": "Part",
+      "barLabel": "{{title}} : {{parts}}"
+    },
+    "memory": {
+      "used": "{{used}} utilisé"
+    },
+    "panel": {
+      "tabs": {
+        "usage": "Usage",
+        "claims": "Réclamations",
+        "events": "Événements",
+        "config": "Configuration"
+      },
+      "claims": "Réclamations et usage",
+      "resource": "Ressource",
+      "limit": "Limite",
+      "share": "Part",
+      "shareOf": "Part de {{name}} utilisée",
+      "types": {
+        "pool": "Pool",
+        "network": "Réseau",
+        "cpu": "CPU",
+        "memory": "Mémoire"
+      },
+      "sizeOf": "{{size}} ({{of}})",
+      "sizeOfType": {
+        "pool": "taille du pool, sans réclamation",
+        "network": "taille du réseau, sans réclamation"
+      },
+      "noClaim": "Ce namespace ne réclame rien : il n'est limité que par les pools et les réseaux eux-mêmes.",
+      "nothing": "Aucun pool, réseau, cpu ni mémoire utilisé.",
+      "pgNode": "Le CPU et la mémoire sont ceux des objets du nœud qui sert cette page.",
+      "byObject": "CPU et mémoire par objet",
+      "actions": "Actions sur le namespace",
+      "configOf": "la configuration de {{namespace}}"
+    },
+    "claims": {
+      "actions": "Actions",
+      "add": "Ajouter une réclamation",
+      "edit": "Modifier",
+      "editOf": "Modifier la réclamation de {{name}}",
+      "remove": "Supprimer",
+      "removeOf": "Supprimer la réclamation de {{name}}",
+      "claim": "Réclamer",
+      "claimOf": "Réclamer {{name}}",
+      "readOnly": "Seuls root et les squatters peuvent modifier les réclamations d'un namespace.",
+      "saveFailed": "La réclamation n'a pas pu être écrite : {{message}}",
+      "removeFailed": "La réclamation n'a pas pu être supprimée : {{message}}",
+      "removeTitle": "Supprimer la réclamation de {{name}}",
+      "removeText": "{{namespace}} ne sera plus limité à {{limit}} de {{name}}.",
+      "removeEffect": {
+        "pool": "Ses volumes ne seront alors limités que par la taille du pool.",
+        "network": "Ses objets ne seront alors limités que par les adresses du réseau.",
+        "cpu": "Ses objets utiliseront alors autant de cpu que les nœuds leur en donnent.",
+        "memory": "Ses objets utiliseront alors autant de mémoire que les nœuds leur en donnent."
+      },
+      "units": {
+        "m": "Mio",
+        "g": "Gio",
+        "t": "Tio"
+      },
+      "errors": {
+        "positive": "Saisissez un nombre supérieur à 0.",
+        "integer": "Saisissez un nombre entier d'adresses.",
+        "cpuMin": "Saisissez au moins 0,01 cpu."
+      },
+      "types": {
+        "pool": {
+          "label": "Stockage d'un pool",
+          "help": "Ce que ses volumes peuvent prendre d'un pool.",
+          "taken": "Tous les pools sont déjà réclamés : modifiez leur réclamation."
+        },
+        "network": {
+          "label": "Adresses d'un réseau",
+          "help": "Combien d'adresses ses objets peuvent tenir dans un réseau.",
+          "taken": "Tous les réseaux sont déjà réclamés : modifiez leur réclamation."
+        },
+        "cpu": {
+          "label": "CPU",
+          "help": "Combien de cpus ses objets peuvent utiliser ensemble.",
+          "taken": "Déjà réclamé : modifiez sa réclamation."
+        },
+        "memory": {
+          "label": "Mémoire",
+          "help": "Combien de mémoire ses objets peuvent utiliser ensemble.",
+          "taken": "Déjà réclamée : modifiez sa réclamation."
+        }
+      },
+      "wizard": {
+        "addTitle": "Nouvelle réclamation de {{namespace}}",
+        "editTitle": "Réclamation de {{name}} par {{namespace}}",
+        "steps": "Étapes",
+        "step": {
+          "type": "Quoi",
+          "target": "Lequel",
+          "limit": "Combien",
+          "review": "Vérification"
+        },
+        "back": "Précédent",
+        "next": "Suivant",
+        "save": "Enregistrer la réclamation",
+        "saving": "Enregistrement…",
+        "typeQuestion": "Que réclame le namespace ?",
+        "targetQuestion": {
+          "pool": "De quel pool ?",
+          "network": "De quel réseau ?"
+        },
+        "noTarget": {
+          "pool": "Tous les pools sont déjà réclamés.",
+          "network": "Tous les réseaux sont déjà réclamés."
+        },
+        "targetFigures": "{{used}} utilisés sur {{size}}",
+        "limitLabel": {
+          "pool": "Le plus qu'il peut prendre de {{name}}",
+          "network": "Le plus d'adresses qu'il peut tenir dans {{name}}",
+          "cpu": "Le plus de cpus qu'il peut utiliser",
+          "memory": "Le plus de mémoire qu'il peut utiliser"
+        },
+        "defaultLabel": {
+          "cpu": "Cpus d'un conteneur n'en fixant pas",
+          "memory": "Mémoire d'un conteneur n'en fixant pas"
+        },
+        "defaultHint": "La limite de chaque conteneur du namespace qui n'en fixe pas lui-même.",
+        "optional": "{{label}} (facultatif)",
+        "unit": "Unité",
+        "unitOf": {
+          "network": "adresses",
+          "cpu": "cpus"
+        },
+        "usedNow": "Utilisé maintenant : {{used}}.",
+        "sizeOf": {
+          "pool": "Taille du pool : {{size}}.",
+          "network": "Taille du réseau : {{size}}."
+        },
+        "cpuHint": "0,5 est un demi cpu.",
+        "belowUsage": "En dessous des {{used}} utilisés maintenant : ce qui grandit au-delà sera refusé jusqu'à ce que l'usage repasse sous la réclamation.",
+        "aboveSize": {
+          "pool": "Plus que les {{size}} du pool : le pool limite d'abord.",
+          "network": "Plus que les {{size}} adresses du réseau : le réseau limite d'abord."
+        },
+        "summary": {
+          "pool": "{{namespace}} pourra prendre jusqu'à {{limit}} du pool {{name}}.",
+          "network": "{{namespace}} pourra tenir jusqu'à {{limit}} adresses dans le réseau {{name}}.",
+          "cpu": "{{namespace}} pourra utiliser jusqu'à {{limit}}.",
+          "memory": "{{namespace}} pourra utiliser jusqu'à {{limit}} de mémoire."
+        },
+        "summaryDefault": {
+          "cpu": "Un conteneur sans limite propre reçoit {{value}}.",
+          "memory": "Un conteneur sans limite propre reçoit {{value}}."
+        },
+        "createsConfig": "{{namespace}} n'a pas encore d'objet de configuration : il est créé avec cette réclamation.",
+        "written": "Écrit dans la configuration du namespace :"
+      }
+    },
+    "objects": {
+      "tableLabel": "{{list}} de {{namespace}}",
+      "empty": "Aucun objet de type {{list}} dans {{namespace}}.",
+      "selectAll": "Sélectionner tous les objets de type {{list}}"
+    }
+  },
+  "nav": {
+    "openCluster": "Ouvrir le cluster",
+    "routes": {
+      "heartbeats": "Liens",
+      "networks": "Réseaux",
+      "nodes": "Nœuds",
+      "objects": "Objets",
+      "kinds": "Kinds",
+      "namespaces": "Namespaces",
+      "pools": "Pools"
+    },
+    "main": "Principal",
+    "loading": "Chargement...",
+    "hideMenu": "Masquer le menu",
+    "showMenu": "Afficher le menu",
+    "viewUser": "Voir les informations de l'utilisateur",
+    "openAi": "Ouvrir l'assistant IA",
+    "offline": "Hors ligne",
+    "offlineTitle": "Vous êtes hors ligne — certaines fonctionnalités peuvent être limitées",
+    "documentTitle": "{{cluster}} · OpenSVC {{product}}",
+    "documentTitleNoCluster": "OpenSVC {{product}}",
+    "breadcrumb": {
+      "label": "Fil d'Ariane",
+      "navigateTo": "Aller à {{name}}",
+      "cluster": "Cluster",
+      "loading": "Chargement...",
+      "segments": {
+        "heartbeats": "liens",
+        "kinds": "kinds",
+        "namespaces": "namespaces",
+        "network": "réseaux",
+        "nodes": "nœuds",
+        "objects": "objets",
+        "pools": "pools",
+        "whoami": "utilisateur"
+      }
+    },
+    "sections": {
+      "cluster": "Cluster",
+      "objects": "Objets"
+    }
+  },
+  "networks": {
+    "columns": {
+      "network": "Réseau",
+      "usage": "Utilisation"
+    },
+    "caption": "Réseaux",
+    "usageOf": "Utilisation de {{name}}",
+    "empty": "Aucun réseau disponible.",
+    "details": {
+      "title": "Détails du réseau : {{name}} ({{type}})",
+      "loadError": "Échec du chargement des détails du réseau. Veuillez réessayer.",
+      "showFilters": "Afficher les filtres",
+      "hideFilters": "Masquer les filtres",
+      "path": "Chemin",
+      "rid": "RID",
+      "ip": "IP",
+      "loading": "Chargement des détails du réseau",
+      "caption": "Détails du réseau",
+      "empty": "Aucune adresse IP pour ce réseau.",
+      "type": "Type : {{type}}"
+    }
+  },
+  "nodes": {
+    "columns": {
+      "score": "Score",
+      "load15m": "Charge (15m)",
+      "memAvail": "Mém. dispo",
+      "swapAvail": "Swap dispo",
+      "version": "Version",
+      "bootedAt": "Démarré",
+      "updatedAt": "Mis à jour"
+    },
+    "bulkActions": "Actions",
+    "selectAll": "Sélectionner tous les nœuds",
+    "loading": "Chargement des nœuds",
+    "target": {
+      "node": "le nœud {{node}}",
+      "selected_one": "{{count}} nœud",
+      "selected_other": "{{count}} nœuds"
+    },
+    "feedback": {
+      "noToken": "Jeton d'authentification introuvable"
+    },
+    "row": {
+      "lost": "Aucun état : le nœud est perdu ou ne répond pas",
+      "label": "Ligne du nœud {{node}}",
+      "select": "Sélectionner le nœud {{node}}",
+      "connected": "Connecté à ce nœud"
+    },
+    "time": {
+      "justNow": "À l'instant",
+      "minutesAgo": "il y a {{count}} min",
+      "hoursAgo": "il y a {{count}} h",
+      "daysAgo": "il y a {{count}} j"
+    },
+    "selectHint": "Sélectionnez des nœuds pour agir dessus, ou ouvrez-en un"
+  },
+  "objectTabs": {
+    "schedules": {
+      "filter": "Filtrer les planifications",
+      "none": "Aucune tâche planifiée"
+    },
+    "resources": {
+      "filter": "Filtrer les ressources",
+      "none": "Aucune ressource ne remonte d’information",
+      "noMatch": "Aucune ressource ne correspond au filtre",
+      "key": "Clé",
+      "noneOf": "{{rid}} ne signale aucune information.",
+      "table": "Informations des ressources"
+    }
+  },
+  "nodePanel": {
+    "loading": "Lecture",
+    "loadError": "Lecture impossible : {{message}}",
+    "none": "Aucun",
+    "actions": "Actions du nœud",
+    "tabs": {
+      "status": "État",
+      "inventory": "Inventaire",
+      "config": "Configuration",
+      "schedules": "Planifications",
+      "drivers": "Pilotes",
+      "daemon": "Démon",
+      "events": "Événements",
+      "logs": "Journaux"
+    },
+    "status": {
+      "title": "État du nœud",
+      "state": "État",
+      "frozen": "Gelé",
+      "leader": "Leader",
+      "overloaded": "Surchargé",
+      "agent": "Agent",
+      "booted": "Démarré",
+      "score": "Score",
+      "load15m": "Charge (15 min)",
+      "memAvail": "Mémoire disponible",
+      "swapAvail": "Swap disponible",
+      "ofTotal": "{{pct}} % de {{total}}",
+      "properties": "Propriétés"
+    },
+    "inventory": {
+      "hardware": "Matériel",
+      "disks": "Disques",
+      "addresses": "Adresses IP",
+      "initiators": "Initiateurs SAN",
+      "paths": "Chemins SAN",
+      "packages": "Paquets",
+      "filterPackages": "Filtrer les paquets",
+      "users": "Utilisateurs",
+      "groups": "Groupes",
+      "views": {
+        "label": "Vues de l'inventaire",
+        "hardware": "Matériel",
+        "disks": "Disques",
+        "addresses": "Adresses",
+        "san": "SAN",
+        "packages": "Paquets",
+        "accounts": "Comptes"
+      },
+      "filterAddresses": "Filtrer les adresses"
+    },
+    "config": {
+      "file": "Fichier de configuration du nœud",
+      "edit": "Modifier le fichier de configuration",
+      "readFailed": "La configuration n'a pas pu être lue : {{message}}"
+    },
+    "schedules": {
+      "collector": "collecteur",
+      "provisioned": "provisionné",
+      "unscheduled": "non planifié"
+    },
+    "drivers": {
+      "filter": "Filtrer les pilotes et capacités",
+      "drivers": "Pilotes",
+      "capabilities": "Capacités"
+    },
+    "columns": {
+      "property": "Propriété",
+      "value": "Valeur",
+      "source": "Source",
+      "class": "Classe",
+      "description": "Description",
+      "driver": "Pilote",
+      "path": "Chemin",
+      "device": "Périphérique",
+      "model": "Modèle",
+      "size": "Taille",
+      "objects": "Objets",
+      "interface": "Interface",
+      "address": "Adresse",
+      "mac": "MAC",
+      "initiator": "Initiateur",
+      "target": "Cible",
+      "version": "Version",
+      "arch": "Arch.",
+      "id": "Id",
+      "action": "Action",
+      "schedule": "Planification",
+      "lastRun": "Dernière exécution",
+      "nextRun": "Prochaine exécution",
+      "requires": "Requiert",
+      "keyword": "Mot-clé"
+    }
+  },
+  "objectDetails": {
+    "loading": "Chargement des données de l'objet",
+    "loadingText": "Chargement des données de l'objet…",
+    "noInformation": "Aucune information disponible pour cet objet.",
+    "authTokenNotFound": "Jeton d'authentification introuvable",
+    "fallbackFailed": "L'objet n'a pas pu être lu : HTTP {{status}}",
+    "instancesHeading": "Instances ({{count}})",
+    "batchActionsMenu": "Actions sur les nœuds sélectionnés ({{count}})",
+    "dialogTarget": "l'objet {{name}}",
+    "feedback": {
+      "authTokenNotFound": "Jeton d'authentification introuvable.",
+      "configUpdated": "Configuration de l'instance mise à jour"
+    },
+    "logs": {
+      "instanceTitle": "Journaux de l'instance - {{name}}",
+      "nodeTitle": "Journaux du nœud - {{node}}",
+      "title": "Journaux",
+      "close": "Fermer les journaux",
+      "resize": "Redimensionner le panneau"
+    }
+  },
+  "createObject": {
+    "open": "Nouvel objet",
+    "title": "Nouvel objet",
+    "kind": "Kind",
+    "namespace": "Namespace",
+    "path": "Chemin :",
+    "nscfgName": "Une configuration de namespace s'appelle toujours {{name}}.",
+    "source": "Partir de",
+    "sources": {
+      "empty": "Une configuration vide",
+      "copy": "La copie d'un objet",
+      "file": "Un fichier"
+    },
+    "copyFrom": "Objet à copier",
+    "noObject": "Aucun objet ne correspond",
+    "reading": "Lecture de la configuration",
+    "noFile": "Aucun fichier choisi",
+    "config": "Configuration",
+    "configHint": "Modifiable ici avant l'envoi. Le nouvel objet reçoit son propre id.",
+    "provision": "Provisionner une fois créé",
+    "submit": "Créer",
+    "creating": "Création",
+    "errors": {
+      "empty": "Obligatoire.",
+      "tooLong": "63 caractères au plus.",
+      "firstChar": "Doit commencer par une lettre ou un chiffre.",
+      "chars": "Lettres, chiffres, points et tirets seulement.",
+      "uppercase": "Minuscules seulement.",
+      "reserved": "Ce nom est réservé par om.",
+      "reservedRoot": "Ce nom est réservé dans le namespace root.",
+      "exists": "{{path}} existe déjà."
+    },
+    "feedback": {
+      "failed": "L'objet n'a pas pu être créé : {{message}}",
+      "copyFailed": "La configuration de {{path}} n'a pas pu être lue : {{message}}",
+      "readFailed": "Le fichier n'a pas pu être lu : {{message}}"
+    },
+    "datastoreHint": "Créé vide : ses clés s’ajoutent ensuite, dans son panneau."
+  },
+  "objects": {
+    "noInstanceStatus": "Aucun état de {{node}} : le nœud est perdu ou ne répond pas",
+    "flex": {
+      "title": "Flex",
+      "min": "Instances min",
+      "max": "Instances max",
+      "target": "Instances visées"
+    },
+    "degraded": "Dégradé",
+    "notProvisioned": "Non provisionné",
+    "tableLabel": "Objets",
+    "selectAll": "Sélectionner tous les objets",
+    "selectObject": "Sélectionner l'objet {{name}}",
+    "empty": "Aucun objet ne correspond aux filtres actuels.",
+    "actionsMenu": "Actions",
+    "lists": {
+      "label": "Listes d'objets",
+      "services": "Services",
+      "volumes": "Volumes",
+      "configs": "Configurations",
+      "secrets": "Secrets",
+      "users": "Utilisateurs",
+      "namespaces": "Namespaces",
+      "any": "Tous"
+    },
+    "columns": {
+      "object": "Objet",
+      "orchestrate": "Orchestration",
+      "topology": "Topologie",
+      "keys": "Clés",
+      "keysSize": "Taille",
+      "keysSizeHint": "La taille des clés telles que stockées dans la configuration, encodage compris",
+      "up": "Démarrées"
+    },
+    "filters": {
+      "show": "Afficher les filtres",
+      "hide": "Masquer les filtres",
+      "globalState": "État global",
+      "namespace": "Namespace",
+      "kind": "Kind",
+      "unprovisioned": "Non provisionné"
+    },
+    "feedback": {
+      "authTokenNotFound": "Jeton d'authentification introuvable"
+    },
+    "dialogTarget": {
+      "object": "l'objet {{name}}",
+      "objects_one": "{{count}} objet",
+      "objects_other": "{{count}} objets"
+    },
+    "header": {
+      "statusTitle": "Statut de l'objet : {{status}}",
+      "unknown": "inconnu",
+      "notProvisionedTitle": "Non provisionné",
+      "notProvisionedLabel": "L'objet n'est pas provisionné",
+      "actionsMenu": "Actions sur l'objet"
+    },
+    "selectHint": "Sélectionnez des objets pour agir dessus",
+    "selectNamespace": "Sélectionner les objets de {{namespace}}",
+    "openInstance": "Ouvrir l'instance sur {{node}}",
+    "openInstanceOf": "Ouvrir l'instance de {{name}} sur {{node}}",
+    "badges": {
+      "datastore": "magasin",
+      "namespace": "namespace"
+    },
+    "openNamespaceConfig": "Ouvrir la configuration de {{namespace}}",
+    "configure": "Configurer",
+    "configureNamespace": "Configurer le namespace {{namespace}}",
+    "createIn": "Créer",
+    "createInNamespace": "Créer un objet dans {{namespace}}"
+  },
+  "pools": {
+    "columns": {
+      "volumeCount": "Nombre de volumes",
+      "usage": "Utilisation",
+      "head": "Tête"
+    },
+    "caption": "Pools",
+    "usageOf": "Utilisation de {{name}}",
+    "loading": "Chargement des pools",
+    "loadError": "Échec du chargement des pools. Veuillez réessayer.",
+    "empty": "Aucun pool disponible."
+  },
+  "ui": {
+    "policies": {
+      "topology": "Topologie",
+      "orchestrate": "Orchestration",
+      "placement": "Placement"
+    },
+    "productTag": {
+      "name": "Cluster",
+      "title": "Application web du cluster OpenSVC om3"
+    },
+    "states": {
+      "up": "up",
+      "warn": "warn",
+      "down": "down",
+      "na": "n/d",
+      "unknown": "inconnu"
+    },
+    "stateMarks": {
+      "notProvisioned": "Non provisionné",
+      "stopped": "Arrêté",
+      "stoppedTitle": "arrêté",
+      "stoppedAt": "arrêté le {{date}}",
+      "rpoBreached": "RPO dépassé"
+    },
+    "frozen": "gelé",
+    "seconds_one": "{{count}} seconde",
+    "seconds_other": "{{count}} secondes"
+  },
+  "user": {
+    "loading": "Chargement des informations de l'utilisateur",
+    "loadError": "Échec du chargement des informations de l'utilisateur",
+    "myInfo": "Mes informations",
+    "username": "Nom d'utilisateur",
+    "authMethod": "Authentifié via",
+    "permissions": "Détail des permissions",
+    "rawPermissions": "Permissions brutes",
+    "server": "Informations du serveur",
+    "connectedNode": "Nœud connecté",
+    "nodeLoading": "Chargement...",
+    "webappVersion": "Version de la WebApp",
+    "versionLoading": "Chargement...",
+    "versionUnknown": "Inconnue",
+    "productName": "WebApp OM3",
+    "lightMode": "Thème clair",
+    "darkMode": "Thème sombre",
+    "language": "Langue",
+    "logout": "Se déconnecter"
+  },
+  "panel": {
+    "resize": "Redimensionner le panneau",
+    "tabs": {
+      "status": "État",
+      "usage": "Usage",
+      "capacity": "Capacité",
+      "events": "Événements",
+      "logs": "Journaux",
+      "resources": "Ressources",
+      "schedules": "Planifications",
+      "keys": "Clés",
+      "config": "Configuration",
+      "info": "Infos",
+      "containerLogs": "Journaux du conteneur"
+    },
+    "crossLink": "Afficher la fiche ici ({{kind}})",
+    "kinds": {
+      "object": "objet",
+      "network": "réseau",
+      "namespace": "espace de noms",
+      "node": "nœud",
+      "instance": "instance",
+      "resource": "ressource"
+    },
+    "logs": {
+      "noNode": "Aucune instance dont lire les journaux."
+    }
+  },
+  "panelHistory": {
+    "clear": "Vider l'historique",
+    "remove": "Retirer {{name}} de l'historique",
+    "grouping": {
+      "label": "Regrouper l'historique",
+      "time": "Par date",
+      "kind": "Par type"
+    },
+    "sections": {
+      "now": "Maintenant",
+      "hour": "Dernière heure",
+      "day": "Dernier jour",
+      "week": "Dernière semaine"
+    },
+    "types": {
+      "node": "Nœuds",
+      "svc": "Services",
+      "vol": "Volumes",
+      "cfg": "Configurations",
+      "sec": "Secrets",
+      "usr": "Utilisateurs",
+      "nscfg": "Configurations de namespace",
+      "ccfg": "Cluster",
+      "network": "Réseaux",
+      "namespace": "Namespaces",
+      "instance": "Instances",
+      "resource": "Ressources"
+    },
+    "reopen": "Rouvrir {{name}}"
+  },
+  "statusBoard": {
+    "caption": "État de {{path}} par nœud",
+    "notes_one": "Notes ({{count}})",
+    "notes_other": "Notes ({{count}})",
+    "moreInfos_one": "{{count}} autre note d'info",
+    "moreInfos_other": "{{count}} autres notes d'info",
+    "loading": "Lecture de l'état",
+    "loadError": "L'état n'a pas pu être lu : {{message}}",
+    "avail": "Disponibilité",
+    "overall": "Global",
+    "instancesUp": "Instances actives",
+    "item": "Élément",
+    "description": "Description",
+    "parallel": "parallèle",
+    "allNodes": "tous les nœuds",
+    "none": "aucun",
+    "seeNote": "Voir la note {{marker}}",
+    "rows": {
+      "monitor": "Moniteur",
+      "expect": "Attendu",
+      "provisioned": "Provisionné",
+      "orchestration": "Orchestration",
+      "resources_one": "Ressources ({{count}})",
+      "resources_other": "Ressources ({{count}})",
+      "state": "État",
+      "instances_one": "Instances ({{count}})",
+      "instances_other": "Instances ({{count}})"
+    },
+    "states": {
+      "not-provisioned": "non provisionné",
+      "mixed-provisioned": "partiellement provisionné",
+      "frozen": "gelé",
+      "mixed-frozen": "partiellement gelé",
+      "non-optimal-placement": "placement non optimal",
+      "incompatible-versions": "versions d'agent incompatibles"
+    },
+    "marks": {
+      "overallWarn": "des ressources en alerte",
+      "running": "une exécution en cours",
+      "drp": "nœud de PRA",
+      "leader": "leader HA",
+      "leaderNonOptimal": "leader HA, hors du placement préféré",
+      "notProvisioned": "non provisionné",
+      "frozen": "gelée",
+      "stopped": "arrêtée volontairement",
+      "rpoBreached": "RPO dépassé"
+    },
+    "flags": {
+      "R": "en cours",
+      "M": "surveillée",
+      "D": "désactivée",
+      "O": "optionnelle",
+      "E": "encapsulée",
+      "P": "non provisionnée",
+      "S": "standby",
+      "X": "arrêtée volontairement",
+      "restarts_one": "{{count}} redémarrage restant",
+      "restarts_other": "{{count}} redémarrages restants"
+    },
+    "levels": {
+      "error": "erreur",
+      "warn": "alerte",
+      "info": "info"
+    },
+    "actions": {
+      "object": "Actions",
+      "allNodes": "tous les nœuds",
+      "clearSelection": "Vider la sélection",
+      "selectionHelp": "Cochez des ressources ou des instances pour les sélectionner.",
+      "selectionResources_one": "Actions sur 1 ressource",
+      "selectionResources_other": "Actions sur {{count}} ressources",
+      "selectionInstances_one": "Actions sur 1 instance",
+      "selectionInstances_other": "Actions sur {{count}} instances"
+    },
+    "subjects": {
+      "instance": "{{path}} sur {{where}}",
+      "resource": "{{rid}} de {{path}} sur {{where}}",
+      "cells": "{{list}} de {{path}}",
+      "cell": "{{rid}} sur {{where}}",
+      "cluster": "le cluster, sur tous ses nœuds"
+    },
+    "selectInstance": "Sélectionner l'instance sur {{node}}",
+    "selectResource": "Sélectionner {{rid}} sur tous ses nœuds",
+    "selectCell": "Sélectionner {{rid}} sur {{node}}",
+    "openCell": "Ouvrir {{rid}} sur {{node}}",
+    "policies": "Politiques",
+    "issues": "Problèmes",
+    "details": {
+      "status": "État : {{status}}"
+    },
+    "datastores": "Magasins de données",
+    "refresh": "Rafraîchir l'état",
+    "refreshAll": "Rafraîchir l'état de toutes les instances",
+    "refreshFailed": "Rafraîchissement refusé : {{detail}}",
+    "volumes": "Volumes"
+  },
+  "shortcuts": {
+    "title": "Raccourcis clavier",
+    "or": "ou",
+    "search": "Chercher dans le cluster",
+    "panel": "Ouvrir le panneau de détail sur la dernière fiche affichée, ou le fermer",
+    "menu": "Aller au menu de gauche",
+    "menuMove": "Dans le menu : passer d'une entrée à l'autre, Entrée ouvre",
+    "escape": "Fermer le panneau, une liste ou cette aide ; quitter le menu",
+    "help": "Afficher cette liste",
+    "hint": "Les touches simples agissent quand aucun champ n'a le focus."
+  },
+  "search": {
+    "title": "Rechercher dans le cluster",
+    "placeholder": "Objets, espaces de noms, nœuds, réseaux…",
+    "close": "Fermer la recherche",
+    "scopes": "Rechercher dans",
+    "all": "Tout",
+    "results": "Résultats",
+    "hint": "Saisissez un nom : la recherche porte sur les objets, les espaces de noms, les nœuds et les réseaux.",
+    "searching": "Lecture…",
+    "none": "Rien ne correspond à « {{query}} ».",
+    "more": "Voir plus",
+    "refine": "D'autres correspondent : précisez la recherche.",
+    "kindError": "Ce type n'a pas pu être lu.",
+    "keys": {
+      "move": "pour se déplacer",
+      "open": "pour ouvrir",
+      "close": "pour fermer",
+      "remove": "pour retirer"
+    },
+    "kinds": {
+      "object": "Objets",
+      "namespace": "Espaces de noms",
+      "node": "Nœuds",
+      "network": "Réseaux"
+    },
+    "recent": {
+      "title": "Ouverts récemment",
+      "clear": "Effacer",
+      "current": "ouvert",
+      "noneOfKind": "Rien de ce type ouvert récemment.",
+      "types": {
+        "node": "Nœud",
+        "svc": "Service",
+        "vol": "Volume",
+        "cfg": "Configuration",
+        "sec": "Secret",
+        "usr": "Utilisateur",
+        "nscfg": "Configuration de namespace",
+        "ccfg": "Cluster",
+        "network": "Réseau",
+        "namespace": "Namespace",
+        "instance": "Instance",
+        "resource": "Ressource"
+      }
+    }
+  },
+  "orchestration": {
+    "label": "Orchestration en cours : {{expect}}",
+    "logs": "Journaux",
+    "abort": "Interrompre",
+    "logsOf": "Journaux de l'orchestration",
+    "allLogs": "Afficher tous les journaux"
+  },
+  "pager": {
+    "label": "Pagination",
+    "perPage": "Par page",
+    "rangeOf": "{{from}}–{{to}} sur {{total}}",
+    "first": "Première",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "last": "Dernière",
+    "page": "Page {{page}} sur {{pages}}"
+  },
+  "nodeDaemon": {
+    "refresh": "Actualiser",
+    "pid": "PID {{pid}}",
+    "startedAt": "démarré",
+    "confirmTitle": "Confirmer : {{action}}",
+    "actions": {
+      "label": "Actions",
+      "start": "Démarrer",
+      "stop": "Arrêter",
+      "restart": "Redémarrer",
+      "sign": "Signer",
+      "wipe": "Effacer"
+    },
+    "columns": {
+      "component": "Composant",
+      "detail": "Détail",
+      "updated": "Mis à jour",
+      "stream": "Flux",
+      "peers": "Pairs",
+      "object": "Objet",
+      "expect": "État attendu",
+      "started": "Démarré",
+      "ended": "Terminé",
+      "id": "ID",
+      "command": "Commande",
+      "origin": "Origine",
+      "ttl": "TTL",
+      "content": "Contenu"
+    },
+    "components": {
+      "title": "Composants",
+      "listener": "Listener de l'API",
+      "dns": "DNS",
+      "scheduler": "Ordonnanceur",
+      "runner_imon": "Exécuteur du moniteur d'instances",
+      "collector": "Collecteur",
+      "daemondata": "Données du démon"
+    },
+    "listener": {
+      "confirm": {
+        "start": "Démarrer le listener {{listener}} de {{node}} ?",
+        "stop": "Arrêter le listener {{listener}} de {{node}} ? Son API ne répond plus par le réseau, cette page comprise si elle passe par {{node}}.",
+        "restart": "Redémarrer le listener {{listener}} de {{node}} ? Son API ne répond plus un instant."
+      },
+      "actionsOf": "Actions sur le listener {{listener}}",
+      "target": "l'écouteur {{listener}} de {{node}}"
+    },
+    "heartbeats": {
+      "title": "Heartbeats",
+      "actionsOf": "Actions sur {{id}}",
+      "target": "le flux de heartbeat {{id}} de {{node}}",
+      "diskTarget": "le heartbeat disque hb#{{hb}} de {{node}}",
+      "confirm": {
+        "start": "Démarrer {{target}} ?",
+        "stop": "Arrêter {{target}} ? Le nœud cesse d'y émettre ou d'y recevoir.",
+        "restart": "Redémarrer {{target}} ?",
+        "sign": "Signer {{target}} ?",
+        "wipe": "Effacer {{target}} ? Sa signature et les emplacements de ses pairs sont effacés."
+      }
+    },
+    "orchestrations": {
+      "title": "Orchestrations",
+      "node": "(le nœud)"
+    },
+    "execs": {
+      "title": "Exécutions",
+      "filter": "Filtrer les exécutions",
+      "terminate": "Terminer",
+      "confirm": "Envoyer TERM à « {{command}} » sur {{node}} ?",
+      "target": "« {{command}} » sur {{node}}"
+    },
+    "dns": {
+      "title": "Zone DNS",
+      "filter": "Filtrer les enregistrements"
+    },
+    "views": {
+      "label": "Vues du démon",
+      "overview": "Vue d'ensemble",
+      "executions": "Exécutions",
+      "orchestrations": "Orchestrations",
+      "dns": "DNS"
+    },
+    "summary": {
+      "overview": "{{up}} composants sur {{components}} actifs, {{beating}} flux de heartbeat sur {{streams}} battent",
+      "executions": "{{count}} exécutions, {{running}} en cours",
+      "orchestrations": "{{count}} orchestrations, {{running}} en cours",
+      "dns": "{{count}} enregistrements de {{names}} noms",
+      "running_one": "{{count}} en cours",
+      "running_other": "{{count}} en cours"
+    }
+  },
+  "resource": {
+    "panel": {
+      "title": "{{rid}} de {{path}}",
+      "titleOnNode": "{{rid}} de {{path}} sur {{node}}",
+      "instance": "Instance",
+      "nodes": "La ressource sur chaque nœud",
+      "flags": "Options",
+      "log": "Dernier message",
+      "none": "Aucun nœud ne signale cette ressource.",
+      "flag": {
+        "disable": "désactivée",
+        "monitor": "surveillée",
+        "optional": "facultative",
+        "standby": "standby",
+        "encap": "encapsulée"
+      }
+    }
+  },
+  "actionTray": {
+    "label": "Actions demandées",
+    "title": "Actions",
+    "running_one": "{{count}} en cours",
+    "running_other": "{{count}} en cours",
+    "ended_one": "{{count}} terminée",
+    "ended_other": "{{count}} terminées",
+    "clear": "Effacer les actions terminées",
+    "dismiss": "Retirer {{action}} sur {{subject}}",
+    "steps": "Les exécutions de {{action}} sur les nœuds",
+    "acceptedBy": "acceptée par {{node}}",
+    "noStep": "En attente de son exécution par les nœuds…",
+    "exitCode": "code de sortie {{code}}",
+    "gone": "le démon ne sait plus comment elle s'est terminée",
+    "reasons": {
+      "unknownObject": "l'objet est inconnu",
+      "alreadyFrozen": "déjà gelé",
+      "alreadyUnfrozen": "pas gelé"
+    },
+    "monitor": "{{node}} : le moniteur est {{state}}",
+    "subjects": {
+      "cluster": "le cluster",
+      "instance": "{{path}} sur {{node}}",
+      "resource": "{{rid}} de {{path}} sur {{node}}"
+    },
+    "states": {
+      "running": "En cours",
+      "succeeded": "Réussie",
+      "failed": "Échouée",
+      "aborted": "Abandonnée",
+      "refused": "Refusée",
+      "unknown": "Issue inconnue"
+    },
+    "writes": {
+      "configFile": "Mettre à jour la configuration",
+      "set": "Définir {{keyword}} = {{value}}",
+      "unset": "Retirer {{keyword}}",
+      "deleteSection": "Supprimer la section {{section}}",
+      "keyCreate": "Ajouter la clé {{key}}",
+      "keyUpdate": "Mettre à jour la clé {{key}}",
+      "keyDelete": "Supprimer la clé {{key}}",
+      "claimsUpdate": "Mettre à jour les réclamations",
+      "claimDelete": "Retirer la réclamation {{section}}",
+      "objectCreate": "Créer",
+      "configCreate": "Créer la configuration"
+    },
+    "noNews": "aucune nouvelle sous {{seconds}} s"
+  },
+  "paramActions": {
+    "resize": {
+      "heading": "Taille",
+      "intro": "Le volume grandit jusqu’à la taille demandée, ou de la quantité demandée, comme le fait om <path> resize : la taille est écrite dans sa configuration, puis chaque nœud y converge. Un redimensionnement ne fait que grandir.",
+      "current": "Taille configurée :",
+      "none": "aucune",
+      "size": "Nouvelle taille",
+      "sizeHint": "Une taille à atteindre, comme 20g ou 12Gi, ou une quantité à ajouter, comme +1g. Vide : la taille configurée, ce qui termine un redimensionnement arrêté en chemin.",
+      "invalid": "Une taille, comme 20g, 12Gi ou +1g",
+      "submit": "Redimensionner"
+    },
+    "cap": {
+      "heading": "Plafonds du groupe de processus",
+      "intro": "Les plafonds du groupe de processus sont écrits dans la configuration, puis appliqués à chaque instance en cours d’exécution, comme le fait om <path> cap. Une instance arrêtée les applique à son démarrage.",
+      "section": "Section",
+      "sectionHint": "DEFAULT si vide ; un subset#<nom> ou un identifiant de ressource.",
+      "node": "Nœud",
+      "nodeHint": "La valeur pour un nœud, ou pour tous.",
+      "allNodes": "Tous les nœuds",
+      "loading": "Lecture des plafonds",
+      "table": "Plafonds du groupe de processus",
+      "keyword": "Mot-clé",
+      "configured": "Configuré",
+      "value": "Nouvelle valeur",
+      "valueOf": "Nouvelle valeur de {{keyword}}",
+      "liftHint": "La valeur default lève un plafond : là où le laisse un nœud qui n’a jamais rien plafonné.",
+      "nothingSet": "Rien de changé : les plafonds configurés sont appliqués à nouveau.",
+      "apply": "Appliquer les plafonds configurés",
+      "submit_one": "Régler {{count}} plafond",
+      "submit_other": "Régler {{count}} plafonds"
+    }
+  },
+  "nodeActions": {
+    "groups": {
+      "node": "Nœud",
+      "inventory": "Inventaire",
+      "daemon": "Démon"
+    },
+    "confirmTitle": "{{label}} : {{target}}",
+    "understood": "J'ai compris",
+    "freeze": {
+      "label": "Geler",
+      "description": "Le démon cesse d'orchestrer les instances du nœud."
+    },
+    "unfreeze": {
+      "label": "Dégeler",
+      "description": "Le démon orchestre de nouveau les instances du nœud."
+    },
+    "abort": {
+      "label": "Annuler",
+      "description": "Annuler l'orchestration du nœud en cours."
+    },
+    "asset": {
+      "label": "Matériel",
+      "description": "Envoyer l'inventaire matériel et système au collecteur."
+    },
+    "capabilities": {
+      "label": "Capacités",
+      "description": "Recenser ce que le nœud peut exécuter : les pilotes qu’il prend en charge."
+    },
+    "disk": {
+      "label": "Disques",
+      "description": "Envoyer les disques et leur usage au collecteur."
+    },
+    "pkg": {
+      "label": "Paquets",
+      "description": "Envoyer les paquets installés au collecteur."
+    },
+    "scsiScan": {
+      "label": "SCSI",
+      "description": "Rechercher de nouveaux disques sur les bus SCSI."
+    },
+    "sysreport": {
+      "label": "Sysreport",
+      "description": "Envoyer le rapport système, les changements des fichiers suivis, au collecteur."
+    },
+    "clear": {
+      "label": "Effacer le moniteur",
+      "description": "Effacer l'état en échec du moniteur du nœud."
+    },
+    "restartDaemon": {
+      "label": "Redémarrer",
+      "description": "Redémarrer le démon ; les instances continuent de tourner."
+    },
+    "shutdown": {
+      "label": "Éteindre",
+      "description": "Éteindre toutes les instances hébergées, puis arrêter le démon.",
+      "warning": "Toutes les instances hébergées sur le nœud s’arrêtent. Redémarrer le démon demande un accès console au nœud."
+    },
+    "stop": {
+      "label": "Arrêter",
+      "description": "Arrêter le démon ; les instances continuent de tourner, sans surveillance.",
+      "warning": "Redémarrer le démon demande un accès console au nœud."
+    },
+    "drain": {
+      "label": "Vider",
+      "description": "Geler le nœud et éteindre toutes les instances qu’il héberge.",
+      "warning": "Toutes les instances hébergées sur le nœud s’arrêtent."
+    },
+    "leave": {
+      "label": "Quitter",
+      "description": "Retirer le nœud du cluster, une fois vidé.",
+      "warning": "Toutes les instances hébergées sur le nœud s’arrêtent et en sont supprimées : le nœud quitte le cluster et redémarre seul dans son propre cluster, sans identifiant pour joindre son api.",
+      "fromHere": "Demandez-le depuis la webapp d’un autre nœud : celui-ci sert la webapp."
+    }
+  },
+  "secCertificate": {
+    "menu": "Certificat",
+    "confirmTitle": "{{label}} : {{path}}",
+    "create": {
+      "label": "Créer",
+      "busy": "Création du certificat…",
+      "description": "Générer le certificat, auto-signé ou signé par le ca du sec, avec sa clé privée s'il n'y en a pas.",
+      "replace": "Le certificat actuel est remplacé.",
+      "replaceKeepKey": "Le certificat actuel est remplacé ; la clé privée est conservée."
+    },
+    "renew": {
+      "label": "Renouveler",
+      "busy": "Renouvellement du certificat…",
+      "description": "Renouveler le certificat quand il est à échéance : auprès de l'annuaire ACME que nomme le sec, ou généré."
+    },
+    "force": {
+      "label": "Forcer le renouvellement",
+      "busy": "Renouvellement du certificat…",
+      "description": "Renouveler le certificat maintenant, même s'il n'est pas à échéance.",
+      "warning": "Le certificat actuel est remplacé, même s'il n'a pas été émis par ce sec."
+    },
+    "renewed": "Certificat renouvelé : {{reason}}",
+    "notRenewed": "Certificat non renouvelé : {{reason}}",
+    "timeout": "Pas de réponse en {{seconds}} s : les clés du sec disent si un certificat a été émis.",
+    "ca": {
+      "legend": "Signé par",
+      "cluster": "Signer avec le <a>ca du cluster</a>",
+      "other": "ou avec un <a>autre ca</a>",
+      "pick": "Ca du namespace",
+      "none": "Pas d'autre sec dans le namespace.",
+      "signedBy": "Signé par {{ca}}, écrit comme ca du sec.",
+      "selfSigned": "Pas de ca : auto-signé.",
+      "reading": "Lecture du ca du sec…"
+    }
+  }
+}

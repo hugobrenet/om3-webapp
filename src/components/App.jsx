@@ -1,12 +1,14 @@
 import React, {useEffect, useCallback, lazy, Suspense, useRef} from "react";
-import {Routes, Route, Navigate, useNavigate, useLocation} from "react-router-dom";
+import {Routes, Route, Navigate, useNavigate, useLocation, useParams} from "react-router-dom";
+import {useTranslation} from "react-i18next";
 import OidcCallback from "./OidcCallback";
 import SilentRenew from "./SilentRenew.jsx";
 import AuthChoice from "./AuthChoice.jsx";
 import Login from "./Login.jsx";
 import '../styles/main.css';
 import NavBar from './NavBar';
-import {Sidebar, useSidebarOpen} from './Sidebar';
+import {Sidebar, menuAlert, useSidebarOpen} from './Sidebar';
+import useSidebarAlerts from '../hooks/useSidebarAlerts';
 import {OidcProvider, useOidc} from "../context/OidcAuthContext.tsx";
 import {
     AuthProvider,
@@ -21,29 +23,77 @@ import useAuthInfo from "../hooks/AuthInfo.jsx";
 import {getAiAgentConfig} from "../config/ai-agent.js";
 import logger from "../utils/logger.js";
 import {prepareForNavigation} from "../eventSourceManager";
+import {isRenewalRefused} from "../context/serialRenewal";
+import {PeekPanel} from "./PeekPanel";
+import {PanelAnchor} from "../app/PanelAnchor";
+import {ActionTray} from "../app/ActionTray";
+import {useMediaQuery} from "../ui/lib/media";
+import {useRecordHistory} from "../app/record-history";
+import {ShortcutsHelp} from "../app/ShortcutsHelp";
+import {useShortcut} from "../ui/lib/shortcuts";
 
 import {decodeToken as decodeTokenFromLogin} from "./Login.jsx";
 
 // Lazy load components for code splitting
 const NodesTable = lazy(() => import("./NodesTable"));
 const Objects = lazy(() => import("./Objects"));
-const ObjectDetails = lazy(() => import("./ObjectDetails"));
-const ObjectInstanceView = lazy(() => import("./ObjectInstanceView"));
 const Namespaces = lazy(() => import("./Namespaces"));
-const Kinds = lazy(() => import("./Kinds"));
 const Heartbeats = lazy(() => import("./Heartbeats"));
 const Pools = lazy(() => import("./Pools"));
 const Network = lazy(() => import("./Network"));
-const NetworkDetails = lazy(() => import("./NetworkDetails"));
 const WhoAmI = lazy(() => import("./WhoAmI"));
 const AiChat = lazy(() => import("./AiChat"));
 
+/*
+ * The records had pages of their own; they open in a panel over their list now, as
+ * in oc3 (`panel-search.ts`). The old addresses, bookmarked or shared, lead there.
+ */
+const ObjectRedirect = () => {
+    const {objectName} = useParams();
+    return <Navigate to={`/objects?${new URLSearchParams({sel: decodeURIComponent(objectName)})}`} replace/>;
+};
+
+const NetworkRedirect = () => {
+    const {networkName} = useParams();
+    return <Navigate to={`/network?${new URLSearchParams({sel: networkName})}`} replace/>;
+};
+
+/** An old page become a tab of the Objects page: there, its filter kept. */
+const ObjectsTab = ({list}) => {
+    const {search} = useLocation();
+    const params = new URLSearchParams(search);
+    params.set("list", list);
+    return <Navigate to={`/objects?${params}`} replace/>;
+};
+
+/**
+ * The Objects page; its former namespaces tab is the Namespaces view now: a link
+ * to it lands there, the namespace open in it kept.
+ */
+const ObjectsRoute = () => {
+    const {search} = useLocation();
+    const params = new URLSearchParams(search);
+    if (params.get("list") !== "namespaces") return <Objects/>;
+    params.delete("list");
+    const query = params.toString();
+    return <Navigate to={`/namespaces${query ? `?${query}` : ""}`} replace/>;
+};
+
+// An instance is a column of the status board of its object.
+const InstanceRedirect = () => {
+    const {objectName} = useParams();
+    return <Navigate to={`/objects?${new URLSearchParams({sel: decodeURIComponent(objectName)})}`} replace/>;
+};
+
 // Loading component for Suspense fallback
-const Loading = () => (
-    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
-        <div style={{fontSize: '1.125rem'}}>Loading...</div>
-    </div>
-);
+const Loading = () => {
+    const {t} = useTranslation();
+    return (
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%'}}>
+            <div style={{fontSize: '1.125rem'}}>{t("nav.loading")}</div>
+        </div>
+    );
+};
 
 const isTokenValid = (token) => {
     if (!token) {
@@ -72,21 +122,10 @@ const OidcInitializer = ({children, authInfo}) => {
     const navigate = useNavigate();
     const resumeCheckTimer = useRef(null); // debounce timer
 
-    const handleTokenExpired = useCallback(() => {
-        logger.warn('Access token expired, redirecting to /ui/auth-choice');
-        authDispatch?.({type: SetAccessToken, data: null});
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('tokenExpiration');
-        navigate('/auth-choice', {replace: true});
-    }, [authDispatch, navigate]);
-
-    const handleSilentRenewError = useCallback((error) => {
-        logger.error('Silent renew failed:', error);
-        authDispatch?.({type: SetAccessToken, data: null});
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('tokenExpiration');
-        navigate('/auth-choice', {replace: true});
-    }, [authDispatch, navigate]);
+    // The navigate of the router changes with the location: kept in a ref, the
+    // handlers stay the same functions, the ones registered on the UserManager.
+    const navigateRef = useRef(navigate);
+    navigateRef.current = navigate;
 
     const onUserRefreshed = useCallback((user) => {
         logger.info("User refreshed:", user.profile?.preferred_username, "expires_at:", user.expires_at);
@@ -94,6 +133,60 @@ const OidcInitializer = ({children, authInfo}) => {
         localStorage.setItem('authToken', user.access_token);
         localStorage.setItem('tokenExpiration', user.expires_at.toString());
     }, [authDispatch]);
+
+    const endSession = useCallback((reason, error) => {
+        logger.warn(`OpenID session ended (${reason}), redirecting to /auth-choice`, error ?? '');
+        authDispatch?.({type: SetAccessToken, data: null});
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('tokenExpiration');
+        navigateRef.current('/auth-choice', {replace: true});
+    }, [authDispatch]);
+
+    /*
+     * Renews the access token with the refresh token. Only the provider refusing it
+     * ends the session: a renewal not answered, the network down or the provider
+     * slow, leaves it to the next attempt, the expiry, a 401 of the event streams,
+     * the page coming back to the front. The renewals are one at a time
+     * (serialRenewal): asked while another runs, this one shares its outcome.
+     */
+    const renewSession = useCallback((reason) => {
+        if (!userManager) return Promise.resolve(null);
+        return userManager.signinSilent().then((user) => {
+            if (user && !user.expired) {
+                logger.info(`Silent renew succeeded (${reason})`);
+                onUserRefreshed(user);
+                return user;
+            }
+            endSession(`${reason}, renewal gave no valid user`);
+            return null;
+        }).catch((error) => {
+            if (isRenewalRefused(error)) {
+                endSession(`${reason}, renewal refused`, error);
+            } else {
+                logger.warn(`Silent renew not answered (${reason}), session kept for the next attempt:`, error);
+            }
+            return null;
+        });
+    }, [userManager, onUserRefreshed, endSession]);
+
+    // The library raises it on the expiry, and as soon as it loads a user already
+    // expired, while the renewal of the startup runs: renewing shares that renewal.
+    const handleTokenExpired = useCallback(() => {
+        logger.warn('Access token expired, attempting silent renew');
+        return renewSession('access token expired');
+    }, [renewSession]);
+
+    const handleSilentRenewError = useCallback((error) => {
+        if (isRenewalRefused(error)) {
+            endSession('automatic renewal refused', error);
+        } else {
+            logger.warn('Automatic silent renew not answered, session kept for the next attempt:', error);
+        }
+    }, [endSession]);
+
+    const handleTokenExpiring = useCallback(() => {
+        logger.debug('Access token is about to expire, attempting silent renew...');
+    }, []);
 
     useEffect(() => {
         const init = async () => {
@@ -115,41 +208,42 @@ const OidcInitializer = ({children, authInfo}) => {
     }, [authInfo, isInitialized, auth.authChoice, authDispatch, recreateUserManager]);
 
     useEffect(() => {
-        if (userManager && auth.authChoice === 'openid') {
-            logger.info("Setting up OIDC event listeners");
-            userManager.events.removeUserLoaded(onUserRefreshed);
-            userManager.events.removeAccessTokenExpired(handleTokenExpired);
-            userManager.events.removeSilentRenewError(handleSilentRenewError);
-            userManager.events.addUserLoaded(onUserRefreshed);
-            userManager.events.addAccessTokenExpiring(() => {
-                logger.debug('Access token is about to expire, attempting silent renew...');
-            });
-            userManager.events.addAccessTokenExpired(handleTokenExpired);
-            userManager.events.addSilentRenewError(handleSilentRenewError);
-            userManager.getUser().then(user => {
-                if (user && !user.expired) {
-                    logger.info("Found existing valid user:", user.profile?.preferred_username);
-                    onUserRefreshed(user);
-                    authDispatch?.({type: LoginAction, data: user.profile.preferred_username});
-                } else if (user && user.expired) {
-                    logger.debug("Found expired user, will attempt silent renew");
-                    userManager.signinSilent().then(refreshedUser => {
-                        if (refreshedUser && !refreshedUser.expired) {
-                            logger.info("Silent renew succeeded for:", refreshedUser.profile?.preferred_username);
-                            onUserRefreshed(refreshedUser);
-                            authDispatch?.({type: LoginAction, data: refreshedUser.profile.preferred_username});
-                        } else {
-                            logger.warn("Silent renew failed or user still expired, will trigger logout via error handler");
-                        }
-                    }).catch(error => {
-                        logger.error("Silent renew failed:", error);
-                    });
-                }
-            }).catch(err => {
-                logger.error("Error getting user:", err);
-            });
-        }
-    }, [userManager, auth.authChoice, authDispatch, handleTokenExpired, handleSilentRenewError, onUserRefreshed]);
+        if (!userManager || auth.authChoice !== 'openid') return undefined;
+        logger.info("Setting up OIDC event listeners");
+        const {events} = userManager;
+        events.addUserLoaded(onUserRefreshed);
+        events.addAccessTokenExpiring(handleTokenExpiring);
+        events.addAccessTokenExpired(handleTokenExpired);
+        events.addSilentRenewError(handleSilentRenewError);
+        return () => {
+            events.removeUserLoaded(onUserRefreshed);
+            events.removeAccessTokenExpiring?.(handleTokenExpiring);
+            events.removeAccessTokenExpired(handleTokenExpired);
+            events.removeSilentRenewError(handleSilentRenewError);
+        };
+    }, [userManager, auth.authChoice, onUserRefreshed, handleTokenExpiring, handleTokenExpired, handleSilentRenewError]);
+
+    // The user kept by the UserManager, once it is built: valid, the session goes on;
+    // expired, it is renewed.
+    useEffect(() => {
+        if (!userManager || auth.authChoice !== 'openid') return;
+        userManager.getUser().then(user => {
+            if (user && !user.expired) {
+                logger.info("Found existing valid user:", user.profile?.preferred_username);
+                onUserRefreshed(user);
+                authDispatch?.({type: LoginAction, data: user.profile.preferred_username});
+            } else if (user && user.expired) {
+                logger.debug("Found expired user, will attempt silent renew");
+                renewSession('expired user on startup').then((renewed) => {
+                    if (renewed?.profile) authDispatch?.({type: LoginAction, data: renewed.profile.preferred_username});
+                });
+            }
+        }).catch(err => {
+            logger.error("Error getting user:", err);
+        });
+        // On a new UserManager or a new choice only: not on every navigation.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userManager, auth.authChoice]);
 
     useEffect(() => {
         if (auth.authChoice) {
@@ -180,22 +274,13 @@ const OidcInitializer = ({children, authInfo}) => {
                         logger.warn('No OIDC token found on resume, redirecting to /auth-choice');
                         navigate('/auth-choice', {replace: true});
                     } else if (!isTokenValid(token)) {
-                        logger.warn('OIDC token expired on resume, attempting silent renew');
                         if (userManager) {
-                            userManager.signinSilent().then((user) => {
-                                if (user && !user.expired) {
-                                    logger.info('Silent renew succeeded on resume');
-                                    onUserRefreshed(user);
-                                } else {
-                                    logger.warn('Silent renew failed on resume, redirecting to /auth-choice');
-                                    navigate('/auth-choice', {replace: true});
-                                }
-                            }).catch((error) => {
-                                logger.error('Silent renew error on resume:', error);
-                                navigate('/auth-choice', {replace: true});
-                            });
+                            logger.warn('OIDC token expired on resume, attempting silent renew');
+                            void renewSession('resume');
                         } else {
-                            navigate('/auth-choice', {replace: true});
+                            // Still being built, the auth info and the provider
+                            // configuration on their way: its startup renews.
+                            logger.debug('OIDC token expired on resume, UserManager not ready yet, its startup renews');
                         }
                     }
                     return;
@@ -238,7 +323,7 @@ const OidcInitializer = ({children, authInfo}) => {
                 clearTimeout(resumeCheckTimer.current);
             }
         };
-    }, [navigate, userManager, onUserRefreshed, location.pathname]);
+    }, [navigate, userManager, renewSession, location.pathname]);
 
     return children;
 };
@@ -274,6 +359,9 @@ const ProtectedRoute = ({children}) => {
 
 const AUTH_PATHS = ['/auth', '/login', '/silent-renew'];
 
+/** A narrow window, as Tailwind's max-md: the anchor in the header bar, no gutter for it. */
+const NARROW_QUERY = "(max-width: 47.95rem)";
+
 const App = () => {
     logger.info("App init");
     const location = useLocation();
@@ -281,25 +369,34 @@ const App = () => {
 
     const authInfo = useAuthInfo();
     const aiEnabled = getAiAgentConfig().enabled;
-    const [sidebarOpen, toggleSidebar] = useSidebarOpen();
+    const [sidebarOpen, toggleSidebar, {compact: compactMenu, fold: foldSidebar}] = useSidebarOpen();
     // The sign-in screens have no view to navigate to: no menu there.
     const showSidebar = !AUTH_PATHS.some((path) => location.pathname.startsWith(path));
+    // The alerts of the menu, read once: on its entries, and on its button while folded.
+    const sidebarAlerts = useSidebarAlerts({enabled: showSidebar});
 
+    // "n", for navigation, moves the focus to the menu, on the entry of the view on
+    // display, unfolding the menu first when it is folded: the focus waits for it to
+    // leave `inert`.
+    useShortcut("n", () => {
+        if (!showSidebar) return false;
+        if (!sidebarOpen) toggleSidebar();
+        window.requestAnimationFrame(() => {
+            const menu = document.getElementById("app-sidebar");
+            const entry = menu?.querySelector('a[aria-current="page"]') ?? menu?.querySelector("a, button");
+            entry?.focus();
+        });
+        return true;
+    });
+
+    // Another view starts at its top. Not a panel opening over the view, nor its
+    // filters changing: those keep the place in the list.
     useEffect(() => {
         if (mainRef.current) {
             mainRef.current.scrollTop = 0;
         }
         prepareForNavigation();
-    }, [location]);
-
-    useEffect(() => {
-        const checkTokenChange = () => {
-            const newToken = localStorage.getItem("authToken");
-            logger.debug("Storage event: newToken=", newToken);
-        };
-        window.addEventListener("storage", checkTokenChange);
-        return () => window.removeEventListener("storage", checkTokenChange);
-    }, []);
+    }, [location.pathname]);
 
     const appContainerStyle = {
         position: 'fixed',
@@ -314,12 +411,22 @@ const App = () => {
         color: 'var(--ink)',
     };
 
+    // The anchor that brings the panels back stands on the right edge of the window,
+    // over the views: while there is a record to bring back, the views keep a gutter
+    // as wide as it there, so that it covers nothing, an Actions menu at the end of a
+    // toolbar included. A narrow window spares no such gutter: the anchor is a button
+    // of the header bar there.
+    const historySize = useRecordHistory().entries.length;
+    const narrow = useMediaQuery(NARROW_QUERY);
+    const anchorEnabled = showSidebar && !!localStorage.getItem("authToken");
+    const anchorShown = showSidebar && historySize > 0 && !narrow;
     const mainStyle = {
         flex: 1,
         minWidth: 0,
         overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
         width: '100%',
+        ...(anchorShown ? {paddingRight: '2.5rem'} : {}),
     };
 
     return (
@@ -330,28 +437,28 @@ const App = () => {
                         <NavBar
                             sidebarOpen={sidebarOpen}
                             onToggleSidebar={toggleSidebar}
+                            menuAlert={sidebarOpen ? null : menuAlert(sidebarAlerts)}
                             showSidebarToggle={showSidebar}
+                            anchor={anchorEnabled && narrow ? <PanelAnchor inBar/> : null}
                         />
                         <div style={{display: 'flex', flex: 1, minHeight: 0}}>
-                            {showSidebar && <Sidebar open={sidebarOpen}/>}
+                            {/* Short of room, the menu folds once an entry is chosen. */}
+                            {showSidebar && <Sidebar open={sidebarOpen} alerts={sidebarAlerts} onNavigate={compactMenu ? foldSidebar : undefined}/>}
                             <main id="app-scroll-container" ref={mainRef} style={mainStyle}>
                                 <Suspense fallback={<Loading/>}>
                                     <Routes>
                                         <Route path="/" element={<Navigate to="/objects" replace/>}/>
-                                        <Route path="/namespaces"
-                                               element={<ProtectedRoute><Namespaces/></ProtectedRoute>}/>
-                                        <Route path="/kinds" element={<ProtectedRoute><Kinds/></ProtectedRoute>}/>
+                                        {/* Tabs of the Objects page now: an old link lands there. */}
+                                        <Route path="/namespaces" element={<ProtectedRoute><Namespaces/></ProtectedRoute>}/>
+                                        <Route path="/kinds" element={<ObjectsTab list="any"/>}/>
                                         <Route path="/heartbeats" element={<Heartbeats/>}/>
                                         <Route path="/nodes" element={<ProtectedRoute><NodesTable/></ProtectedRoute>}/>
                                         <Route path="/pools" element={<ProtectedRoute><Pools/></ProtectedRoute>}/>
                                         <Route path="/network" element={<ProtectedRoute><Network/></ProtectedRoute>}/>
-                                        <Route path="/network/:networkName"
-                                               element={<ProtectedRoute><NetworkDetails/></ProtectedRoute>}/>
-                                        <Route path="/objects" element={<ProtectedRoute><Objects/></ProtectedRoute>}/>
-                                        <Route path="/objects/:objectName"
-                                               element={<ProtectedRoute><ObjectDetails/></ProtectedRoute>}/>
-                                        <Route path="/nodes/:node/objects/:objectName"
-                                               element={<ProtectedRoute><ObjectInstanceView/></ProtectedRoute>}/>
+                                        <Route path="/network/:networkName" element={<NetworkRedirect/>}/>
+                                        <Route path="/objects" element={<ProtectedRoute><ObjectsRoute/></ProtectedRoute>}/>
+                                        <Route path="/objects/:objectName" element={<ObjectRedirect/>}/>
+                                        <Route path="/nodes/:node/objects/:objectName" element={<InstanceRedirect/>}/>
                                         <Route path="/whoami" element={<ProtectedRoute><WhoAmI/></ProtectedRoute>}/>
                                         <Route path="/ai" element={<ProtectedRoute>{aiEnabled ? <AiChat/> : <Navigate to="/" replace/>}</ProtectedRoute>}/>
                                         <Route path="/silent-renew" element={<SilentRenew/>}/>
@@ -360,6 +467,17 @@ const App = () => {
                                         <Route path="/auth/login" element={<Login/>}/>
                                         <Route path="*" element={<Navigate to="/"/>}/>
                                     </Routes>
+                                    {/* The record opened from a badge or the history, whatever the
+                                        view, and what brings the panels back once closed. */}
+                                    {showSidebar && localStorage.getItem("authToken") && (
+                                        <>
+                                            <PeekPanel/>
+                                            {!narrow && <PanelAnchor/>}
+                                            <ShortcutsHelp/>
+                                            {/* The actions asked, followed to their end, whatever the view. */}
+                                            <ActionTray/>
+                                        </>
+                                    )}
                                 </Suspense>
                             </main>
                         </div>

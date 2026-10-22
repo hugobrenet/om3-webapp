@@ -1,5 +1,6 @@
 {
-  // Strict type check of the design system (src/ui), apart from the JavaScript app:
+  // Strict type check of the design system (src/ui) and of the page layer (src/app),
+  // apart from the JavaScript app:
   // npx tsc -p tsconfig.ui.json
   "compilerOptions": {
     "target": "ES2022",
@@ -13,5 +14,5 @@
     "skipLibCheck": true,
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src/ui"]
+  "include": ["src/ui", "src/app"]
 }

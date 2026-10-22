@@ -1,32 +1,12 @@
 import React from 'react';
 import {render as rtlRender, screen, fireEvent, within} from '@testing-library/react';
 import NodeRow from '../NodeRow';
+import i18n from '../../i18n';
 
 // A row lives in a table body.
 const wrapper = ({children}) => <table><tbody>{children}</tbody></table>;
 const render = (ui, options) => rtlRender(ui, {wrapper, ...options});
 import '@testing-library/jest-dom';
-
-// Mock NODE_ACTIONS
-vi.mock('../../constants/actions', async () => {
-    const {createElement} = await import('react');
-    return {
-    NODE_ACTIONS: [
-        {name: 'freeze', icon: createElement('span', {'aria-label': 'Freeze icon'})},
-        {name: 'unfreeze', icon: createElement('span', {'aria-label': 'Unfreeze icon'})},
-        {name: 'restart daemon', icon: createElement('span', {'aria-label': 'Restart daemon icon'})},
-        {name: 'abort', icon: createElement('span', {'aria-label': 'Abort icon'})},
-        {name: 'clear', icon: createElement('span', {'aria-label': 'Clear icon'})},
-        {name: 'drain', icon: createElement('span', {'aria-label': 'Drain icon'})},
-        {name: 'push/asset', icon: createElement('span', {'aria-label': 'Asset icon'})},
-        {name: 'push/disk', icon: createElement('span', {'aria-label': 'Disk icon'})},
-        {name: 'push/pkg', icon: createElement('span', {'aria-label': 'Pkg icon'})},
-        {name: 'scan/capabilities', icon: createElement('span', {'aria-label': 'Capabilities icon'})},
-        {name: 'sysreport', icon: createElement('span', {'aria-label': 'Sysreport icon'})},
-        {name: 'shutdown', icon: createElement('span', {'aria-label': 'Shutdown icon'}), color: 'red'},
-    ],
-    };
-});
 
 describe('NodeRow Component', () => {
     const defaultProps = {
@@ -37,8 +17,6 @@ describe('NodeRow Component', () => {
         isSelected: false,
         daemonNodename: 'node2',
         onSelect: jest.fn(),
-        onAction: jest.fn(),
-        onOpenLogs: jest.fn(),
     };
 
     beforeEach(() => {
@@ -57,9 +35,28 @@ describe('NodeRow Component', () => {
         jest.useRealTimers();
     });
 
+    test('a node of the cluster reporting nothing is a line of "?", no action reaching it', () => {
+        render(<NodeRow {...defaultProps} stats={undefined} status={undefined} monitor={undefined}/>);
+        const row = screen.getByRole('row', {name: /Node node1 row/i});
+        expect(within(row).getByTitle('No status: the node is gone or not heard from')).toHaveClass('text-state-down');
+        expect(within(row).getAllByText('?')).toHaveLength(8);
+        expect(within(row).getByRole('checkbox')).toBeDisabled();
+    });
+
     test('renders nodename correctly', () => {
         render(<NodeRow {...defaultProps} />);
         expect(screen.getByText('node1')).toBeInTheDocument();
+    });
+
+    test('speaks French to a French browser', async () => {
+        await i18n.changeLanguage('fr');
+        try {
+            render(<NodeRow {...defaultProps} stats={undefined}/>);
+            expect(screen.getByRole('checkbox', {name: 'Sélectionner le nœud node1'})).toBeInTheDocument();
+            expect(screen.getAllByText('N/D').length).toBeGreaterThan(0);
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 
     test('renders checkbox with correct checked state', () => {
@@ -146,9 +143,16 @@ describe('NodeRow Component', () => {
         expect(cells[3]).toHaveTextContent('N/A');
         expect(cells[4]).toHaveTextContent('N/A');
         expect(cells[5]).toHaveTextContent('N/A');
-        expect(cells[6]).toHaveTextContent('N/A');
+        expect(cells[6]).toHaveTextContent(/^-$/);
         expect(cells[7]).toHaveTextContent('N/A');
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
+    test('renders the swap available, 0% included, and a dash for a node without swap', () => {
+        const {rerender} = render(<NodeRow {...defaultProps} stats={{swap_avail: 0, swap_total: 2048}}/>);
+        expect(screen.getAllByRole('cell')[6]).toHaveTextContent(/^0%$/);
+        rerender(<NodeRow {...defaultProps} stats={{swap_avail: 0, swap_total: 0}}/>);
+        expect(screen.getAllByRole('cell')[6]).toHaveTextContent(/^-$/);
     });
 
     test('renders the load bar beside its value, with value and state', () => {
@@ -170,41 +174,10 @@ describe('NodeRow Component', () => {
         expect(progress.firstChild).toHaveStyle({width: '10%'});
     });
 
-    test('opens the row menu when its button is clicked', () => {
+    test('has no menu of actions: the panel of the node holds them', () => {
         render(<NodeRow {...defaultProps} />);
-        const menuButton = screen.getByRole('button', {name: 'More actions for node node1'});
-        expect(menuButton).toHaveAttribute('aria-haspopup', 'menu');
+        expect(screen.queryByRole('button')).not.toBeInTheDocument();
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-        fireEvent.click(menuButton);
-        expect(screen.getByRole('menu', {name: 'More actions for node node1'})).toBeInTheDocument();
-        expect(menuButton).toHaveAttribute('aria-expanded', 'true');
-    });
-
-    test('calls onAction and closes the menu when a menu item is clicked', () => {
-        render(<NodeRow {...defaultProps} />);
-        fireEvent.click(screen.getByRole('button', {name: /More actions for node node1/i}));
-        const menu = screen.getByRole('menu');
-        fireEvent.click(within(menu).getByRole('menuitem', {name: 'Freeze'}));
-        expect(defaultProps.onAction).toHaveBeenCalledWith('node1', 'freeze');
-        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    });
-
-    test('passes the action name, not its label', () => {
-        render(<NodeRow {...defaultProps} />);
-        fireEvent.click(screen.getByRole('button', {name: /More actions for node node1/i}));
-        fireEvent.click(screen.getByRole('menuitem', {name: 'Restart Daemon'}));
-        expect(defaultProps.onAction).toHaveBeenCalledWith('node1', 'restart daemon');
-    });
-
-    test('tints the icon of a destructive action', () => {
-        render(<NodeRow {...defaultProps} />);
-        fireEvent.click(screen.getByRole('button', {name: /More actions for node node1/i}));
-        const shutdownIcon = screen.getByLabelText('Shutdown icon').parentElement;
-        const freezeIcon = screen.getByLabelText('Freeze icon').parentElement;
-        expect(shutdownIcon).toHaveClass('text-state-down');
-        expect(freezeIcon).toHaveClass('text-ink-muted');
-        fireEvent.click(screen.getByRole('menuitem', {name: 'Shutdown'}));
-        expect(defaultProps.onAction).toHaveBeenCalledWith('node1', 'shutdown');
     });
 
     test('checkbox click stops propagation', () => {
@@ -216,52 +189,6 @@ describe('NodeRow Component', () => {
         spy.mockRestore();
     });
 
-    test('menu closes on Escape and on a click outside, without action', () => {
-        render(<NodeRow {...defaultProps} />);
-        const menuButton = screen.getByRole('button', {name: /More actions for node node1/i});
-        fireEvent.click(menuButton);
-        fireEvent.keyDown(screen.getByRole('menu'), {key: 'Escape'});
-        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-        fireEvent.click(menuButton);
-        expect(screen.getByRole('menu')).toBeInTheDocument();
-        fireEvent.pointerDown(document.body);
-        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-        expect(defaultProps.onAction).not.toHaveBeenCalled();
-    });
-
-    test('a second click on the button closes the menu', () => {
-        render(<NodeRow {...defaultProps} />);
-        const menuButton = screen.getByRole('button', {name: /More actions for node node1/i});
-        fireEvent.click(menuButton);
-        fireEvent.click(menuButton);
-        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    });
-
-    test('filters menu items correctly when node is frozen', () => {
-        render(<NodeRow {...defaultProps} status={{frozen_at: '2023-01-01T12:00:00Z', agent: 'v1.2.3'}}/>);
-        fireEvent.click(screen.getByRole('button', {name: /More actions for node node1/i}));
-        const menu = screen.getByRole('menu');
-        expect(within(menu).getByRole('menuitem', {name: 'Unfreeze'})).toBeInTheDocument();
-        expect(within(menu).queryByRole('menuitem', {name: 'Freeze'})).not.toBeInTheDocument();
-        expect(within(menu).getAllByRole('menuitem')).toHaveLength(11);
-    });
-
-    test('filters menu items correctly when node is not frozen', () => {
-        render(<NodeRow {...defaultProps} status={{frozen_at: null, agent: 'v1.2.3'}}/>);
-        fireEvent.click(screen.getByRole('button', {name: /More actions for node node1/i}));
-        const menu = screen.getByRole('menu');
-        expect(within(menu).getByRole('menuitem', {name: 'Freeze'})).toBeInTheDocument();
-        expect(within(menu).queryByRole('menuitem', {name: 'Unfreeze'})).not.toBeInTheDocument();
-        expect(within(menu).getByRole('menuitem', {name: 'Push/asset'})).toBeInTheDocument();
-        expect(within(menu).getAllByRole('menuitem')).toHaveLength(11);
-    });
-
-    test('shows the action icons in the menu', () => {
-        render(<NodeRow {...defaultProps} />);
-        fireEvent.click(screen.getByRole('button', {name: /More actions for node node1/i}));
-        expect(within(screen.getByRole('menu')).getByLabelText('Freeze icon')).toBeInTheDocument();
-    });
-
     describe('booted_at column', () => {
         test('renders formatted date when booted_at is valid', () => {
             render(<NodeRow {...defaultProps} status={{...defaultProps.status, booted_at: '2023-01-01T10:00:00Z'}}/>);
@@ -271,7 +198,7 @@ describe('NodeRow Component', () => {
         test('renders tooltip with full date when booted_at is valid', () => {
             const date = '2023-01-01T10:00:00Z';
             render(<NodeRow {...defaultProps} status={{...defaultProps.status, booted_at: date}}/>);
-            expect(screen.getByText('2h ago')).toHaveAttribute('title', new Date(date).toLocaleString());
+            expect(screen.getByText('2h ago')).toHaveAttribute('title', new Date(date).toLocaleString(i18n.language));
         });
 
         test('renders "Xd ago" when booted_at is within 7 days', () => {
@@ -281,7 +208,7 @@ describe('NodeRow Component', () => {
 
         test('renders locale date when booted_at is older than 7 days', () => {
             const oldDate = '2022-12-24T12:00:00Z';
-            const expectedDateString = new Date(oldDate).toLocaleDateString();
+            const expectedDateString = new Date(oldDate).toLocaleDateString(i18n.language);
             render(<NodeRow {...defaultProps} status={{...defaultProps.status, booted_at: oldDate}}/>);
             expect(screen.getByText(expectedDateString)).toBeInTheDocument();
         });
@@ -303,14 +230,13 @@ describe('NodeRow Component', () => {
             render(<NodeRow {...defaultProps} />);
             const cells = screen.getAllByRole('cell');
             expect(cells[9]).toHaveTextContent(/^-$/);
-            expect(within(cells[9]).getByText('-')).toHaveAttribute('title', '-');
         });
 
         test('renders formatted date when updated_at is valid', () => {
             const date = '2023-01-01T11:30:00Z';
             render(<NodeRow {...defaultProps}
                             monitor={{...defaultProps.monitor, updated_at: date}}/>);
-            expect(screen.getByText('30m ago')).toHaveAttribute('title', new Date(date).toLocaleString());
+            expect(screen.getByText('30m ago')).toHaveAttribute('title', new Date(date).toLocaleString(i18n.language));
         });
 
         test('renders "Xd ago" when updated_at is within 7 days', () => {
@@ -321,7 +247,7 @@ describe('NodeRow Component', () => {
 
         test('renders locale date when updated_at is older than 7 days', () => {
             const oldDate = '2022-12-24T12:00:00Z';
-            const expectedDateString = new Date(oldDate).toLocaleDateString();
+            const expectedDateString = new Date(oldDate).toLocaleDateString(i18n.language);
             render(<NodeRow {...defaultProps} monitor={{...defaultProps.monitor, updated_at: oldDate}}/>);
             expect(screen.getByText(expectedDateString)).toBeInTheDocument();
         });
@@ -338,13 +264,6 @@ describe('NodeRow Component', () => {
             const cells = screen.getAllByRole('cell');
             expect(cells[9]).toHaveTextContent(/^-$/);
         });
-    });
-
-    test('calls onOpenLogs when logs button is clicked', () => {
-        render(<NodeRow {...defaultProps} />);
-        const logsButton = screen.getByRole('button', {name: /View logs for node node1/i});
-        fireEvent.click(logsButton);
-        expect(defaultProps.onOpenLogs).toHaveBeenCalledWith('node1');
     });
 
     test('renders load_15m progress bar with different states based on value', () => {
@@ -382,7 +301,7 @@ describe('NodeRow Component', () => {
         render(<NodeRow {...defaultProps} />);
         const row = screen.getByRole('row', {name: /Node node1 row/i});
         expect(row).toHaveClass('h-[1.875rem]');
-        expect(screen.getAllByRole('cell')).toHaveLength(12);
+        expect(screen.getAllByRole('cell')).toHaveLength(10);
     });
 
     test('marks a selected row', () => {
@@ -390,5 +309,21 @@ describe('NodeRow Component', () => {
         expect(screen.getByRole('row', {name: /Node node1 row/i})).toHaveClass('bg-accent-soft');
         rerender(<NodeRow {...defaultProps} isSelected={false}/>);
         expect(screen.getByRole('row', {name: /Node node1 row/i})).not.toHaveClass('bg-accent-soft');
+    });
+
+    test('the row opens the panel of its node, its logs on a tab of it; its controls act on their own', () => {
+        const onOpen = jest.fn();
+        render(<table><tbody><NodeRow {...defaultProps} onOpen={onOpen} isOpen/></tbody></table>);
+        const row = screen.getByRole('row', {name: /node1/});
+        expect(row).toHaveAttribute('aria-current', 'true');
+        fireEvent.click(screen.getByText('node1'));
+        expect(onOpen).toHaveBeenCalledWith('node1');
+
+        onOpen.mockClear();
+        fireEvent.click(screen.getByRole('checkbox'));
+        expect(onOpen).not.toHaveBeenCalled();
+
+        fireEvent.keyDown(row, {key: 'Enter'});
+        expect(onOpen).toHaveBeenCalledWith('node1');
     });
 });

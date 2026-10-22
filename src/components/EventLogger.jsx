@@ -1,14 +1,19 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Button, IconButton} from "../ui/components/Button";
-import {Checkbox} from "../ui/components/Field";
+import {Checkbox, Input} from "../ui/components/Field";
 import {SlideOver} from "../ui/components/SlideOver";
 import {Spinner} from "../ui/components/Spinner";
 import {useAnyPanelOpen} from "../ui/components/slide-over-open";
-import {CaretRightIcon, ChevronDownIcon, CloseIcon, GearIcon, PauseIcon, RssIcon, TrashIcon} from "../ui/icons";
+import {CaretRightIcon, ChevronDownIcon, CloseIcon, DownloadIcon, GearIcon, PauseIcon, RssIcon, SearchIcon, TrashIcon} from "../ui/icons";
+import {StateGlyph} from "../ui/components/StateGlyph";
 import {cn} from "../ui/cn";
 import useEventLogStore from "../hooks/useEventLogStore";
 import logger from "../utils/logger.js";
 import {startLoggerReception, closeLoggerEventSource} from "../eventSourceManager";
+import {parseObjectPath} from "../utils/objectUtils.jsx";
+import {useTranslation} from "react-i18next";
+import {useFollowScroll} from "../hooks/useFollowScroll";
+import {FollowOverlay} from "../ui/components/FollowOverlay";
 
 const CONNECTION_EVENTS = [
     'CONNECTION_OPENED',
@@ -52,6 +57,7 @@ const SubscriptionDialog = ({
                                 eventStats,
                                 clearLogs
                             }) => {
+    const {t} = useTranslation();
     const [tempSubscribedEventTypes, setTempSubscribedEventTypes] = useState(subscribedEventTypes);
 
     useEffect(() => {
@@ -84,7 +90,9 @@ const SubscriptionDialog = ({
     const renderEventTypeList = (eventTypes, isPageEvents = false) => (
         <section className="space-y-1">
             <h3 className={cn("font-semibold", isPageEvents ? "text-accent" : "text-ink-muted")}>
-                {isPageEvents ? 'Page Events' : 'Additional Events'} ({eventTypes.length})
+                {isPageEvents
+                    ? t("events.subscriptions.pageEvents", {total: eventTypes.length})
+                    : t("events.subscriptions.additionalEvents", {total: eventTypes.length})}
             </h3>
             {eventTypes.sort().map(eventType => (
                 <div key={String(eventType)} className="py-0.5 pl-2">
@@ -102,7 +110,7 @@ const SubscriptionDialog = ({
                             <span className="flex flex-col leading-tight">
                                 <span>{eventType}</span>
                                 <span className="text-data text-ink-muted">
-                                    {eventStats[eventType] || 0} events received
+                                    {t("events.subscriptions.received", {count: eventStats[eventType] || 0})}
                                 </span>
                             </span>
                         }
@@ -118,26 +126,26 @@ const SubscriptionDialog = ({
             <SlideOver
                 open={open}
                 onClose={onClose}
-                title="Event Subscriptions"
-                closeLabel="Close subscriptions"
+                title={t("events.subscriptions.title")}
+                closeLabel={t("events.subscriptions.close")}
             >
                 <div className="flex min-h-full flex-col gap-4">
                     <p className="text-ink-muted">
-                        Select which event types you want to SUBSCRIBE to (future events only):
+                        {t("events.subscriptions.intro")}
                     </p>
                     <div className="flex flex-wrap gap-2">
                         <Button size="sm" onClick={handleSubscribeAll}>
-                            Subscribe to All
+                            {t("events.subscriptions.subscribeAll")}
                         </Button>
                         <Button
                             size="sm"
                             onClick={handleSubscribePageEvents}
                             disabled={filteredEventTypes.length === 0}
                         >
-                            Subscribe to Page Events
+                            {t("events.subscriptions.subscribePage")}
                         </Button>
                         <Button size="sm" className="text-state-down" onClick={handleUnsubscribeAll}>
-                            Unsubscribe from All
+                            {t("events.subscriptions.unsubscribeAll")}
                         </Button>
                     </div>
                     <div className="space-y-4">
@@ -145,13 +153,12 @@ const SubscriptionDialog = ({
                         {otherEventTypes.length > 0 && renderEventTypeList(otherEventTypes, false)}
                         {tempSubscribedEventTypes.length === 0 && (
                             <p className="py-8 text-center text-ink-muted">
-                                No event types selected. You won't receive any events.
+                                {t("events.subscriptions.noneSelected")}
                             </p>
                         )}
                     </div>
                     <div className="sticky bottom-0 mt-auto bg-surface-raised pt-2">
                         <Button
-                            variant="primary"
                             className="w-full"
                             onClick={() => {
                                 setManualSubscriptions(tempSubscribedEventTypes);
@@ -159,7 +166,7 @@ const SubscriptionDialog = ({
                                 onClose();
                             }}
                         >
-                            Apply Subscriptions ({tempSubscribedEventTypes.length})
+                            {t("events.subscriptions.apply", {total: tempSubscribedEventTypes.length})}
                         </Button>
                     </div>
                 </div>
@@ -235,9 +242,9 @@ const FullJSONView = ({data}) => {
     );
 };
 
-const formatTimestamp = (ts) => {
+const formatTimestamp = (ts, language) => {
     try {
-        return new Date(ts).toLocaleTimeString("en-US", {
+        return new Date(ts).toLocaleTimeString(language, {
             hour: "2-digit",
             minute: "2-digit",
             second: "2-digit",
@@ -266,6 +273,7 @@ const TONE_CLASSES = {
 };
 
 const LogRow = React.memo(({log, isOpen, onToggle}) => {
+    const {i18n} = useTranslation();
     const tone = getEventTone(log.eventType);
     const preview = useMemo(() => (isOpen ? "" : toJSON(log.data, 0)), [isOpen, log.data]);
     return (
@@ -276,7 +284,7 @@ const LogRow = React.memo(({log, isOpen, onToggle}) => {
                 aria-expanded={isOpen}
                 className="flex h-[30px] w-full touch-manipulation items-center gap-2 px-3 text-left text-data hover:bg-surface-sunken"
             >
-                <span className="shrink-0 tabular-nums text-ink-muted">{formatTimestamp(log.timestamp)}</span>
+                <span className="shrink-0 tabular-nums text-ink-muted">{formatTimestamp(log.timestamp, i18n.language)}</span>
                 <span data-tone={tone} className={cn("shrink-0 font-semibold", TONE_CLASSES[tone])}>
                     {log.eventType}
                 </span>
@@ -297,13 +305,129 @@ const LogRow = React.memo(({log, isOpen, onToggle}) => {
         prevProps.isOpen === nextProps.isOpen;
 });
 
+/** The events a feed shows at first, and more at once, of those kept. */
+const FEED_PAGE = 100;
+
+/**
+ * An event in a feed, as a log line: its time, its type under it in its tone; its
+ * node on a column of its own, as the logs of several nodes; past a line, what it is
+ * about, a small badge (its object), then its data in a line. A click opens its data
+ * in full under it.
+ */
+const FeedRow = React.memo(({log, isOpen, onToggle}) => {
+    const {t, i18n} = useTranslation();
+    const tone = getEventTone(log.eventType);
+    const preview = useMemo(() => (isOpen ? "" : toJSON(log.data, 0)), [isOpen, log.data]);
+    const path = logPath(log);
+    const node = log.data?.node ?? log.data?.labels?.node;
+    const id = log.id ?? `${log.timestamp}-${log.eventType}`;
+    return (
+        <div
+            id={`event-${id}`}
+            data-at={new Date(log.timestamp).getTime()}
+            className={cn("event-line col-span-full grid grid-cols-subgrid border-b border-line/40", isOpen && "bg-surface-sunken")}
+        >
+            <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={isOpen}
+                title={isOpen ? t("events.hideData") : t("events.showData")}
+                onClick={onToggle}
+                onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    onToggle();
+                }}
+                className="col-span-full grid cursor-pointer grid-cols-subgrid items-baseline px-2 py-0.5 hover:bg-surface-sunken focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--focus-ring)"
+            >
+                {/* A caret before the time says the line opens, turned once open; the
+                    time, the type under it in its tone. */}
+                <span className="flex items-start gap-1">
+                    <CaretRightIcon
+                        aria-hidden="true"
+                        data-caret=""
+                        className={cn("mt-px h-4 w-4 shrink-0 text-ink transition-transform", isOpen && "rotate-90")}
+                    />
+                    <span className="flex flex-col">
+                        <span className="text-ink-muted">{formatTimestamp(log.timestamp, i18n.language)}</span>
+                        <span data-tone={tone} className={TONE_CLASSES[tone]}>{log.eventType}</span>
+                    </span>
+                </span>
+                <span className="text-ink-muted" data-node="">{node ?? ""}</span>
+                {/* What it is about apart, by a line: its object, a small badge; its data under. */}
+                <span className="flex min-w-0 flex-col border-l border-line pl-2">
+                    {path && (
+                        <span className="flex flex-wrap gap-1 font-sans" data-meta="">
+                            <span className="rounded-full border border-line/60 px-1.5 text-[0.6875rem] leading-4 text-ink-muted">{path}</span>
+                        </span>
+                    )}
+                    <span className="truncate text-ink-muted" data-text="">{preview}</span>
+                </span>
+            </div>
+            {isOpen && (
+                <div className="col-span-full border-t border-line bg-surface px-3 py-2 font-sans">
+                    <FullJSONView data={log.data}/>
+                </div>
+            )}
+        </div>
+    );
+}, (prev, next) => prev.log === next.log && prev.isOpen === next.isOpen);
+
+/** The path of the object an event is about, wherever the event carries it. */
+const logPath = (log) => {
+    const data = log.data || {};
+    if (log.eventType === "ObjectDeleted" && data._rawEvent) {
+        try {
+            const raw = JSON.parse(data._rawEvent);
+            const path = raw.path ?? raw.labels?.path;
+            if (path) return path;
+        } catch {
+        }
+    }
+    return data.path ?? data.labels?.path ?? data.data?.path ?? data.data?.labels?.path;
+};
+
+const STREAM_EVENT_TYPES = [
+    "CONNECTION_OPENED",
+    "CONNECTION_ERROR",
+    "RECONNECTION_ATTEMPT",
+    "MAX_RECONNECTIONS_REACHED",
+    "CONNECTION_CLOSED",
+];
+
+/** The events of a node: its own, its heartbeats', and the connection of their stream. */
+export const NODE_EVENT_TYPES = [
+    "NodeStatusUpdated",
+    "NodeMonitorUpdated",
+    "NodeStatsUpdated",
+    "DaemonHeartbeatUpdated",
+    ...STREAM_EVENT_TYPES,
+];
+
+/** The events of an object, or of the objects of a namespace, and the connection of their stream. */
+export const OBJECT_EVENT_TYPES = [
+    "ObjectStatusUpdated",
+    "InstanceStatusUpdated",
+    "ObjectDeleted",
+    "InstanceMonitorUpdated",
+    "InstanceConfigUpdated",
+    "InstanceConfigDeleted",
+    ...STREAM_EVENT_TYPES,
+];
+
 const EventDrawerContent = ({
                                 eventTypes,
                                 objectName,
+                                nodeName,
+                                namespace,
                                 onClose,
-                                title
+                                title,
+                                feed = false,
                             }) => {
+    const {t, i18n} = useTranslation();
     const [selectedEventTypes, setSelectedEventTypes] = useState([]);
+    // In a feed, as in the logs: the events whose type, object, node or data hold it.
+    const [searchTerm, setSearchTerm] = useState("");
     const [expandedLogIds, setExpandedLogIds] = useState([]);
     const [visibleCount, setVisibleCount] = useState(20);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -311,17 +435,18 @@ const EventDrawerContent = ({
     const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
     const [manualSubscriptions, setManualSubscriptions] = useState([]);
     const logsContainerRef = useRef(null);
+    const typesLabelId = React.useId();
 
     const filteredEventTypes = useMemo(() => {
         return eventTypes.filter(et => !CONNECTION_EVENTS.includes(et));
     }, [eventTypes]);
 
     const pageKey = useMemo(() => {
-        const baseKey = objectName || 'global';
+        const baseKey = objectName || (nodeName ? `node:${nodeName}` : namespace ? `namespace:${namespace}` : 'global');
         const eventTypesKey = filteredEventTypes.sort().join(',');
         const hash = hashCode(eventTypesKey);
         return `eventLogger_${baseKey}_${hash}`;
-    }, [objectName, filteredEventTypes]);
+    }, [objectName, nodeName, namespace, filteredEventTypes]);
 
     useEffect(() => {
         setManualSubscriptions([...filteredEventTypes]);
@@ -342,7 +467,7 @@ const EventDrawerContent = ({
                     objectName
                 });
                 try {
-                    startLoggerReception(token, uniqueEvents, objectName);
+                    startLoggerReception(token, uniqueEvents, objectName, nodeName);
                 } catch (error) {
                     logger.warn("Failed to start logger reception:", error);
                 }
@@ -355,7 +480,7 @@ const EventDrawerContent = ({
             logger.log("Closing logger reception (drawer closing)");
             closeLoggerEventSource();
         };
-    }, [manualSubscriptions, objectName, eventTypes, pageKey]);
+    }, [manualSubscriptions, objectName, nodeName, eventTypes, pageKey]);
 
     const {eventLogs = [], isPaused, setPaused, clearLogs} = useEventLogStore();
 
@@ -390,8 +515,22 @@ const EventDrawerContent = ({
                 return data.data?.labels?.path === objectName;
             });
         }
+        if (nodeName) {
+            filtered = filtered.filter(log => {
+                const data = log.data || {};
+                if (log.eventType?.includes?.("CONNECTION")) return true;
+                return data.node === nodeName || data.labels?.node === nodeName;
+            });
+        }
+        if (namespace) {
+            filtered = filtered.filter(log => {
+                if (log.eventType?.includes?.("CONNECTION")) return true;
+                const path = logPath(log);
+                return path !== undefined && parseObjectPath(path).namespace === namespace;
+            });
+        }
         return filtered;
-    }, [eventLogs, manualSubscriptions, objectName, eventTypes, filteredEventTypes]);
+    }, [eventLogs, manualSubscriptions, objectName, nodeName, namespace, eventTypes, filteredEventTypes]);
 
     const availableEventTypes = useMemo(() => {
         const types = new Set();
@@ -412,8 +551,13 @@ const EventDrawerContent = ({
         if (selectedEventTypes.length > 0) {
             result = result.filter(log => selectedEventTypes.includes(log.eventType));
         }
+        const term = feed ? searchTerm.trim().toLowerCase() : "";
+        if (term !== "") {
+            result = result.filter((log) => [log.eventType, logPath(log), log.data?.node ?? log.data?.labels?.node, toJSON(log.data, 0)]
+                .some((value) => typeof value === "string" && value.toLowerCase().includes(term)));
+        }
         return result;
-    }, [baseFilteredLogs, selectedEventTypes]);
+    }, [baseFilteredLogs, selectedEventTypes, feed, searchTerm]);
 
     const visibleLogs = useMemo(() => {
         return filteredLogs.slice(0, visibleCount);
@@ -424,9 +568,46 @@ const EventDrawerContent = ({
         return () => clearTimeout(timer);
     }, []);
 
+    // A feed, read as a log: the newest at the end, followed there; scrolled up, the
+    // events shown kept from the oldest of them, the new ones counted.
+    const [showCount, setShowCount] = useState(FEED_PAGE);
+    // The lines shown anew, the end of the first loading too: the events read during it
+    // only show once it ends, and are then followed to the end, as the logs.
+    const feedKey = useMemo(() => ({}), [filteredLogs, showCount, initialLoading]);
+    const {following, follow, newCount, countNew, handleScroll: feedScroll, toEnd, scrollAge} = useFollowScroll({
+        containerRef: logsContainerRef,
+        items: feed ? feedKey : null,
+        lineSelector: ".event-line",
+        locale: i18n.language,
+    });
+    const oldestShownRef = useRef(null);
+    const shown = useMemo(() => {
+        if (!feed) return [];
+        const kept = following || oldestShownRef.current === null
+            ? 0
+            : filteredLogs.findIndex((log) => log.id === oldestShownRef.current) + 1;
+        return filteredLogs.slice(0, Math.max(showCount, kept)).reverse();
+    }, [feed, filteredLogs, showCount, following]);
+    useEffect(() => {
+        oldestShownRef.current = shown[0]?.id ?? null;
+    }, [shown]);
+    const newestRef = useRef(null);
+    useEffect(() => {
+        if (!feed) return;
+        const newest = filteredLogs[0]?.id ?? null;
+        const previous = newestRef.current;
+        newestRef.current = newest;
+        if (previous === null || newest === previous) return;
+        countNew(Math.max(0, filteredLogs.findIndex((log) => log.id === previous)));
+    }, [feed, filteredLogs, countNew]);
+    const showOlder = () => {
+        follow(false);
+        setShowCount((count) => Math.max(count, shown.length) + FEED_PAGE);
+    };
+
     const handleScroll = useCallback(() => {
         /* istanbul ignore next */
-        if (loadingMore) return;
+        if (feed || loadingMore) return;
         /* istanbul ignore next */
         const container = logsContainerRef.current;
         if (!container) return;
@@ -439,7 +620,7 @@ const EventDrawerContent = ({
                 setLoadingMore(false);
             }, 100);
         }
-    }, [loadingMore, visibleCount, filteredLogs.length, initialLoading]);
+    }, [feed, loadingMore, visibleCount, filteredLogs.length, initialLoading]);
 
     useEffect(() => {
         const container = logsContainerRef.current;
@@ -474,127 +655,314 @@ const EventDrawerContent = ({
         );
     }, []);
 
-    return (
-        <>
-            <div className="flex items-center gap-2 border-b border-line px-3 py-1.5">
-                <h2 className="truncate font-semibold">{title}</h2>
-                <span className="shrink-0 rounded-full border border-line px-2 text-data text-ink-muted tabular-nums">
-                    {`${visibleLogs.length}/${filteredLogs.length} events`}
-                </span>
-                {isPaused && (
-                    <span
-                        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-state-warn bg-state-warn-soft px-2 text-data font-semibold text-state-warn">
-                        <PauseIcon className="h-3 w-3"/>
-                        PAUSED
+    const connected = useEventLogStore((state) => state.connected);
+    const subject = objectName ?? nodeName ?? namespace ?? "";
+    const isFiltered = selectedEventTypes.length > 0 || searchTerm.trim() !== "";
+    const typesSummary = selectedEventTypes.length === 0 ? t("events.allTypes") : selectedEventTypes.join(", ");
+
+    /** The events shown, saved as JSON lines, one an event, oldest first. */
+    const handleDownload = () => {
+        const lines = [...filteredLogs].reverse()
+            .map((log) => JSON.stringify({timestamp: new Date(log.timestamp).toISOString(), type: log.eventType, data: log.data}));
+        const blob = new Blob([lines.join("\n") + "\n"], {type: "application/x-ndjson"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const at = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        a.download = `${(subject || "events").replace(/[^\w.-]+/g, "_")}-events-${at}.ndjson`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    // A feed reads as the logs: what is followed and the connection, the actions
+    // the logs have; under, the search, the types as the levels, the count.
+    const feedHeader = (
+        <div className="flex shrink-0 flex-col gap-2 pb-2">
+            <div className="flex flex-wrap items-center gap-3">
+                {subject && <span className="text-ink-muted">{subject}</span>}
+                <span className="inline-flex items-center gap-1" data-state={connected ? "up" : "down"}>
+                    <span className={connected ? "text-state-up" : "text-state-down"}>
+                        <StateGlyph state={connected ? "up" : "down"}/>
                     </span>
-                )}
-                <div className="ml-auto flex shrink-0 items-center gap-1">
-                    <IconButton
-                        label="Manage subscriptions"
-                        className={TOOL}
-                        onClick={() => setSubscriptionDialogOpen(true)}
+                    <span>{connected ? t("events.connected") : t("events.disconnected")}</span>
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                    {/* Following is about the view, the pause about the stream. */}
+                    <Button
+                        size="sm"
+                        aria-pressed={following}
+                        onClick={() => (following ? follow(false) : toEnd())}
                     >
-                        <GearIcon/>
-                    </IconButton>
-                    <IconButton
-                        label={isPaused ? "Resume" : "Pause"}
-                        className={cn(TOOL, isPaused && "border-state-warn text-state-warn")}
+                        {following ? t("events.following") : t("events.follow")}
+                    </Button>
+                    <Button
+                        size="sm"
                         onClick={() => setPaused(!isPaused)}
+                        aria-pressed={isPaused}
+                        icon={isPaused ? <CaretRightIcon/> : <PauseIcon/>}
                     >
-                        {isPaused ? <CaretRightIcon/> : <PauseIcon/>}
-                    </IconButton>
-                    <IconButton
-                        label="Clear logs"
-                        className={TOOL}
-                        onClick={handleClear}
-                        disabled={eventLogs.length === 0}
-                    >
+                        {isPaused ? t("events.resume") : t("events.pause")}
+                    </Button>
+                    <IconButton label={t("events.clear")} onClick={handleClear} disabled={eventLogs.length === 0}>
                         <TrashIcon/>
                     </IconButton>
-                    <IconButton label="Close" className={TOOL} onClick={onClose}>
-                        <CloseIcon/>
+                    <IconButton label={t("events.download")} onClick={handleDownload} disabled={filteredLogs.length === 0}>
+                        <DownloadIcon/>
+                    </IconButton>
+                    <IconButton label={t("events.manageSubscriptions")} onClick={() => setSubscriptionDialogOpen(true)}>
+                        <GearIcon/>
                     </IconButton>
                 </div>
             </div>
-
-            {availableEventTypes.length > 0 && (
-                <div
-                    role="group"
-                    aria-label="Filter by type"
-                    className="flex max-h-24 shrink-0 flex-wrap items-center gap-1.5 overflow-y-auto border-b border-line px-3 py-1.5 text-data"
-                >
-                    <span aria-hidden="true" className="mr-1 text-ink-muted">Filter by type:</span>
-                    {availableEventTypes.map((eventType) => {
-                        const isPageEvent = filteredEventTypes.includes(eventType);
-                        const isSelected = selectedEventTypes.includes(eventType);
-                        return (
-                            <button
-                                key={eventType}
-                                type="button"
-                                aria-pressed={isSelected}
-                                data-page-event={isPageEvent}
-                                title={isPageEvent ? "Event of this page" : "Additional event"}
-                                onClick={() => toggleEventTypeFilter(eventType)}
-                                className={cn(
-                                    "inline-flex h-6 items-center rounded-full border px-2 font-medium whitespace-nowrap max-md:h-8",
-                                    isPageEvent
-                                        ? (isSelected
-                                            ? "border-accent bg-accent text-accent-ink"
-                                            : "border-accent bg-accent-soft text-accent hover:brightness-95")
-                                        : (isSelected
-                                            ? "border-ink bg-ink text-surface-raised"
-                                            : "border-dashed border-line-strong bg-surface text-ink hover:bg-surface-sunken")
-                                )}
-                            >
-                                {`${eventType} (${eventStats[eventType] || 0})`}
-                            </button>
-                        );
-                    })}
+            <div className="flex flex-wrap items-center gap-3">
+                <label className="flex min-w-[200px] flex-1 items-center gap-1 text-ink-muted">
+                    <SearchIcon className="shrink-0"/>
+                    <span className="sr-only">{t("common.search")}</span>
+                    <Input
+                        className="h-7"
+                        placeholder={t("events.searchPlaceholder")}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </label>
+                <div className="flex items-center gap-1 text-ink-muted">
+                    <span id={typesLabelId}>{t("events.types")}</span>
+                    <details className="relative">
+                        <summary
+                            aria-describedby={typesLabelId}
+                            className="flex h-7 max-w-64 cursor-pointer list-none items-center gap-1 rounded-(--radius-control) border border-line bg-surface px-2 text-ink [&::-webkit-details-marker]:hidden"
+                        >
+                            <span className="truncate">{typesSummary}</span>
+                            <ChevronDownIcon className="h-3 w-3 shrink-0 text-ink-muted"/>
+                        </summary>
+                        <div
+                            role="group"
+                            aria-label={t("events.filterByType")}
+                            className="absolute left-0 z-10 mt-1 flex min-w-[14rem] flex-col gap-1 rounded-(--radius-control) border border-line bg-surface-raised p-2 text-ink shadow-lg"
+                        >
+                            {availableEventTypes.length === 0 && <span className="text-ink-muted">{t("common.none")}</span>}
+                            {availableEventTypes.map((eventType) => (
+                                <Checkbox
+                                    key={eventType}
+                                    label={`${eventType} (${eventStats[eventType] || 0})`}
+                                    checked={selectedEventTypes.includes(eventType)}
+                                    onChange={() => toggleEventTypeFilter(eventType)}
+                                />
+                            ))}
+                        </div>
+                    </details>
                 </div>
-            )}
+                {isFiltered && (
+                    <span className="inline-flex items-center gap-1 rounded-(--radius-control) border border-line bg-surface-sunken pl-2 text-data">
+                        {t("events.filtersActive")}
+                        <IconButton
+                            size="sm"
+                            label={t("events.resetFilters")}
+                            onClick={() => {
+                                setSearchTerm("");
+                                setSelectedEventTypes([]);
+                            }}
+                        >
+                            <CloseIcon className="h-3 w-3"/>
+                        </IconButton>
+                    </span>
+                )}
+                <span className="ml-auto text-data text-ink-muted">
+                    {t("events.countOf", {shown: filteredLogs.length, total: baseFilteredLogs.length})}
+                </span>
+            </div>
+        </div>
+    );
 
-            <div
-                ref={logsContainerRef}
-                onScroll={handleScroll}
-                role="region"
-                aria-label="Event list"
-                tabIndex={0}
-                className="relative min-h-0 flex-1 overflow-auto bg-surface outline-none"
-            >
-                {initialLoading ? (
-                    <div className="flex h-full items-center justify-center">
-                        <Spinner label="Loading events"/>
+    return (
+        <>
+            {feed ? feedHeader : (
+                <>
+                    <div className="flex items-center gap-2 border-b border-line px-3 py-1.5">
+                        {title && <h2 className="truncate font-semibold">{title}</h2>}
+                        <span className="shrink-0 rounded-full border border-line px-2 text-data text-ink-muted tabular-nums">
+                            {t("events.count", {visible: feed ? shown.length : visibleLogs.length, total: filteredLogs.length})}
+                        </span>
+                        {isPaused && (
+                            <span
+                                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-state-warn bg-state-warn-soft px-2 text-data font-semibold text-state-warn">
+                                <PauseIcon className="h-3 w-3"/>
+                                {t("events.paused")}
+                            </span>
+                        )}
+                        <div className="ml-auto flex shrink-0 items-center gap-1">
+                            {/* Following is about the view, the pause about the stream. */}
+                            {feed && (
+                                <Button
+                                    size="sm"
+                                    aria-pressed={following}
+                                    onClick={() => (following ? follow(false) : toEnd())}
+                                >
+                                    {following ? t("events.following") : t("events.follow")}
+                                </Button>
+                            )}
+                            <IconButton
+                                label={t("events.manageSubscriptions")}
+                                className={TOOL}
+                                onClick={() => setSubscriptionDialogOpen(true)}
+                            >
+                                <GearIcon/>
+                            </IconButton>
+                            <IconButton
+                                label={isPaused ? t("events.resume") : t("events.pause")}
+                                className={cn(TOOL, isPaused && "border-state-warn text-state-warn")}
+                                onClick={() => setPaused(!isPaused)}
+                            >
+                                {isPaused ? <CaretRightIcon/> : <PauseIcon/>}
+                            </IconButton>
+                            <IconButton
+                                label={t("events.clear")}
+                                className={TOOL}
+                                onClick={handleClear}
+                                disabled={eventLogs.length === 0}
+                            >
+                                <TrashIcon/>
+                            </IconButton>
+                            {onClose && (
+                                <IconButton label={t("common.close")} className={TOOL} onClick={onClose}>
+                                    <CloseIcon/>
+                                </IconButton>
+                            )}
+                        </div>
                     </div>
-                ) : visibleLogs.length === 0 ? (
-                    <p className="p-8 text-center text-ink-muted">
-                        {eventLogs.length === 0
-                            ? "No events logged"
-                            : "No events match current filters"}
-                    </p>
-                ) : (
-                    <>
-                        <ul>
-                            {visibleLogs.map((log) => {
-                                const safeId = log.id ?? `log-${log.timestamp}-${log.eventType}`;
-                                const isOpen = expandedLogIds.includes(safeId);
+
+                    {availableEventTypes.length > 0 && (
+                        <div
+                            role="group"
+                            aria-label={t("events.filterByType")}
+                            className="flex max-h-24 shrink-0 flex-wrap items-center gap-1.5 overflow-y-auto border-b border-line px-3 py-1.5 text-data"
+                        >
+                            <span aria-hidden="true" className="mr-1 text-ink-muted">{t("events.filterByTypeColon")}</span>
+                            {availableEventTypes.map((eventType) => {
+                                const isPageEvent = filteredEventTypes.includes(eventType);
+                                const isSelected = selectedEventTypes.includes(eventType);
                                 return (
-                                    <LogRow
-                                        key={safeId}
-                                        log={log}
-                                        isOpen={isOpen}
-                                        onToggle={() => toggleExpand(safeId)}
-                                    />
+                                    <button
+                                        key={eventType}
+                                        type="button"
+                                        aria-pressed={isSelected}
+                                        data-page-event={isPageEvent}
+                                        title={isPageEvent ? t("events.pageEvent") : t("events.additionalEvent")}
+                                        onClick={() => toggleEventTypeFilter(eventType)}
+                                        className={cn(
+                                            "inline-flex h-6 items-center rounded-full border px-2 font-medium whitespace-nowrap max-md:h-8",
+                                            isPageEvent
+                                                ? (isSelected
+                                                    ? "border-accent bg-accent text-accent-ink"
+                                                    : "border-accent bg-accent-soft text-accent hover:brightness-95")
+                                                : (isSelected
+                                                    ? "border-ink bg-ink text-surface-raised"
+                                                    : "border-dashed border-line-strong bg-surface text-ink hover:bg-surface-sunken")
+                                        )}
+                                    >
+                                        {`${eventType} (${eventStats[eventType] || 0})`}
+                                    </button>
                                 );
                             })}
-                        </ul>
-                        {loadingMore && (
-                            <div className="flex justify-center py-1">
-                                <Spinner label="Loading more events"/>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {feed ? (
+                <div className="relative flex min-h-0 flex-1 flex-col">
+                    <div
+                        ref={logsContainerRef}
+                        onScroll={feedScroll}
+                        role="region"
+                        aria-label={t("events.list")}
+                        tabIndex={0}
+                        className="relative min-h-0 flex-1 overflow-auto py-1 font-mono text-data outline-none"
+                    >
+                        {initialLoading ? (
+                            <div className="flex h-full items-center justify-center">
+                                <Spinner label={t("events.loading")}/>
                             </div>
+                        ) : shown.length === 0 ? (
+                            <p className="p-8 text-center text-ink-muted">
+                                {eventLogs.length === 0 ? t("events.empty") : t("events.noMatch")}
+                            </p>
+                        ) : (
+                            <>
+                                {/* The older events kept, shown on demand at the top. */}
+                                {filteredLogs.length > shown.length && (
+                                    <div className="flex justify-center py-1">
+                                        <Button size="sm" onClick={showOlder}>{t("events.showOlder")}</Button>
+                                    </div>
+                                )}
+                                <div className="grid gap-x-2" style={{gridTemplateColumns: "max-content max-content minmax(0, 1fr)"}}>
+                                    {shown.map((log) => {
+                                        const safeId = log.id ?? `log-${log.timestamp}-${log.eventType}`;
+                                        return (
+                                            <FeedRow
+                                                key={safeId}
+                                                log={log}
+                                                isOpen={expandedLogIds.includes(safeId)}
+                                                onToggle={() => toggleExpand(safeId)}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            </>
                         )}
-                    </>
-                )}
-            </div>
+                    </div>
+                    <FollowOverlay
+                        scrollAge={scrollAge}
+                        following={following}
+                        shown={shown.length > 0}
+                        onEnd={toEnd}
+                        label={newCount > 0 ? t("events.newEvents", {count: newCount}) : t("events.latest")}
+                    />
+                </div>
+            ) : (
+                <div
+                    ref={logsContainerRef}
+                    onScroll={handleScroll}
+                    role="region"
+                    aria-label={t("events.list")}
+                    tabIndex={0}
+                    className="relative min-h-0 flex-1 overflow-auto bg-surface outline-none"
+                >
+                    {initialLoading ? (
+                        <div className="flex h-full items-center justify-center">
+                            <Spinner label={t("events.loading")}/>
+                        </div>
+                    ) : visibleLogs.length === 0 ? (
+                        <p className="p-8 text-center text-ink-muted">
+                            {eventLogs.length === 0
+                                ? t("events.empty")
+                                : t("events.noMatch")}
+                        </p>
+                    ) : (
+                        <>
+                            <ul>
+                                {visibleLogs.map((log) => {
+                                    const safeId = log.id ?? `log-${log.timestamp}-${log.eventType}`;
+                                    const isOpen = expandedLogIds.includes(safeId);
+                                    return (
+                                        <LogRow
+                                            key={safeId}
+                                            log={log}
+                                            isOpen={isOpen}
+                                            onToggle={() => toggleExpand(safeId)}
+                                        />
+                                    );
+                                })}
+                            </ul>
+                            {loadingMore && (
+                                <div className="flex justify-center py-1">
+                                    <Spinner label={t("events.loadingMore")}/>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            )}
 
             <SubscriptionDialog
                 open={subscriptionDialogOpen}
@@ -612,9 +980,12 @@ const EventDrawerContent = ({
 const EventLogger = React.memo(({
                                     eventTypes = [],
                                     objectName = null,
-                                    title = "Event Logger",
-                                    buttonLabel = "Events"
+                                    title: titleProp,
+                                    buttonLabel: buttonLabelProp
                                 }) => {
+    const {t} = useTranslation();
+    const title = titleProp ?? t("events.title");
+    const buttonLabel = buttonLabelProp ?? t("events.button");
     const anyPanelOpen = useAnyPanelOpen();
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerHeight, setDrawerHeight] = useState(320);
@@ -703,7 +1074,7 @@ const EventLogger = React.memo(({
                     type="button"
                     title={title}
                     onClick={() => setDrawerOpen(true)}
-                    className="fixed right-4 bottom-4 z-[1200] inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface-raised px-3 font-medium text-ink shadow hover:bg-surface-sunken max-md:h-9"
+                    className="fixed right-4 bottom-4 z-[1200] inline-flex h-8 items-center gap-1.5 rounded-(--radius-control) border border-line bg-surface-raised px-3 font-medium text-ink shadow hover:bg-surface-sunken max-md:h-9"
                 >
                     <RssIcon className="shrink-0 text-ink-muted"/>
                     {buttonLabel}
@@ -718,8 +1089,8 @@ const EventLogger = React.memo(({
                     <div
                         role="separator"
                         aria-orientation="horizontal"
-                        aria-label="Resize handle"
-                        title="Drag to resize"
+                        aria-label={t("events.resizeHandle")}
+                        title={t("events.dragToResize")}
                         data-resizing={isResizing}
                         onMouseDown={handleResizeStart}
                         onTouchStart={handleResizeStart}
@@ -744,5 +1115,18 @@ const EventLogger = React.memo(({
         </>
     );
 });
+
+/**
+ * The events of a node, an object or a namespace, in place: the list the drawer shows,
+ * without its title and close button, for a tab of their panel. An object's are read
+ * for its path alone, a node's for its name; a namespace's are those whose path is in it.
+ */
+export function EventLog({eventTypes = [], nodeName = null, objectName = null, namespace = null, label}) {
+    return (
+        <section aria-label={label} className="flex h-full flex-col overflow-hidden text-ink">
+            <EventDrawerContent eventTypes={eventTypes} nodeName={nodeName} objectName={objectName} namespace={namespace} feed/>
+        </section>
+    );
+}
 
 export default EventLogger;

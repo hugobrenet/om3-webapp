@@ -285,8 +285,6 @@ describe('OidcCallback Component', () => {
         expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'SET_ACCESS_TOKEN', data: 'mock-access-token'});
         expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'SET_AUTH_CHOICE', data: 'openid'});
         expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'LOGIN', data: 'testuser'});
-        expect(mockUserManager.events.addUserLoaded).toHaveBeenCalled();
-        expect(mockUserManager.events.addAccessTokenExpiring).toHaveBeenCalled();
         expect(mockNavigate).toHaveBeenCalledWith('/');
         expect(mockBroadcastChannel.postMessage).toHaveBeenCalled();
     });
@@ -317,109 +315,36 @@ describe('OidcCallback Component', () => {
         expect(logger.error).toHaveBeenCalledWith('signinRedirectCallback failed:', error);
     });
 
-    // ── setupEventHandlers ref guard ─────────────────────────────────
-    test('setupEventHandlers ref guard prevents duplicate registration', async () => {
-        const userManager1 = {
-            signinRedirectCallback: vi.fn(),
-            getUser: vi.fn().mockResolvedValue(mockUser),
-            events: {
-                addUserLoaded: vi.fn(),
-                addAccessTokenExpiring: vi.fn(),
-                addAccessTokenExpired: vi.fn(),
-                addSilentRenewError: vi.fn(),
-            },
-        };
-        const userManager2 = {
-            signinRedirectCallback: vi.fn(),
-            getUser: vi.fn().mockResolvedValue(mockUser),
-            events: {
-                addUserLoaded: vi.fn(),
-                addAccessTokenExpiring: vi.fn(),
-                addAccessTokenExpired: vi.fn(),
-                addSilentRenewError: vi.fn(),
-            },
-        };
+    // ── UserManager events ───────────────────────────────────────────
+    // They outlive this page, the UserManager being the app's: OidcInitializer
+    // (App.jsx) handles them, the expiry renewing rather than logging out.
+    const expectNoListener = (userManager) => {
+        Object.entries(userManager.events)
+            .filter(([name]) => name.startsWith('add'))
+            .forEach(([, add]) => expect(add).not.toHaveBeenCalled());
+    };
 
+    test('registers no UserManager listener after a sign-in', async () => {
         mockUseOidc.mockReturnValue({
-            userManager: userManager1,
+            userManager: mockUserManager,
             recreateUserManager: mockRecreateUserManager,
         });
-
-        const {rerender} = render(<OidcCallback/>);
-
-        await waitFor(() => expect(userManager1.events.addUserLoaded).toHaveBeenCalledTimes(1));
-
-        mockUseOidc.mockReturnValue({
-            userManager: userManager2,
-            recreateUserManager: mockRecreateUserManager,
-        });
-        rerender(<OidcCallback/>);
-
-        await waitFor(() => expect(userManager2.getUser).toHaveBeenCalled());
-
-        expect(userManager2.events.addUserLoaded).not.toHaveBeenCalled();
+        mockUserManager.getUser.mockResolvedValue(null);
+        mockUserManager.signinRedirectCallback.mockResolvedValue(mockUser);
+        render(<OidcCallback/>);
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'));
+        expectNoListener(mockUserManager);
     });
 
-    // ── Event handlers ───────────────────────────────────────────────
-    test('access token expired event triggers logout', async () => {
+    test('registers no UserManager listener on an existing session', async () => {
         mockUseOidc.mockReturnValue({
             userManager: mockUserManager,
             recreateUserManager: mockRecreateUserManager,
         });
         mockUserManager.getUser.mockResolvedValue(mockUser);
         render(<OidcCallback/>);
-        await waitFor(() => expect(mockUserManager.events.addAccessTokenExpired).toHaveBeenCalled());
-        const expiredHandler = mockUserManager.events.addAccessTokenExpired.mock.calls[0][0];
-        expiredHandler();
-        expect(logger.warn).toHaveBeenCalledWith('Access token expired, redirecting to /auth-choice');
-        expect(localStorage.getItem('authToken')).toBeNull();
-        expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
-        expect(mockBroadcastChannel.postMessage).toHaveBeenCalledWith({type: 'logout'});
-    });
-
-    test('handleLogout handles missing BroadcastChannel', async () => {
-        delete global.BroadcastChannel;
-
-        mockUseOidc.mockReturnValue({
-            userManager: mockUserManager,
-            recreateUserManager: mockRecreateUserManager,
-        });
-        mockUserManager.getUser.mockResolvedValue(mockUser);
-        render(<OidcCallback/>);
-
-        await waitFor(() => expect(mockUserManager.events.addAccessTokenExpired).toHaveBeenCalled());
-        const expiredHandler = mockUserManager.events.addAccessTokenExpired.mock.calls[0][0];
-        expiredHandler();
-
-        expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
-    });
-
-    test('silent renew error event triggers logout', async () => {
-        mockUseOidc.mockReturnValue({
-            userManager: mockUserManager,
-            recreateUserManager: mockRecreateUserManager,
-        });
-        mockUserManager.getUser.mockResolvedValue(mockUser);
-        render(<OidcCallback/>);
-        await waitFor(() => expect(mockUserManager.events.addSilentRenewError).toHaveBeenCalled());
-        const errorHandler = mockUserManager.events.addSilentRenewError.mock.calls[0][0];
-        const error = new Error('renew failed');
-        errorHandler(error);
-        expect(logger.error).toHaveBeenCalledWith('Silent renew failed:', error);
-        expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
-    });
-
-    test('access token expiring logs debug message', async () => {
-        mockUseOidc.mockReturnValue({
-            userManager: mockUserManager,
-            recreateUserManager: mockRecreateUserManager,
-        });
-        mockUserManager.getUser.mockResolvedValue(mockUser);
-        render(<OidcCallback/>);
-        await waitFor(() => expect(mockUserManager.events.addAccessTokenExpiring).toHaveBeenCalled());
-        const expiringHandler = mockUserManager.events.addAccessTokenExpiring.mock.calls[0][0];
-        expiringHandler();
-        expect(logger.debug).toHaveBeenCalledWith('Access token is about to expire, attempting silent renew...');
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/'));
+        expectNoListener(mockUserManager);
     });
 
     // ── BroadcastChannel handlers ────────────────────────────────────
@@ -612,14 +537,11 @@ describe('OidcCallback Component', () => {
             userManager: mockUserManager,
             recreateUserManager: mockRecreateUserManager,
         });
-        mockUserManager.getUser.mockResolvedValue(undefined);
-        mockUserManager.signinRedirectCallback.mockResolvedValue(mockUser);
+        mockUserManager.getUser.mockResolvedValue(mockUser);
         render(<OidcCallback/>);
-        await waitFor(() => expect(mockUserManager.signinRedirectCallback).toHaveBeenCalled());
-        await waitFor(() => expect(mockUserManager.events.addAccessTokenExpired).toHaveBeenCalled());
-        const expiredHandler = mockUserManager.events.addAccessTokenExpired.mock.calls[0][0];
-        expiredHandler();
-        expect(logger.warn).toHaveBeenCalled();
+        await waitFor(() => expect(mockUserManager.getUser).toHaveBeenCalled());
+        mockBroadcastChannel.onmessage({data: {type: 'logout'}});
+        expect(localStorage.getItem('authToken')).toBeNull();
         expect(mockNavigate).toHaveBeenCalledWith('/auth-choice');
         expect(mockBroadcastChannel.postMessage).toHaveBeenCalledWith({type: 'logout'});
     });

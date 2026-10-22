@@ -4,6 +4,10 @@ const useEventLogStore = create((set, get) => ({
     eventLogs: [],
     maxLogs: 500,
     isPaused: false,
+    // Whether the stream of the events shown is open, as the logs say theirs.
+    connected: false,
+
+    setConnected: (connected) => set((state) => (state.connected === connected ? state : {connected})),
 
     addEventLog: (eventType, data, timestamp = new Date()) => {
         if (get().isPaused) return;

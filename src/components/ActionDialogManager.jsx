@@ -10,13 +10,24 @@ import {
     DeleteDialog,
     SwitchDialog,
     GivebackDialog,
+    Subject,
 } from './ActionDialogs';
 import logger from '../utils/logger.js';
+import {useTranslation} from 'react-i18next';
 
-export const SimpleConfirmDialog = ({open, onClose, onConfirm, action, target, disabled, cancelDisabled}) => {
-    const dialogTitle = typeof action === 'string' && action
-        ? `Confirm ${action.charAt(0).toUpperCase() + action.slice(1)}`
-        : 'Confirm Action';
+// The translated label of an action, as actionLabel() of constants/actions, kept local
+// so that the tests mocking constants/actions still render these dialogs.
+const labelOf = (t, action) => t(`actions.labels.${action.replace(/\s+(\w)/g, (_, c) => c.toUpperCase())}`,
+    {defaultValue: action.charAt(0).toUpperCase() + action.slice(1)});
+
+export const SimpleConfirmDialog = ({open, onClose, onConfirm, action, target, names, disabled, cancelDisabled}) => {
+    const {t} = useTranslation();
+    const known = typeof action === 'string' && action;
+    // The action name stays as is in the English sentence, French shows its translated label.
+    const values = known ? {action, label: labelOf(t, action), target} : {target};
+    const dialogTitle = known
+        ? t('actionDialogs.simpleConfirm.titleAction', values)
+        : t('actionDialogs.simpleConfirm.titleGeneric');
     return (
         <Dialog
             open={open}
@@ -25,18 +36,20 @@ export const SimpleConfirmDialog = ({open, onClose, onConfirm, action, target, d
             footer={
                 <>
                     <Button variant="secondary" onClick={onClose} disabled={cancelDisabled}>
-                        Cancel
+                        {t('common.cancel')}
                     </Button>
-                    <Button variant="primary" onClick={onConfirm} disabled={disabled}>
-                        Confirm
+                    <Button onClick={onConfirm} disabled={disabled}>
+                        {t('common.confirm')}
                     </Button>
                 </>
             }
         >
             <p className="text-ink">
-                Are you sure you want
-                to {typeof action === 'string' && action ? action : 'perform this action'} on {target}?
+                {known
+                    ? t('actionDialogs.simpleConfirm.messageAction', values)
+                    : t('actionDialogs.simpleConfirm.messageGeneric', values)}
             </p>
+            <Subject names={names}/>
         </Dialog>
     );
 };
@@ -44,6 +57,8 @@ const ActionDialogManager = ({
                                  pendingAction,
                                  handleConfirm,
                                  target,
+                                 names,
+                                 instances = false,
                                  supportedActions = [],
                                  onClose,
                              }) => {
@@ -77,6 +92,7 @@ const ActionDialogManager = ({
                 },
                 pendingAction,
                 target,
+                names,
             },
         },
         stop: {
@@ -95,6 +111,7 @@ const ActionDialogManager = ({
                 },
                 pendingAction,
                 target,
+                names,
             },
         },
         shutdown: {
@@ -132,6 +149,8 @@ const ActionDialogManager = ({
                 },
                 pendingAction,
                 target,
+                names,
+                instances,
             },
         },
         unprovision: {
@@ -169,6 +188,8 @@ const ActionDialogManager = ({
                 },
                 pendingAction,
                 target,
+                names,
+                instances,
             },
         },
         purge: {
@@ -206,6 +227,7 @@ const ActionDialogManager = ({
                 },
                 pendingAction,
                 target,
+                names,
             },
         },
         "delete": {
@@ -243,6 +265,8 @@ const ActionDialogManager = ({
                 },
                 pendingAction,
                 target,
+                names,
+                instances,
             },
         },
         "switch": {
@@ -261,6 +285,7 @@ const ActionDialogManager = ({
                 },
                 pendingAction,
                 target,
+                names,
             },
         },
         giveback: {
@@ -279,6 +304,7 @@ const ActionDialogManager = ({
                 },
                 pendingAction,
                 target,
+                names,
             },
         },
         simpleConfirm: {
@@ -293,11 +319,12 @@ const ActionDialogManager = ({
                 },
                 action: pendingAction?.action,
                 target,
+                names,
                 disabled: false,
                 cancelDisabled: false,
             },
         },
-    }), [checkboxState, handleConfirm, pendingAction, target, onClose]);
+    }), [checkboxState, handleConfirm, pendingAction, target, names, instances, onClose]);
     useEffect(() => {
         if (pendingAction === null) {
             setLastAction(null);

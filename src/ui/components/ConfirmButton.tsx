@@ -47,7 +47,7 @@ export function ConfirmButton({
         onClick={() => {
           setArmed(true);
         }}
-        className="flex h-8 items-center gap-2 rounded-(--radius-control) border border-line px-3 font-medium text-state-down"
+        className="flex h-8 items-center gap-2 rounded-(--radius-control) bg-state-down px-3 font-medium text-surface-raised hover:brightness-110"
       >
         {icon}
         {label}

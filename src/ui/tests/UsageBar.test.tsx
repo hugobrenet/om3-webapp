@@ -30,6 +30,30 @@ describe("UsageBar", () => {
     expect(bar.firstElementChild).toHaveStyle({ width: "100%" });
     expect(screen.queryByText(/%/)).toBeNull();
   });
+
+  test("the value right-aligned in a slot of fixed width, the bar fixed too: aligned down a column", () => {
+    const { container } = render(
+      <>
+        <UsageBar value={5} label="a" />
+        <UsageBar value={100} label="b" />
+        <UsageBar value={1.5} text="1.5" label="c" />
+      </>,
+    );
+    const slots = [...container.querySelectorAll("[role=progressbar]")].map((bar) => bar.previousElementSibling);
+    expect(slots.map((slot) => slot?.textContent)).toEqual(["5.0%", "100.0%", "1.5"]);
+    for (const slot of slots) expect(slot).toHaveClass("w-[7ch]", "text-right", "tabular-nums");
+    for (const bar of screen.getAllByRole("progressbar")) expect(bar).toHaveClass("w-12");
+  });
+
+  test("no value: the missing word in the slot, an empty track in place of the bar, no progressbar", () => {
+    const { container } = render(<UsageBar value={undefined} missing="N/A" label="Usage" />);
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    const [slot, track] = [...container.firstElementChild!.children];
+    expect(slot).toHaveTextContent(/^N\/A$/);
+    expect(slot).toHaveClass("w-[7ch]", "text-right");
+    expect(track).toHaveClass("w-12");
+    expect(track).toHaveAttribute("aria-hidden", "true");
+  });
 });
 
 describe("StatusCount", () => {

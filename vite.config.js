@@ -12,7 +12,8 @@ import {
     URL_TOKEN,
     URL_AUTH_WHOAMI,
     URL_NETWORK,
-    URL_NETWORK_IP
+    URL_NETWORK_IP,
+    URL_METRICS_PG
 } from './src/config/apiPath.js';
 
 const baseUrl = process.env.BASE_URL || 'https://localhost:1215/';
@@ -78,6 +79,11 @@ export default defineConfig({
                 secure: false,
             },
             [URL_NETWORK_IP]: {
+                target: baseUrl,
+                changeOrigin: true,
+                secure: false,
+            },
+            [URL_METRICS_PG]: {
                 target: baseUrl,
                 changeOrigin: true,
                 secure: false,

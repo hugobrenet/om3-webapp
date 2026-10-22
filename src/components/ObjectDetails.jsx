@@ -1,13 +1,14 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {useParams, useNavigate} from "react-router-dom";
+import {useTranslation} from "react-i18next";
 import {Alert} from "../ui/components/Alert";
 import {IconButton} from "../ui/components/Button";
 import {MenuButton} from "../ui/components/MenuButton";
 import {SlideOver} from "../ui/components/SlideOver";
 import {Spinner} from "../ui/components/Spinner";
-import {CloseIcon} from "../ui/icons";
+import {BoltIcon, CloseIcon} from "../ui/icons";
 import useEventStore from "../hooks/useEventStore.js";
-import {closeEventSource, startEventReception} from "../eventSourceManager.jsx";
+import {retainEventReception} from "../eventSourceManager.jsx";
 import {URL_NODE, URL_OBJECT} from "../config/apiPath.js";
 import {getResponseErrorMessage} from "../services/api.jsx";
 import ActionDialogManager from "../components/ActionDialogManager";
@@ -16,9 +17,11 @@ import ConfigSection from "./ConfigSection";
 import KeysSection from "./KeysSection";
 import InstanceCard from "./InstanceCard.jsx";
 import LogsViewer from "./LogsViewer";
-import {INSTANCE_ACTIONS, OBJECT_ACTIONS} from "../constants/actions";
+import {INSTANCE_ACTIONS, KEY_KINDS, OBJECT_ACTIONS, actionLabel} from "../constants/actions";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
-import EventLogger from "../components/EventLogger";
+import {orchestrationOf} from "./OrchestrationBadge";
+import {trackRefused, trackResponse} from "../app/action-tracker";
+import {actionSubject, refusalReason} from "./objectActions";
 import logger from "../utils/logger";
 
 const DEFAULT_CHECKBOXES = {failover: false};
@@ -35,8 +38,6 @@ const ICON = "flex h-4 w-4 items-center justify-center text-ink-muted [&>svg]:h-
 const DANGER_ICON = "flex h-4 w-4 items-center justify-center text-state-down [&>svg]:h-4! [&>svg]:w-4!";
 
 const PANEL = "rounded-(--radius-panel) border border-line bg-surface-raised";
-
-const capitalize = (name) => name.charAt(0).toUpperCase() + name.slice(1);
 
 const ZERO_TIME = "0001-01-01T00:00:00Z";
 const hasTimestamp = (v) => !!v && v !== ZERO_TIME;
@@ -58,9 +59,17 @@ export const parseProvisionedState = (state) => {
     return !!state;
 };
 
-const ObjectDetail = () => {
+/**
+ * An object: its state and actions, its configuration, its keys, its instances. A
+ * page of its own under its route, or, `embedded`, the content of the object record
+ * panel (`ObjectDetailPanel`), which gives the path and shows the logs and the
+ * configuration in tabs of their own (`onOpenLogs`). An instance opens on a click only where `onViewInstance`
+ * says what to do with it: in the panel, the status board shows the instances.
+ */
+const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrchestrationLogs} = {}) => {
+    const {t} = useTranslation();
     const {objectName} = useParams();
-    const decodedObjectName = decodeURIComponent(objectName);
+    const decodedObjectName = path ?? decodeURIComponent(objectName);
     const {namespace, kind, name} = parseObjectPath(decodedObjectName);
     const navigate = useNavigate();
 
@@ -118,6 +127,7 @@ const ObjectDetail = () => {
         const avail = objectStatus?.avail || "n/a";
         const frozen = objectStatus?.frozen === "frozen" ? "frozen" : "unfrozen";
         let globalExpect = null;
+        let orchestrationId = null;
         let hasAnyNodeStopped = false;
         let hasAnyNodeLagging = false;
 
@@ -126,14 +136,14 @@ const ObjectDetail = () => {
                 const monitorKey = `${node}:${decodedObjectName}`;
                 const monitor = instanceMonitor[monitorKey] || {};
                 if (!globalExpect && monitor.global_expect && monitor.global_expect !== "none") {
-                    globalExpect = monitor.global_expect;
+                    ({globalExpect, orchestrationId} = orchestrationOf([monitor]));
                 }
                 const ns = objectInstanceStatus[node] || {};
                 if (hasTimestamp(ns.stopped_at)) hasAnyNodeStopped = true;
                 if (hasTimestamp(ns.rpo_breached_at)) hasAnyNodeLagging = true;
             }
         }
-        return {avail, frozen, globalExpect, hasAnyNodeStopped, hasAnyNodeLagging};
+        return {avail, frozen, globalExpect, orchestrationId, hasAnyNodeStopped, hasAnyNodeLagging};
     }, [objectStatus, objectInstanceStatus, instanceMonitor, decodedObjectName]);
 
     const nodesList = useMemo(() => {
@@ -160,7 +170,7 @@ const ObjectDetail = () => {
 
         const token = localStorage.getItem("authToken");
         if (!token) {
-            setInitialDataError("Auth token not found");
+            setInitialDataError(t("objectDetails.authTokenNotFound"));
             setInitialLoading(false);
             setFallbackCompleted(true);
             return;
@@ -172,31 +182,32 @@ const ObjectDetail = () => {
         const encodedName = encodeURIComponent(objName);
 
         try {
+            // The object and its instances in one answer: the status of the object in
+            // `data`, each instance's status, configuration and monitor under `data.instances`.
             const objRes = await fetch(
                 `${URL_OBJECT}/${encodedNamespace}/${encodedKind}/${encodedName}`,
                 {headers: {Authorization: `Bearer ${token}`}, cache: "no-cache"}
             );
-            let objectData = null;
-            if (objRes.ok) objectData = await objRes.json();
-
-            const instRes = await fetch(
-                `${URL_NODE}/all/instance/path/${encodedNamespace}/${encodedKind}/${encodedName}`,
-                {headers: {Authorization: `Bearer ${token}`}, cache: "no-cache"}
-            );
-            let instancesData = {};
-            if (instRes.ok) instancesData = await instRes.json();
+            if (!objRes.ok) throw new Error(t("objectDetails.fallbackFailed", {status: objRes.status}));
+            const {instances = {}, ...objectStatus} = (await objRes.json())?.data ?? {};
 
             const currentState = useEventStore.getState();
             const hasInstances = currentState.objectInstanceStatus[decodedObjectName] &&
                 Object.keys(currentState.objectInstanceStatus[decodedObjectName]).length > 0;
 
+            // The stream may have brought them meanwhile: it is newer. This object alone
+            // set, the others kept: a panel stands over a list of them.
             if (!hasInstances) {
-                if (objectData) currentState.setObjectStatuses({[decodedObjectName]: objectData});
-                if (instancesData) {
-                    currentState.setInstanceStatuses({[decodedObjectName]: instancesData}, true);
-                } else {
-                    currentState.setInstanceStatuses({[decodedObjectName]: {}}, true);
+                currentState.setObjectStatuses({...currentState.objectStatus, [decodedObjectName]: objectStatus});
+                const statuses = {};
+                const monitors = {...currentState.instanceMonitor};
+                for (const [node, instance] of Object.entries(instances)) {
+                    if (instance?.status) statuses[node] = instance.status;
+                    if (instance?.config) currentState.setInstanceConfig(decodedObjectName, node, instance.config);
+                    if (instance?.monitor) monitors[`${node}:${decodedObjectName}`] = instance.monitor;
                 }
+                currentState.setInstanceStatuses({[decodedObjectName]: statuses}, true);
+                currentState.setInstanceMonitors(monitors);
             }
         } catch (err) {
             logger.error("Fallback fetch failed:", err);
@@ -205,10 +216,12 @@ const ObjectDetail = () => {
             setInitialLoading(false);
             setFallbackCompleted(true);
         }
-    }, [decodedObjectName]);
+    }, [decodedObjectName, t]);
 
     useEffect(() => {
-        useEventStore.getState().removeObject(decodedObjectName);
+        // The page starts from the replay of the stream. A panel stands over a view
+        // that lists the object: dropping it would blink its row.
+        if (!embedded) useEventStore.getState().removeObject(decodedObjectName);
         setInitialLoading(true);
         setInitialDataError(null);
         setFallbackCompleted(false);
@@ -216,9 +229,7 @@ const ObjectDetail = () => {
         setConfigNode(null);
 
         const token = localStorage.getItem("authToken");
-        if (token) {
-            startEventReception(token, objectEventTypes, decodedObjectName);
-        }
+        const release = token ? retainEventReception(token, objectEventTypes, decodedObjectName) : null;
 
         fallbackTimer.current = setTimeout(() => {
             fetchFallbackData().catch((err) => {
@@ -228,9 +239,9 @@ const ObjectDetail = () => {
 
         return () => {
             if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
-            closeEventSource();
+            release?.();
         };
-    }, [decodedObjectName, objectEventTypes, fetchFallbackData]);
+    }, [decodedObjectName, objectEventTypes, fetchFallbackData, embedded]);
 
     useEffect(() => {
         if (initialLoading && (objectInstanceStatus !== undefined || fallbackCompleted)) {
@@ -294,48 +305,49 @@ const ObjectDetail = () => {
         return `${URL_NODE}/${encodeURIComponent(node)}/instance/path/${encodeURIComponent(namespace)}/${encodeURIComponent(kind)}/${encodeURIComponent(name)}/action/${endpoint}`;
     }, []);
 
+    // What comes of an action, accepted or refused, the actions tray says.
     const postObjectAction = useCallback(async ({action}) => {
         const token = localStorage.getItem("authToken");
-        if (!token) return openSnackbar("Auth token not found.", "error");
+        if (!token) return openSnackbar(t("objectDetails.feedback.authTokenNotFound"), "error");
         setActionInProgress(true);
-        openSnackbar(`Executing ${action} on object…`, "info");
         const endpoint = OBJECT_ACTIONS.find((a) => a.name === action)?.endpoint ?? `action/${action}`;
         const url = `${URL_OBJECT}/${encodeURIComponent(namespace)}/${encodeURIComponent(kind)}/${encodeURIComponent(name)}/${endpoint}`;
+        const subject = decodedObjectName;
         try {
             const res = await fetch(url, {method: "POST", headers: {Authorization: `Bearer ${token}`}});
             if (!res.ok) {
-                const serverError = await getResponseErrorMessage(res);
-                openSnackbar(`Failed to execute ${action}: HTTP error! status: ${res.status}${serverError ? ` - ${serverError}` : ""}`, "error");
+                const detail = await getResponseErrorMessage(res);
+                trackRefused({action, subject, reason: refusalReason({status: res.status, detail})});
                 return;
             }
-            openSnackbar(`'${action}' succeeded on object`);
+            await trackResponse(res, {action, subject, path: decodedObjectName});
         } catch (err) {
-            openSnackbar(`Error: ${err.message}`, "error");
+            trackRefused({action, subject, reason: err.message});
         } finally {
             setActionInProgress(false);
         }
-    }, [decodedObjectName, openSnackbar, namespace, kind, name]);
+    }, [decodedObjectName, openSnackbar, namespace, kind, name, t]);
 
     const postNodeAction = useCallback(async ({node, action}) => {
         const token = localStorage.getItem("authToken");
-        if (!token) return openSnackbar("Auth token not found.", "error");
+        if (!token) return openSnackbar(t("objectDetails.feedback.authTokenNotFound"), "error");
         setActionInProgress(true);
-        openSnackbar(`Executing ${action} on node ${node}…`, "info");
         const url = postActionUrl({node, objectName: decodedObjectName, action});
+        const subject = actionSubject({path: decodedObjectName, node});
         try {
             const res = await fetch(url, {method: "POST", headers: {Authorization: `Bearer ${token}`}});
             if (!res.ok) {
-                const serverError = await getResponseErrorMessage(res);
-                openSnackbar(`Failed to execute ${action}: HTTP error! status: ${res.status}${serverError ? ` - ${serverError}` : ""}`, "error");
+                const detail = await getResponseErrorMessage(res);
+                trackRefused({action, subject, reason: refusalReason({status: res.status, detail})});
                 return;
             }
-            openSnackbar(`'${action}' succeeded on node '${node}'`);
+            await trackResponse(res, {action, subject, node});
         } catch (err) {
-            openSnackbar(`Error: ${err.message}`, "error");
+            trackRefused({action, subject, reason: err.message});
         } finally {
             setActionInProgress(false);
         }
-    }, [decodedObjectName, openSnackbar, postActionUrl]);
+    }, [decodedObjectName, openSnackbar, postActionUrl, t]);
 
     const openActionDialog = useCallback((action, context = null) => {
         setPendingAction({action, ...(context ? context : {})});
@@ -409,14 +421,20 @@ const ObjectDetail = () => {
     };
 
     const handleViewInstance = useCallback((node) => {
-        navigate(`/nodes/${node}/objects/${encodeURIComponent(decodedObjectName)}`);
-    }, [decodedObjectName, navigate]);
+        if (onViewInstance) onViewInstance(node);
+        else navigate(`/nodes/${node}/objects/${encodeURIComponent(decodedObjectName)}`);
+    }, [decodedObjectName, navigate, onViewInstance]);
+    const viewInstance = embedded && !onViewInstance ? undefined : handleViewInstance;
 
     const handleOpenLogs = useCallback((node, instanceName = null) => {
+        if (onOpenLogs) {
+            onOpenLogs(node);
+            return;
+        }
         setSelectedNodeForLogs(node);
         setSelectedInstanceForLogs(instanceName);
         setLogsDrawerOpen(true);
-    }, []);
+    }, [onOpenLogs]);
 
     const handleCloseLogsDrawer = useCallback(() => {
         setLogsDrawerOpen(false);
@@ -468,7 +486,7 @@ const ObjectDetail = () => {
                 (newConfig) => {
                     const config = newConfig[decodedObjectName];
                     if (config && configNode) {
-                        openSnackbar("Instance configuration updated", "info");
+                        openSnackbar(t("objectDetails.feedback.configUpdated"), "info");
                     }
                 }
             );
@@ -483,15 +501,15 @@ const ObjectDetail = () => {
         return () => {
             if (typeof unsubscribe === 'function') unsubscribe();
         };
-    }, [decodedObjectName, configNode, openSnackbar]);
+    }, [decodedObjectName, configNode, openSnackbar, t]);
 
-    const showKeys = ["cfg", "sec"].includes(kind);
+    const showKeys = KEY_KINDS.includes(kind);
 
     const feedback = snackbar.open && (
         <Alert
             tone={TONES[snackbar.severity] ?? "info"}
             action={
-                <IconButton label="Close" bare onClick={closeSnackbar}>
+                <IconButton label={t("common.close")} onClick={closeSnackbar}>
                     <CloseIcon className="h-4 w-4"/>
                 </IconButton>
             }
@@ -500,7 +518,8 @@ const ObjectDetail = () => {
         </Alert>
     );
 
-    const configSection = (
+    // In the panel, the configuration has a tab of its own.
+    const configSection = embedded ? null : (
         <ConfigSection
             decodedObjectName={decodedObjectName}
             configNode={configNode}
@@ -514,45 +533,48 @@ const ObjectDetail = () => {
 
     if (initialLoading) {
         return (
-            <div className="flex min-h-[80vh] items-center justify-center gap-2 p-4">
-                <Spinner label="Loading object data"/>
-                <span className="text-ink-muted">Loading object data...</span>
+            <div className={embedded ? "flex items-center justify-center gap-2 py-8" : "flex min-h-[80vh] items-center justify-center gap-2 p-4"}>
+                <Spinner label={t("objectDetails.loading")}/>
+                <span className="text-ink-muted">{t("objectDetails.loadingText")}</span>
             </div>
         );
     }
 
     if (nodesList.length === 0 && !initialDataError) {
         return (
-            <div className="p-4 space-y-3">
-                <h1 className="text-title font-semibold">{decodedObjectName}</h1>
+            <div className={embedded ? "space-y-3" : "p-4 space-y-3"}>
+                {!embedded && <h1 className="text-title font-semibold">{decodedObjectName}</h1>}
                 {feedback}
-                <p className="py-4 text-center text-ink-muted">No information available for object.</p>
-                {showKeys && <KeysSection decodedObjectName={decodedObjectName} openSnackbar={openSnackbar}/>}
+                <p className="py-4 text-center text-ink-muted">{t("objectDetails.noInformation")}</p>
+                {showKeys && <KeysSection decodedObjectName={decodedObjectName} openSnackbar={openSnackbar}
+                                          refreshKey={configRefreshTrigger}/>}
                 {configSection}
             </div>
         );
     }
 
     const logsTitle = selectedInstanceForLogs
-        ? `Instance Logs - ${selectedInstanceForLogs}`
+        ? t("objectDetails.logs.instanceTitle", {name: selectedInstanceForLogs})
         : selectedNodeForLogs
-            ? `Node Logs - ${selectedNodeForLogs}`
-            : "Logs";
+            ? t("objectDetails.logs.nodeTitle", {node: selectedNodeForLogs})
+            : t("objectDetails.logs.title");
 
     return (
-        <div className="p-4 space-y-3">
+        <div className={embedded ? "space-y-3" : "p-4 space-y-3"}>
             <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
                     <HeaderSection
+                        embedded={embedded}
                         decodedObjectName={decodedObjectName}
                         kind={kind}
                         globalStatus={objectStatus}
                         actionInProgress={actionInProgress}
                         handleObjectActionClick={handleObjectActionClick}
                         getObjectStatus={() => objectData}
+                        onOrchestrationLogs={onOrchestrationLogs}
                     />
                 </div>
-                <div className="shrink-0">{configSection}</div>
+                {configSection !== null && <div className="shrink-0">{configSection}</div>}
             </div>
 
             {feedback}
@@ -561,7 +583,13 @@ const ObjectDetail = () => {
                 <ActionDialogManager
                     pendingAction={pendingAction}
                     handleConfirm={handleDialogConfirm}
-                    target={`object ${decodedObjectName}`}
+                    target={pendingAction?.batch === "nodes"
+                        ? t("statusBoard.subjects.instance", {path: decodedObjectName, where: t("nodes.target.selected", {count: selectedNodes.length})})
+                        : pendingAction?.node
+                            ? t("statusBoard.subjects.instance", {path: decodedObjectName, where: t("nodes.target.node", {node: pendingAction.node})})
+                            : t("objectDetails.dialogTarget", {name: decodedObjectName})}
+                    names={pendingAction?.batch === "nodes" ? selectedNodes : undefined}
+                    instances={pendingAction?.batch === "nodes" || Boolean(pendingAction?.node)}
                     supportedActions={
                         pendingAction?.batch === "nodes" || pendingAction?.node
                             ? INSTANCE_ACTIONS.map(a => a.name)
@@ -591,22 +619,26 @@ const ObjectDetail = () => {
                 />
             )}
 
-            {showKeys && <KeysSection decodedObjectName={decodedObjectName} openSnackbar={openSnackbar}/>}
+            {showKeys && <KeysSection decodedObjectName={decodedObjectName} openSnackbar={openSnackbar}
+                                      refreshKey={configRefreshTrigger}/>}
 
-            {!["sec", "cfg", "usr"].includes(kind) && (
+            {!KEY_KINDS.includes(kind) && (
                 <section aria-labelledby="object-instances" className={PANEL}>
                     <div className="flex items-center gap-3 border-b border-line px-3 py-2">
                         <h2 id="object-instances" className="font-semibold">
-                            Instances ({nodesList.length})
+                            {t("objectDetails.instancesHeading", {count: nodesList.length})}
                         </h2>
                         <MenuButton
-                            label={`Actions on selected nodes (${selectedNodes.length})`}
+                            // The actions: a solid pill.
+                            prominent
+                            icon={<BoltIcon className="h-3.5 w-3.5"/>}
+                            label={t("objectDetails.batchActionsMenu", {count: selectedNodes.length})}
                             disabled={selectedNodes.length === 0}
                             className="ml-auto"
                             align="end"
                             items={batchFilteredActions.map(({name, icon, color}) => ({
                                 key: name,
-                                label: capitalize(name),
+                                label: actionLabel(name),
                                 icon: <span aria-hidden="true" className={color === "red" ? DANGER_ICON : ICON}>{icon}</span>,
                                 disabled: actionInProgress,
                                 onSelect: () => handleBatchNodeActionClick(name),
@@ -627,7 +659,8 @@ const ObjectDetail = () => {
                                 getNodeState={getNodeState}
                                 instanceName={name}
                                 onOpenLogs={handleOpenLogs}
-                                onViewInstance={handleViewInstance}
+                                onViewInstance={viewInstance}
+                                objectAvail={objectStatus?.avail}
                             />
                         ))}
                     </div>
@@ -635,12 +668,12 @@ const ObjectDetail = () => {
             )}
 
             <SlideOver
-                open={logsDrawerOpen && selectedNodeForLogs !== null}
+                open={logsDrawerOpen && selectedNodeForLogs !== null && !embedded}
                 title={logsTitle}
                 onClose={handleCloseLogsDrawer}
-                closeLabel="Close logs"
+                closeLabel={t("objectDetails.logs.close")}
                 size="wide"
-                resizeLabel="Resize drawer"
+                resizeLabel={t("objectDetails.logs.resize")}
                 closeOnOutsideClick={false}
             >
                 {logsDrawerOpen && selectedNodeForLogs !== null && (
@@ -655,8 +688,6 @@ const ObjectDetail = () => {
                 )}
             </SlideOver>
 
-            <EventLogger eventTypes={objectEventTypes} objectName={decodedObjectName}
-                         title={`Events - ${decodedObjectName}`} buttonLabel="Object Events"/>
         </div>
     );
 };

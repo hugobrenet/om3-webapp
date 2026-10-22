@@ -99,6 +99,7 @@
   --row-height: 1.75rem;
   --radius-control: 3px;
   --radius-panel: 6px;
+  --radius-pill: 999px;
 }
 
 .dark {

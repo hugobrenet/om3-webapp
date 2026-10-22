@@ -1,5 +1,6 @@
 import React, {createContext, useContext, useState, useRef, useEffect} from "react";
 import {UserManager, UserManagerSettings, Log} from "oidc-client-ts";
+import {serializeSilentRenew} from "./serialRenewal";
 import logger from "../utils/logger.js";
 
 type OidcLog = {
@@ -35,7 +36,8 @@ export const OidcProvider = ({children}: { children: React.ReactNode }) => {
             logger.debug('Failed to configure oidc-client-ts Log:', e);
         }
 
-        const newUserManager = new UserManager(settings);
+        // One renewal at a time, whoever asks: the refresh token rotates (serialRenewal).
+        const newUserManager = serializeSilentRenew(new UserManager(settings));
         // Expose globally for legacy modules that rely on window.oidcUserManager
         try {
             (window as any).oidcUserManager = newUserManager;

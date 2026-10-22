@@ -12,6 +12,8 @@ import {
     requestConsoleTicket,
 } from "../services/console-service.js";
 import logger from "../utils/logger.js";
+import {Trans, useTranslation} from "react-i18next";
+import i18n from "../i18n";
 
 // The colours of the terminal, read from the design tokens: xterm draws in a
 // canvas, where CSS classes do not reach. An empty value (tokens not loaded)
@@ -72,6 +74,7 @@ export const CONSOLE_STATUS = {
  * }} props
  */
 const ConsoleTerminal = ({open, target, onClose}) => {
+    const {t} = useTranslation();
     // The element the terminal is drawn in is kept in a state, not in a ref:
     // the dialog mounts its content after it opened, and the session starts
     // when there is something to draw the terminal in.
@@ -132,7 +135,7 @@ const ConsoleTerminal = ({open, target, onClose}) => {
 
         const token = localStorage.getItem("authToken");
         if (!token) {
-            fail("Auth token not found.");
+            fail(i18n.t("console.errors.tokenNotFound"));
         } else {
             requestConsoleTicket({node, namespace, kind, name, rid, token})
                 .then((ticket) => {
@@ -152,26 +155,26 @@ const ConsoleTerminal = ({open, target, onClose}) => {
                                 return;
                             }
                             if (exit && exit.reason === CONSOLE_REASON_ERROR) {
-                                fail(exit.text || "The console session failed.");
+                                fail(exit.text || i18n.t("console.errors.sessionFailed"));
                             } else if (exit) {
                                 setStatus(CONSOLE_STATUS.ended);
-                                setMessage(`Session ended (exit code ${exit.code}).`);
+                                setMessage(i18n.t("console.ended", {code: exit.code}));
                             } else if (!opened) {
                                 // The browser does not say why a websocket
                                 // is refused. A certificate it does not
                                 // trust on the console port is the usual
                                 // reason, and one the user can fix.
                                 setCertificateUrl(consoleCertificateUrl(url));
-                                fail("The console could not be reached.");
+                                fail(i18n.t("console.errors.unreachable"));
                             } else {
-                                fail("The console connection was lost.");
+                                fail(i18n.t("console.errors.lost"));
                             }
                         },
                     });
                 })
                 .catch((err) => {
                     if (!cancelled) {
-                        fail(`Failed to open console: ${err.message}`);
+                        fail(i18n.t("console.errors.openFailed", {message: err.message}));
                     }
                 });
         }
@@ -194,13 +197,14 @@ const ConsoleTerminal = ({open, target, onClose}) => {
             onClose={onClose}
             size="xl"
             title={
-                <>
-                    Console {rid ? `${rid} ` : ""}{node ? `on ${node}` : ""}
-                </>
+                rid && node ? t("console.titleRidNode", {rid, node})
+                    : rid ? t("console.titleRid", {rid})
+                        : node ? t("console.titleNode", {node})
+                            : t("console.title")
             }
         >
             {status === CONSOLE_STATUS.connecting && (
-                <p className="text-ink-muted">Opening console...</p>
+                <p className="text-ink-muted">{t("console.opening")}</p>
             )}
             {status === CONSOLE_STATUS.ended && <Alert tone="info">{message}</Alert>}
             {status === CONSOLE_STATUS.failed && (
@@ -208,17 +212,20 @@ const ConsoleTerminal = ({open, target, onClose}) => {
                     {message}
                     {certificateUrl && (
                         <>
-                            {" "}If the certificate of the console port is not trusted by this browser,
-                            open{" "}
-                            <a
-                                href={certificateUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="break-all text-accent underline"
-                            >
-                                {certificateUrl}
-                            </a>
-                            {" "}to accept it, then open the console again.
+                            {" "}
+                            <Trans
+                                i18nKey="console.certificateHint"
+                                values={{url: certificateUrl}}
+                                components={{
+                                    // Trans puts the URL in the link (not named "link": a void HTML element).
+                                    certLink: <a
+                                        href={certificateUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="break-all text-accent underline"
+                                    />,
+                                }}
+                            />
                         </>
                     )}
                 </Alert>

@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import axios from 'axios';
 import Pools from '../Pools';
+import i18n from '../../i18n';
 import {URL_POOL} from '../../config/apiPath.js';
 
 // ── Mocks ──────────────────────────────────────────────────────────────
@@ -31,6 +32,9 @@ const mockPools = [
 const sortButton = (name) => screen.getByRole('button', {name});
 const header = (name) => screen.getByRole('columnheader', {name});
 
+/** The cells saying N/A, whatever element holds the words. */
+const naCells = () => screen.getAllByRole('cell').filter((cell) => cell.textContent === 'N/A');
+
 describe('Pools Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -54,6 +58,18 @@ describe('Pools Component', () => {
         expect(header('Name')).toHaveAttribute('aria-sort', 'ascending');
         expect(header('Type')).toHaveAttribute('aria-sort', 'none');
         expect(screen.getByRole('table', {name: 'Pools'})).toBeInTheDocument();
+    });
+
+    test('speaks French to a French browser', async () => {
+        axios.get.mockRejectedValueOnce(new Error('Network error'));
+        await i18n.changeLanguage('fr');
+        try {
+            render(<Pools/>);
+            expect(await screen.findByText('Échec du chargement des pools. Veuillez réessayer.')).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Réessayer'})).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 
     test('displays pool data correctly when API call succeeds', async () => {
@@ -140,8 +156,9 @@ describe('Pools Component', () => {
             expect(screen.getByText('pool4')).toBeInTheDocument();
         });
 
-        const usageCell = screen.getByText((content, element) => content.includes('N/A') && element.tagName === 'TD');
-        expect(usageCell).toBeInTheDocument();
+        // N/A in the slot of the value, an empty track in the place of the bar.
+        expect(naCells()).toHaveLength(1);
+        expect(within(naCells()[0]).queryByRole('progressbar')).not.toBeInTheDocument();
     });
 
     test('handles pools with missing properties', async () => {
@@ -153,8 +170,7 @@ describe('Pools Component', () => {
         render(<Pools/>);
 
         await waitFor(() => {
-            const naElements = screen.getAllByText((content, element) => content.includes('N/A') && element.tagName === 'TD');
-            expect(naElements.length).toBe(5);
+            expect(naCells().length).toBe(5);
         });
     });
 
@@ -367,8 +383,7 @@ describe('Pools Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('pool5')).toBeInTheDocument();
-            const naText = screen.getByText((content, element) => content.includes('N/A') && element.tagName === 'TD');
-            expect(naText).toBeInTheDocument();
+            expect(naCells()).toHaveLength(1);
         });
     });
 

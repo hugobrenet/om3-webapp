@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { CloseIcon } from "../icons";
 import { cn } from "../cn";
 
@@ -21,7 +22,7 @@ export function Dialog({
   open,
   title,
   onClose,
-  closeLabel = "Close",
+  closeLabel,
   size = "sm",
   initialFocus,
   footer,
@@ -40,6 +41,8 @@ export function Dialog({
 }) {
   const id = useId();
   const dialog = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
+  const close = closeLabel ?? t("common.close");
 
   useEffect(() => {
     if (!open) return;
@@ -108,11 +111,11 @@ export function Dialog({
           <button
             type="button"
             onClick={onClose}
-            title={closeLabel}
+            title={close}
             className="ml-auto flex h-7 w-7 items-center justify-center rounded-(--radius-control) border border-line text-ink-muted hover:text-ink"
           >
             <CloseIcon />
-            <span className="sr-only">{closeLabel}</span>
+            <span className="sr-only">{close}</span>
           </button>
         </div>
         <div data-dialog-body className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">

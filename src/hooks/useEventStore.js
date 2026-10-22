@@ -102,23 +102,31 @@ const useEventStore = create(
                 });
             },
 
-            removeObject: (objectName) =>
+            removeObject: (objectName) => get().removeObjects([objectName]),
+
+            /**
+             * Drops objects and everything held for their instances: their status,
+             * their instances' status, config and monitor (keyed `node:path`).
+             */
+            removeObjects: (objectNames) =>
                 set((state) => {
-                    if (!state.objectStatus[objectName] &&
-                        !state.objectInstanceStatus[objectName] &&
-                        !state.instanceConfig[objectName]) {
-                        return state;
-                    }
-                    const newObjectStatus = {...state.objectStatus};
-                    const newObjectInstanceStatus = {...state.objectInstanceStatus};
-                    const newInstanceConfig = {...state.instanceConfig};
-                    delete newObjectStatus[objectName];
-                    delete newObjectInstanceStatus[objectName];
-                    delete newInstanceConfig[objectName];
+                    const names = new Set(objectNames);
+                    const gone = [...names].filter((name) =>
+                        state.objectStatus[name] || state.objectInstanceStatus[name] || state.instanceConfig[name]
+                    );
+                    const goneMonitors = Object.keys(state.instanceMonitor)
+                        .filter((key) => names.has(key.slice(key.indexOf(':') + 1)));
+                    if (gone.length === 0 && goneMonitors.length === 0) return state;
+                    const without = (map, keys) => {
+                        const next = {...map};
+                        for (const key of keys) delete next[key];
+                        return next;
+                    };
                     return {
-                        objectStatus: newObjectStatus,
-                        objectInstanceStatus: newObjectInstanceStatus,
-                        instanceConfig: newInstanceConfig,
+                        objectStatus: without(state.objectStatus, gone),
+                        objectInstanceStatus: without(state.objectInstanceStatus, gone),
+                        instanceConfig: without(state.instanceConfig, gone),
+                        instanceMonitor: without(state.instanceMonitor, goneMonitors),
                     };
                 }),
 
@@ -194,36 +202,74 @@ const useEventStore = create(
                         } else {
                             newObjectInstanceStatus[path] = {...newObjectInstanceStatus[path]};
                         }
+                        // An instance status event carries the whole status: it replaces the
+                        // one known. The daemon omits a field once empty (resources, running,
+                        // encap, rpo_breached_at...): merged, its old value stayed.
                         for (const node in incomingNodes) {
                             if (!incomingNodes.hasOwnProperty(node)) continue;
-                            const newStatus = incomingNodes[node];
+                            const next = {node, path, ...incomingNodes[node]};
                             const existingData = newObjectInstanceStatus[path][node];
-                            if (existingData && shallowEqual(existingData, newStatus)) continue;
+                            if (existingData && shallowEqual(existingData, next)) continue;
                             hasChanges = true;
-                            if (newStatus?.encap) {
-                                const existingEncap = existingData?.encap || {};
-                                const mergedEncap = {...existingEncap};
-                                for (const containerId in newStatus.encap) {
-                                    if (newStatus.encap.hasOwnProperty(containerId)) {
-                                        const existingContainer = existingEncap[containerId] || {};
-                                        const newContainer = newStatus.encap[containerId] || {};
-                                        mergedEncap[containerId] = {
-                                            ...existingContainer,
-                                            ...newContainer,
-                                            resources: newContainer.resources && Object.keys(newContainer.resources).length > 0
-                                                ? {...newContainer.resources}
-                                                : existingContainer.resources || {},
-                                        };
-                                    }
-                                }
-                                newObjectInstanceStatus[path][node] = {node, path, ...newStatus, encap: mergedEncap};
-                            } else {
-                                newObjectInstanceStatus[path][node] = {node, path, ...existingData, ...newStatus};
-                            }
+                            newObjectInstanceStatus[path][node] = next;
                         }
                     }
                     if (!hasChanges) return state;
                     return {objectInstanceStatus: newObjectInstanceStatus};
+                }),
+
+            // The instances of the nodes no longer in the cluster, as a cluster status
+            // read tells its nodes: kept from an earlier session (localStorage), they
+            // would show a node dropped meanwhile as it was, where a "?" is due.
+            pruneInstancesOfNodes: (liveNodes) =>
+                set((state) => {
+                    if (!Array.isArray(liveNodes) || liveNodes.length === 0) return state;
+                    const live = new Set(liveNodes);
+                    const keep = (byNode) => {
+                        const gone = Object.keys(byNode ?? {}).filter((node) => !live.has(node));
+                        if (gone.length === 0) return byNode;
+                        const next = {...byNode};
+                        for (const node of gone) delete next[node];
+                        return next;
+                    };
+                    const pruneByPath = (map) => {
+                        let changed = false;
+                        const next = {};
+                        for (const [path, byNode] of Object.entries(map ?? {})) {
+                            next[path] = keep(byNode);
+                            if (next[path] !== byNode) changed = true;
+                        }
+                        return changed ? next : map;
+                    };
+                    const objectInstanceStatus = pruneByPath(state.objectInstanceStatus);
+                    const instanceConfig = pruneByPath(state.instanceConfig);
+                    // The monitors are keyed "node:path".
+                    const monitorKeys = Object.keys(state.instanceMonitor ?? {});
+                    const goneMonitors = monitorKeys.filter((key) => !live.has(key.slice(0, key.indexOf(":"))));
+                    let instanceMonitor = state.instanceMonitor;
+                    if (goneMonitors.length > 0) {
+                        instanceMonitor = {...state.instanceMonitor};
+                        for (const key of goneMonitors) delete instanceMonitor[key];
+                    }
+                    if (objectInstanceStatus === state.objectInstanceStatus && instanceConfig === state.instanceConfig
+                        && instanceMonitor === state.instanceMonitor) return state;
+                    return {objectInstanceStatus, instanceConfig, instanceMonitor};
+                }),
+
+            // A node the cluster dropped: what it reported goes, until it rejoins.
+            removeNode: (node) =>
+                set((state) => {
+                    const without = (map) => {
+                        if (!map || !(node in map)) return map;
+                        const next = {...map};
+                        delete next[node];
+                        return next;
+                    };
+                    const nodeStatus = without(state.nodeStatus);
+                    const nodeMonitor = without(state.nodeMonitor);
+                    const nodeStats = without(state.nodeStats);
+                    if (nodeStatus === state.nodeStatus && nodeMonitor === state.nodeMonitor && nodeStats === state.nodeStats) return state;
+                    return {nodeStatus, nodeMonitor, nodeStats};
                 }),
 
             setNodeStatuses: (nodeStatus) =>
@@ -320,5 +366,14 @@ const useEventStore = create(
         }
     )
 );
+
+/**
+ * Forgets the objects held, in memory and in localStorage: on logout, so the next
+ * user of the browser does not see the objects of the previous one.
+ */
+export const clearObjectCache = () => {
+    useEventStore.setState({objectStatus: {}, objectInstanceStatus: {}, instanceMonitor: {}, instanceConfig: {}});
+    useEventStore.persist.clearStorage();
+};
 
 export default useEventStore;

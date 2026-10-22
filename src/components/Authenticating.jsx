@@ -10,16 +10,16 @@ function Authenticating() {
             className="mx-auto mt-[15vh] flex max-w-sm flex-col items-center gap-3 p-4 text-center"
         >
             <h1 id="dialog-title" className="text-title font-semibold">
-                {t("Authentication")}
+                {t("auth.authenticating.title")}
             </h1>
             <div className="flex items-center gap-2">
-                <Spinner label={t("Loading...")}/>
+                <Spinner label={t("auth.authenticating.loading")}/>
                 <p className="text-ink-muted">
-                    {t("You are being redirected to the openid provider.")}
+                    {t("auth.authenticating.redirecting")}
                 </p>
             </div>
             <Button onClick={() => window.location.reload()}>
-                {t("Reload")}
+                {t("auth.authenticating.reload")}
             </Button>
         </section>
     )

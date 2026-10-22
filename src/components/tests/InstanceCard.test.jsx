@@ -4,6 +4,7 @@ import {MemoryRouter} from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import {vi} from 'vitest';
 import InstanceCard from '../InstanceCard.jsx';
+import i18n from '../../i18n';
 
 // ── Hoisted logger mock ─────────────────────────────────────────────────
 const {mockLogger} = vi.hoisted(() => ({
@@ -144,6 +145,18 @@ describe('InstanceCard Component', () => {
         expect(getNodeState).toHaveBeenCalledWith('node1');
         expect(statusMark()).toHaveAttribute('data-state', state);
         expect(statusMark()).toHaveAttribute('title', avail || 'unknown');
+    });
+
+    test.each([
+        ['up', true],
+        ['stdby up', true],
+        ['down', false],
+        ['warn', false],
+        [undefined, false],
+    ])('a down instance of an object %p is gray: %p', (objectAvail, gray) => {
+        renderCard({getNodeState: vi.fn(() => ({avail: 'down', frozen: 'unfrozen', state: null})), objectAvail});
+        expect(statusMark()).toHaveAttribute('data-state', 'down');
+        expect(statusMark()).toHaveClass(gray ? 'text-ink-muted' : 'text-state-down');
     });
 
     test('shows frozen mark when node is frozen', () => {
@@ -320,5 +333,16 @@ describe('InstanceCard Component', () => {
             expect(stoppedMark()).toBeInTheDocument();
             expect(laggingMark()).toBeInTheDocument();
         });
+    });
+
+    test('speaks French when the browser does', async () => {
+        await i18n.changeLanguage('fr');
+        try {
+            renderCard({onViewInstance: vi.fn()});
+            expect(screen.getByRole('group', {name: 'Instance sur le nœud node1'})).toBeInTheDocument();
+            expect(screen.getByTitle('Voir les ressources')).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 });

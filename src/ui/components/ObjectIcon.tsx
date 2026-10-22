@@ -63,7 +63,8 @@ export type ObjectKind =
   | "pool"
   | "heartbeat"
   | "config"
-  | "secret";
+  | "secret"
+  | "account";
 
 /**
  * Pictogram and tint of an object kind. The same vocabulary in the menu, in panel
@@ -118,19 +119,22 @@ const KINDS: Record<ObjectKind, { Icon: typeof ServerIcon; className: string }> 
   complianceLog: { Icon: HistoryIcon, className: "text-icon-compliance" },
   // The puzzle piece of the historical designer (`designer16`), in the compliance crimson.
   designer: { Icon: PuzzleIcon, className: "text-icon-compliance" },
-  // om3 kinds, drawn from the same set. A namespace groups services as the
-  // collector apps do: the folder, in the app tint.
-  namespace: { Icon: FolderIcon, className: "text-icon-app" },
+  // om3 kinds, drawn from the same set, never in a red or pink tint: a tab or an
+  // entry of these must not catch the eye as an issue would. A namespace: the
+  // folder, in the node blue.
+  namespace: { Icon: FolderIcon, className: "text-icon-node" },
   // An object kind is a label on objects: the tag.
   kind: { Icon: TagIcon, className: "text-icon-tag" },
   // A pool provides the volumes: the disk icon and tint.
   pool: { Icon: DatabaseIcon, className: "text-icon-disk" },
   // Heartbeats are streams between the nodes: the broadcast waves, in the network tint.
   heartbeat: { Icon: RssIcon, className: "text-icon-network" },
-  // Configuration objects: the file, in the form tint; secrets: the lock, in the
-  // compliance crimson, both kept apart from the service tint.
-  config: { Icon: FileIcon, className: "text-icon-form" },
-  secret: { Icon: LockIcon, className: "text-icon-compliance" },
+  // Configuration objects: the file, in the network teal; secrets: the lock, and
+  // om3 users: the person, both in the neutral ink, kept apart from the service tint.
+  config: { Icon: FileIcon, className: "text-icon-network" },
+  secret: { Icon: LockIcon, className: "text-icon-dashboard" },
+  // An om3 user object, not the collector's people in their salmon.
+  account: { Icon: UserIcon, className: "text-icon-dashboard" },
 };
 
 /**
@@ -142,7 +146,7 @@ const OM3_KINDS: Record<string, ObjectKind> = {
   vol: "disk",
   cfg: "config",
   sec: "secret",
-  usr: "user",
+  usr: "account",
   ccfg: "cluster",
   nscfg: "namespace",
 };

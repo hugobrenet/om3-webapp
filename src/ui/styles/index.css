@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./tokens.css";
+@import "./om3.css";
 @import "./fonts.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -70,6 +71,7 @@
   --text-title: var(--text-title);
   --radius-control: var(--radius-control);
   --radius-panel: var(--radius-panel);
+  --radius-pill: var(--radius-pill);
 }
 
 @layer base {

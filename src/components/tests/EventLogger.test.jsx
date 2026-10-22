@@ -1,11 +1,12 @@
 import React from 'react';
-import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {vi, beforeAll, beforeEach, afterEach, describe, test, expect} from 'vitest';
-import EventLogger, {hashCode} from '../EventLogger';
+import EventLogger, {EventLog, OBJECT_EVENT_TYPES, hashCode} from '../EventLogger';
 import useEventLogStore from '../../hooks/useEventLogStore';
 import {panelOpened} from '../../ui/components/slide-over-open';
 import logger from '../../utils/logger.js';
+import i18n from '../../i18n';
 
 // ─── Global setup ───────────────────────────────────────────────────────────
 beforeAll(() => {
@@ -316,6 +317,18 @@ describe('EventLogger Component', () => {
     });
 
     // ─── Drawer open / close ──────────────────────────────────────────────
+    describe('French', () => {
+        test('speaks French in a French browser', async () => {
+            await i18n.changeLanguage('fr');
+            try {
+                renderWithTheme(<EventLogger/>);
+                expect(screen.getByRole('button', {name: /Événements/})).toHaveAttribute('title', 'Journal des événements');
+            } finally {
+                await act(() => i18n.changeLanguage('en'));
+            }
+        });
+    });
+
     describe('Drawer open / close', () => {
         test('opens, shows title, and shows "No events logged" when empty', async () => {
             renderWithTheme(<EventLogger/>);
@@ -1480,11 +1493,11 @@ describe('EventLogger Component', () => {
             expect(screen.getByLabelText(/Resize handle/i)).toBeInTheDocument();
         });
 
-        test('trigger is a raised pill with the feed icon and the label', () => {
+        test('trigger is an outlined button with the feed icon and the label', () => {
             renderWithTheme(<EventLogger title="Node Events" buttonLabel="Nodes Events"/>);
             const trigger = screen.getByRole('button', {name: 'Nodes Events'});
             expect(trigger).toHaveAttribute('title', 'Node Events');
-            expect(trigger).toHaveClass('rounded-full', 'bg-surface-raised', 'border-line');
+            expect(trigger).toHaveClass('rounded-(--radius-control)', 'bg-surface-raised', 'border-line');
             expect(trigger.querySelector('svg')).toBeInTheDocument();
         });
 
@@ -1506,6 +1519,133 @@ describe('EventLogger Component', () => {
             expect(tone('TEST_ERROR_EVENT')).toBe('error');
             expect(tone('ITEM_DELETED')).toBe('warning');
             expect(tone('PLAIN')).toBe('default');
+        });
+    });
+});
+
+describe('EventLog', () => {
+    test('a namespace keeps the events of the objects in it, from any node', async () => {
+        useEventLogStore.mockReturnValue(mockStore({
+            eventLogs: [
+                makeLog({id: '1', eventType: 'ObjectStatusUpdated', data: {path: 'ns1/svc/web'}}),
+                makeLog({id: '2', eventType: 'InstanceStatusUpdated', data: {labels: {path: 'ns2/svc/db'}}}),
+                makeLog({id: '3', eventType: 'InstanceMonitorUpdated', data: {data: {path: 'ns1/vol/data'}}}),
+                makeLog({id: '4', eventType: 'CONNECTION_OPENED', data: {}}),
+            ],
+        }));
+        render(<EventLog eventTypes={OBJECT_EVENT_TYPES} namespace="ns1" label="Events"/>);
+        const list = await screen.findByRole('region', {name: 'Event list'});
+        await waitFor(() => expect(list).toHaveTextContent('ObjectStatusUpdated'));
+        expect(list).toHaveTextContent('InstanceMonitorUpdated');
+        expect(list).not.toHaveTextContent('InstanceStatusUpdated');
+        // In place: no title, no close.
+        expect(screen.queryByRole('button', {name: 'Close'})).not.toBeInTheDocument();
+    });
+
+    describe('as a feed, in a tab', () => {
+        const at = (seconds) => new Date(Date.UTC(2026, 9, 17, 10, 0, seconds)).toISOString();
+        const event = (id, seconds, path) => makeLog({id, eventType: 'ObjectStatusUpdated', timestamp: at(seconds), data: {path, node: 'n1'}});
+        const lines = () => [...screen.getByRole('region', {name: 'Event list'}).querySelectorAll('.event-line')];
+        const scrolledTo = (scrollTop) => {
+            const container = screen.getByRole('region', {name: 'Event list'});
+            Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
+            Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
+            container.scrollTop = scrollTop;
+            fireEvent.scroll(container);
+        };
+
+        test('the oldest at the top, the newest at the end; a line its time and type, its node, its badge, its data', async () => {
+            useEventLogStore.mockReturnValue(mockStore({eventLogs: [event('2', 2, 'ns1/svc/b'), event('1', 1, 'ns1/svc/a')]}));
+            render(<EventLog eventTypes={OBJECT_EVENT_TYPES} label="Events"/>);
+            await waitFor(() => expect(lines()).toHaveLength(2));
+            expect(lines().map((line) => line.querySelector('[data-meta]').firstElementChild.textContent)).toEqual(['ns1/svc/a', 'ns1/svc/b']);
+            const first = lines()[0];
+            // The type under the time, in its tone; the badges, then the data.
+            expect(first.querySelector('[data-tone]').previousElementSibling.textContent).toMatch(/\d/);
+            // As the logs of several nodes: the node on a column of its own, the object a badge.
+            expect(first.querySelector('[data-node]')).toHaveTextContent('n1');
+            expect([...first.querySelector('[data-meta]').children].map((b) => b.textContent)).toEqual(['ns1/svc/a']);
+            expect(first.querySelector('[data-text]')).toHaveTextContent('"path":"ns1/svc/a"');
+            expect(first).toHaveClass('border-line/40');
+            // A caret before the time says it opens; opened by a click, its data in full, the caret turned.
+            const toggle = within(first).getByRole('button');
+            const caret = first.querySelector('[data-caret]');
+            expect(caret).not.toHaveClass('rotate-90');
+            expect(toggle).toHaveClass('cursor-pointer', 'hover:bg-surface-sunken');
+            fireEvent.click(toggle);
+            expect(toggle).toHaveAttribute('aria-expanded', 'true');
+            expect(first.querySelector('[data-caret]')).toHaveClass('rotate-90');
+        });
+
+        test('read as the logs: what is followed and the connection, the actions; a search, the types, the count', async () => {
+            const typed = (id, seconds, path, eventType) => makeLog({id, eventType, timestamp: at(seconds), data: {path, node: 'n1'}});
+            const store = mockStore({
+                connected: true,
+                eventLogs: [
+                    typed('3', 3, 'ns1/svc/a', 'InstanceStatusUpdated'),
+                    typed('2', 2, 'ns1/svc/a', 'ObjectStatusUpdated'),
+                    typed('1', 1, 'ns1/svc/a', 'InstanceStatusUpdated'),
+                ],
+            });
+            useEventLogStore.mockImplementation((selector) => (typeof selector === 'function' ? selector(store) : store));
+            render(<EventLog eventTypes={OBJECT_EVENT_TYPES} objectName="ns1/svc/a" label="Events"/>);
+            await waitFor(() => expect(lines()).toHaveLength(3));
+            // What is followed, out of the list, as the logs say it.
+            const list = screen.getByRole('region', {name: 'Event list'});
+            expect(screen.getAllByText('ns1/svc/a').filter((el) => !list.contains(el))).toHaveLength(1);
+            expect(screen.getByText('Connected')).toBeInTheDocument();
+            ['Following', 'Pause', 'Clear logs', 'Download the events shown', 'Manage subscriptions']
+                .forEach((name) => expect(screen.getByRole('button', {name})).toBeInTheDocument());
+            expect(screen.getByText('3 / 3 events')).toBeInTheDocument();
+            // The types as the levels of the logs: a list of checkboxes, with their counts.
+            fireEvent.click(within(screen.getByRole('group', {name: 'Filter by type'})).getByRole('checkbox', {name: 'ObjectStatusUpdated (1)'}));
+            await waitFor(() => expect(lines()).toHaveLength(1));
+            expect(screen.getByText('1 / 3 events')).toBeInTheDocument();
+            fireEvent.click(screen.getByRole('button', {name: 'Reset the filters'}));
+            await waitFor(() => expect(lines()).toHaveLength(3));
+            // A search through the type, the object, the node and the data.
+            fireEvent.change(screen.getByPlaceholderText('Search events…'), {target: {value: 'objectstatus'}});
+            await waitFor(() => expect(lines()).toHaveLength(1));
+            expect(screen.getByText('Filters active')).toBeInTheDocument();
+            useEventLogStore.mockReset();
+        });
+
+        test('opened at the end, as the logs: the events read while it loads followed once shown', async () => {
+            useEventLogStore.mockReturnValue(mockStore({eventLogs: [event('2', 2, 'ns1/svc/b'), event('1', 1, 'ns1/svc/a')]}));
+            render(<EventLog eventTypes={OBJECT_EVENT_TYPES} label="Events"/>);
+            // Read before the lines show: the first loading under way.
+            const container = screen.getByRole('region', {name: 'Event list'});
+            expect(lines()).toHaveLength(0);
+            Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
+            await waitFor(() => expect(lines()).toHaveLength(2));
+            expect(container.scrollTop).toBe(1000);
+        });
+
+        test('followed at the end; scrolled up, the new events counted on a button back to the end', async () => {
+            useEventLogStore.mockReturnValue(mockStore({eventLogs: [event('1', 1, 'ns1/svc/a')]}));
+            const {rerender} = render(<EventLog eventTypes={OBJECT_EVENT_TYPES} label="Events"/>);
+            await waitFor(() => expect(lines()).toHaveLength(1));
+            expect(screen.getByRole('button', {name: 'Following'})).toHaveAttribute('aria-pressed', 'true');
+            scrolledTo(0);
+            expect(screen.getByRole('button', {name: 'Latest events'})).toBeInTheDocument();
+            useEventLogStore.mockReturnValue(mockStore({eventLogs: [event('3', 3, 'ns1/svc/c'), event('2', 2, 'ns1/svc/b'), event('1', 1, 'ns1/svc/a')]}));
+            rerender(<EventLog eventTypes={OBJECT_EVENT_TYPES} label="Events"/>);
+            const back = await screen.findByRole('button', {name: '2 new events'});
+            fireEvent.click(back);
+            expect(screen.getByRole('region', {name: 'Event list'}).scrollTop).toBe(1000);
+            expect(screen.getByRole('button', {name: 'Following'})).toBeInTheDocument();
+        });
+
+        test('the newest hundred shown; the older ones kept, on demand at the top', async () => {
+            const many = Array.from({length: 150}, (_, i) => event(String(150 - i), 150 - i, `ns1/svc/s${150 - i}`));
+            useEventLogStore.mockReturnValue(mockStore({eventLogs: many}));
+            render(<EventLog eventTypes={OBJECT_EVENT_TYPES} label="Events"/>);
+            await waitFor(() => expect(lines()).toHaveLength(100));
+            fireEvent.click(screen.getByRole('button', {name: 'Show older events'}));
+            expect(lines()).toHaveLength(150);
+            expect(screen.queryByRole('button', {name: 'Show older events'})).toBeNull();
+            // Read from the top: not following.
+            expect(screen.getByRole('button', {name: 'Follow'})).toBeInTheDocument();
         });
     });
 });

@@ -44,7 +44,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
         });
         expect(console.warn).toHaveBeenCalledWith(
             "OIDC Configuration fallback: 'authInfo.openid.issuer' is missing. Falling back to default configuration."
@@ -59,7 +59,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
         });
         expect(console.warn).toHaveBeenCalledWith(
             "OIDC Configuration fallback: 'authInfo.openid.issuer' is missing. Falling back to default configuration."
@@ -74,7 +74,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
         });
         expect(console.error).toHaveBeenCalledWith(
             'Well-formed URL required for openid.issuer',
@@ -96,7 +96,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
             authority: 'https://auth.example.com',
             scope: 'openid profile',
             redirect_uri: 'https://example.com/auth-callback',
@@ -122,7 +122,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
             authority: 'https://auth.example.com',
             scope: 'openid profile email offline_access opensvc:om3 opensvc:om3:root opensvc:om3:guest opensvc:badscope',
             redirect_uri: 'https://example.com/auth-callback',
@@ -158,7 +158,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
         });
     });
 
@@ -206,7 +206,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
         });
         expect(console.warn).toHaveBeenCalledWith(
             "OIDC Configuration fallback: issuer URL failed validation. Falling back to default configuration."
@@ -225,7 +225,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
         });
         expect(console.warn).toHaveBeenCalledWith(
             "OIDC Configuration fallback: issuer URL failed validation. Falling back to default configuration."
@@ -241,7 +241,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
         });
         expect(console.warn).toHaveBeenCalledWith(
             "OIDC Configuration fallback: issuer URL failed validation. Falling back to default configuration."
@@ -259,7 +259,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
         });
         expect(console.warn).toHaveBeenCalledWith(
             "OIDC Configuration fallback: issuer URL failed validation. Falling back to default configuration."
@@ -277,7 +277,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
         });
         expect(console.warn).toHaveBeenCalledWith(
             "OIDC Configuration fallback: issuer URL failed validation. Falling back to default configuration."
@@ -293,7 +293,7 @@ describe('oidcConfiguration (browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
         });
         expect(console.error).toHaveBeenCalledWith("Malformed URI: missing protocol or host");
     });
@@ -351,7 +351,7 @@ describe('oidcConfiguration (non-browser environment)', () => {
             response_type: 'code',
             accessTokenExpiringNotificationTimeInSeconds: 30,
             automaticSilentRenew: true,
-            monitorSession: true,
+            monitorSession: false,
             authority: 'https://auth.example.com',
             scope: 'openid profile',
             redirect_uri: '/auth-callback',

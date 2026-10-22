@@ -2,45 +2,39 @@ import React, {useEffect, useState, useMemo, useCallback, useRef, useDeferredVal
 import {useLocation, useNavigate} from "react-router-dom";
 import useEventStore from "../hooks/useEventStore.js";
 import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus";
-import logger from '../utils/logger.js';
-import {closeEventSource, startEventReception, forceFlush} from "../eventSourceManager";
-import {URL_OBJECT} from "../config/apiPath.js";
-import {extractNamespace, isActionAllowedForSelection} from "../utils/objectUtils";
-import {OBJECT_ACTIONS} from "../constants/actions";
-import ActionDialogManager from "./ActionDialogManager";
-import EventLogger from "../components/EventLogger";
+import {retainEventReception} from "../eventSourceManager";
+import {usePanelSearch, usePeek} from "../app/panel-search";
+import {instanceId} from "../app/peek";
+import {ObjectDetailPanel} from "./RecordPanels";
+import {extractNamespace} from "../utils/objectUtils";
+import {useTranslation} from "react-i18next";
+import {useObjectBulkActions} from "./useObjectBulkActions";
+import CreateObjectDialog from "./CreateObjectDialog";
 import {useObjectData} from "../hooks/useObjectData";
 import {useNodeData} from "../hooks/useNodeData";
-import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
-import {StoppedMark, RpoBreachedMark} from "../ui/components/StateMarks";
+import {useClusterNodeOrder} from "../hooks/useClusterNodeOrder";
+import {Table, HeaderRow, HeaderCell, Row, Cell, EmptyRow, toggleCheckbox} from "../ui/components/Table";
+import {NotProvisionedMark as PMark, StoppedMark, RpoBreachedMark} from "../ui/components/StateMarks";
 import {StatusMark} from "../ui/components/StatusMark";
+import {isQuietDown} from "../ui/components/status";
 import {FrozenMark} from "../ui/components/FrozenMark";
 import {MenuButton} from "../ui/components/MenuButton";
 import {Button, IconButton} from "../ui/components/Button";
+import {cn} from "../ui/cn";
 import {Checkbox, Input} from "../ui/components/Field";
-import {Alert} from "../ui/components/Alert";
-import {Spinner} from "../ui/components/Spinner";
 import {useMediaQuery} from "../ui/lib/media";
-import {AlertTriangleIcon, ChevronDownIcon, CloseIcon, FilterIcon, MoreIcon, SearchIcon} from "../ui/icons";
+import {BADGE, KeyCells, NotProvisionedMark, OrchestrateBadge, PropertyCells, SideText, StatusMarks, markState} from "./ObjectCells";
+import {useGrants} from "../hooks/useGrants";
+import {canWriteClaims} from "../app/namespace-claims";
+import {Pager} from "../ui/components/Pager";
+import {usePaging} from "../app/paging";
+import {ALL_LIST, OBJECT_LISTS, OBJECTS_TABS, listOfKind} from "../utils/objectLists";
+import {BoltIcon, ChevronDownIcon, FilterIcon, GearIcon, PlusIcon, SearchIcon} from "../ui/icons";
 
 // The breakpoints of the MUI theme the view used: below md (900px) the filters fold
 // behind a button, from lg (1200px) the node columns are shown.
 const MOBILE_QUERY = "(max-width:899.95px)";
 const WIDE_QUERY = "(min-width:1200px)";
-
-/** How long a feedback message stays, as the snackbar it replaces. */
-const FEEDBACK_DURATION_MS = 4000;
-
-/** Feedback tones, from the severities of the snackbar it replaces. */
-const TONES = {info: "info", success: "success", warning: "warning", error: "error"};
-
-/** An availability as a mark state: n/a and anything unknown read as unknown. */
-const MARK_STATE = {up: "up", down: "down", warn: "warn"};
-const markState = (avail) => MARK_STATE[avail] ?? "unknown";
-
-/** Icons of the action menus, the destructive ones in the down colour. */
-const ACTION_ICON = "flex h-4 w-4 items-center justify-center text-ink-muted [&>svg]:h-4! [&>svg]:w-4!";
-const DANGER_ACTION_ICON = "flex h-4 w-4 items-center justify-center text-state-down [&>svg]:h-4! [&>svg]:w-4!";
 
 /** The zero timestamp of the API reads as "not set". */
 const ZERO_TIME = "0001-01-01T00:00:00Z";
@@ -48,11 +42,11 @@ const hasTimestamp = (value) => !!value && value !== ZERO_TIME;
 
 const capitalize = (value) => value.charAt(0).toUpperCase() + value.slice(1);
 
-const actionIcon = ({icon, color}) => (
-    <span aria-hidden="true" className={color === "red" ? DANGER_ACTION_ICON : ACTION_ICON}>{icon}</span>
-);
-
 const parseObjectName = (objectName) => {
+    // A namespace configuration, as om3 writes it: "<namespace>/", "/" for the root one.
+    if (objectName.endsWith("/")) {
+        return {namespace: objectName === "/" ? "root" : objectName.slice(0, -1), kind: "nscfg", name: "namespace"};
+    }
     const parts = objectName.split("/");
     if (parts.length === 3) {
         return {namespace: parts[0], kind: parts[1], name: parts[2]};
@@ -66,46 +60,53 @@ const parseObjectName = (objectName) => {
     };
 };
 
+/** The tab an object is listed in (objectLists). */
+const listOf = (objectName) => listOfKind(parseObjectName(objectName).kind);
+/** The kind a new object takes by default, from the tab it is created from. */
+const LIST_KIND = {services: "svc", volumes: "vol", configs: "cfg", secrets: "sec", users: "usr", [ALL_LIST]: "svc"};
+/**
+ * The lists of objects held on all the nodes, with no status nor placement: their
+ * names and their keys only (how many, how big), the status, orchestrate, topology
+ * and node columns telling nothing, and no global state filter.
+ */
+const NAMES_ONLY_LISTS = ["configs", "secrets", "users"];
+
 const selectObjectStatus = (state) => state.objectStatus;
 const selectObjectInstanceStatus = (state) => state.objectInstanceStatus;
-const selectRemoveObject = (state) => state.removeObject;
 
-/** The not-provisioned mark: an icon in the down colour, named for screen readers. */
-const NotProvisionedMark = () => (
-    <span role="img" aria-label="Not provisioned" title="Not provisioned" className="inline-flex text-state-down">
-        <AlertTriangleIcon className="h-3.5 w-3.5"/>
-    </span>
-);
-
-/** Small muted text on one line: a global expect, a monitor state. */
-const SideText = ({children}) => (
-    <span title={children} className="text-[0.75rem] whitespace-nowrap text-ink-muted">{children}</span>
-);
-
-const StatusMarks = React.memo(({avail, isNotProvisioned, frozen, globalExpect}) => (
-    <span className="inline-flex items-center gap-1.5">
-        <StatusMark state={markState(avail)} label={avail || "n/a"}/>
-        <FrozenMark frozen={frozen === "frozen"}/>
-        {isNotProvisioned && <NotProvisionedMark/>}
-        {globalExpect && <SideText>{globalExpect}</SideText>}
-    </span>
-), (prev, next) => prev.avail === next.avail && prev.isNotProvisioned === next.isNotProvisioned &&
-    prev.frozen === next.frozen && prev.globalExpect === next.globalExpect);
+/** The kinds of the objects that run, an instance on each of their nodes. */
+const ACTOR_KINDS = ["svc", "vol"];
 
 const NodeStatus = React.memo(({objectName, node}) => {
+    const {t} = useTranslation();
     const nodeData = useNodeData(objectName, node);
     // Stopped and RPO breached come straight from the instance status: one string each.
     const stoppedAt = useEventStore((s) => s.objectInstanceStatus?.[objectName]?.[node]?.stopped_at);
     const rpoBreachedAt = useEventStore((s) => s.objectInstanceStatus?.[objectName]?.[node]?.rpo_breached_at);
+    const objectAvail = useEventStore((s) => s.objectStatus?.[objectName]?.avail);
+    // A node of the object that tells nothing of its instance, gone or not heard
+    // from: a "?" in its place, as om mon draws it.
+    const expected = useEventStore((s) => Boolean(
+        s.objectStatus?.[objectName]?.scope?.includes(node) || s.instanceConfig?.[objectName]?.[node]
+    ));
+    const peek = usePeek();
     const hasData = Boolean(nodeData?.avail);
-    if (!hasData) return null;
+    if (!hasData) {
+        if (!expected) return null;
+        return (
+            <span title={t("objects.noInstanceStatus", {node})} data-node={node} className="inline-flex w-4 justify-center font-semibold text-state-down">
+                <span aria-hidden="true">?</span>
+                <span className="sr-only">{t("objects.noInstanceStatus", {node})}</span>
+            </span>
+        );
+    }
     const isNodeNotProvisioned = nodeData.provisioned === "false" || nodeData.provisioned === false;
     const isStopped = hasTimestamp(stoppedAt);
     const isLagging = hasTimestamp(rpoBreachedAt);
 
-    return (
+    const marks = (
         <span className="inline-flex items-center gap-1.5" data-node={node}>
-            <StatusMark state={markState(nodeData.avail)} label={nodeData.avail}/>
+            <StatusMark state={markState(nodeData.avail)} label={nodeData.avail} muted={isQuietDown(nodeData.avail, objectAvail)}/>
             {isStopped && <StoppedMark stoppedAt={stoppedAt}/>}
             {/* A breached RPO takes the place of the frozen mark, as in the other views. */}
             {isLagging ? <RpoBreachedMark/> : <FrozenMark frozen={nodeData.frozen === "frozen"}/>}
@@ -113,20 +114,162 @@ const NodeStatus = React.memo(({objectName, node}) => {
             {nodeData.state && <SideText>{nodeData.state}</SideText>}
         </span>
     );
+    // The instance of a service or a volume opens its own panel, not the object's.
+    if (!ACTOR_KINDS.includes(parseObjectName(objectName).kind)) return marks;
+    return (
+        <button
+            type="button"
+            onClick={(event) => {
+                event.stopPropagation();
+                peek("instance", instanceId(objectName, node));
+            }}
+            title={t("objects.openInstance", {node})}
+            aria-label={t("objects.openInstanceOf", {node, name: objectName})}
+            className="inline-flex rounded-(--radius-control) hover:underline focus-visible:outline-2 focus-visible:outline-(--focus-ring)"
+        >
+            {marks}
+        </button>
+    );
 }, (prev, next) => prev.objectName === next.objectName && prev.node === next.node);
 
+/**
+ * The columns of the object properties, read from its status: how the daemon
+ * orchestrates it and how its instances are laid out. Objects without instances
+ * to place (cfg, sec, usr) have no orchestrate nor topology.
+ */
+export const PROPERTY_COLUMNS = [
+    {key: "orchestrate", labelKey: "objects.columns.orchestrate", value: (status) => status?.orchestrate},
+    {key: "topology", labelKey: "objects.columns.topology", value: (status) => status?.topology},
+];
+
+/**
+ * The property columns of a narrow list: the orchestrate and the topology a badge by
+ * the path there, the instances up out of the target in their place.
+ */
+const NARROW_PROPERTY_COLUMNS = [
+    {key: "up", labelKey: "objects.columns.up", value: (status) => status?.up_instances_count},
+];
+
 const stopPropagation = (e) => e.stopPropagation();
+
+/** The path of the configuration of a namespace, as om3 writes it: "<namespace>/", "/" for the root one. */
+const nscfgPath = (namespace) => (namespace === "root" ? "/" : `${namespace}/`);
+const isNscfg = (objectName) => parseObjectName(objectName).kind === "nscfg";
+
+/**
+ * The line opening the objects of a namespace in the list: its name across the
+ * row, and a checkbox selecting all its objects the filters keep, on every page;
+ * mixed when some of them only are selected. It stands for the configuration of the
+ * namespace, which has no line of its own: a click opens it. Configure opens it too,
+ * offered with none yet to those who may write it (root, a squatter), created by
+ * its first change; Create, the wizard of a new object, in the namespace. Narrow, a
+ * small badge over the name, for the line to be as high as the others, the buttons
+ * their icons alone.
+ */
+/**
+ * A button of the line of a namespace, outlined, or of the accent fill when it
+ * creates (`create`), low enough for the line to stay as high as the others: its icon and word, its icon alone when narrow; not a click of
+ * the line.
+ */
+const RowButton = ({narrow, icon, text, label, onClick, create = false}) => {
+    const click = (event) => {
+        event.stopPropagation();
+        onClick();
+    };
+    return narrow ? (
+        <IconButton label={label} tone={create ? "create" : undefined} className="h-6 w-6" onClick={click} onKeyDown={stopPropagation}>{icon}</IconButton>
+    ) : (
+        <Button size="sm" variant={create ? "create" : "secondary"} className="h-6 font-normal" icon={icon} aria-label={label} title={label} onClick={click} onKeyDown={stopPropagation}>
+            {text}
+        </Button>
+    );
+};
+
+const NamespaceRow = ({namespace, colSpan, selectedCount, total, onToggle, onOpen, mayConfigure, onCreate, narrow}) => {
+    const {t} = useTranslation();
+    const box = useRef(null);
+    const exists = useEventStore((s) => s.objectStatus?.[nscfgPath(namespace)] !== undefined);
+    const all = total > 0 && selectedCount === total;
+    const some = selectedCount > 0 && !all;
+    useEffect(() => {
+        if (box.current) box.current.indeterminate = some;
+    }, [some]);
+    const open = () => onOpen(nscfgPath(namespace));
+    return (
+        <tr
+            data-namespace-row={namespace}
+            tabIndex={exists ? 0 : undefined}
+            title={exists ? t("objects.openNamespaceConfig", {namespace}) : undefined}
+            onClick={exists ? open : undefined}
+            onKeyDown={exists ? (event) => {
+                if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
+                event.preventDefault();
+                // Space selects its objects, as the checkbox; Enter opens the configuration.
+                if (event.key === " ") toggleCheckbox(event.currentTarget);
+                else open();
+            } : undefined}
+            className={cn(
+                "h-[1.875rem] border-b border-line bg-surface-sunken",
+                exists && "cursor-pointer hover:bg-surface-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--focus-ring)",
+            )}
+        >
+            <td className="w-8 px-2 py-1">
+                <Checkbox
+                    ref={box}
+                    checked={all}
+                    onChange={(e) => onToggle(namespace, e.target.checked)}
+                    onClick={stopPropagation}
+                    aria-label={t("objects.selectNamespace", {namespace})}
+                />
+            </td>
+            {/* The name alone names the line; its buttons in the last cell, out of its name. */}
+            <th scope="rowgroup" colSpan={colSpan - 1} className="px-2 py-1 text-left font-semibold text-ink">
+                {narrow ? (
+                    <span className="flex flex-col items-start gap-0.5">
+                        <span className="flex h-4 items-center"><span className={cn(BADGE, "font-normal")}>{t("objects.badges.namespace")}</span></span>
+                        {namespace}
+                    </span>
+                ) : namespace}
+            </th>
+            <td className="px-2 py-1">
+                <span className="flex items-center justify-end gap-1 whitespace-nowrap">
+                    {(exists || mayConfigure) && (
+                        <RowButton
+                            narrow={narrow}
+                            icon={<GearIcon/>}
+                            text={t("objects.configure")}
+                            label={t("objects.configureNamespace", {namespace})}
+                            onClick={open}
+                        />
+                    )}
+                    <RowButton
+                        narrow={narrow}
+                        create
+                        icon={<PlusIcon/>}
+                        text={t("objects.createIn")}
+                        label={t("objects.createInNamespace", {namespace})}
+                        onClick={() => onCreate(namespace)}
+                    />
+                </span>
+            </td>
+        </tr>
+    );
+};
 
 const TableRowComponent = React.memo(({
                                           objectName,
                                           isSelected,
+                                          isOpen = false,
                                           onSelectObject,
                                           onObjectClick,
-                                          onActionClick,
                                           allNodes,
                                           isWideScreen,
+                                          isNarrow = false,
+                                          namesOnly = false,
                                       }) => {
+    const {t} = useTranslation();
     const objectData = useObjectData(objectName);
+    const isDegraded = useEventStore((s) => s.objectStatus?.[objectName]?.overall === "warn");
     const handleCheckboxChange = useCallback((e) => {
         onSelectObject(e, objectName);
     }, [onSelectObject, objectName]);
@@ -134,65 +277,60 @@ const TableRowComponent = React.memo(({
         onObjectClick(objectName);
     }, [onObjectClick, objectName]);
 
-    const isFrozen = objectData.frozen === "frozen";
-    const rowActions = useMemo(() => OBJECT_ACTIONS
-        .filter((action) =>
-            (!action.kinds || action.kinds.includes(parseObjectName(objectName).kind)) &&
-            isActionAllowedForSelection(action.name, [objectName]) &&
-            (action.name !== "freeze" || !isFrozen) &&
-            (action.name !== "unfreeze" || isFrozen)
-        )
-        .map((action) => ({
-            key: action.name,
-            label: capitalize(action.name),
-            icon: actionIcon(action),
-            onSelect: () => onActionClick(action.name, true, objectName),
-        })), [objectName, isFrozen, onActionClick]);
-
     return (
-        <Row onActivate={handleRowClick} className={isSelected ? "bg-accent-soft" : undefined}>
-            <Cell align="center" className="w-8">
+        <Row onActivate={handleRowClick} selected={isOpen} className={isSelected ? "bg-accent-soft" : undefined}>
+            <Cell className="w-8">
                 <Checkbox
                     checked={isSelected}
                     onChange={handleCheckboxChange}
                     onClick={stopPropagation}
-                    aria-label={`Select object ${objectName}`}
+                    aria-label={t("objects.selectObject", {name: objectName})}
                 />
             </Cell>
-            <Cell className="whitespace-nowrap">
-                <StatusMarks
-                    avail={objectData.avail}
-                    isNotProvisioned={objectData.isNotProvisioned}
-                    frozen={objectData.frozen}
-                    globalExpect={objectData.globalExpect}
-                />
+            <Cell className="text-data font-medium whitespace-nowrap">
+                {isNarrow && !namesOnly
+                    ? (
+                        // Narrow, the badge on a line of its own over the path, kept empty
+                        // when there is none, for the rows to be as high as one another.
+                        <span className="flex flex-col items-start gap-0.5">
+                            <span className="flex h-4 items-center" data-badge-line="">
+                                <OrchestrateBadge objectName={objectName}/>
+                            </span>
+                            {objectName}
+                        </span>
+                    )
+                    : objectName}
             </Cell>
-            <Cell className="text-data font-medium whitespace-nowrap">{objectName}</Cell>
-            {isWideScreen &&
-                allNodes.map((node) => (
-                    <Cell key={node} className="whitespace-nowrap">
+            {namesOnly && <KeyCells objectName={objectName}/>}
+            {!namesOnly && <PropertyCells objectName={objectName} narrow={isNarrow}/>}
+            {!namesOnly && (
+                <Cell className="whitespace-nowrap">
+                    <StatusMarks
+                        avail={objectData.avail}
+                        isDegraded={isDegraded}
+                        isNotProvisioned={objectData.isNotProvisioned}
+                        frozen={objectData.frozen}
+                        globalExpect={objectData.globalExpect}
+                    />
+                </Cell>
+            )}
+            {/* A line before the instances: the columns past it are per node. */}
+            {!namesOnly && isWideScreen &&
+                allNodes.map((node, i) => (
+                    <Cell key={node} className={i === 0 ? "whitespace-nowrap border-l border-line" : "whitespace-nowrap"}>
                         <NodeStatus objectName={objectName} node={node}/>
                     </Cell>
                 ))}
-            <Cell align="center">
-                {/* The menu lives in the row: its clicks must not open the object. */}
-                <div className="inline-flex align-middle" onClick={stopPropagation}>
-                    <MenuButton
-                        label={`More actions for object ${objectName}`}
-                        icon={<MoreIcon className="h-4 w-4"/>}
-                        compact
-                        align="end"
-                        items={rowActions}
-                    />
-                </div>
-            </Cell>
         </Row>
     );
 }, (prevProps, nextProps) => {
     return (
         prevProps.objectName === nextProps.objectName &&
         prevProps.isSelected === nextProps.isSelected &&
+        prevProps.isOpen === nextProps.isOpen &&
         prevProps.isWideScreen === nextProps.isWideScreen &&
+        prevProps.isNarrow === nextProps.isNarrow &&
+        prevProps.namesOnly === nextProps.namesOnly &&
         prevProps.allNodes.length === nextProps.allNodes.length &&
         prevProps.allNodes.every((node, i) => node === nextProps.allNodes[i])
     );
@@ -204,6 +342,7 @@ const TableRowComponent = React.memo(({
  * Escape closes the popover.
  */
 const FilterPopover = ({label, options, selected, onToggle}) => {
+    const {t} = useTranslation();
     const ref = useRef(null);
 
     useEffect(() => {
@@ -225,7 +364,7 @@ const FilterPopover = ({label, options, selected, onToggle}) => {
     };
 
     const labelOf = (value) => options.find((option) => option.value === value)?.text ?? value;
-    const summary = selected.length === 0 ? "All" : selected.map(labelOf).join(", ");
+    const summary = selected.length === 0 ? t("common.all") : selected.map(labelOf).join(", ");
 
     return (
         <details ref={ref} className="relative" onKeyDown={onKeyDown}>
@@ -240,7 +379,7 @@ const FilterPopover = ({label, options, selected, onToggle}) => {
                 aria-label={label}
                 className="absolute top-full left-0 z-30 mt-1 flex max-h-72 min-w-44 flex-col gap-1 overflow-auto rounded-(--radius-panel) border border-line bg-surface-raised p-2 shadow-lg"
             >
-                {options.length === 0 && <span className="text-ink-muted">None</span>}
+                {options.length === 0 && <span className="text-ink-muted">{t("common.none")}</span>}
                 {options.map((option) => (
                     <Checkbox
                         key={option.value}
@@ -262,17 +401,28 @@ const FilterPopover = ({label, options, selected, onToggle}) => {
 /** The values on offer, plus those chosen (from the URL) that the data does not hold. */
 const withSelected = (values, selected) => [...values, ...selected.filter((value) => !values.includes(value))];
 
+/**
+ * A filter is worth showing with a choice to make: two values or more. With one,
+ * every object of the tab has it; shown anyway while it holds a value no object of
+ * the tab has, for that filter not to act unseen.
+ */
+const hasChoice = (values, selected) => values.length > 1 || selected.some((value) => !values.includes(value));
+
 const GLOBAL_STATE_MARKS = {
     up: <StatusMark state="up"/>,
     down: <StatusMark state="down"/>,
     warn: <StatusMark state="warn"/>,
-    "n/a": <StatusMark state="unknown"/>,
-    unprovisioned: <AlertTriangleIcon className="h-3.5 w-3.5 text-state-down"/>,
+    "n/a": <StatusMark state="na"/>,
+    unprovisioned: <PMark decorative/>,
 };
 
 const Objects = () => {
+    const {t} = useTranslation();
     const location = useLocation();
     const navigate = useNavigate();
+    // The object whose panel is open, and its tab, in the URL as the filters are.
+    const panel = usePanelSearch();
+    const {select: selectObject} = panel;
     const isMounted = useRef(true);
     const queryParams = new URLSearchParams(location.search);
     const globalStates = useMemo(() => ["up", "down", "warn", "n/a", "unprovisioned"], []);
@@ -288,34 +438,37 @@ const Objects = () => {
     const rawNamespaces = parseMultipleValues("namespace");
     const rawKinds = parseMultipleValues("kind");
     const rawSearchQuery = queryParams.get("name") || "";
+    const list = OBJECTS_TABS.includes(queryParams.get("list")) ? queryParams.get("list") : OBJECT_LISTS[0];
+    const namesOnly = NAMES_ONLY_LISTS.includes(list);
+    // Their objects have no status: no global state to filter on. One the URL holds,
+    // from another tab, is kept for it but filters nothing here.
+    const hasGlobalState = !namesOnly;
+    // A tab of a kind lists that kind: the kind filter is All's only. One the URL
+    // holds, from All, is kept for it but filters nothing here.
+    const hasKindFilter = list === ALL_LIST;
 
     const {daemon} = useFetchDaemonStatus();
     const objectStatus = useEventStore(selectObjectStatus);
     const objectInstanceStatus = useEventStore(selectObjectInstanceStatus);
-    const removeObject = useEventStore(selectRemoveObject);
     const [selectedObjects, setSelectedObjects] = useState([]);
+    // The actions on the selection: the Actions menu, its dialog, and the feedback strip.
+    const clearSelection = useCallback(() => setSelectedObjects([]), []);
+    const {items: bulkActions, feedback, dialog: actionDialog, notify} = useObjectBulkActions({selectedObjects, onDone: clearSelection});
     const [selectedNamespaces, setSelectedNamespaces] = useState(rawNamespaces);
     const [selectedKinds, setSelectedKinds] = useState(rawKinds);
     const [selectedGlobalStates, setSelectedGlobalStates] = useState(rawGlobalStates);
-    const [snackbar, setSnackbar] = useState({open: false, message: "", severity: "info"});
-    const [pendingAction, setPendingAction] = useState(null);
+    const [createOpen, setCreateOpen] = useState(false);
+    // The namespace a new object is created in, from the line of a namespace; else that of the filter.
+    const [createIn, setCreateIn] = useState(null);
+    const createInNamespace = useCallback((namespace) => {
+        setCreateIn(namespace);
+        setCreateOpen(true);
+    }, []);
+    // The configuration of a namespace, none yet, offered to those who may write it.
+    const mayWriteNscfg = canWriteClaims(useGrants());
     const [searchQuery, setSearchQuery] = useState(rawSearchQuery);
-    const [sortColumn, setSortColumn] = useState("object");
-    const [sortDirection, setSortDirection] = useState("asc");
-    const [statusCycleIndex, setStatusCycleIndex] = useState(0);
     const isWideScreen = useMediaQuery(WIDE_QUERY);
     const isMobile = useMediaQuery(MOBILE_QUERY);
-    const objectEventTypes = useMemo(() => [
-        "ObjectStatusUpdated",
-        "InstanceStatusUpdated",
-        "ObjectDeleted",
-        "InstanceMonitorUpdated",
-        "CONNECTION_OPENED",
-        "CONNECTION_ERROR",
-        "RECONNECTION_ATTEMPT",
-        "MAX_RECONNECTIONS_REACHED",
-        "CONNECTION_CLOSED"
-    ], []);
 
     const [showFilters, setShowFilters] = useState(() => isWideScreen ? true : !isMobile);
 
@@ -323,13 +476,7 @@ const Objects = () => {
     const deferredSelectedGlobalStates = useDeferredValue(selectedGlobalStates);
     const deferredSelectedNamespaces = useDeferredValue(selectedNamespaces);
     const deferredSelectedKinds = useDeferredValue(selectedKinds);
-    const deferredSortColumn = useDeferredValue(sortColumn);
-    const deferredSortDirection = useDeferredValue(sortDirection);
-    const deferredStatusCycleIndex = useDeferredValue(statusCycleIndex);
 
-    const [visibleCount, setVisibleCount] = useState(30);
-    const [loading, setLoading] = useState(false);
-    const tableContainerRef = useRef(null);
 
     const filtersId = React.useId();
 
@@ -343,12 +490,18 @@ const Objects = () => {
         [objects]
     );
 
+    // The objects of the list shown, the one the menu opened.
+    const listObjectNames = useMemo(
+        () => (list === ALL_LIST ? allObjectNames : allObjectNames.filter((name) => listOf(name) === list)),
+        [allObjectNames, list]
+    );
+
     const {namespaces, kinds} = useMemo(() => {
         const nsSet = new Set();
         const kindSet = new Set();
 
-        for (let i = 0; i < allObjectNames.length; i++) {
-            const name = allObjectNames[i];
+        for (let i = 0; i < listObjectNames.length; i++) {
+            const name = listObjectNames[i];
             nsSet.add(extractNamespace(name));
             kindSet.add(parseObjectName(name).kind);
         }
@@ -357,8 +510,18 @@ const Objects = () => {
             namespaces: Array.from(nsSet).sort(),
             kinds: Array.from(kindSet).sort()
         };
-    }, [allObjectNames]);
+    }, [listObjectNames]);
 
+    // A new object may go in any namespace known, whatever the tab.
+    const allNamespaces = useMemo(
+        () => [...new Set(allObjectNames.map(extractNamespace))].sort(),
+        [allObjectNames]
+    );
+
+    // The nodes of the cluster, in the order of its configuration as om mon shows
+    // them: a node gone keeps its column. Then the nodes reporting an instance that
+    // are not of it.
+    const clusterNodes = useClusterNodeOrder();
     const allNodes = useMemo(() => {
         const nodeSet = new Set();
         const objNames = Object.keys(objectInstanceStatus);
@@ -370,16 +533,17 @@ const Objects = () => {
             }
         }
 
-        return Array.from(nodeSet).sort();
-    }, [objectInstanceStatus]);
+        const known = clusterNodes ?? [];
+        return [...known, ...Array.from(nodeSet).filter((node) => !known.includes(node)).sort()];
+    }, [objectInstanceStatus, clusterNodes]);
 
     const filteredObjectNames = useMemo(() => {
         const result = [];
         const searchLower = deferredSearchQuery.toLowerCase();
         const hasSearch = searchLower.length > 0;
 
-        for (let i = 0; i < allObjectNames.length; i++) {
-            const name = allObjectNames[i];
+        for (let i = 0; i < listObjectNames.length; i++) {
+            const name = listObjectNames[i];
 
             if (hasSearch && !name.toLowerCase().includes(searchLower)) {
                 continue;
@@ -390,13 +554,13 @@ const Objects = () => {
                 continue;
             }
 
-            // Check kind filter (multiple selection)
-            if (deferredSelectedKinds.length > 0 && !deferredSelectedKinds.includes(parseObjectName(name).kind)) {
+            // Check kind filter (multiple selection), on All only
+            if (hasKindFilter && deferredSelectedKinds.length > 0 && !deferredSelectedKinds.includes(parseObjectName(name).kind)) {
                 continue;
             }
 
-            // Check global state filter (multiple selection)
-            if (deferredSelectedGlobalStates.length > 0) {
+            // Check global state filter (multiple selection), on the lists that have one
+            if (hasGlobalState && deferredSelectedGlobalStates.length > 0) {
                 const status = objects[name];
                 if (!status) continue;
 
@@ -426,53 +590,37 @@ const Objects = () => {
         }
 
         return result;
-    }, [allObjectNames, deferredSelectedGlobalStates, deferredSelectedNamespaces,
-        deferredSelectedKinds, deferredSearchQuery, objects]);
+    }, [listObjectNames, hasGlobalState, deferredSelectedGlobalStates, deferredSelectedNamespaces,
+        deferredSelectedKinds, hasKindFilter, deferredSearchQuery, objects]);
 
-    const getStatusOrder = (cycleIndex) => {
-        const statuses = ["n/a", "up", "warn", "down"];
-        const order = {};
-        for (let i = 0; i < statuses.length; i++) {
-            order[statuses[i]] = (i - cycleIndex + statuses.length) % statuses.length;
+    // Always in the order of their paths, namespace by namespace: a line opens each
+    // namespace (NamespaceRow). The root namespace's short paths ("cluster",
+    // "svc/x") are kept together under it, in the order of the namespaces.
+    const sortedObjectNames = useMemo(() => [...filteredObjectNames].sort((a, b) =>
+        extractNamespace(a).localeCompare(extractNamespace(b)) || a.localeCompare(b)
+    ), [filteredObjectNames]);
+
+    // The objects of each namespace the filters keep: what its line selects.
+    const namespaceObjects = useMemo(() => {
+        const byNamespace = new Map();
+        for (const name of sortedObjectNames) {
+            const ns = extractNamespace(name);
+            if (!byNamespace.has(ns)) byNamespace.set(ns, []);
+            byNamespace.get(ns).push(name);
         }
-        return order;
-    };
+        return byNamespace;
+    }, [sortedObjectNames]);
 
-    const sortedObjectNames = useMemo(() => {
-        const validStatuses = ["up", "down", "warn"];
+    // The configuration of a namespace has no line of its own: the line of its
+    // namespace stands for it. Alone in its namespace, it stays, for the namespace to
+    // be listed, its line drawn alone.
+    const rowObjectNames = useMemo(() => sortedObjectNames.filter((name) => !isNscfg(name)
+        || (namespaceObjects.get(extractNamespace(name)) ?? []).every(isNscfg)), [sortedObjectNames, namespaceObjects]);
 
-        if (deferredSortColumn === "object") {
-            const sorted = [...filteredObjectNames].sort((a, b) => a.localeCompare(b));
-            return deferredSortDirection === "asc" ? sorted : sorted.reverse();
-        }
-
-        if (deferredSortColumn === "status" || allNodes.includes(deferredSortColumn)) {
-            const statusOrder = getStatusOrder(deferredStatusCycleIndex);
-            const compareFn = (a, b) => {
-                let statusA, statusB;
-                if (deferredSortColumn === "status") {
-                    statusA = objectStatus[a]?.avail || "n/a";
-                    statusB = objectStatus[b]?.avail || "n/a";
-                    statusA = validStatuses.includes(statusA) ? statusA : "n/a";
-                    statusB = validStatuses.includes(statusB) ? statusB : "n/a";
-                } else {
-                    const getNodeAvail = (objName) => {
-                        return objectInstanceStatus[objName]?.[deferredSortColumn]?.avail || "n/a";
-                    };
-                    statusA = getNodeAvail(a);
-                    statusB = getNodeAvail(b);
-                }
-                return (statusOrder[statusA] || 0) - (statusOrder[statusB] || 0);
-            };
-            return [...filteredObjectNames].sort(compareFn);
-        }
-
-        return filteredObjectNames;
-    }, [filteredObjectNames, deferredSortColumn, deferredSortDirection, deferredStatusCycleIndex, objectStatus, objectInstanceStatus, allNodes]);
-
-    const visibleObjectNames = useMemo(() => {
-        return sortedObjectNames.slice(0, visibleCount);
-    }, [sortedObjectNames, visibleCount]);
+    // The rows of the page shown, as oc3 pages its lists.
+    const paging = usePaging("objects", rowObjectNames.length);
+    const {page: pageOf} = paging;
+    const visibleObjectNames = useMemo(() => pageOf(rowObjectNames), [pageOf, rowObjectNames]);
 
     const handleSelectObject = useCallback((event, objectName) => {
         setSelectedObjects((prev) =>
@@ -480,125 +628,28 @@ const Objects = () => {
         );
     }, []);
 
-    // The menus close themselves once an entry is chosen.
-    const handleActionClick = useCallback(
-        (action, isSingleObject = false, objectName = null) => {
-            setPendingAction({action, target: isSingleObject ? objectName : null});
-        },
-        []
-    );
-
-    const updateFrozenStatusOptimistic = useCallback((objectName, newFrozenValue) => {
-        const store = useEventStore.getState();
-        const currentStatus = store.objectStatus[objectName];
-        if (currentStatus) {
-            store.setObjectStatuses({
-                ...store.objectStatus,
-                [objectName]: {...currentStatus, frozen: newFrozenValue}
-            });
-        }
+    // A row is not rendered again for a new handler (TableRowComponent): one handler,
+    // reading the latest URL, or a row opened after a filter changed would bring the
+    // URL of before back, the filter dropped.
+    const objectClickRef = useRef({objectInstanceStatus, selectObject, openPeek: panel.openPeek});
+    objectClickRef.current = {objectInstanceStatus, selectObject, openPeek: panel.openPeek};
+    const handleObjectClick = useCallback((objectName) => {
+        const {objectInstanceStatus: instances, selectObject: select, openPeek} = objectClickRef.current;
+        // A namespace configuration is edited in the panel of its namespace.
+        const {kind, namespace} = parseObjectName(objectName);
+        if (kind === "nscfg") openPeek({kind: "namespace", id: namespace}, "config");
+        else if (instances[objectName]) select(objectName);
     }, []);
 
-    const handleExecuteActionOnSelected = useCallback(
-        async (action) => {
-            const token = localStorage.getItem("authToken");
-            if (!token) {
-                setSnackbar({open: true, message: "Authentication token not found", severity: "error"});
-                return;
-            }
-            setSnackbar({open: true, message: `Executing '${action}'...`, severity: "info"});
-            let successCount = 0;
-            let errorCount = 0;
-            const objectsToProcess = pendingAction?.target ? [pendingAction.target] : selectedObjects;
-            const promises = objectsToProcess.map(async (objectName) => {
-                const rawObj = objectStatus[objectName];
-                if (!rawObj) {
-                    errorCount++;
-                    return;
-                }
-                const {namespace, kind, name} = parseObjectName(objectName);
-                if ((action === "freeze" && rawObj.frozen === "frozen") || (action === "unfreeze" && rawObj.frozen === "unfrozen")) {
-                    errorCount++;
-                    return;
-                }
-                const endpoint = OBJECT_ACTIONS.find((a) => a.name === action)?.endpoint ?? `action/${action}`;
-                const url = `${URL_OBJECT}/${namespace}/${kind}/${name}/${endpoint}`;
-                try {
-                    const response = await fetch(url, {
-                        method: "POST",
-                        headers: {Authorization: `Bearer ${token}`, "Content-Type": "application/json"},
-                    });
-                    if (!response.ok) {
-                        const error = new Error(`HTTP error! status: ${response.status}`);
-                        logger.error(`Failed to execute ${action} on ${objectName}:`, error);
-                        errorCount++;
-                        return;
-                    }
-                    successCount++;
-
-                    if (action === "freeze") {
-                        updateFrozenStatusOptimistic(objectName, "frozen");
-                    } else if (action === "unfreeze") {
-                        updateFrozenStatusOptimistic(objectName, "unfrozen");
-                    } else if (action === "delete") {
-                        removeObject(objectName);
-                    }
-                } catch (error) {
-                    logger.error(`Failed to execute ${action} on ${objectName}:`, error);
-                    errorCount++;
-                }
-            });
-            await Promise.all(promises);
-
-            forceFlush();
-
-            setSnackbar({
-                open: true,
-                message:
-                    successCount && !errorCount
-                        ? `'${action}' succeeded on ${successCount} object(s).`
-                        : successCount
-                            ? `'${action}' partially succeeded: ${successCount} ok, ${errorCount} errors.`
-                            : `'${action}' failed on all ${objectsToProcess.length} object(s).`,
-                severity: successCount && !errorCount ? "success" : successCount ? "warning" : "error",
-            });
-            setSelectedObjects([]);
-            setPendingAction(null);
-        },
-        [pendingAction, selectedObjects, objectStatus, removeObject, updateFrozenStatusOptimistic]
-    );
-
-    const handleObjectClick = useCallback(
-        (objectName) => {
-            if (objectInstanceStatus[objectName]) navigate(`/objects/${encodeURIComponent(objectName)}`);
-        },
-        [objectInstanceStatus, navigate]
-    );
-
-    const handleSort = useCallback((column) => {
-        if (column === "status" || allNodes.includes(column)) {
-            if (sortColumn === column) {
-                setStatusCycleIndex((prev) => (prev + 1) % 4);
-            } else {
-                setSortColumn(column);
-                setStatusCycleIndex(0);
-            }
-            setSortDirection("asc");
-        } else {
-            if (sortColumn === column) {
-                setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-            } else {
-                setSortColumn(column);
-                setSortDirection("asc");
-            }
-            setStatusCycleIndex(0);
-        }
-        setVisibleCount(30);
-    }, [sortColumn, allNodes]);
+    const handleSelectNamespace = useCallback((namespace, checked) => {
+        const members = namespaceObjects.get(namespace) ?? [];
+        setSelectedObjects((prev) => (checked
+            ? [...new Set([...prev, ...members])]
+            : prev.filter((name) => !members.includes(name))));
+    }, [namespaceObjects]);
 
     const handleSearchChange = useCallback((e) => {
         setSearchQuery(e.target.value);
-        setVisibleCount(30);
     }, []);
 
     const toggleShowFilters = useCallback(() => {
@@ -635,36 +686,6 @@ const Objects = () => {
         });
     }, []);
 
-    const handleScroll = useCallback(() => {
-        if (loading) return;
-
-        const container = tableContainerRef.current;
-        if (!container) return;
-
-        const {scrollTop, scrollHeight, clientHeight} = container;
-        const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
-
-        if (scrollPercentage > 0.8 && visibleCount < sortedObjectNames.length) {
-            setLoading(true);
-            setTimeout(() => {
-                setVisibleCount(prev => Math.min(prev + 30, sortedObjectNames.length));
-                setLoading(false);
-            }, 100);
-        }
-    }, [loading, visibleCount, sortedObjectNames.length]);
-
-    useEffect(() => {
-        const container = tableContainerRef.current;
-        if (container) {
-            container.addEventListener('scroll', handleScroll);
-            return () => container.removeEventListener('scroll', handleScroll);
-        }
-    }, [handleScroll]);
-
-    useEffect(() => {
-        setVisibleCount(30);
-    }, [sortedObjectNames]);
-
     useEffect(() => {
         const timer = setTimeout(() => {
             if (!isMounted.current) return;
@@ -688,7 +709,10 @@ const Objects = () => {
                 return;
             }
 
-            const newQueryParams = new URLSearchParams();
+            // The other parameters, the open panel's, stay as they are; the page goes,
+            // the list filtered otherwise starting over from its first one.
+            const newQueryParams = new URLSearchParams(location.search);
+            ["globalState", "namespace", "kind", "name", "offset"].forEach((key) => newQueryParams.delete(key));
             if (selectedGlobalStates.length > 0) newQueryParams.set("globalState", selectedGlobalStates.join(','));
             if (selectedNamespaces.length > 0) newQueryParams.set("namespace", selectedNamespaces.join(','));
             if (selectedKinds.length > 0) newQueryParams.set("kind", selectedKinds.join(','));
@@ -713,17 +737,20 @@ const Objects = () => {
     const eventStarted = useRef(false);
     useEffect(() => {
         const token = localStorage.getItem("authToken");
+        let release = null;
         if (token && !eventStarted.current) {
-            startEventReception(token, [
+            release = retainEventReception(token, [
                 "ObjectStatusUpdated",
                 "InstanceStatusUpdated",
                 "ObjectDeleted",
                 "InstanceMonitorUpdated",
+                // A node dropped has its instances deleted: their marks give way to a "?".
+                "InstanceConfigDeleted",
             ]);
             eventStarted.current = true;
         }
         return () => {
-            closeEventSource();
+            release?.();
             eventStarted.current = false;
         };
     }, []);
@@ -734,32 +761,63 @@ const Objects = () => {
         };
     }, []);
 
-    const handleSelectAll = useCallback((e) => {
-        setSelectedObjects(e.target.checked ? filteredObjectNames : []);
+    // Another list, from the menu: the selection was the other list's. Its filters
+    // follow its address, read again above.
+    useEffect(() => {
+        setSelectedObjects([]);
+    }, [list]);
+
+    // Created, the object opens in its panel, over the tab it is listed in. Its
+    // creation and its provisioning, the actions tray says.
+    const handleCreated = useCallback((path) => {
+        setCreateOpen(false);
+        // All lists it too: kept.
+        const next = list === ALL_LIST ? ALL_LIST : listOf(path);
+        const params = new URLSearchParams(location.search);
+        if (next !== list) {
+            setSelectedObjects([]);
+            setSelectedKinds([]);
+            params.delete("kind");
+        }
+        if (next === OBJECT_LISTS[0]) params.delete("list");
+        else params.set("list", next);
+        ["tab", "peek", "peektab"].forEach((key) => params.delete(key));
+        params.set("sel", path);
+        // A datastore, created empty: on its keys, to add them.
+        const {kind} = parseObjectName(path);
+        if (kind === "cfg" || kind === "sec") params.set("tab", "keys");
+        navigate(`${location.pathname}?${params.toString()}`);
+    }, [list, location.pathname, location.search, navigate]);
+
+    // An object a filter hides, or gone, leaves the selection: an action on the
+    // selection acts on none the list does not show.
+    useEffect(() => {
+        const shown = new Set(filteredObjectNames);
+        setSelectedObjects((prev) => (prev.every((name) => shown.has(name))
+            ? prev
+            : prev.filter((name) => shown.has(name))));
     }, [filteredObjectNames]);
 
-    const handleSnackbarClose = useCallback(() => {
-        setSnackbar(prev => ({...prev, open: false}));
-    }, []);
-
-    const handleClosePendingAction = useCallback(() => {
-        setPendingAction(null);
-    }, []);
-
-    // The feedback message hides itself after a while, as the snackbar did.
-    useEffect(() => {
-        if (!snackbar.open) return;
-        const timer = setTimeout(handleSnackbarClose, FEEDBACK_DURATION_MS);
-        return () => clearTimeout(timer);
-    }, [snackbar, handleSnackbarClose]);
+    // All, the rows of the page shown: not those of the other pages, nor the
+    // configuration of a namespace its line stands for, unless that line is ticked.
+    // Unticked, the rows of the page leave the selection, those of others stay.
+    const handleSelectAll = useCallback((e) => {
+        const {checked} = e.target;
+        setSelectedObjects((prev) => (checked
+            ? [...new Set([...prev, ...visibleObjectNames])]
+            : prev.filter((name) => !visibleObjectNames.includes(name))));
+    }, [visibleObjectNames]);
+    const allSelected = visibleObjectNames.length > 0
+        && visibleObjectNames.every((name) => selectedObjects.includes(name));
 
     const globalStateOptions = useMemo(
         () => withSelected(globalStates, selectedGlobalStates).map((state) => ({
             value: state,
-            text: capitalize(state),
+            // The availabilities are daemon values, shown as such; unprovisioned is a word of the view.
+            text: state === "unprovisioned" ? t("objects.filters.unprovisioned") : capitalize(state),
             mark: GLOBAL_STATE_MARKS[state],
         })),
-        [globalStates, selectedGlobalStates]
+        [globalStates, selectedGlobalStates, t]
     );
     const namespaceOptions = useMemo(
         () => withSelected(namespaces, selectedNamespaces).map((namespace) => ({value: namespace, text: namespace})),
@@ -770,62 +828,54 @@ const Objects = () => {
         [kinds, selectedKinds]
     );
 
-    // Kind-limited actions (svc-only enable / disable) are offered when the whole selection is of that kind.
-    const bulkActions = useMemo(() => {
-        const selectedKinds = new Set(selectedObjects.map((obj) => parseObjectName(obj).kind));
-        return OBJECT_ACTIONS
-            .filter((action) => !action.kinds ||
-                (selectedKinds.size > 0 && [...selectedKinds].every((kind) => action.kinds.includes(kind))))
-            .map((action) => ({
-                key: action.name,
-                label: capitalize(action.name),
-                icon: actionIcon(action),
-                disabled: !isActionAllowedForSelection(action.name, selectedObjects),
-                onSelect: () => handleActionClick(action.name),
-            }));
-    }, [selectedObjects, handleActionClick]);
-
-    const columnCount = 4 + (isWideScreen ? allNodes.length : 0);
+    // Narrow, the orchestrate is a badge by the path: no column for it.
+    const propertyColumns = isMobile ? NARROW_PROPERTY_COLUMNS : PROPERTY_COLUMNS;
+    const columnCount = namesOnly ? 4 : 3 + propertyColumns.length + (isWideScreen ? allNodes.length : 0);
 
     return (
         <div className="flex h-full flex-col gap-3 p-4">
             <div className="flex shrink-0 flex-wrap items-center gap-3">
                 {isMobile && (
                     <Button
-                        variant="ghost"
                         size="sm"
                         icon={<FilterIcon className="h-4 w-4"/>}
                         onClick={toggleShowFilters}
-                        aria-label={showFilters ? "Hide filters" : "Show filters"}
+                        aria-label={showFilters ? t("objects.filters.hide") : t("objects.filters.show")}
                         aria-expanded={showFilters}
                         aria-controls={filtersId}
                     >
-                        <span className="hidden sm:inline">Filters</span>
+                        <span className="hidden sm:inline">{t("common.filters")}</span>
                         <ChevronDownIcon className={showFilters ? "h-4 w-4 rotate-180" : "h-4 w-4"}/>
                     </Button>
                 )}
                 {(!isMobile || showFilters) && (
                     <div id={filtersId} className="flex flex-wrap items-center gap-3">
-                        <FilterPopover
-                            label="Global State"
-                            options={globalStateOptions}
-                            selected={selectedGlobalStates}
-                            onToggle={handleGlobalStateChange}
-                        />
-                        <FilterPopover
-                            label="Namespace"
-                            options={namespaceOptions}
-                            selected={selectedNamespaces}
-                            onToggle={handleNamespaceChange}
-                        />
-                        <FilterPopover
-                            label="Kind"
-                            options={kindOptions}
-                            selected={selectedKinds}
-                            onToggle={handleKindChange}
-                        />
+                        {hasGlobalState && (
+                            <FilterPopover
+                                label={t("objects.filters.globalState")}
+                                options={globalStateOptions}
+                                selected={selectedGlobalStates}
+                                onToggle={handleGlobalStateChange}
+                            />
+                        )}
+                        {hasChoice(namespaces, selectedNamespaces) && (
+                            <FilterPopover
+                                label={t("objects.filters.namespace")}
+                                options={namespaceOptions}
+                                selected={selectedNamespaces}
+                                onToggle={handleNamespaceChange}
+                            />
+                        )}
+                        {hasKindFilter && hasChoice(kinds, selectedKinds) && (
+                            <FilterPopover
+                                label={t("objects.filters.kind")}
+                                options={kindOptions}
+                                selected={selectedKinds}
+                                onToggle={handleKindChange}
+                            />
+                        )}
                         <label className="flex items-center gap-1 text-ink-muted">
-                            Name
+                            {t("common.name")}
                             <span className="relative flex items-center">
                                 <SearchIcon className="pointer-events-none absolute left-2 h-3.5 w-3.5"/>
                                 <Input
@@ -839,100 +889,127 @@ const Objects = () => {
                     </div>
                 )}
                 <div className="ml-auto flex items-center gap-3">
-                    {selectedObjects.length > 0 && (
-                        <span className="whitespace-nowrap text-ink-muted">{selectedObjects.length} selected</span>
+                    <Button size="sm" variant="create" icon={<PlusIcon className="h-4 w-4"/>} onClick={() => {
+                        setCreateIn(null);
+                        setCreateOpen(true);
+                    }}>
+                        {t("createObject.open")}
+                    </Button>
+                    {/* Nothing selected, nothing to act on: how to select, in the place of the actions. */}
+                    {selectedObjects.length > 0 ? (
+                        <>
+                            <span className="whitespace-nowrap text-ink-muted">{t("common.selected", {count: selectedObjects.length})}</span>
+                            <MenuButton
+                                // The actions: a solid pill.
+                                prominent
+                                icon={<BoltIcon className="h-3.5 w-3.5"/>}
+                                label={t("objects.actionsMenu")}
+                                align="end"
+                                items={bulkActions}
+                            />
+                        </>
+                    ) : (
+                        <span className="whitespace-nowrap text-ink-muted">{t("objects.selectHint")}</span>
                     )}
-                    <MenuButton
-                        label="Actions on selected objects"
-                        disabled={!selectedObjects.length}
-                        align="end"
-                        items={bulkActions}
-                    />
                 </div>
             </div>
 
-            {snackbar.open && (
-                <Alert
-                    tone={TONES[snackbar.severity] ?? "info"}
-                    className="shrink-0"
-                    action={
-                        <IconButton label="Close" bare onClick={handleSnackbarClose}>
-                            <CloseIcon className="h-4 w-4"/>
-                        </IconButton>
-                    }
-                >
-                    {snackbar.message}
-                </Alert>
-            )}
+            {feedback}
 
-            <Table ref={tableContainerRef} sticky aria-label="Objects" className="min-h-0 flex-1">
+            <Pager paging={paging}/>
+
+            <Table
+                sticky
+                aria-label={t("objects.tableLabel")}
+                className="min-h-0 flex-1"
+            >
                 <thead>
                     <HeaderRow>
-                        <HeaderCell align="center" className="w-8">
+                        <HeaderCell className="w-8">
                             <Checkbox
-                                checked={selectedObjects.length === filteredObjectNames.length && filteredObjectNames.length > 0}
+                                checked={allSelected}
                                 onChange={handleSelectAll}
-                                aria-label="Select all objects"
+                                aria-label={t("objects.selectAll")}
                             />
                         </HeaderCell>
-                        <SortHeaderCell
-                            label="Status"
-                            active={sortColumn === "status"}
-                            direction={sortDirection}
-                            onSort={() => handleSort("status")}
-                        />
-                        <SortHeaderCell
-                            label="Object"
-                            active={sortColumn === "object"}
-                            direction={sortDirection}
-                            onSort={() => handleSort("object")}
-                        />
-                        {isWideScreen && allNodes.map((node) => (
-                            <SortHeaderCell
-                                key={node}
-                                label={node}
-                                active={sortColumn === node}
-                                direction={sortDirection}
-                                onSort={() => handleSort(node)}
-                            />
+                        {/* Fixed titles: the list is always in the order of the paths. */}
+                        <HeaderCell>{t("objects.columns.object")}</HeaderCell>
+                        {namesOnly && (
+                            <>
+                                <HeaderCell className="text-right">{t("objects.columns.keys")}</HeaderCell>
+                                <HeaderCell className="text-right" title={t("objects.columns.keysSizeHint")}>{t("objects.columns.keysSize")}</HeaderCell>
+                            </>
+                        )}
+                        {!namesOnly && propertyColumns.map(({key, labelKey}) => (
+                            <HeaderCell key={key}>{t(labelKey)}</HeaderCell>
                         ))}
-                        <HeaderCell align="center">Actions</HeaderCell>
+                        {!namesOnly && <HeaderCell>{t("common.status")}</HeaderCell>}
+                        {!namesOnly && isWideScreen && allNodes.map((node, i) => (
+                            <HeaderCell key={node} className={i === 0 ? "border-l border-line" : undefined}>{node}</HeaderCell>
+                        ))}
                     </HeaderRow>
                 </thead>
                 <tbody>
-                    {visibleObjectNames.map((objectName) => (
-                        <TableRowComponent
-                            key={objectName}
-                            objectName={objectName}
-                            isSelected={selectedObjects.includes(objectName)}
-                            onSelectObject={handleSelectObject}
-                            onObjectClick={handleObjectClick}
-                            onActionClick={handleActionClick}
-                            allNodes={allNodes}
-                            isWideScreen={isWideScreen}
-                        />
-                    ))}
+                    {visibleObjectNames.map((objectName, i) => {
+                        const ns = extractNamespace(objectName);
+                        // A line opens each namespace, and the page, which may start inside one.
+                        const opens = i === 0 || extractNamespace(visibleObjectNames[i - 1]) !== ns;
+                        const members = namespaceObjects.get(ns) ?? [];
+                        return (
+                            <React.Fragment key={objectName}>
+                                {opens && (
+                                    <NamespaceRow
+                                        namespace={ns}
+                                        colSpan={columnCount - 1}
+                                        total={members.length}
+                                        selectedCount={members.filter((name) => selectedObjects.includes(name)).length}
+                                        onToggle={handleSelectNamespace}
+                                        onOpen={handleObjectClick}
+                                        mayConfigure={mayWriteNscfg}
+                                        onCreate={createInNamespace}
+                                        narrow={isMobile}
+                                    />
+                                )}
+                                {/* A configuration alone in its namespace: its line, the namespace's, alone. */}
+                                {!isNscfg(objectName) && <TableRowComponent
+                                    objectName={objectName}
+                                    isSelected={selectedObjects.includes(objectName)}
+                                    isOpen={panel.sel === objectName}
+                                    onSelectObject={handleSelectObject}
+                                    onObjectClick={handleObjectClick}
+                                    allNodes={allNodes}
+                                    isWideScreen={isWideScreen}
+                                    isNarrow={isMobile}
+                                    namesOnly={namesOnly}
+                                />}
+                            </React.Fragment>
+                        );
+                    })}
                     {visibleObjectNames.length === 0 && (
                         <EmptyRow colSpan={columnCount}>
-                            No objects found matching the current filters.
+                            {t("objects.empty")}
                         </EmptyRow>
                     )}
                 </tbody>
             </Table>
-            {loading && (
-                <div className="flex shrink-0 justify-center">
-                    <Spinner label="Loading more objects"/>
-                </div>
-            )}
 
-            <ActionDialogManager
-                pendingAction={pendingAction}
-                handleConfirm={handleExecuteActionOnSelected}
-                target={pendingAction?.target ? `object ${pendingAction.target}` : `${selectedObjects.length} objects`}
-                supportedActions={OBJECT_ACTIONS.map((action) => action.name)}
-                onClose={handleClosePendingAction}
+            {actionDialog}
+            <CreateObjectDialog
+                open={createOpen}
+                onClose={() => setCreateOpen(false)}
+                defaultKind={LIST_KIND[list]}
+                defaultNamespace={createIn ?? (selectedNamespaces.length === 1 ? selectedNamespaces[0] : "root")}
+                namespaces={allNamespaces}
+                paths={allObjectNames}
+                onCreated={handleCreated}
             />
-            <EventLogger eventTypes={objectEventTypes} title="Object Events Logger" buttonLabel="Object Events"/>
+
+            <ObjectDetailPanel
+                path={panel.sel}
+                tab={panel.tab}
+                onTabChange={panel.setTab}
+                onClose={() => selectObject(undefined)}
+            />
         </div>
     );
 };

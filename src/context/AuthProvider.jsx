@@ -13,12 +13,17 @@ const baseInitialState = {
     accessToken: null,
 };
 
-const getInitialState = () => ({
-    ...baseInitialState,
-    accessToken: typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
-        ? localStorage.getItem('authToken')
-        : null,
-});
+// The token and the way it was got, both kept across reloads: an OpenID token taken
+// for a basic one on the first render was logged out by the basic refresh, expired
+// as it is when the page comes back, before the UserManager could renew it.
+const getInitialState = () => {
+    const hasStorage = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+    return {
+        ...baseInitialState,
+        accessToken: hasStorage ? localStorage.getItem('authToken') : null,
+        authChoice: hasStorage ? localStorage.getItem('authChoice') || null : null,
+    };
+};
 
 export const Login = 'Login';
 export const Logout = 'Logout';
@@ -68,12 +73,6 @@ export const AuthProvider = ({children}) => {
     const [auth, dispatch] = useReducer(authReducer, undefined, getInitialState);
     const refreshTimeout = useRef(null);
     const channel = useRef(null);
-    const oidcUserManagerRef = useRef(null);
-
-    // Safe access to window.oidcUserManager with browser check
-    const getOidcUserManager = useCallback(() => {
-        return typeof window !== 'undefined' ? window.oidcUserManager : null;
-    }, []);
 
     // Refresh function for non-OpenID
     const scheduleRefresh = useCallback((token) => {
@@ -121,37 +120,8 @@ export const AuthProvider = ({children}) => {
         }
     }, [auth.authChoice, dispatch]);
 
-    // OpenID token refresh handler
-    const setupOidcTokenRefresh = useCallback(() => {
-        const userManager = getOidcUserManager();
-        if (!userManager) return;
-
-        const handleTokenExpired = () => {
-            logger.warn('OpenID token expired, attempting silent renew...');
-            userManager.signinSilent()
-                .then(user => {
-                    const newToken = user.access_token;
-                    dispatch({type: SetAccessToken, data: newToken});
-                    localStorage.setItem('authToken', newToken);
-                    localStorage.setItem('tokenExpiration', user.expires_at.toString());
-                    if (typeof BroadcastChannel !== 'undefined' && channel.current) {
-                        channel.current.postMessage({type: 'tokenUpdated', data: newToken});
-                    }
-                })
-                .catch(err => {
-                    logger.error('Silent renew failed:', err);
-                    dispatch({type: Logout});
-                    if (typeof BroadcastChannel !== 'undefined' && channel.current) {
-                        channel.current.postMessage({type: 'logout'});
-                    }
-                });
-        };
-
-        userManager.events.addAccessTokenExpired(handleTokenExpired);
-        return () => {
-            userManager.events.removeAccessTokenExpired(handleTokenExpired);
-        };
-    }, [getOidcUserManager, dispatch]);
+    // The OpenID renewal is the UserManager's, its events handled by OidcInitializer
+    // (App.jsx): a second handler here logged out on a renewal it did not wait for.
 
     // Multi-tab synchronization (only in browser)
     useEffect(() => {
@@ -172,17 +142,6 @@ export const AuthProvider = ({children}) => {
         };
         return () => channel.current?.close();
     }, [auth.authChoice, scheduleRefresh]);
-
-    // Set up OIDC user manager reference
-    useEffect(() => {
-        if (auth.authChoice === 'openid') {
-            const userManager = getOidcUserManager();
-            if (userManager) {
-                oidcUserManagerRef.current = userManager;
-                return setupOidcTokenRefresh();
-            }
-        }
-    }, [auth.authChoice, getOidcUserManager, setupOidcTokenRefresh]);
 
     // Reschedule refresh when token changes
     useEffect(() => {

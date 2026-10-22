@@ -7,6 +7,7 @@
     "moduleResolution": "node",
     "strict": true, // Enforces strict type checking
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true
   },
   "include": ["src"], // Include files from the src/ folder

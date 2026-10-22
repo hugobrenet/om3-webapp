@@ -1,0 +1,398 @@
+{
+  "cluster/status": {
+    "cluster": {
+      "node": {
+        "dev3n1": {
+          "daemon": {
+            "collector": {
+              "id": "collector",
+              "state": "speaker",
+              "configured_at": "2026-10-12T11:21:43.901012422+02:00",
+              "created_at": "2026-10-12T11:21:42.688633+02:00",
+              "updated_at": "2026-10-12T11:21:48.90181396+02:00",
+              "url": "https://devcollector.opensvc.com/feeder"
+            },
+            "daemondata": {
+              "id": "daemondata",
+              "state": "running",
+              "configured_at": "2026-10-12T11:21:42.682392603+02:00",
+              "created_at": "2026-10-12T11:21:42.682392603+02:00",
+              "updated_at": "2026-10-12T11:21:42.682392603+02:00",
+              "queue_size": 0
+            },
+            "dns": {
+              "id": "dns",
+              "state": "running",
+              "configured_at": "2026-10-12T11:21:43.894871734+02:00",
+              "created_at": "2026-10-12T11:21:42.68862249+02:00",
+              "updated_at": "2026-10-12T11:21:43.894872174+02:00",
+              "nameservers": [
+                "10.44.0.11",
+                "10.44.0.12"
+              ]
+            },
+            "heartbeat": {
+              "last_messages": [
+                {
+                  "from": "dev3n1",
+                  "patch_length": 0,
+                  "type": "patch"
+                },
+                {
+                  "from": "dev3n2",
+                  "patch_length": 0,
+                  "type": "patch"
+                }
+              ],
+              "last_message": {
+                "from": "dev3n1",
+                "patch_length": 0,
+                "type": "patch"
+              },
+              "streams": [
+                {
+                  "id": "hb#1.rx",
+                  "state": "running",
+                  "configured_at": "2026-10-12T11:21:42.706302502+02:00",
+                  "created_at": "2026-10-12T11:21:42.706302502+02:00",
+                  "updated_at": "0001-01-01T00:00:00Z",
+                  "type": "unicast",
+                  "peers": {
+                    "dev3n2": {
+                      "desc": ":10011 \u2190 dev3n2",
+                      "is_beating": true,
+                      "changed_at": "2026-10-12T11:21:43.068240973+02:00",
+                      "last_beating_at": "2026-10-15T16:18:40.027063479+02:00"
+                    }
+                  },
+                  "alerts": []
+                },
+                {
+                  "id": "hb#1.tx",
+                  "state": "running",
+                  "configured_at": "2026-10-12T11:21:42.700497939+02:00",
+                  "created_at": "2026-10-12T11:21:42.700497939+02:00",
+                  "updated_at": "0001-01-01T00:00:00Z",
+                  "type": "unicast",
+                  "peers": {
+                    "dev3n2": {
+                      "desc": "\u2192 dev3n2:10011",
+                      "is_beating": true,
+                      "changed_at": "2026-10-12T11:21:42.941412065+02:00",
+                      "last_beating_at": "2026-10-15T16:18:42.701162656+02:00"
+                    }
+                  },
+                  "alerts": []
+                },
+                {
+                  "id": "hb#2.rx",
+                  "state": "running",
+                  "configured_at": "2026-10-12T11:21:42.710277667+02:00",
+                  "created_at": "2026-10-12T11:21:42.710277667+02:00",
+                  "updated_at": "0001-01-01T00:00:00Z",
+                  "type": "unicast",
+                  "peers": {
+                    "dev3n2": {
+                      "desc": ":10004 \u2190 dev3n2",
+                      "is_beating": true,
+                      "changed_at": "2026-10-12T11:21:43.059686553+02:00",
+                      "last_beating_at": "2026-10-15T16:18:40.027082955+02:00"
+                    }
+                  },
+                  "alerts": []
+                },
+                {
+                  "id": "hb#2.tx",
+                  "state": "running",
+                  "configured_at": "2026-10-12T11:21:42.70684635+02:00",
+                  "created_at": "2026-10-12T11:21:42.70684635+02:00",
+                  "updated_at": "0001-01-01T00:00:00Z",
+                  "type": "unicast",
+                  "peers": {
+                    "dev3n2": {
+                      "desc": "\u2192 dev3n2:10004",
+                      "is_beating": true,
+                      "changed_at": "2026-10-12T11:21:42.94145659+02:00",
+                      "last_beating_at": "2026-10-15T16:18:42.707505983+02:00"
+                    }
+                  },
+                  "alerts": []
+                },
+                {
+                  "id": "hb#4.rx",
+                  "state": "running",
+                  "configured_at": "2026-10-12T11:21:42.692996899+02:00",
+                  "created_at": "2026-10-12T11:21:42.692996899+02:00",
+                  "updated_at": "0001-01-01T00:00:00Z",
+                  "type": "unicast",
+                  "peers": {
+                    "dev3n2": {
+                      "desc": ":10009 \u2190 dev3n2",
+                      "is_beating": true,
+                      "changed_at": "2026-10-12T11:21:43.059681403+02:00",
+                      "last_beating_at": "2026-10-15T16:18:40.027067617+02:00"
+                    }
+                  },
+                  "alerts": []
+                },
+                {
+                  "id": "hb#4.tx",
+                  "state": "running",
+                  "configured_at": "2026-10-12T11:21:42.691215431+02:00",
+                  "created_at": "2026-10-12T11:21:42.691215431+02:00",
+                  "updated_at": "0001-01-01T00:00:00Z",
+                  "type": "unicast",
+                  "peers": {
+                    "dev3n2": {
+                      "desc": "\u2192 dev3n2:10009",
+                      "is_beating": true,
+                      "changed_at": "2026-10-12T11:21:42.941346591+02:00",
+                      "last_beating_at": "2026-10-15T16:18:42.692841218+02:00"
+                    }
+                  },
+                  "alerts": []
+                },
+                {
+                  "id": "hb#relay.rx",
+                  "state": "running",
+                  "configured_at": "2026-10-12T11:21:42.698049821+02:00",
+                  "created_at": "2026-10-12T11:21:42.698049821+02:00",
+                  "updated_at": "0001-01-01T00:00:00Z",
+                  "type": "relay",
+                  "peers": {
+                    "dev3n2": {
+                      "desc": "\u2190 dev3@relay3.opensvc.com:3333",
+                      "is_beating": true,
+                      "changed_at": "2026-10-12T11:21:52.72087138+02:00",
+                      "last_beating_at": "2026-10-15T16:18:52.720551627+02:00"
+                    }
+                  },
+                  "alerts": []
+                },
+                {
+                  "id": "hb#relay.tx",
+                  "state": "running",
+                  "configured_at": "2026-10-12T11:21:42.6949387+02:00",
+                  "created_at": "2026-10-12T11:21:42.6949387+02:00",
+                  "updated_at": "0001-01-01T00:00:00Z",
+                  "type": "relay",
+                  "peers": {
+                    "dev3n2": {
+                      "desc": "\u2192 dev3@relay3.opensvc.com:3333",
+                      "is_beating": true,
+                      "changed_at": "2026-10-12T11:21:43.021925529+02:00",
+                      "last_beating_at": "2026-10-15T16:18:37.666850114+02:00"
+                    }
+                  },
+                  "alerts": []
+                }
+              ],
+              "secret_version": {
+                "main": 0,
+                "alt": 0
+              },
+              "updated_at": "2026-10-15T16:18:56.385337842+02:00"
+            },
+            "listener": {
+              "id": "",
+              "state": "running",
+              "configured_at": "2026-10-12T11:21:43.882222672+02:00",
+              "created_at": "2026-10-12T11:21:43.880227671+02:00",
+              "updated_at": "2026-10-12T11:21:43.882222672+02:00",
+              "addr": "::",
+              "port": "1215",
+              "rate_limiter": {
+                "rate": 20,
+                "burst": 100,
+                "expires": 60000000000
+              }
+            },
+            "nodename": "dev3n1",
+            "pid": 604712,
+            "started_at": "2026-10-12T11:21:42.278146894+02:00",
+            "runner_imon": {
+              "id": "runner_imon",
+              "state": "running",
+              "configured_at": "0001-01-01T00:00:00Z",
+              "created_at": "2026-10-12T11:21:42.688643319+02:00",
+              "updated_at": "2026-10-12T11:21:43.904071274+02:00",
+              "max_running": 10
+            },
+            "scheduler": {
+              "id": "scheduler",
+              "state": "running",
+              "configured_at": "2026-10-12T11:21:43.904704271+02:00",
+              "created_at": "2026-10-12T11:21:42.688638981+02:00",
+              "updated_at": "2026-10-12T11:21:43.904727104+02:00",
+              "count": 0,
+              "max_running": 10
+            }
+          }
+        }
+      }
+    }
+  },
+  "daemon/orchestration": {
+    "items": [
+      {
+        "ended_at": "2026-10-15T16:04:20.91905425+02:00",
+        "expect": "placed",
+        "node": "dev3n1",
+        "orchestration_id": "88ba3c71-1731-4655-8258-d4c450241caa",
+        "path": "foo002",
+        "started_at": "2026-10-15T16:04:18.090263003+02:00",
+        "state": "succeeded"
+      },
+      {
+        "expect": "placed",
+        "node": "dev3n1",
+        "orchestration_id": "d553d817-8ea8-4627-9f09-ee7bccce5169",
+        "path": "foo001",
+        "started_at": "2026-10-15T16:04:00.211087677+02:00",
+        "state": "running"
+      }
+    ],
+    "kind": "OrchestrationList"
+  },
+  "daemon/exec": {
+    "items": [
+      {
+        "command": "/usr/bin/om system/svc/vip instance status -m",
+        "ended_at": "2026-10-15T16:19:23.272591794+02:00",
+        "exec_id": "7c60f2cc-2599-4e32-9d29-db88acdb571e",
+        "exit_code": 0,
+        "node": "dev3n1",
+        "origin": "scheduler",
+        "path": "system/svc/vip",
+        "rid": "DEFAULT",
+        "session_id": "11b27d66-a45a-48b4-839f-e5596d52a5b8",
+        "started_at": "2026-10-15T16:19:23.196416698+02:00",
+        "state": "succeeded"
+      },
+      {
+        "command": "/usr/bin/om foo003 instance status -r",
+        "ended_at": "2026-10-15T16:19:22.054520408+02:00",
+        "exec_id": "ef812c45-1ccd-4de6-a4e3-bacb3bbc49fb",
+        "exit_code": 0,
+        "node": "dev3n1",
+        "origin": "scheduler",
+        "path": "foo003",
+        "rid": "DEFAULT",
+        "session_id": "5d4088d4-065d-4f18-aada-f15f9282e70c",
+        "started_at": "2026-10-15T16:19:22.012935001+02:00",
+        "state": "succeeded"
+      },
+      {
+        "command": "/usr/bin/om encap instance status -m",
+        "ended_at": "2026-10-15T16:18:48.917249847+02:00",
+        "exec_id": "373654df-e789-4f51-83b3-c0841c03a14a",
+        "exit_code": 0,
+        "node": "dev3n1",
+        "origin": "scheduler",
+        "path": "encap",
+        "rid": "DEFAULT",
+        "session_id": "d8bebde4-86ed-4e80-8b41-45b59192069a",
+        "started_at": "2026-10-15T16:18:48.846283462+02:00",
+        "state": "succeeded"
+      },
+      {
+        "command": "/usr/bin/om mon/vol/prometheus-data instance status -r",
+        "ended_at": "2026-10-15T16:14:40.603328996+02:00",
+        "exec_id": "75853d67-9b27-48b3-a7ab-a2a9bee117db",
+        "exit_code": 0,
+        "node": "dev3n1",
+        "origin": "scheduler",
+        "path": "mon/vol/prometheus-data",
+        "rid": "DEFAULT",
+        "session_id": "5a1ab260-672d-47ee-85ba-bb3120b1a985",
+        "started_at": "2026-10-15T16:14:40.532122729+02:00",
+        "state": "succeeded"
+      },
+      {
+        "command": "/usr/bin/om system/svc/vip instance status -m",
+        "ended_at": "2026-10-15T16:14:23.235093298+02:00",
+        "exec_id": "d8d61b18-41de-4ecb-944b-906165502a0f",
+        "exit_code": 0,
+        "node": "dev3n1",
+        "origin": "scheduler",
+        "path": "system/svc/vip",
+        "rid": "DEFAULT",
+        "session_id": "f289760f-2fb6-437a-93b0-a3228a69b7a8",
+        "started_at": "2026-10-15T16:14:23.195552937+02:00",
+        "state": "succeeded"
+      },
+      {
+        "command": "/usr/bin/om encap instance status -m",
+        "ended_at": "2026-10-15T16:13:48.911366873+02:00",
+        "exec_id": "42f35223-9c08-4246-882d-675a3461d3f0",
+        "exit_code": 0,
+        "node": "dev3n1",
+        "origin": "scheduler",
+        "path": "encap",
+        "rid": "DEFAULT",
+        "session_id": "f8e02250-540e-4cfc-a50c-2dc6cc787bed",
+        "started_at": "2026-10-15T16:13:48.845830168+02:00",
+        "state": "succeeded"
+      }
+    ],
+    "kind": "ExecList"
+  },
+  "daemon/dns/dump": [
+    {
+      "qname": "dev3.",
+      "qtype": "SOA",
+      "ttl": 60,
+      "content": "dns.dev3. contact@opensvc.com 1 7200 3600 432000 86400",
+      "domain_id": -1
+    },
+    {
+      "qname": "ns1.dev3.",
+      "qtype": "A",
+      "ttl": 60,
+      "content": "10.44.0.11",
+      "domain_id": -1
+    },
+    {
+      "qname": "dev3.",
+      "qtype": "NS",
+      "ttl": 3600,
+      "content": "ns1.dev3.",
+      "domain_id": -1
+    },
+    {
+      "qname": "dev3.",
+      "qtype": "SOA",
+      "ttl": 60,
+      "content": "dns.dev3. contact@opensvc.com 1 7200 3600 432000 86400",
+      "domain_id": -1
+    },
+    {
+      "qname": "ns2.dev3.",
+      "qtype": "A",
+      "ttl": 60,
+      "content": "10.44.0.12",
+      "domain_id": -1
+    },
+    {
+      "qname": "dev3.",
+      "qtype": "NS",
+      "ttl": 3600,
+      "content": "ns2.dev3.",
+      "domain_id": -1
+    },
+    {
+      "qname": "vip.system.svc.dev3n2.node.dev3.",
+      "qtype": "AAAA",
+      "ttl": 60,
+      "content": "2001:41d0:b00:8800:2345:6789:4400:100",
+      "domain_id": -1
+    },
+    {
+      "qname": "0.vip.system.svc.dev3n2.node.dev3.",
+      "qtype": "AAAA",
+      "ttl": 60,
+      "content": "2001:41d0:b00:8800:2345:6789:4400:100",
+      "domain_id": -1
+    }
+  ]
+}

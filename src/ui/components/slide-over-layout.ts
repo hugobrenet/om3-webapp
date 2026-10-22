@@ -14,13 +14,6 @@ export const RAIL_VISIBLE: Record<SlideOverSize, string> = {
   wider: "hidden xl:flex",
 };
 
-/** Shown only where the rail does not fit. */
-export const RAIL_FALLBACK: Record<SlideOverSize, string> = {
-  default: "md:hidden",
-  wide: "lg:hidden",
-  wider: "xl:hidden",
-};
-
 /**
  * Where a panel can be resized by its left edge: the same windows as the rail, a
  * narrower one being filled by the panel anyway. The handle shows there only.

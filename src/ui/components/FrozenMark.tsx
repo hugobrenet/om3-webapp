@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { SnowflakeIcon } from "../icons";
 
 /**
@@ -9,11 +10,12 @@ import { SnowflakeIcon } from "../icons";
  * being enough.
  */
 export function FrozenMark({ frozen }: { frozen: boolean }) {
+  const { t } = useTranslation();
   if (!frozen) return null;
   return (
-    <span title={"frozen"} className="text-icon-network">
+    <span title={t("ui.frozen")} className="text-icon-network">
       <SnowflakeIcon className="h-3.5 w-3.5" />
-      <span className="sr-only">{"frozen"}</span>
+      <span className="sr-only">{t("ui.frozen")}</span>
     </span>
   );
 }

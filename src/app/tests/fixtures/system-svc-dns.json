@@ -1,0 +1,426 @@
+{
+ "avail": "down",
+ "flex": {
+  "max": 2,
+  "min": 2,
+  "target": 2
+ },
+ "frozen": "unfrozen",
+ "instances": {
+  "dev3n1": {
+   "config": {
+    "app": "default",
+    "claims": {
+     "cpu": -1,
+     "memory": -1
+    },
+    "csum": "05e91e5195592d5a33b7f97282bb0604",
+    "flex": {
+     "max": 2,
+     "min": 2,
+     "target": 2
+    },
+    "is_disabled": false,
+    "monitor_action": [
+     "none"
+    ],
+    "orchestrate": "ha",
+    "placement_policy": "nodes order",
+    "priority": 50,
+    "resources": {
+     "container#config": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false,
+      "restart_delay": 500000000
+     },
+     "container#janitor": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false,
+      "restart_delay": 500000000
+     },
+     "container#recursor": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false,
+      "restart_delay": 500000000
+     },
+     "container#server": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false,
+      "restart_delay": 500000000
+     },
+     "sync#i0": {
+      "is_disabled": true,
+      "is_monitored": false,
+      "is_standby": false
+     },
+     "volume#1": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false,
+      "restart_delay": 500000000
+     }
+    },
+    "schedules": [
+     {
+      "action": "status",
+      "key": "status_schedule",
+      "max_parallel": 1,
+      "require_collector": false,
+      "require_provisioned": false,
+      "schedule": "@10m"
+     },
+     {
+      "action": "compliance_auto",
+      "key": "comp_schedule",
+      "max_parallel": 1,
+      "require_collector": true,
+      "require_provisioned": true,
+      "schedule": "~00:00-06:00"
+     },
+     {
+      "action": "info",
+      "key": "info_schedule",
+      "max_parallel": 1,
+      "require_collector": false,
+      "require_provisioned": false,
+      "schedule": "@60m"
+     }
+    ],
+    "scope": [
+     "dev3n1",
+     "dev3n2"
+    ],
+    "stonith": false,
+    "subsets": {},
+    "topology": "flex",
+    "updated_at": "2026-03-06T16:32:29.425529028+01:00",
+    "wait_syncs_timeout": 600000000000
+   },
+   "monitor": {
+    "global_expect": "none",
+    "global_expect_options": null,
+    "global_expect_updated_at": "0001-01-01T00:00:00Z",
+    "is_ha_leader": false,
+    "is_leader": false,
+    "local_expect": "none",
+    "local_expect_updated_at": "0001-01-01T00:00:00Z",
+    "monitor_action_executed_at": "0001-01-01T00:00:00Z",
+    "orchestration_id": "00000000-0000-0000-0000-000000000000",
+    "orchestration_is_done": false,
+    "preserved": false,
+    "session_id": "00000000-0000-0000-0000-000000000000",
+    "state": "start failed",
+    "state_updated_at": "2026-10-12T11:21:58.30981327+02:00",
+    "updated_at": "2026-10-12T11:21:58.560846105+02:00"
+   },
+   "status": {
+    "avail": "down",
+    "frozen_at": "0001-01-01T00:00:00Z",
+    "last_started_at": "2026-10-12T11:21:56.540231976+02:00",
+    "overall": "down",
+    "provisioned": "true",
+    "resources": {
+     "container#config": {
+      "info": {
+       "id": "2ce6a906a0cf344a6da09711d148773c0c50b340297bf4b4bc0bac7cf4afad04",
+       "image_id": "sha256:1c35c441208254cb7c3844ba95a96485388cef9ccc0646d562c7fc026e04c807",
+       "name": "system..dns.container.config",
+       "pid": 0
+      },
+      "label": "docker docker.io/busybox:1.31.1",
+      "provisioned": {
+       "mtime": "0001-01-01T00:00:00Z",
+       "state": "n/a"
+      },
+      "status": "n/a",
+      "type": "container.docker"
+     },
+     "container#janitor": {
+      "info": {
+       "id": "729c7e9c5e4792cc69e4342c6d468d7839a699a87ca0cb99a062be85eb5f74c3",
+       "image_id": "sha256:a58c4274d02ffa9daa567eb1d0a9b4c0e27d9fa108a8da7405020b14e03e079a",
+       "name": "system..dns.container.janitor",
+       "pid": 0
+      },
+      "label": "docker ghcr.io/opensvc/pdns_janitor:3",
+      "provisioned": {
+       "mtime": "0001-01-01T00:00:00Z",
+       "state": "n/a"
+      },
+      "status": "down",
+      "type": "container.docker"
+     },
+     "container#recursor": {
+      "info": {
+       "name": "system..dns.container.recursor"
+      },
+      "label": "docker docker.io/powerdns/pdns-recursor-48:4.8.4",
+      "provisioned": {
+       "mtime": "0001-01-01T00:00:00Z",
+       "state": "n/a"
+      },
+      "status": "down",
+      "type": "container.docker"
+     },
+     "container#server": {
+      "info": {
+       "name": "system..dns.container.server"
+      },
+      "label": "docker docker.io/powerdns/pdns-auth-47:4.7.4",
+      "provisioned": {
+       "mtime": "0001-01-01T00:00:00Z",
+       "state": "n/a"
+      },
+      "status": "down",
+      "type": "container.docker"
+     },
+     "sync#i0": {
+      "disable": true,
+      "label": "rsync ",
+      "provisioned": {
+       "mtime": "0001-01-01T00:00:00Z",
+       "state": "n/a"
+      },
+      "status": "n/a",
+      "type": "sync.rsync"
+     },
+     "volume#1": {
+      "label": "dns",
+      "log": [
+       {
+        "level": "info",
+        "message": "system/vol/dns avail down"
+       }
+      ],
+      "provisioned": {
+       "mtime": "2025-09-17T11:48:29.12267388+02:00",
+       "state": "true"
+      },
+      "status": "down",
+      "type": "volume"
+     }
+    },
+    "stopped_at": "0001-01-01T00:00:00Z",
+    "updated_at": "2026-10-12T13:51:34.569582706+02:00"
+   }
+  },
+  "dev3n2": {
+   "config": {
+    "app": "default",
+    "claims": {
+     "cpu": -1,
+     "memory": -1
+    },
+    "csum": "05e91e5195592d5a33b7f97282bb0604",
+    "flex": {
+     "max": 2,
+     "min": 2,
+     "target": 2
+    },
+    "is_disabled": false,
+    "monitor_action": [
+     "none"
+    ],
+    "orchestrate": "ha",
+    "placement_policy": "nodes order",
+    "priority": 50,
+    "resources": {
+     "container#config": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false,
+      "restart_delay": 500000000
+     },
+     "container#janitor": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false,
+      "restart_delay": 500000000
+     },
+     "container#recursor": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false,
+      "restart_delay": 500000000
+     },
+     "container#server": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false,
+      "restart_delay": 500000000
+     },
+     "sync#i0": {
+      "is_disabled": true,
+      "is_monitored": false,
+      "is_standby": false
+     },
+     "volume#1": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false,
+      "restart_delay": 500000000
+     }
+    },
+    "schedules": [
+     {
+      "action": "status",
+      "key": "status_schedule",
+      "max_parallel": 1,
+      "require_collector": false,
+      "require_provisioned": false,
+      "schedule": "@10m"
+     },
+     {
+      "action": "compliance_auto",
+      "key": "comp_schedule",
+      "max_parallel": 1,
+      "require_collector": true,
+      "require_provisioned": true,
+      "schedule": "~00:00-06:00"
+     },
+     {
+      "action": "info",
+      "key": "info_schedule",
+      "max_parallel": 1,
+      "require_collector": false,
+      "require_provisioned": false,
+      "schedule": "@60m"
+     }
+    ],
+    "scope": [
+     "dev3n1",
+     "dev3n2"
+    ],
+    "stonith": false,
+    "subsets": {},
+    "topology": "flex",
+    "updated_at": "2026-03-06T16:32:29.425529028+01:00",
+    "wait_syncs_timeout": 600000000000
+   },
+   "monitor": {
+    "global_expect": "none",
+    "global_expect_options": null,
+    "global_expect_updated_at": "0001-01-01T00:00:00Z",
+    "is_ha_leader": false,
+    "is_leader": false,
+    "local_expect": "none",
+    "local_expect_updated_at": "0001-01-01T00:00:00Z",
+    "monitor_action_executed_at": "0001-01-01T00:00:00Z",
+    "orchestration_id": "00000000-0000-0000-0000-000000000000",
+    "orchestration_is_done": false,
+    "preserved": false,
+    "session_id": "00000000-0000-0000-0000-000000000000",
+    "state": "start failed",
+    "state_updated_at": "2026-10-12T11:21:57.971538719+02:00",
+    "updated_at": "2026-10-12T11:21:58.222761091+02:00"
+   },
+   "status": {
+    "avail": "down",
+    "frozen_at": "0001-01-01T00:00:00Z",
+    "last_started_at": "2026-10-12T11:21:56.221159245+02:00",
+    "overall": "down",
+    "provisioned": "true",
+    "resources": {
+     "container#config": {
+      "info": {
+       "id": "20747c30929a4171b37daad5789454e1aed3e5c439f93ba149560cc1c2e378b5",
+       "image_id": "sha256:1c35c441208254cb7c3844ba95a96485388cef9ccc0646d562c7fc026e04c807",
+       "name": "system..dns.container.config",
+       "pid": 0
+      },
+      "label": "docker docker.io/busybox:1.31.1",
+      "provisioned": {
+       "mtime": "2025-10-28T14:26:49.334099225+01:00",
+       "state": "n/a"
+      },
+      "status": "n/a",
+      "type": "container.docker"
+     },
+     "container#janitor": {
+      "info": {
+       "id": "632cbf36dc387b7d15e2f1ca3447b147d092637229c62539b80f862f2ac0bb15",
+       "image_id": "sha256:a58c4274d02ffa9daa567eb1d0a9b4c0e27d9fa108a8da7405020b14e03e079a",
+       "name": "system..dns.container.janitor",
+       "pid": 0
+      },
+      "label": "docker ghcr.io/opensvc/pdns_janitor:3",
+      "provisioned": {
+       "mtime": "2025-10-28T14:26:49.353099217+01:00",
+       "state": "n/a"
+      },
+      "status": "down",
+      "type": "container.docker"
+     },
+     "container#recursor": {
+      "info": {
+       "name": "system..dns.container.recursor"
+      },
+      "label": "docker docker.io/powerdns/pdns-recursor-48:4.8.4",
+      "provisioned": {
+       "mtime": "2025-10-28T14:26:49.403099195+01:00",
+       "state": "n/a"
+      },
+      "status": "down",
+      "type": "container.docker"
+     },
+     "container#server": {
+      "info": {
+       "name": "system..dns.container.server"
+      },
+      "label": "docker docker.io/powerdns/pdns-auth-47:4.7.4",
+      "provisioned": {
+       "mtime": "2025-10-28T14:26:49.454099173+01:00",
+       "state": "n/a"
+      },
+      "status": "down",
+      "type": "container.docker"
+     },
+     "sync#i0": {
+      "disable": true,
+      "label": "rsync ",
+      "provisioned": {
+       "mtime": "0001-01-01T00:00:00Z",
+       "state": "n/a"
+      },
+      "status": "n/a",
+      "type": "sync.rsync"
+     },
+     "volume#1": {
+      "label": "dns",
+      "log": [
+       {
+        "level": "info",
+        "message": "system/vol/dns avail down"
+       }
+      ],
+      "provisioned": {
+       "mtime": "2025-10-28T14:26:49.27709925+01:00",
+       "state": "true"
+      },
+      "status": "down",
+      "type": "volume"
+     }
+    },
+    "stopped_at": "0001-01-01T00:00:00Z",
+    "updated_at": "2026-10-12T13:51:35.401856141+02:00"
+   }
+  }
+ },
+ "orchestrate": "ha",
+ "overall": "down",
+ "placement_policy": "nodes order",
+ "placement_state": "n/a",
+ "priority": 50,
+ "provisioned": "true",
+ "scope": [
+  "dev3n1",
+  "dev3n2"
+ ],
+ "topology": "flex",
+ "up_instances_count": 0,
+ "updated_at": "2026-10-12T13:51:35.658267138+02:00"
+}

@@ -4,6 +4,7 @@ import {MemoryRouter} from 'react-router-dom';
 import WhoAmI from '../WhoAmI';
 import {URL_AUTH_WHOAMI} from '../../config/apiPath';
 import {DarkModeProvider} from '../../context/DarkModeContext';
+import i18n from '../../i18n';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 
 const {
@@ -389,6 +390,26 @@ describe('WhoAmI', () => {
 
             const button = await screen.findByRole('button', {name: /light mode/i});
             expect(button).toBeInTheDocument();
+        });
+    });
+
+    describe('language', () => {
+        afterEach(async () => {
+            await i18n.changeLanguage('en');
+        });
+
+        test('the language chosen speaks at once, is kept, and the page says it', async () => {
+            setupMocks();
+            renderComponent();
+            const picker = await screen.findByRole('combobox', {name: 'Language'});
+            expect(picker).toHaveValue('en');
+            // Each language named in itself.
+            expect(screen.getByRole('option', {name: 'Français'})).toHaveAttribute('lang', 'fr');
+            fireEvent.change(picker, {target: {value: 'fr'}});
+            expect(await screen.findByRole('button', {name: 'Se déconnecter'})).toBeInTheDocument();
+            expect(screen.getByRole('combobox', {name: 'Langue'})).toHaveValue('fr');
+            expect(mockLocalStorage.setItem).toHaveBeenCalledWith('om3.language', 'fr');
+            expect(document.documentElement.lang).toBe('fr');
         });
     });
 

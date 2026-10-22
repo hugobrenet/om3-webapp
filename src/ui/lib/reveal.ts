@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import i18n from "../../i18n";
 
 /** How long a revealed secret stays on screen before it is masked again. */
 export const SECRET_REVEAL_MS = 10_000;
@@ -34,7 +35,7 @@ export function useAutoHide(shown: boolean, hide: () => void, delay: number = SE
   return remaining ?? Math.ceil(delay / 1000);
 }
 
-/** "1 second", "7 seconds". */
+/** "1 second", "7 seconds", in the current language. */
 export function formatSeconds(seconds: number): string {
-  return `${seconds} ${seconds === 1 ? "second" : "seconds"}`;
+  return i18n.t("ui.seconds", { count: seconds });
 }

@@ -1,4 +1,5 @@
 import React from 'react';
+import i18n from '../../i18n';
 import {render, screen, fireEvent, within} from '@testing-library/react';
 import {
     FreezeDialog, StopDialog, RestartDialog, ClearDialog, DrainDialog,
@@ -29,7 +30,9 @@ describe('ActionDialogs', () => {
             expect(within(dialog).getByLabelText(checkboxText)).toBe(checkbox);
             const confirmBtn = within(dialog).getByRole('button', {name: confirmName});
             expect(confirmBtn).toHaveTextContent(confirmText);
-            expect(confirmBtn).toHaveClass(danger ? 'bg-state-down' : 'bg-accent');
+            // None of them deletes: outlined, stop and restart too.
+            expect(confirmBtn).toHaveClass('border', 'border-line');
+            expect(confirmBtn).not.toHaveClass('bg-state-down', 'bg-accent');
             expect(within(dialog).getByRole('button', {name: 'Cancel'})).toBeEnabled();
         });
 
@@ -161,7 +164,7 @@ describe('ActionDialogs', () => {
 
         afterEach(() => jest.clearAllMocks());
 
-        test('asks to acknowledge the instances shutdown and the peer takeover before a danger confirm', () => {
+        test('asks to acknowledge the instances shutdown and the peer takeover before it confirms', () => {
             let checkboxes = {instancesDown: false, peerTakeover: false};
             const setCb = jest.fn(updater => {
                 checkboxes = updater(checkboxes);
@@ -174,7 +177,8 @@ describe('ActionDialogs', () => {
             ]);
             const confirmBtn = screen.getByRole('button', {name: 'Confirm shutdown action'});
             expect(confirmBtn).toBeDisabled();
-            expect(confirmBtn).toHaveClass('bg-state-down');
+            // A shutdown deletes nothing: outlined.
+            expect(confirmBtn).toHaveClass('border', 'border-line');
 
             fireEvent.click(screen.getByLabelText(/all svc and vol instances on this node will be shut down/i));
             expect(checkboxes).toEqual({instancesDown: true, peerTakeover: false});
@@ -649,5 +653,97 @@ describe('ActionDialogs', () => {
             fireEvent.click(cancelBtn);
             expect(onClose).toHaveBeenCalled();
         });
+    });
+
+    // ----- What a dialog acts on -----
+    describe('target', () => {
+        test.each([
+            ['FreezeDialog', FreezeDialog], ['StopDialog', StopDialog], ['SwitchDialog', SwitchDialog],
+            ['GivebackDialog', GivebackDialog],
+        ])('%s says what it acts on', (_, DialogComponent) => {
+            render(<DialogComponent open onClose={onClose} onConfirm={onConfirm} checked={false}
+                                    setChecked={defaultSetState} disabled={false} target="object root/svc/web"/>);
+            expect(screen.getByRole('dialog')).toHaveTextContent('Acts on object root/svc/web.');
+            expect(screen.getByText('object root/svc/web', {selector: 'strong'})).toBeInTheDocument();
+        });
+
+        test.each([
+            ['ShutdownDialog', ShutdownDialog, {instancesDown: false, peerTakeover: false}],
+            ['UnprovisionDialog', UnprovisionDialog, {dataLoss: false, serviceInterruption: false, clusterwide: false}],
+            ['PurgeDialog', PurgeDialog, {dataLoss: false, configLoss: false, serviceInterruption: false}],
+            ['DeleteDialog', DeleteDialog, {configLoss: false, clusterwide: false}],
+        ])('%s lists the names of a bulk action', (_, DialogComponent, checkboxes) => {
+            render(<DialogComponent open onClose={onClose} onConfirm={onConfirm} checkboxes={checkboxes}
+                                    setCheckboxes={defaultSetState} disabled={false}
+                                    target="3 objects" names={['root/svc/a', 'root/svc/b', 'root/svc/c']}/>);
+            const dialog = screen.getByRole('dialog');
+            expect(dialog).toHaveTextContent('Acts on 3 objects.');
+            const list = within(dialog).getByRole('list', {name: 'Targets'});
+            expect(within(list).getAllByRole('listitem').map((li) => li.textContent))
+                .toEqual(['root/svc/a', 'root/svc/b', 'root/svc/c']);
+        });
+
+        test('ShutdownDialog on instances says their resources stop, not the daemon', () => {
+            render(<ShutdownDialog open onClose={onClose} onConfirm={onConfirm} instances
+                                   checkboxes={{instancesDown: false, peerTakeover: false}}
+                                   setCheckboxes={defaultSetState} disabled={false}/>);
+            const dialog = screen.getByRole('dialog');
+            expect(within(dialog).getByRole('checkbox', {name: 'Confirm instances shutdown'})).toBeInTheDocument();
+            expect(dialog).toHaveTextContent('every resource of these instances, standby ones included, will be stopped');
+            expect(dialog).not.toHaveTextContent('daemon');
+        });
+
+        test('DeleteDialog on instances says their configuration only goes, not orchestrated', () => {
+            render(<DeleteDialog open onClose={onClose} onConfirm={onConfirm} instances
+                                 checkboxes={{configLoss: true, clusterwide: true}}
+                                 setCheckboxes={defaultSetState} disabled={false}/>);
+            const dialog = screen.getByRole('dialog');
+            expect(within(dialog).getByRole('checkbox', {name: 'Confirm instance configuration loss'})).toBeChecked();
+            expect(within(dialog).getByRole('checkbox', {name: 'Confirm instance configuration only'})).toBeChecked();
+            expect(dialog).not.toHaveTextContent('clusterwide');
+            expect(within(dialog).getByRole('button', {name: 'Confirm delete action'})).toBeEnabled();
+        });
+
+        test('UnprovisionDialog on instances asks no clusterwide acknowledgement', () => {
+            render(<UnprovisionDialog open onClose={onClose} onConfirm={onConfirm} instances
+                                      checkboxes={{dataLoss: true, serviceInterruption: true, clusterwide: false}}
+                                      setCheckboxes={defaultSetState} disabled={false}/>);
+            expect(screen.queryByRole('checkbox', {name: 'Confirm clusterwide orchestration'})).not.toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Confirm unprovision action'})).toBeEnabled();
+        });
+
+        test('a single name is not listed again', () => {
+            render(<DeleteDialog open onClose={onClose} onConfirm={onConfirm}
+                                 checkboxes={{configLoss: false, clusterwide: false}}
+                                 setCheckboxes={defaultSetState} disabled={false}
+                                 target="1 objects" names={['root/svc/a']}/>);
+            expect(screen.queryByRole('list')).not.toBeInTheDocument();
+        });
+    });
+});
+
+describe('ActionDialogs in French', () => {
+    beforeEach(async () => {
+        await i18n.changeLanguage('fr');
+    });
+    afterEach(async () => {
+        await i18n.changeLanguage('en');
+    });
+
+    test('PurgeDialog shows its French acknowledgements', () => {
+        render(<PurgeDialog open onClose={jest.fn()} onConfirm={jest.fn()}
+                            checkboxes={{dataLoss: false, configLoss: false, serviceInterruption: false}}
+                            setCheckboxes={jest.fn()} disabled={false}/>);
+        expect(screen.getByRole('dialog', {name: 'Confirmer la purge'})).toBeInTheDocument();
+        expect(screen.getByRole('checkbox', {name: 'Confirmer la perte de configuration'})).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Annuler'})).toBeInTheDocument();
+    });
+
+    test('SimpleConfirmDialog shows the translated action label', () => {
+        render(<SimpleConfirmDialog open onClose={jest.fn()} onConfirm={jest.fn()} action="restart daemon" target="node-1"/>);
+        expect(screen.getByRole('dialog')).toHaveTextContent(
+            "Voulez-vous vraiment exécuter l'action Redémarrer le démon sur node-1 ?"
+        );
+        expect(screen.getByText('Redémarrer le démon', {selector: 'strong'})).toBeInTheDocument();
     });
 });

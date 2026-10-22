@@ -2,7 +2,7 @@ import * as eventSourceManager from '../eventSourceManager';
 import {EventSourcePolyfill} from 'event-source-polyfill';
 import useEventStore from '../hooks/useEventStore.js';
 import useEventLogStore from '../hooks/useEventLogStore.js';
-import {URL_NODE_EVENT} from '../config/apiPath.js';
+import {URL_NODE_EVENT, URL_OBJECT} from '../config/apiPath.js';
 import {vi, beforeAll, afterAll, beforeEach, afterEach, describe, test, expect} from 'vitest';
 
 vi.mock('event-source-polyfill', () => ({
@@ -92,7 +92,9 @@ describe('eventSourceManager', () => {
                 if (JSON.stringify(mockStore.objectInstanceStatus) !== JSON.stringify(v)) mockStore.objectInstanceStatus = v;
             }),
             removeInstanceFromObject: vi.fn(),
+            removeNode: vi.fn(),
             removePendingDelete: vi.fn(),
+            removeObjects: vi.fn(),
         };
         mockStore.setNodeStatuses = makeSetter('nodeStatus');
         mockStore.setNodeMonitors = makeSetter('nodeMonitor');
@@ -160,7 +162,7 @@ describe('eventSourceManager', () => {
         test('should create an EventSource and attach event listeners', () => {
             const es = createES();
             expect(EventSourcePolyfill).toHaveBeenCalled();
-            expect(es.addEventListener).toHaveBeenCalledTimes(10);
+            expect(es.addEventListener).toHaveBeenCalledTimes(11);
         });
 
         test('should close existing EventSource before creating a new one', () => {
@@ -333,11 +335,127 @@ describe('eventSourceManager', () => {
             expect(EventSourcePolyfill).toHaveBeenCalledTimes(2);
         });
 
-        test('should not restart EventSource when connection is already closed', () => {
+        test('should restart EventSource when connection is already closed: the polyfill closes one refused', () => {
             createES('old-token');
             mockEventSource.readyState = 2;
             eventSourceManager.updateEventSourceToken('new-token');
-            expect(EventSourcePolyfill).toHaveBeenCalledTimes(1);
+            expect(EventSourcePolyfill).toHaveBeenCalledTimes(2);
+            expect(EventSourcePolyfill.mock.calls[1][1].headers.Authorization).toBe('Bearer new-token');
+        });
+    });
+
+    // ==================== A token refused, the reconnections ====================
+    describe('a token refused, and the reconnections', () => {
+        // A new source for each connection, as the polyfill makes, on its address.
+        const sources = [];
+        const opened = () => vi.mocked(EventSourcePolyfill).mock.calls;
+        const last = () => sources[sources.length - 1];
+
+        beforeEach(() => {
+            sources.length = 0;
+            vi.mocked(EventSourcePolyfill).mockImplementation((url) => {
+                const source = {onopen: null, onerror: null, addEventListener: vi.fn(), close: vi.fn(), readyState: 1, url};
+                sources.push(source);
+                return source;
+            });
+        });
+
+        /** The daemon refuses the token: the polyfill closes the source, then says why. */
+        const refuse = (source) => {
+            source.readyState = 2;
+            source.onerror({status: 401});
+        };
+
+        test('a 401 with a newer token stored opens the stream again with it', () => {
+            localStorageMock.getItem.mockReturnValue('new-token');
+            createES('old-token');
+            refuse(last());
+            expect(opened()).toHaveLength(2);
+            expect(opened()[1][0]).toBe(URL_NODE_EVENT);
+            expect(opened()[1][1].headers.Authorization).toBe('Bearer new-token');
+        });
+
+        test('the stream dead on a 401 that follows its own reconnection comes back, whatever the order', () => {
+            // A refresh the stream missed: the newer token stored, the stream on the old one.
+            localStorageMock.getItem.mockReturnValue('new-token');
+            const url = `${URL_NODE_EVENT}?cache=true&filter=InstanceStatusUpdated`;
+            eventSourceManager.createEventSource(url, 'old-token', ['InstanceStatusUpdated']);
+            // Given up on (a 502), reopened by our timer still on the old token, refused.
+            last().readyState = 2;
+            last().onerror({status: 502});
+            vi.advanceTimersByTime(30000);
+            expect(opened()).toHaveLength(2);
+            refuse(last());
+            expect(opened()).toHaveLength(3);
+            expect(opened()[2][0]).toBe(url);
+            expect(opened()[2][1].headers.Authorization).toBe('Bearer new-token');
+        });
+
+        test('an error while the polyfill reconnects on its own opens no second connection', () => {
+            createES();
+            last().readyState = 0;
+            last().onerror({message: 'No activity within 45000 milliseconds. Reconnecting.'});
+            vi.advanceTimersByTime(60000);
+            expect(opened()).toHaveLength(1);
+        });
+
+        test('a reconnection planned is cancelled by the stream closed', () => {
+            localStorageMock.getItem.mockReturnValue('tok');
+            createES('tok');
+            last().readyState = 2;
+            last().onerror({status: 502});
+            eventSourceManager.closeEventSource();
+            vi.advanceTimersByTime(60000);
+            expect(opened()).toHaveLength(1);
+        });
+
+        test('a reconnection planned does not bring back the address of a stream replaced since', () => {
+            localStorageMock.getItem.mockReturnValue('tok');
+            eventSourceManager.createEventSource(`${URL_NODE_EVENT}?filter=A`, 'tok', []);
+            last().readyState = 2;
+            last().onerror({status: 502});
+            eventSourceManager.createEventSource(`${URL_NODE_EVENT}?filter=B`, 'tok', []);
+            vi.advanceTimersByTime(60000);
+            expect(opened().map(([url]) => url)).toEqual([`${URL_NODE_EVENT}?filter=A`, `${URL_NODE_EVENT}?filter=B`]);
+        });
+
+        test('the logger stream opened does not reset the count of the main one', () => {
+            localStorageMock.getItem.mockReturnValue('tok');
+            createES('tok');
+            const main = last();
+            eventSourceManager.createLoggerEventSource(`${URL_NODE_EVENT}?filter=ObjectStatusUpdated`, 'tok', ['ObjectStatusUpdated']);
+            const feed = last();
+            for (let i = 0; i < 11; i++) {
+                main.readyState = 2;
+                main.onerror({status: 502});
+                feed.onopen();
+            }
+            expect(mockLogStore.addEventLog).toHaveBeenCalledWith('MAX_RECONNECTIONS_REACHED', expect.any(Object));
+        });
+
+        test('a token updated opens the logger stream again too', () => {
+            createES('old-token');
+            eventSourceManager.createLoggerEventSource(`${URL_NODE_EVENT}?filter=ObjectStatusUpdated`, 'old-token', ['ObjectStatusUpdated']);
+            eventSourceManager.updateEventSourceToken('new-token');
+            const tokens = opened().slice(2).map(([url, options]) => [url, options.headers.Authorization]);
+            expect(tokens).toEqual([
+                [URL_NODE_EVENT, 'Bearer new-token'],
+                [`${URL_NODE_EVENT}?filter=ObjectStatusUpdated`, 'Bearer new-token'],
+            ]);
+        });
+
+        test('the same claims on a stream given up on open it again', async () => {
+            localStorageMock.getItem.mockReturnValue('tok');
+            const release = eventSourceManager.retainEventReception('tok', ['ObjectStatusUpdated']);
+            await Promise.resolve();
+            expect(opened()).toHaveLength(1);
+            last().readyState = 2;
+            const again = eventSourceManager.retainEventReception('tok', ['ObjectStatusUpdated']);
+            await Promise.resolve();
+            expect(opened()).toHaveLength(2);
+            again();
+            release();
+            await Promise.resolve();
         });
     });
 
@@ -519,6 +637,16 @@ describe('eventSourceManager', () => {
             vi.runAllTimers();
             expect(mockStore.removeInstanceFromObject).toHaveBeenCalledWith('obj1', 'node1');
             expect(mockStore.removePendingDelete).toHaveBeenCalledWith('obj1', 'node1');
+        });
+
+        test('a node dropped by the cluster (NodeMonitorDeleted) leaves the store', () => {
+            const es = createES();
+            const handler = getHandler(es, 'NodeMonitorDeleted');
+            fire(handler, {node: 'node1'});
+            fire(handler, {labels: {node: 'node2'}});
+            fire(handler, {});
+            vi.runAllTimers();
+            expect(mockStore.removeNode.mock.calls).toEqual([['node1'], ['node2']]);
         });
 
         test('should warn on InstanceConfigDeleted missing path or node', () => {
@@ -846,15 +974,16 @@ describe('eventSourceManager', () => {
             }
         });
 
-        test('should merge repeated buffer updates for instanceStatus, instanceConfig, instanceMonitor, and catch-all (lines 444/455/459/463)', () => {
+        test('should keep the last instanceStatus, merge repeated buffer updates for instanceConfig, instanceMonitor, and catch-all', () => {
             {
                 const es = createES();
                 const h = getHandler(es, 'InstanceStatusUpdated');
+                // Each event the whole status: the last one, nothing of the first kept.
                 fire(h, {path: 'obj1', node: 'n1', instance_status: {a: 1}});
                 fire(h, {path: 'obj1', node: 'n1', instance_status: {b: 2}});
                 eventSourceManager.forceFlush();
                 expect(mockStore.setInstanceStatuses).toHaveBeenCalledWith(
-                    expect.objectContaining({obj1: {n1: {a: 1, b: 2}}})
+                    expect.objectContaining({obj1: {n1: {b: 2}}})
                 );
                 eventSourceManager.closeEventSource();
             }
@@ -1196,11 +1325,12 @@ describe('eventSourceManager', () => {
             expect(EventSourcePolyfill).toHaveBeenCalledTimes(2);
         });
 
-        test('should not restart logger EventSource when connection is already closed', () => {
+        test('should restart logger EventSource when connection is already closed: the polyfill closes one refused', () => {
             eventSourceManager.createLoggerEventSource(URL_NODE_EVENT, 'old-token', []);
             mockLoggerEventSource.readyState = 2;
             eventSourceManager.updateLoggerEventSourceToken('new-token');
-            expect(EventSourcePolyfill).toHaveBeenCalledTimes(1);
+            expect(EventSourcePolyfill).toHaveBeenCalledTimes(2);
+            expect(EventSourcePolyfill.mock.calls[1][1].headers.Authorization).toBe('Bearer new-token');
         });
 
         test('should configure and start logger with objectName', () => {
@@ -1210,6 +1340,13 @@ describe('eventSourceManager', () => {
             vi.clearAllMocks();
             eventSourceManager.startLoggerReception('fake-token', eventSourceManager.DEFAULT_FILTERS, 'my-service/svc1');
             expect(EventSourcePolyfill.mock.calls[0][0]).toContain('path');
+        });
+
+        test('should start logger for one node, filtering its events by node label', () => {
+            eventSourceManager.startLoggerReception('fake-token', ['NodeStatusUpdated'], null, 'dev3n1');
+            const url = EventSourcePolyfill.mock.calls[0][0];
+            expect(url).toContain('filter=NodeStatusUpdated,node=dev3n1');
+            expect(url).not.toContain('path=');
         });
 
         test('should reconnect logger EventSource after timeout with valid token', () => {
@@ -1346,6 +1483,148 @@ describe('eventSourceManager', () => {
             ['type mismatch nested', {a: {b: 1}}, {a: {b: '1'}}, false],
         ])('%s', (_label, a, b, expected) => {
             expect(isEqual(a, b)).toBe(expected);
+        });
+    });
+
+    describe('reconcileObjects', () => {
+        const answer = (paths, ok = true) => vi.fn(() => Promise.resolve({
+            ok, status: ok ? 200 : 500, json: () => Promise.resolve(paths),
+        }));
+
+        beforeEach(() => {
+            mockStore.objectStatus = {'root/svc/kept': {}, 'root/svc/gone': {}};
+            mockStore.objectInstanceStatus = {'root/svc/gone': {}};
+            mockStore.instanceConfig = {};
+            mockStore.instanceMonitor = {'n1:root/svc/stale': {}};
+        });
+
+        test('drops the objects the daemon no longer lists', async () => {
+            global.fetch = answer(['root/svc/kept', 'root/svc/other']);
+            await eventSourceManager.reconcileObjects('tok');
+            expect(global.fetch).toHaveBeenCalledWith(`${URL_OBJECT}?path=**`, expect.objectContaining({
+                headers: {Authorization: 'Bearer tok'},
+            }));
+            expect(mockStore.removeObjects).toHaveBeenCalledWith(['root/svc/gone', 'root/svc/stale']);
+        });
+
+        test('keeps an object created while the list was asked for', async () => {
+            global.fetch = vi.fn(() => {
+                mockStore.objectStatus = {...mockStore.objectStatus, 'root/svc/new': {}};
+                return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve(['root/svc/kept'])});
+            });
+            await eventSourceManager.reconcileObjects('tok');
+            expect(mockStore.removeObjects).toHaveBeenCalledWith(['root/svc/gone', 'root/svc/stale']);
+        });
+
+        test('drops nothing when every object is listed', async () => {
+            global.fetch = answer(['root/svc/kept', 'root/svc/gone', 'root/svc/stale']);
+            await eventSourceManager.reconcileObjects('tok');
+            expect(mockStore.removeObjects).not.toHaveBeenCalled();
+        });
+
+        test.each([
+            ['a refused request', () => answer(null, false)],
+            ['a network error', () => vi.fn(() => Promise.reject(new Error('offline')))],
+            ['an unexpected answer', () => answer({items: []})],
+        ])('drops nothing on %s', async (_label, makeFetch) => {
+            global.fetch = makeFetch();
+            await eventSourceManager.reconcileObjects('tok');
+            expect(mockStore.removeObjects).not.toHaveBeenCalled();
+        });
+
+        test('asks nothing while no object is held', async () => {
+            mockStore.objectStatus = {};
+            mockStore.objectInstanceStatus = {};
+            mockStore.instanceMonitor = {};
+            global.fetch = answer([]);
+            await eventSourceManager.reconcileObjects('tok');
+            expect(global.fetch).not.toHaveBeenCalled();
+        });
+
+        test('runs each time the stream opens', async () => {
+            global.fetch = answer(['root/svc/kept']);
+            createES('tok');
+            mockEventSource.onopen();
+            await vi.waitFor(() => expect(mockStore.removeObjects).toHaveBeenCalledWith(['root/svc/gone', 'root/svc/stale']));
+            expect(global.fetch).toHaveBeenCalledWith(`${URL_OBJECT}?path=**`, expect.anything());
+        });
+    });
+
+    // ==================== Stream claims ====================
+    describe('stream claims', () => {
+        // The claims of one render are applied together, once its microtasks run.
+        const settle = () => Promise.resolve();
+        const openedUrls = () => vi.mocked(EventSourcePolyfill).mock.calls.map(([url]) => url);
+
+        test('the union of the claims is the query', () => {
+            const {query, types} = eventSourceManager.claimsQuery([
+                {filters: ['ObjectStatusUpdated', 'InstanceStatusUpdated'], objectName: null},
+                {filters: ['InstanceStatusUpdated', 'Bogus'], objectName: null},
+            ]);
+            expect(query).toBe('cache=true&filter=InstanceStatusUpdated&filter=ObjectStatusUpdated');
+            expect(types).toEqual(['ObjectStatusUpdated', 'InstanceStatusUpdated']);
+        });
+
+        test('a claim on an object asks for the events of that object only', () => {
+            const {query} = eventSourceManager.claimsQuery([
+                {filters: ['ObjectStatusUpdated'], objectName: 'ns1/svc/web'},
+            ]);
+            expect(query).toContain('filter=ObjectStatusUpdated,path=ns1%2Fsvc%2Fweb');
+            expect(query).toContain('filter=InstanceConfigUpdated,path=ns1%2Fsvc%2Fweb');
+            expect(query).not.toMatch(/filter=ObjectStatusUpdated(&|$)/);
+        });
+
+        test('a panel over a list widens the stream, and closing it narrows it back', async () => {
+            const releaseList = eventSourceManager.retainEventReception('tok', ['ObjectStatusUpdated']);
+            await settle();
+            expect(openedUrls()).toEqual([`${URL_NODE_EVENT}?cache=true&filter=ObjectStatusUpdated`]);
+
+            const releasePanel = eventSourceManager.retainEventReception('tok', ['InstanceConfigUpdated'], 'ns1/svc/web');
+            await settle();
+            expect(openedUrls()).toHaveLength(2);
+            expect(openedUrls()[1]).toContain('filter=ObjectStatusUpdated&');
+            expect(openedUrls()[1]).toContain('path=ns1%2Fsvc%2Fweb');
+
+            releasePanel();
+            await settle();
+            expect(openedUrls()).toHaveLength(3);
+            expect(openedUrls()[2]).toBe(`${URL_NODE_EVENT}?cache=true&filter=ObjectStatusUpdated`);
+
+            releaseList();
+            await settle();
+            expect(mockEventSource.close).toHaveBeenCalled();
+            expect(openedUrls()).toHaveLength(3);
+        });
+
+        test('the claims released and made by one render open the stream once', async () => {
+            const release = eventSourceManager.retainEventReception('tok', ['NodeStatusUpdated']);
+            await settle();
+            release();
+            const again = eventSourceManager.retainEventReception('tok', ['NodeStatusUpdated']);
+            await settle();
+            expect(openedUrls()).toHaveLength(1);
+            again();
+            await settle();
+        });
+
+        test('a claim released twice releases once', async () => {
+            const releaseA = eventSourceManager.retainEventReception('tok', ['NodeStatusUpdated']);
+            const releaseB = eventSourceManager.retainEventReception('tok', ['NodeStatusUpdated']);
+            await settle();
+            releaseA();
+            releaseA();
+            await settle();
+            expect(mockEventSource.close).not.toHaveBeenCalled();
+            releaseB();
+            await settle();
+            expect(mockEventSource.close).toHaveBeenCalled();
+        });
+
+        test('no token, no claim', async () => {
+            const release = eventSourceManager.retainEventReception('', ['NodeStatusUpdated']);
+            await settle();
+            expect(EventSourcePolyfill).not.toHaveBeenCalled();
+            expect(() => release()).not.toThrow();
         });
     });
 });

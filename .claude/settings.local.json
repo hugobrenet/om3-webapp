@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//root/dev/**)",
+      "Bash(timeout 900 npx vitest run)",
+      "Read(//root/.volta/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(grep -E \"vitest|vite$|tsc\")",
+      "Read(//opt/**)",
+      "Bash(find / -maxdepth 4 -name node -type f -perm -u+x)",
+      "Read(//usr/share/opensvc/**)",
+      "Bash(om cluster *)",
+      "Read(//etc/opensvc/**)",
+      "Bash(python3 -)",
+      "Bash(python3 -c ' *)",
+      "Bash(ip -6 addr)",
+      "Bash(curl -sk https://dev3-vip.opensvc.com:1215/ui/)",
+      "Bash(om daemon *)",
+      "Bash(git rm *)",
+      "Bash(git reset *)",
+      "Bash(python3 /tmp/claude-0/-root-dev-om3-webapp/4e1d7aad-db4b-5a1a-b060-894dca13a51d/scratchpad/align.py)",
+      "Bash(python3 /tmp/claude-0/-root-dev-om3-webapp/4e1d7aad-db4b-5a1a-b060-894dca13a51d/scratchpad/os.py)",
+      "Bash(python3 /tmp/claude-0/-root-dev-om3-webapp/4e1d7aad-db4b-5a1a-b060-894dca13a51d/scratchpad/ct.py)",
+      "Bash(python3 /tmp/claude-0/-root-dev-om3-webapp/4e1d7aad-db4b-5a1a-b060-894dca13a51d/scratchpad/os3.py)",
+      "Bash(sed -n '/const row = \\(rid\\)/,/const confirm/p' src/components/tests/ObjectStatus.test.jsx)"
+    ]
+  }
+}

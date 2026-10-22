@@ -1,7 +1,13 @@
 import {Link, useLocation} from "react-router-dom";
+import {useTranslation} from "react-i18next";
 import {ChatIcon, SidebarIcon, UserIcon} from "../ui/icons";
+import {AlertMark} from "../ui/components/AlertMark";
+import {cn} from "../ui/cn";
+import {GlobalSearch} from "../app/GlobalSearch";
+import {loadSearchIndex} from "./searchIndex";
+import {applyPanelUpdate} from "../app/panel-search";
 import {StateGlyph} from "../ui/components/StateGlyph";
-import opensvcLogo from "../ui/assets/opensvc-logo.svg";
+import {ProductTag} from "../ui/components/ProductTag";
 import {useAuth} from "../context/AuthProvider.jsx";
 import {useEffect, useState, useCallback} from "react";
 import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus";
@@ -9,17 +15,28 @@ import useOnlineStatus from "../hooks/useOnlineStatus";
 import logger from '../utils/logger.js';
 import {getAiAgentConfig} from "../config/ai-agent.js";
 
-// Header icon buttons, as in the oc3 top bar: muted ink, darker on hover.
+// Header icon buttons: outlined, as every button that neither creates nor deletes; muted ink, darker on hover.
 const HEADER_BUTTON =
-    "flex h-7 w-7 shrink-0 items-center justify-center rounded-(--radius-control) text-ink-muted hover:bg-surface-sunken hover:text-ink";
+    "flex h-7 w-7 shrink-0 items-center justify-center rounded-(--radius-control) border border-line text-ink-muted hover:bg-surface-sunken hover:text-ink";
 
-const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false}) => {
+/** First path segments named after a view: their breadcrumb is translated, the others are names. */
+const SEGMENTS = new Set(["heartbeats", "kinds", "namespaces", "network", "nodes", "objects", "pools", "whoami"]);
+
+/** Breadcrumb item of a path segment; `key` is the catalog key of its label, translated at render. */
+const crumb = (part, index, path) => ({
+    name: part,
+    path,
+    key: index === 0 && SEGMENTS.has(part) ? `nav.breadcrumb.segments.${part}` : undefined,
+});
+
+const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false, menuAlert = null, anchor = null}) => {
     const auth = useAuth();
     const location = useLocation();
     const {clusterName, fetchNodes, loading} = useFetchDaemonStatus();
     const [breadcrumb, setBreadcrumb] = useState([]);
     const [storedClusterName, setStoredClusterName] = useState(null);
     const online = useOnlineStatus();
+    const {t} = useTranslation();
     // Built once: the AI entry depends on the build configuration only.
     const aiEnabled = getAiAgentConfig().enabled;
 
@@ -28,16 +45,16 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
         const breadcrumbItems = [];
         if (pathParts[0] !== "login" && pathParts.length > 1) {
             if (pathParts[0] === "network" && pathParts.length === 2) {
-                breadcrumbItems.push({name: "network", path: "/network"});
+                breadcrumbItems.push(crumb("network", 0, "/network"));
                 breadcrumbItems.push({name: pathParts[1], path: `/network/${pathParts[1]}`});
             } else if (pathParts[0] === "objects" && pathParts.length === 2) {
-                breadcrumbItems.push({name: "Objects", path: "/objects"});
+                breadcrumbItems.push({name: "Objects", path: "/objects", key: "nav.routes.objects"});
                 breadcrumbItems.push({name: pathParts[1], path: `/objects/${pathParts[1]}`});
             } else {
                 pathParts.forEach((part, index) => {
                     const fullPath = "/" + pathParts.slice(0, index + 1).join("/");
                     if (part !== "cluster") {
-                        breadcrumbItems.push({name: part, path: fullPath});
+                        breadcrumbItems.push(crumb(part, index, fullPath));
                     }
                 });
             }
@@ -51,7 +68,7 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
             const token = auth?.authToken || localStorage.getItem("authToken");
             if (!token) {
                 setBreadcrumb([
-                    {name: "Cluster", path: "/"},
+                    {name: "Cluster", path: "/", key: "nav.breadcrumb.cluster"},
                     ...getPathBreadcrumbs(),
                 ]);
                 return;
@@ -74,15 +91,24 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
         }
     }, [auth, fetchNodes, getPathBreadcrumbs, storedClusterName, clusterName]);
 
+    // The tab names the cluster and the product, as the header does.
+    useEffect(() => {
+        const product = t("ui.productTag.name");
+        document.title = storedClusterName
+            ? t("nav.documentTitle", {cluster: storedClusterName, product})
+            : t("nav.documentTitleNoCluster", {product});
+    }, [storedClusterName, t]);
+
     // Breadcrumb generation
     useEffect(() => {
         const pathParts = location.pathname.split("/").filter(Boolean);
         const breadcrumbItems = [];
 
         if (pathParts[0] !== "login") {
-            breadcrumbItems.push({
-                name: storedClusterName || (loading ? "Loading..." : "Cluster"),
+            breadcrumbItems.push(storedClusterName ? {name: storedClusterName, path: "/"} : {
+                name: loading ? "Loading..." : "Cluster",
                 path: "/",
+                key: loading ? "nav.breadcrumb.loading" : "nav.breadcrumb.cluster",
             });
 
             if (pathParts.length > 1 || (pathParts.length === 1 && pathParts[0] !== "cluster")) {
@@ -90,7 +116,7 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                     const node = decodeURIComponent(pathParts[1]);
                     const objectName = decodeURIComponent(pathParts.slice(3).join("/"));
 
-                    breadcrumbItems.push({name: "objects", path: "/objects"});
+                    breadcrumbItems.push(crumb("objects", 0, "/objects"));
                     breadcrumbItems.push({
                         name: objectName,
                         path: `/objects/${encodeURIComponent(objectName)}`
@@ -101,21 +127,21 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                     });
                 } else if (pathParts[0] === "objects" && pathParts.length >= 2) {
                     const objectName = decodeURIComponent(pathParts.slice(1).join("/"));
-                    breadcrumbItems.push({name: "objects", path: "/objects"});
+                    breadcrumbItems.push(crumb("objects", 0, "/objects"));
                     breadcrumbItems.push({
                         name: objectName,
                         path: location.pathname
                     });
                 } else if (pathParts[0] === "network" && pathParts.length === 2) {
-                    breadcrumbItems.push({name: "network", path: "/network"});
+                    breadcrumbItems.push(crumb("network", 0, "/network"));
                     breadcrumbItems.push({name: pathParts[1], path: `/network/${pathParts[1]}`});
                 } else if (pathParts[0] === "network" && pathParts.length === 1) {
-                    breadcrumbItems.push({name: "network", path: "/network"});
+                    breadcrumbItems.push(crumb("network", 0, "/network"));
                 } else {
                     pathParts.forEach((part, index) => {
                         const fullPath = "/" + pathParts.slice(0, index + 1).join("/");
                         if (part !== "cluster") {
-                            breadcrumbItems.push({name: part, path: fullPath});
+                            breadcrumbItems.push(crumb(part, index, fullPath));
                         }
                     });
                 }
@@ -126,71 +152,104 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
     }, [location.pathname, storedClusterName, loading]);
 
     return (
-        // The oc3 top bar (AppShell): 44px, raised, a line under it. No stacking order
-        // of its own: side panels and dialogs slide over the whole height, as in oc3.
-        <header className="flex h-11 shrink-0 items-center gap-4 border-b border-line bg-surface-raised px-3 text-ink">
+        <header className="brand-bar flex h-11 shrink-0 items-center gap-4 border-b border-line px-3 text-ink">
             {showSidebarToggle && (
                 <button
                     type="button"
                     onClick={onToggleSidebar}
                     aria-expanded={sidebarOpen}
                     aria-controls="app-sidebar"
-                    aria-label={sidebarOpen ? "Hide menu" : "Show menu"}
-                    title={sidebarOpen ? "Hide menu" : "Show menu"}
-                    className={HEADER_BUTTON}
+                    aria-label={sidebarOpen ? t("nav.hideMenu") : t("nav.showMenu")}
+                    title={sidebarOpen ? t("nav.hideMenu") : t("nav.showMenu")}
+                    className={cn(HEADER_BUTTON, "relative")}
                 >
                     <SidebarIcon open={sidebarOpen} width={18} height={18}/>
+                    {/* Folded, the alerts of its entries on the button: the worst of them. */}
+                    {menuAlert && (
+                        <AlertMark
+                            level={menuAlert.level}
+                            text={menuAlert.text}
+                            testId="menu-alert"
+                            className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 text-[0.625rem]"
+                        />
+                    )}
                 </button>
             )}
 
-            {/* The oc3 top bar link: logo and product name, back to the home view. */}
-            <Link to="/" className="flex shrink-0 items-center gap-2 font-semibold tracking-tight text-ink">
-                {/* Decorative: the name that follows already names the link. */}
-                <img src={opensvcLogo} alt="" width={24} height={24} className="h-6 w-6"/>
-                OpenSVC
-            </Link>
+            {/* The product name, back to the home view, tagged not to be taken for
+                the collector. Short of room, as the menu folds (COMPACT_QUERY), left
+                out: the breadcrumb and the search need the bar. */}
+            <div data-testid="brand" className="hidden shrink-0 items-center gap-2 min-[1200px]:flex">
+                <Link to="/" className="font-semibold tracking-tight text-ink">OpenSVC</Link>
+                {/* The tag opens the cluster over the view on display, as a node or an
+                    object opens: the panel of the cluster object, its configuration
+                    and the cluster actions. */}
+                <Link
+                    to={{
+                        pathname: location.pathname,
+                        search: `?${applyPanelUpdate(new URLSearchParams(location.search ?? ""), {peek: "object:cluster"})}`,
+                    }}
+                    aria-label={t("nav.openCluster")}
+                    className="flex rounded-(--radius-control) hover:brightness-95"
+                >
+                    <ProductTag/>
+                </Link>
+            </div>
 
             {breadcrumb.length > 0 && location.pathname !== '/login' && (
-                <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 overflow-hidden font-medium whitespace-nowrap">
-                    {breadcrumb.map((item, index) => (
-                        <span key={index} className="flex min-w-0 items-center gap-1">
-                            {item.path ? (
-                                <Link
-                                    to={item.path}
-                                    aria-label={`Navigate to ${item.name}`}
-                                    className="truncate hover:underline"
-                                >
-                                    {item.name}
-                                </Link>
-                            ) : (
-                                <span className="truncate">{item.name}</span>
-                            )}
-                            {index < breadcrumb.length - 1 && (
-                                <span aria-hidden="true" className="text-ink-muted">{">"}</span>
-                            )}
-                        </span>
-                    ))}
+                <nav aria-label={t("nav.breadcrumb.label")} className="flex min-w-0 items-center gap-1 overflow-hidden font-medium whitespace-nowrap">
+                    {breadcrumb.map((item, index) => {
+                        const label = item.key ? t(item.key) : item.name;
+                        return (
+                            <span key={index} className="flex min-w-0 items-center gap-1">
+                                {item.path ? (
+                                    <Link
+                                        to={item.path}
+                                        aria-label={t("nav.breadcrumb.navigateTo", {name: label})}
+                                        className="truncate hover:underline"
+                                    >
+                                        {label}
+                                    </Link>
+                                ) : (
+                                    <span className="truncate">{label}</span>
+                                )}
+                                {index < breadcrumb.length - 1 && (
+                                    <span aria-hidden="true" className="text-ink-muted">{">"}</span>
+                                )}
+                            </span>
+                        );
+                    })}
                 </nav>
             )}
 
             <div className="ml-auto flex shrink-0 items-center gap-2">
                 {!online && (
                     <span
-                        title="You are offline — some features may be limited"
+                        title={t("nav.offlineTitle")}
                         className="inline-flex items-center gap-1 rounded-(--radius-control) bg-state-down-soft px-2 py-0.5 text-data font-semibold text-state-down"
                     >
                         <StateGlyph state="down" className="h-2 w-2"/>
-                        Offline
+                        {t("nav.offline")}
                     </span>
                 )}
 
+                {/* In a narrow window, the anchor that brings the panels back. */}
+                {anchor}
+
+                {showSidebarToggle && (
+                    <>
+                        {/* The shortcuts list opens with the "?" key: no button for it, which read as a help. */}
+                        <GlobalSearch loadIndex={loadSearchIndex}/>
+                    </>
+                )}
+
                 {aiEnabled && (
-                    <Link to="/ai" aria-label="Open the AI assistant" title="Open the AI assistant" className={HEADER_BUTTON}>
+                    <Link to="/ai" aria-label={t("nav.openAi")} title={t("nav.openAi")} className={HEADER_BUTTON}>
                         <ChatIcon width={16} height={16}/>
                     </Link>
                 )}
 
-                <Link to="/whoami" aria-label="View user information" title="View user information" className={HEADER_BUTTON}>
+                <Link to="/whoami" aria-label={t("nav.viewUser")} title={t("nav.viewUser")} className={HEADER_BUTTON}>
                     <UserIcon width={16} height={16}/>
                 </Link>
             </div>

@@ -1,98 +1,210 @@
-import React, {useEffect, useState, useMemo, useCallback, useRef, useDeferredValue} from "react";
-import {useNavigate, useLocation} from "react-router-dom";
-import {closeEventSource, startEventReception} from "../eventSourceManager.jsx";
-import EventLogger from "../components/EventLogger";
-import {useNamespaceData} from "../hooks/useNamespaceData";
+import React, {useCallback, useDeferredValue, useEffect, useMemo, useState} from "react";
+import {useNavigate} from "react-router-dom";
+import {useTranslation} from "react-i18next";
+import {retainEventReception} from "../eventSourceManager.jsx";
+import useEventStore from "../hooks/useEventStore";
+import {useNamespaceClaims, useNamespacePg} from "../hooks/useNamespaceUsage";
+import {computeLimit, formatCpu, kindCounts, networkUsage, poolUsage} from "../app/namespace-usage";
 import {Table, HeaderRow, SortHeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
-import {StatusCount} from "../ui/components/StatusCount";
-import {Select} from "../ui/components/Field";
-import {Spinner} from "../ui/components/Spinner";
+import {CountPill} from "../ui/components/CountPill";
+import {SegmentedBar} from "../ui/components/SegmentedBar";
+import {Figures} from "./Figures";
+import {HoverCard} from "../ui/components/HoverCard";
+import {formatBytes} from "../ui/lib/format";
+import {usePanelSearch} from "../app/panel-search";
+import {NamespaceDetailPanel} from "./RecordPanels";
+import {Pager} from "../ui/components/Pager";
+import {usePaging} from "../app/paging";
 
-const STATUSES = ["up", "down", "warn", "n/a"];
+/** The availabilities a service or volume pill counts, in the order they are shown. */
+const AVAILS = [["up", "up"], ["warn", "warn"], ["down", "down"], ["n/a", "na"]];
 
-const STATUS_COLUMNS = [
-    {column: "up", label: "Up"},
-    {column: "down", label: "Down"},
-    {column: "warn", label: "Warn"},
-    {column: "n/a", label: "N/A"},
-];
+/** The tab of the Objects page listing a kind, absent for the first one, the services. */
+const LIST_OF = {svc: undefined, vol: "volumes", sec: "secrets", cfg: "configs"};
 
-const MARK_STATE = {up: "up", down: "down", warn: "warn", "n/a": "unknown"};
+const selectObjectStatus = (state) => state.objectStatus;
 
-export const areStatusDotPropsEqual = (prev, next) =>
-    prev.status === next.status && prev.count === next.count && prev.namespace === next.namespace;
+const objectsUrl = (namespace, {kind, globalState} = {}) => {
+    const params = new URLSearchParams({namespace});
+    if (LIST_OF[kind]) params.set("list", LIST_OF[kind]);
+    if (globalState) params.set("globalState", globalState);
+    return `/objects?${params}`;
+};
 
-/** A status mark and its count; the count opens the objects of the namespace in that state. */
-const NamespaceStatusCount = React.memo(({status, count, namespace, onClick}) => (
-    <StatusCount
-        state={MARK_STATE[status]}
-        count={count}
-        label={`Show the ${count} ${status} object${count === 1 ? "" : "s"} of ${namespace}`}
-        onClick={() => onClick(status)}
-    />
-), (prev, next) => areStatusDotPropsEqual(prev, next) && prev.onClick === next.onClick);
+const totalOf = (byAvail) => Object.values(byAvail ?? {}).reduce((n, c) => n + c, 0);
 
-const NamespaceTableRow = React.memo(({
-                                          namespace,
-                                          counts,
-                                          onNamespaceClick,
-                                          onStatusClick
-                                      }) => {
-    const total = useMemo(() =>
-            counts.up + counts.down + counts.warn + counts["n/a"],
-        [counts]
-    );
+/** A size, "0" rather than nothing for none. */
+const size = (bytes, locale) => (bytes > 0 ? formatBytes(bytes, locale) : "0");
 
-    const handleRowClick = useCallback(() => {
-        onNamespaceClick(namespace);
-    }, [onNamespaceClick, namespace]);
+/** How much of a total is used, rounded: "<1%" for a little, never "0%" for some. */
+const percentOf = (used, total, locale) => {
+    if (!(total > 0)) return "–";
+    const ratio = used / total;
+    if (ratio > 0 && ratio < 0.01) return "<1%";
+    return (Math.round(ratio * 100) / 100).toLocaleString(locale, {style: "percent"});
+};
 
-    const handleStatusClick = useCallback((status) => {
-        onStatusClick(namespace, status);
-    }, [onStatusClick, namespace]);
-
+/** The services or volumes of a namespace: a pill per availability, the count in its tint. */
+function AvailPills({namespace, kind, counts, onShow}) {
+    const {t} = useTranslation();
+    const shown = AVAILS.filter(([avail]) => (counts?.[avail] ?? 0) > 0);
+    if (shown.length === 0) return <span className="text-ink-muted">–</span>;
     return (
-        <Row onActivate={handleRowClick}>
-            <Cell className="font-medium">{namespace}</Cell>
-            {STATUSES.map((status) => (
-                <Cell key={status} numeric>
-                    <NamespaceStatusCount
-                        status={status}
-                        count={counts[status]}
-                        namespace={namespace}
-                        onClick={handleStatusClick}
-                    />
-                </Cell>
+        <span className="inline-flex gap-1">
+            {shown.map(([avail, tone]) => (
+                <CountPill
+                    key={avail}
+                    tone={tone}
+                    count={counts[avail]}
+                    label={t(`namespaces.show.${kind}`, {count: counts[avail], status: avail, namespace})}
+                    onClick={() => onShow(objectsUrl(namespace, {kind, globalState: avail}))}
+                />
             ))}
-            <Cell numeric className="font-semibold tabular-nums">{total}</Cell>
+        </span>
+    );
+}
+
+/** The secrets or configurations of a namespace: one grey pill, which have no availability. */
+function KindPill({namespace, kind, count, onShow}) {
+    const {t} = useTranslation();
+    if (!count) return <span className="text-ink-muted">–</span>;
+    return (
+        <CountPill
+            tone="neutral"
+            count={count}
+            label={t(`namespaces.show.${kind}`, {count, namespace})}
+            onClick={() => onShow(objectsUrl(namespace, {kind}))}
+        />
+    );
+}
+
+/**
+ * What a namespace holds of the pools or networks, out of what it may hold: a bar
+ * with a segment for each pool or network, alone in the cell. The figures, the
+ * share, and each pool or network, in its hover card.
+ */
+function UsageCell({usage, format, title, locale}) {
+    const {t} = useTranslation();
+    if (usage.segments.length === 0) return <span className="text-ink-muted">–</span>;
+    const parts = usage.segments.map((s) => t(s.claimed ? "namespaces.usage.claimed" : "namespaces.usage.unclaimed", {
+        name: s.name, used: format(s.used), total: format(s.total), percent: percentOf(s.used, s.total, locale),
+    }));
+    return (
+        <HoverCard
+            focusable
+            card={
+                <Figures
+                    title={title}
+                    lines={[
+                        [t("namespaces.usage.share"), percentOf(usage.used, usage.total, locale)],
+                        [t("namespaces.usage.free"), format(usage.free)],
+                        [t("namespaces.usage.used"), format(usage.used)],
+                        [t("namespaces.usage.total"), format(usage.total)],
+                    ]}
+                    notes={parts}
+                />
+            }
+        >
+            {/* The bar alone, its own line high: the figures are in the card. */}
+            <span className="inline-flex h-5 items-center">
+                <SegmentedBar
+                    segments={usage.segments.map((s) => ({name: s.name, value: s.used}))}
+                    total={usage.total}
+                    label={t("namespaces.usage.barLabel", {title, parts: parts.join(", ")})}
+                    width="w-28"
+                />
+            </span>
+        </HoverCard>
+    );
+}
+
+const NamespaceRow = React.memo(({namespace, counts, pools, networks, cpu, memory, locale, isOpen, onShow, onOpen}) => {
+    const {t} = useTranslation();
+    const cpuUsed = cpu.used;
+    const memoryUsed = memory.used;
+    // In cpu, mcpu or µcpu, three significant digits at most.
+    const cpus = (n) => formatCpu(n, locale);
+    return (
+        // The row opens the panel of the namespace; its counts, the objects they count.
+        // One height for every line, whatever its cells hold: pills, bars or a dash.
+        <Row onActivate={() => onOpen(namespace)} selected={isOpen} className="h-9" data-namespace={namespace}>
+            <Cell className="font-medium">{namespace}</Cell>
+            <Cell><AvailPills namespace={namespace} kind="svc" counts={counts.svc} onShow={onShow}/></Cell>
+            <Cell><AvailPills namespace={namespace} kind="vol" counts={counts.vol} onShow={onShow}/></Cell>
+            <Cell><KindPill namespace={namespace} kind="sec" count={counts.sec} onShow={onShow}/></Cell>
+            <Cell><KindPill namespace={namespace} kind="cfg" count={counts.cfg} onShow={onShow}/></Cell>
+            <Cell><UsageCell usage={pools} format={(n) => size(n, locale)} title={t("namespaces.columns.pools")} locale={locale}/></Cell>
+            <Cell><UsageCell usage={networks} format={(n) => n.toLocaleString(locale)} title={t("namespaces.columns.nets")} locale={locale}/></Cell>
+            <Cell>
+                <HoverCard card={<Figures title={t("namespaces.columns.cpu")} lines={[
+                    [t("namespaces.usage.used"), cpuUsed === undefined ? "–" : cpus(cpuUsed)],
+                    [t("namespaces.usage.cap"), cpu.cap === undefined ? t("namespaces.usage.noClaim") : cpus(cpu.cap)],
+                    ...(cpu.cap === undefined ? [] : [[t("namespaces.usage.free"), cpus(Math.max(0, cpu.cap - (cpuUsed ?? 0)))]]),
+                ]}/>} focusable>
+                    <span className="inline-flex items-center gap-2">
+                        <span className="whitespace-nowrap tabular-nums">
+                            {cpu.cap === undefined
+                                ? cpuUsed === undefined ? "–" : cpus(cpuUsed)
+                                : t("namespaces.usage.percentOf", {percent: cpuUsed === undefined ? "–" : cpus(cpuUsed), total: cpus(cpu.cap)})}
+                        </span>
+                    </span>
+                </HoverCard>
+            </Cell>
+            <Cell>
+                <HoverCard card={<Figures title={t("namespaces.columns.memory")} lines={[
+                    [t("namespaces.usage.used"), memoryUsed === undefined ? "–" : size(memoryUsed, locale)],
+                    [t("namespaces.usage.cap"), memory.cap === undefined ? t("namespaces.usage.noClaim") : size(memory.cap, locale)],
+                    ...(memory.cap === undefined ? [] : [[t("namespaces.usage.free"), size(Math.max(0, memory.cap - (memoryUsed ?? 0)), locale)]]),
+                ]}/>} focusable>
+                    <span className="inline-flex items-center gap-2">
+                        <span className="whitespace-nowrap tabular-nums">
+                            {memory.cap === undefined
+                                ? t("namespaces.memory.used", {used: memoryUsed === undefined ? "–" : size(memoryUsed, locale)})
+                                : t("namespaces.usage.percentOf", {percent: memoryUsed === undefined ? "–" : percentOf(memoryUsed, memory.cap, locale), total: size(memory.cap, locale)})}
+                        </span>
+                    </span>
+                </HoverCard>
+            </Cell>
         </Row>
     );
-}, (prev, next) => {
-    return prev.namespace === next.namespace &&
-        prev.counts.up === next.counts.up &&
-        prev.counts.down === next.counts.down &&
-        prev.counts.warn === next.counts.warn &&
-        prev.counts["n/a"] === next.counts["n/a"];
 });
 
-const Namespaces = () => {
-    const navigate = useNavigate();
-    const location = useLocation();
-    const isMounted = useRef(true);
-    const tableContainerRef = useRef(null);
+/** The value a column sorts a row by. */
+const SORT = {
+    namespace: (row) => row.namespace,
+    services: (row) => totalOf(row.counts.svc),
+    volumes: (row) => totalOf(row.counts.vol),
+    sec: (row) => row.counts.sec,
+    cfg: (row) => row.counts.cfg,
+    pools: (row) => row.pools.used,
+    nets: (row) => row.networks.used,
+    cpu: (row) => row.cpu.used ?? -1,
+    memory: (row) => row.memory.used ?? -1,
+};
 
-    const queryParams = new URLSearchParams(location.search);
-    const urlNamespace = queryParams.get("namespace");
+const COLUMNS = ["namespace", "services", "volumes", "sec", "cfg", "pools", "nets", "cpu", "memory"];
+
+/**
+ * The namespaces: what each holds, its services and volumes by availability, its
+ * secrets and configurations, and what it takes of the cluster, out of what its
+ * claims allow: the pools, the networks, the cpu and the memory.
+ */
+const Namespaces = () => {
+    const {t, i18n} = useTranslation();
+    const navigate = useNavigate();
+    const locale = i18n.language;
 
     const [sortColumn, setSortColumn] = useState("namespace");
     const [sortDirection, setSortDirection] = useState("asc");
-    const [selectedNamespace, setSelectedNamespace] = useState(urlNamespace || "all");
-    const [visibleCount, setVisibleCount] = useState(50);
-    const [loading, setLoading] = useState(false);
+    // The namespace whose panel is open, and its tab, in the URL.
+    const {sel: openNamespace, tab: panelTab, select: selectNamespace, setTab: setPanelTab} = usePanelSearch();
 
-    const {statusByNamespace, namespaces} = useNamespaceData();
+    const objectStatus = useEventStore(selectObjectStatus);
+    const counts = useMemo(() => kindCounts(objectStatus ?? {}), [objectStatus]);
+    const namespaces = useMemo(() => [...counts.keys()].sort(), [counts]);
+    const claims = useNamespaceClaims(namespaces);
+    const pg = useNamespacePg();
 
-    const deferredSelectedNamespace = useDeferredValue(selectedNamespace);
     const deferredSortColumn = useDeferredValue(sortColumn);
     const deferredSortDirection = useDeferredValue(sortDirection);
 
@@ -105,209 +217,108 @@ const Namespaces = () => {
 
     useEffect(() => {
         const token = localStorage.getItem("authToken");
-        if (token) {
-            startEventReception(token, namespaceEventTypes);
-        }
+        const release = token ? retainEventReception(token, namespaceEventTypes) : null;
         return () => {
-            closeEventSource();
+            release?.();
         };
     }, [namespaceEventTypes]);
 
-    useEffect(() => {
-        setSelectedNamespace(urlNamespace || "all");
-    }, [urlNamespace]);
+    const rows = useMemo(() => namespaces.map((namespace) => {
+        const own = claims.claims[namespace] ?? [];
+        return {
+            namespace,
+            counts: counts.get(namespace),
+            pools: poolUsage(namespace, claims.poolsHeld, claims.pools, own),
+            networks: networkUsage(namespace, claims.networksHeld, claims.networks, own),
+            // Over every node of the cluster: none until read, the cpu until a second reading.
+            cpu: {used: pg[namespace]?.cpu ?? undefined, cap: computeLimit(own, "cpu")},
+            memory: {used: pg[namespace]?.memory, cap: computeLimit(own, "memory")},
+        };
+    }), [namespaces, counts, claims, pg]);
 
-    const sortedNamespaces = useMemo(() => {
-        const entries = Object.entries(statusByNamespace);
-
-        const filtered = deferredSelectedNamespace === "all"
-            ? entries
-            : entries.filter(([namespace]) => namespace === deferredSelectedNamespace);
-
-        return filtered.sort((a, b) => {
-            const [namespaceA, countsA] = a;
-            const [namespaceB, countsB] = b;
-            let diff = 0;
-
-            if (deferredSortColumn === "namespace") {
-                diff = namespaceA.localeCompare(namespaceB);
-            } else if (deferredSortColumn === "up") {
-                diff = countsA.up - countsB.up;
-            } else if (deferredSortColumn === "down") {
-                diff = countsA.down - countsB.down;
-            } else if (deferredSortColumn === "warn") {
-                diff = countsA.warn - countsB.warn;
-            } else if (deferredSortColumn === "n/a") {
-                diff = countsA["n/a"] - countsB["n/a"];
-            } else if (deferredSortColumn === "total") {
-                const totalA = countsA.up + countsA.down + countsA.warn + countsA["n/a"];
-                const totalB = countsB.up + countsB.down + countsB.warn + countsB["n/a"];
-                diff = totalA - totalB;
-            }
-
-            return deferredSortDirection === "asc" ? diff : -diff;
+    const sortedRows = useMemo(() => {
+        const key = SORT[deferredSortColumn] ?? SORT.namespace;
+        const sorted = [...rows].sort((a, b) => {
+            const [x, y] = [key(a), key(b)];
+            const diff = typeof x === "string" ? x.localeCompare(y) : x - y;
+            // Ties in the order of the names, whatever the direction.
+            return diff || a.namespace.localeCompare(b.namespace) * (deferredSortDirection === "asc" ? 1 : -1);
         });
-    }, [statusByNamespace, deferredSelectedNamespace, deferredSortColumn, deferredSortDirection]);
+        return deferredSortDirection === "asc" ? sorted : sorted.reverse();
+    }, [rows, deferredSortColumn, deferredSortDirection]);
 
-    const visibleNamespaces = useMemo(() =>
-            sortedNamespaces.slice(0, visibleCount),
-        [sortedNamespaces, visibleCount]
-    );
+    // The rows of the page shown, as oc3 pages its lists.
+    const paging = usePaging("namespaces", sortedRows.length);
+    const {page: pageOf, setOffset: setPageOffset} = paging;
+    const visibleRows = useMemo(() => pageOf(sortedRows), [pageOf, sortedRows]);
 
     const handleSort = useCallback((column) => {
-        setSortColumn(prev => {
+        setSortColumn((prev) => {
             if (prev === column) {
-                setSortDirection(dir => dir === "asc" ? "desc" : "asc");
+                setSortDirection((dir) => (dir === "asc" ? "desc" : "asc"));
                 return column;
             }
-            setSortDirection("asc");
+            // A name reads from A, a figure from the largest.
+            setSortDirection(column === "namespace" ? "asc" : "desc");
             return column;
         });
-        setVisibleCount(50);
-    }, []);
+        // Sorted again, the list starts over: from its first page.
+        setPageOffset(0);
+    }, [setPageOffset]);
 
-    const handleNamespaceChange = useCallback((e) => {
-        const newNamespace = e.target.value || "all";
-        setSelectedNamespace(newNamespace);
-        setVisibleCount(50);
-
-        if (newNamespace === "all") {
-            navigate("/namespaces");
-        } else {
-            navigate(`/namespaces?namespace=${newNamespace}`);
-        }
-    }, [navigate]);
-
-    const handleNamespaceClick = useCallback((namespace) => {
-        navigate(`/objects?namespace=${namespace}`);
-    }, [navigate]);
-
-    const handleStatusClick = useCallback((namespace, status) => {
-        const url = `/objects?namespace=${namespace}&globalState=${status}`;
-        navigate(url);
-    }, [navigate]);
-
-    const handleScroll = useCallback(() => {
-        if (loading) return;
-
-        const container = tableContainerRef.current;
-        if (!container) return;
-
-        const {scrollTop, scrollHeight, clientHeight} = container;
-        const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
-
-        if (scrollPercentage > 0.8 && visibleCount < sortedNamespaces.length) {
-            setLoading(true);
-            setTimeout(() => {
-                setVisibleCount(prev => Math.min(prev + 50, sortedNamespaces.length));
-                setLoading(false);
-            }, 100);
-        }
-    }, [loading, visibleCount, sortedNamespaces.length]);
-
-    useEffect(() => {
-        const container = tableContainerRef.current;
-        if (container) {
-            container.addEventListener('scroll', handleScroll);
-            return () => container.removeEventListener('scroll', handleScroll);
-        }
-    }, [handleScroll]);
-
-    useEffect(() => {
-        setVisibleCount(50);
-    }, [sortedNamespaces]);
-
-    useEffect(() => {
-        return () => {
-            isMounted.current = false;
-        };
-    }, []);
-
-    // The filter may come from the URL with a namespace not in the list: keep it selectable.
-    const namespaceOptions = useMemo(() => {
-        const options = ["all", ...namespaces];
-        if (!options.includes(selectedNamespace)) options.push(selectedNamespace);
-        return options;
-    }, [namespaces, selectedNamespace]);
+    const handleShow = useCallback((url) => navigate(url), [navigate]);
+    // A row opens its panel on its first tab, the usage, whatever tab was open before.
+    const handleOpen = useCallback((namespace) => selectNamespace(namespace, "usage"), [selectNamespace]);
+    const handleClose = useCallback(() => selectNamespace(undefined), [selectNamespace]);
 
     return (
         <div className="flex h-full flex-col gap-3 p-4">
-            <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-1 text-ink-muted">
-                    Filter by namespace
-                    <Select className="h-7" value={selectedNamespace} onChange={handleNamespaceChange}>
-                        {namespaceOptions.map((namespace) => (
-                            <option key={namespace} value={namespace}>{namespace}</option>
-                        ))}
-                    </Select>
-                </label>
-            </div>
+            <Pager paging={paging}/>
 
             <Table
-                ref={tableContainerRef}
                 sticky
                 data-testid="table-container"
+                aria-label={t("namespaces.tableLabel")}
                 className="min-h-0 flex-1 overflow-auto"
             >
                 <thead>
                     <HeaderRow>
-                        <SortHeaderCell
-                            label="Namespace"
-                            active={sortColumn === "namespace"}
-                            direction={sortDirection}
-                            onSort={() => handleSort("namespace")}
-                        />
-                        {STATUS_COLUMNS.map(({column, label}) => (
+                        {COLUMNS.map((column) => (
                             <SortHeaderCell
                                 key={column}
-                                label={label}
+                                label={t(`namespaces.columns.${column}`)}
                                 active={sortColumn === column}
                                 direction={sortDirection}
                                 onSort={() => handleSort(column)}
-                                align="right"
                             />
                         ))}
-                        <SortHeaderCell
-                            label="Total"
-                            active={sortColumn === "total"}
-                            direction={sortDirection}
-                            onSort={() => handleSort("total")}
-                            align="right"
-                        />
                     </HeaderRow>
                 </thead>
                 <tbody>
-                    {visibleNamespaces.length > 0 ? (
-                        visibleNamespaces.map(([namespace, counts]) => (
-                            <NamespaceTableRow
-                                key={namespace}
-                                namespace={namespace}
-                                counts={counts}
-                                onNamespaceClick={handleNamespaceClick}
-                                onStatusClick={handleStatusClick}
-                            />
-                        ))
-                    ) : (
-                        <EmptyRow colSpan={6}>
-                            <span data-testid="no-namespaces-message">
-                                {selectedNamespace !== "all"
-                                    ? "No namespaces match the selected filter"
-                                    : "No namespaces available"}
-                            </span>
+                    {visibleRows.map((row) => (
+                        <NamespaceRow
+                            key={row.namespace}
+                            {...row}
+                            locale={locale}
+                            isOpen={openNamespace === row.namespace}
+                            onShow={handleShow}
+                            onOpen={handleOpen}
+                        />
+                    ))}
+                    {visibleRows.length === 0 && (
+                        <EmptyRow colSpan={COLUMNS.length}>
+                            <span data-testid="no-namespaces-message">{t("namespaces.empty")}</span>
                         </EmptyRow>
                     )}
                 </tbody>
             </Table>
-            {loading && (
-                <div className="flex justify-center">
-                    <Spinner label="Loading more namespaces"/>
-                </div>
-            )}
+            {claims.error && <p className="text-ink-muted">{t("namespaces.usage.error", {message: claims.error})}</p>}
 
-            <EventLogger
-                eventTypes={namespaceEventTypes}
-                title="Namespaces Events Logger"
-                buttonLabel="Namespace Events"
+            <NamespaceDetailPanel
+                name={openNamespace ?? undefined}
+                tab={panelTab}
+                onTabChange={setPanelTab}
+                onClose={handleClose}
             />
         </div>
     );

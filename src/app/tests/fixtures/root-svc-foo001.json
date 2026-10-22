@@ -1,0 +1,209 @@
+{
+ "avail": "n/a",
+ "frozen": "unfrozen",
+ "instances": {
+  "dev3n1": {
+   "config": {
+    "app": "default",
+    "claims": {
+     "cpu": 0,
+     "memory": 0
+    },
+    "csum": "a5306045f7015487a27fec9d2ad2cbd8",
+    "is_disabled": false,
+    "monitor_action": [
+     "none"
+    ],
+    "orchestrate": "ha",
+    "placement_policy": "nodes order",
+    "priority": 50,
+    "resources": {
+     "fs#1": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false
+     }
+    },
+    "schedules": [
+     {
+      "action": "status",
+      "key": "status_schedule",
+      "max_parallel": 1,
+      "require_collector": false,
+      "require_provisioned": false,
+      "schedule": "@10m"
+     },
+     {
+      "action": "compliance_auto",
+      "key": "comp_schedule",
+      "max_parallel": 1,
+      "require_collector": true,
+      "require_provisioned": true,
+      "schedule": "~00:00-06:00"
+     }
+    ],
+    "scope": [
+     "dev3n1",
+     "dev3n2"
+    ],
+    "stonith": false,
+    "subsets": {},
+    "topology": "failover",
+    "updated_at": "2026-10-12T11:52:54.023063373+02:00",
+    "wait_syncs_timeout": 600000000000
+   },
+   "monitor": {
+    "global_expect": "none",
+    "global_expect_options": null,
+    "global_expect_updated_at": "0001-01-01T00:00:00Z",
+    "is_ha_leader": false,
+    "is_leader": false,
+    "local_expect": "started",
+    "local_expect_updated_at": "2026-10-12T11:21:45.80386481+02:00",
+    "monitor_action_executed_at": "0001-01-01T00:00:00Z",
+    "orchestration_id": "00000000-0000-0000-0000-000000000000",
+    "orchestration_is_done": false,
+    "preserved": false,
+    "session_id": "00000000-0000-0000-0000-000000000000",
+    "state": "idle",
+    "state_updated_at": "2026-10-12T11:21:45.027241844+02:00",
+    "updated_at": "2026-10-12T11:52:54.280985228+02:00"
+   },
+   "status": {
+    "avail": "n/a",
+    "frozen_at": "0001-01-01T00:00:00Z",
+    "last_started_at": "2026-10-10T14:09:32.316593234+02:00",
+    "overall": "warn",
+    "provisioned": "n/a",
+    "resources": {
+     "fs#1": {
+      "label": "fs.ggzgrg",
+      "log": [
+       {
+        "level": "warn",
+        "message": "the fs.ggzgrg driver is not supported by this agent: the resource is ignored"
+       }
+      ],
+      "optional": true,
+      "provisioned": {
+       "mtime": "0001-01-01T00:00:00Z",
+       "state": "n/a"
+      },
+      "status": "n/a",
+      "type": "fs.ggzgrg"
+     }
+    },
+    "stopped_at": "0001-01-01T00:00:00Z",
+    "updated_at": "2026-10-12T13:51:21.668610949+02:00"
+   }
+  },
+  "dev3n2": {
+   "config": {
+    "app": "default",
+    "claims": {
+     "cpu": 0,
+     "memory": 0
+    },
+    "csum": "a5306045f7015487a27fec9d2ad2cbd8",
+    "is_disabled": false,
+    "monitor_action": [
+     "none"
+    ],
+    "orchestrate": "ha",
+    "placement_policy": "nodes order",
+    "priority": 50,
+    "resources": {
+     "fs#1": {
+      "is_disabled": false,
+      "is_monitored": false,
+      "is_standby": false
+     }
+    },
+    "schedules": [
+     {
+      "action": "status",
+      "key": "status_schedule",
+      "max_parallel": 1,
+      "require_collector": false,
+      "require_provisioned": false,
+      "schedule": "@10m"
+     },
+     {
+      "action": "compliance_auto",
+      "key": "comp_schedule",
+      "max_parallel": 1,
+      "require_collector": true,
+      "require_provisioned": true,
+      "schedule": "~00:00-06:00"
+     }
+    ],
+    "scope": [
+     "dev3n1",
+     "dev3n2"
+    ],
+    "stonith": false,
+    "subsets": {},
+    "topology": "failover",
+    "updated_at": "2026-10-12T11:52:54.023063373+02:00",
+    "wait_syncs_timeout": 600000000000
+   },
+   "monitor": {
+    "global_expect": "none",
+    "global_expect_options": null,
+    "global_expect_updated_at": "0001-01-01T00:00:00Z",
+    "is_ha_leader": false,
+    "is_leader": false,
+    "local_expect": "none",
+    "local_expect_updated_at": "0001-01-01T00:00:00Z",
+    "monitor_action_executed_at": "0001-01-01T00:00:00Z",
+    "orchestration_id": "00000000-0000-0000-0000-000000000000",
+    "orchestration_is_done": false,
+    "preserved": false,
+    "session_id": "00000000-0000-0000-0000-000000000000",
+    "state": "idle",
+    "state_updated_at": "2026-10-12T11:21:49.554459323+02:00",
+    "updated_at": "2026-10-12T11:52:54.484791016+02:00"
+   },
+   "status": {
+    "avail": "n/a",
+    "frozen_at": "0001-01-01T00:00:00Z",
+    "last_started_at": "2026-09-29T12:18:14.427063335+02:00",
+    "overall": "warn",
+    "provisioned": "n/a",
+    "resources": {
+     "fs#1": {
+      "label": "fs.ggzgrg",
+      "log": [
+       {
+        "level": "warn",
+        "message": "the fs.ggzgrg driver is not supported by this agent: the resource is ignored"
+       }
+      ],
+      "optional": true,
+      "provisioned": {
+       "mtime": "0001-01-01T00:00:00Z",
+       "state": "n/a"
+      },
+      "status": "n/a",
+      "type": "fs.ggzgrg"
+     }
+    },
+    "stopped_at": "0001-01-01T00:00:00Z",
+    "updated_at": "2026-10-12T13:51:22.233919238+02:00"
+   }
+  }
+ },
+ "orchestrate": "ha",
+ "overall": "n/a",
+ "placement_policy": "nodes order",
+ "placement_state": "n/a",
+ "priority": 50,
+ "provisioned": "n/a",
+ "scope": [
+  "dev3n1",
+  "dev3n2"
+ ],
+ "topology": "failover",
+ "up_instances_count": 0,
+ "updated_at": "2026-10-12T13:51:22.374530291+02:00"
+}

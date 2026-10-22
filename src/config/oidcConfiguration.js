@@ -17,7 +17,10 @@ const initData = {
     response_type: "code",
     accessTokenExpiringNotificationTimeInSeconds: 30,
     automaticSilentRenew: true,
-    monitorSession: true,
+    // Nothing listens to the sign-out it reports, and on a session change it loads
+    // the whole webapp in an iframe at silent_redirect_uri, a second UserManager
+    // renewing with the same rotating refresh token.
+    monitorSession: false,
 };
 
 /**

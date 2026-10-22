@@ -5,6 +5,7 @@ import '@testing-library/jest-dom';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import axios from 'axios';
 import NetworkDetails from '../NetworkDetails';
+import i18n from '../../i18n';
 import {URL_NETWORK_IP} from '../../config/apiPath.js';
 
 // Mock axios
@@ -103,6 +104,23 @@ describe('NetworkDetails Component', () => {
             </MemoryRouter>
         );
         expect(screen.getByText(/Network Details: N\/A \(N\/A\)/i)).toBeInTheDocument();
+    });
+
+    test('speaks French to a French browser', async () => {
+        await i18n.changeLanguage('fr');
+        try {
+            render(
+                <MemoryRouter initialEntries={['/network']}>
+                    <Routes>
+                        <Route path="/network" element={<NetworkDetails/>}/>
+                    </Routes>
+                </MemoryRouter>
+            );
+            expect(screen.getByRole('heading', {level: 1})).toHaveTextContent('Détails du réseau : N/D (N/D)');
+            expect(screen.getByRole('button', {name: 'Masquer les filtres'})).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 
     test('renders table headers correctly', async () => {

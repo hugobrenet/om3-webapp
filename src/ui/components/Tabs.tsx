@@ -93,3 +93,15 @@ export function TabList({
     </div>
   );
 }
+
+/**
+ * A count in the name of a tab, as a small badge after its label: how many rows the
+ * tab holds. Part of the tab's accessible name ("Services 6").
+ */
+export function TabCount({ count }: { count: number }) {
+  return (
+    <span className="min-w-[2ch] rounded-full bg-surface-sunken px-1.5 text-center text-data leading-snug font-normal text-ink-muted tabular-nums">
+      {count}
+    </span>
+  );
+}

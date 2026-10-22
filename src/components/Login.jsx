@@ -2,6 +2,7 @@ import React, {useState, forwardRef} from 'react';
 import {useTranslation} from 'react-i18next';
 import {useNavigate} from 'react-router-dom';
 import opensvcLogo from '../ui/assets/opensvc-logo.svg';
+import {ProductTag} from "../ui/components/ProductTag";
 import {Button} from '../ui/components/Button';
 import {Field, Input} from '../ui/components/Field';
 import {Alert} from '../ui/components/Alert';
@@ -137,7 +138,7 @@ const Login = forwardRef((props, ref) => {
             });
 
             if (!response.ok) {
-                const errorMsg = t('Incorrect username or password');
+                const errorMsg = t('auth.login.incorrect');
                 logger.error('Authentication error:', errorMsg);
                 setErrorMessage(errorMsg);
                 setLoading(false);
@@ -163,7 +164,7 @@ const Login = forwardRef((props, ref) => {
             navigate('/');
         } catch (error) {
             logger.error('Authentication error:', error);
-            setErrorMessage(error.message || t('An error occurred during authentication'));
+            setErrorMessage(error.message || t('auth.login.error'));
             setLoading(false);
         }
     };
@@ -171,7 +172,7 @@ const Login = forwardRef((props, ref) => {
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!username.trim() || !password.trim()) {
-            setErrorMessage(t('Please enter both username and password'));
+            setErrorMessage(t('auth.login.missingFields'));
             return;
         }
         if (!loading) handleLogin(username, password);
@@ -195,10 +196,11 @@ const Login = forwardRef((props, ref) => {
             <div className="flex items-center gap-2">
                 <img src={opensvcLogo} alt="" className="h-8 w-8"/>
                 <h1 id="login-dialog" className="text-title font-semibold">
-                    {t('Login')}
+                    {t('auth.login.title')}
                 </h1>
+                <span className="ml-auto"><ProductTag/></span>
             </div>
-            <Field label={t('Username')}>
+            <Field label={t('auth.login.username')}>
                 {(control) => (
                     <Input
                         {...control}
@@ -210,7 +212,7 @@ const Login = forwardRef((props, ref) => {
                     />
                 )}
             </Field>
-            <Field label={t('Password')}>
+            <Field label={t('auth.login.password')}>
                 {(control) => (
                     <Input
                         {...control}
@@ -230,14 +232,13 @@ const Login = forwardRef((props, ref) => {
                     onClick={handleChangeMethod}
                     disabled={loading}
                 >
-                    {t('Change Method')}
+                    {t('auth.login.changeMethod')}
                 </Button>
                 <Button
-                    variant="primary"
                     onClick={handleSubmit}
                     disabled={!username || !password || loading}
                 >
-                    {loading ? t('Loading...') : t('Submit')}
+                    {loading ? t('auth.login.loading') : t('auth.login.submit')}
                 </Button>
             </div>
         </section>

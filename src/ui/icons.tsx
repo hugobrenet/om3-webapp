@@ -51,6 +51,15 @@ export function ServerIcon(props: IconProps) {
  * (fa-circle), but that glyph already stands for the "up" state in StatusBadge:
  * reusing it in the menu would make the two easy to confuse.
  */
+/** Kinds of things, a circle, a square and a triangle: the history grouped by kind (as oc3). */
+export function ShapesIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M7 2.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Zm6.5 1.5c0-.6.4-1 1-1h6c.6 0 1 .4 1 1v6c0 .6-.4 1-1 1h-6a1 1 0 0 1-1-1V4Zm-1.6 8.9c.4-.7 1.4-.7 1.8 0l4.9 7.6c.4.7 0 1.5-.9 1.5H7.9c-.8 0-1.3-.8-.9-1.5l4.9-7.6Z" />
+    </Svg>
+  );
+}
+
 export function StackIcon(props: IconProps) {
   return (
     <Svg {...props}>
@@ -260,6 +269,15 @@ export function DownloadIcon(props: IconProps) {
   );
 }
 
+/** Sends a file: the arrow of the download, going up. */
+export function UploadIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 16.6c-.7 0-1.2-.5-1.2-1.2V7.5L8.4 9.9a1.2 1.2 0 1 1-1.7-1.7l4.5-4.4a1.2 1.2 0 0 1 1.6 0l4.5 4.4a1.2 1.2 0 1 1-1.7 1.7l-2.4-2.4v7.9c0 .7-.5 1.2-1.2 1.2ZM4.2 15.5c.7 0 1.2.5 1.2 1.2v1.9h13.2v-1.9a1.2 1.2 0 1 1 2.4 0v2.5c0 1-.8 1.8-1.8 1.8H4.8C3.8 21 3 20.2 3 19.2v-2.5c0-.7.5-1.2 1.2-1.2Z" />
+    </Svg>
+  );
+}
+
 /** Back to the default values. */
 export function ResetIcon(props: IconProps) {
   return (
@@ -434,11 +452,34 @@ export function StateIcon(props: IconProps) {
   );
 }
 
-/** Editing. */
+/** Editing, a configuration file say. */
 export function PencilIcon(props: IconProps) {
   return (
     <Svg {...props}>
       <path d="M17.6 2.6c.5 0 1 .2 1.4.6l1.8 1.8a2 2 0 0 1 0 2.8L9.2 19.4l-5.7 1.9a.7.7 0 0 1-.9-.9l1.9-5.7L16.2 3.2c.4-.4.9-.6 1.4-.6Zm-2.2 3.9L6 15.9l-1 3.1 3.1-1 9.4-9.4-2.1-2.1Z" />
+    </Svg>
+  );
+}
+
+/** Setting parameters one by one, as a wizard does: three sliders. */
+export function SlidersIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="5" width="18" height="2" rx="1" />
+      <rect x="3" y="11" width="18" height="2" rx="1" />
+      <rect x="3" y="17" width="18" height="2" rx="1" />
+      <circle cx="8" cy="6" r="2.6" />
+      <circle cx="16" cy="12" r="2.6" />
+      <circle cx="10" cy="18" r="2.6" />
+    </Svg>
+  );
+}
+
+/** Copying to the clipboard: two sheets, one over the other. */
+export function CopyIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M9 2.5h9.5A2.5 2.5 0 0 1 21 5v11.5a2.5 2.5 0 0 1-2.5 2.5H17v-2.2h1.5c.2 0 .3-.1.3-.3V5c0-.2-.1-.3-.3-.3H9c-.2 0-.3.1-.3.3v.8H6.5V5A2.5 2.5 0 0 1 9 2.5ZM5.5 7h9.5a2.5 2.5 0 0 1 2.5 2.5V19a2.5 2.5 0 0 1-2.5 2.5H5.5A2.5 2.5 0 0 1 3 19V9.5A2.5 2.5 0 0 1 5.5 7Zm0 2.2c-.2 0-.3.1-.3.3V19c0 .2.1.3.3.3H15c.2 0 .3-.1.3-.3V9.5c0-.2-.1-.3-.3-.3H5.5Z" />
     </Svg>
   );
 }
@@ -501,6 +542,15 @@ export function GearIcon(props: IconProps) {
         fillRule="evenodd"
         d="M10.3 2h3.4l.5 2.6 1.6.7 2.2-1.5 2.4 2.4-1.5 2.2.7 1.6 2.6.5v3.4l-2.6.5-.7 1.6 1.5 2.2-2.4 2.4-2.2-1.5-1.6.7-.5 2.6h-3.4l-.5-2.6-1.6-.7-2.2 1.5-2.4-2.4 1.5-2.2-.7-1.6L2 13.7v-3.4l2.6-.5.7-1.6-1.5-2.2 2.4-2.4 2.2 1.5 1.6-.7.5-2.6ZM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"
       />
+    </Svg>
+  );
+}
+
+/** Actions on a record or a selection: a bolt, apart from the gear of the settings. */
+export function BoltIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M13.5 2 4 13.5h6.5L9.5 22 20 9.5h-6.5L13.5 2Z" />
     </Svg>
   );
 }
@@ -835,6 +885,15 @@ export function SendIcon(props: IconProps) {
   return (
     <Svg {...props}>
       <path d="M3.2 3.6a.8.8 0 0 1 .9-.1l16.8 7.8a.8.8 0 0 1 0 1.4L4.1 20.5a.8.8 0 0 1-1.1-.9l1.6-6.4 8.4-1.2-8.4-1.2L3 4.5a.8.8 0 0 1 .2-.9Z" />
+    </Svg>
+  );
+}
+
+/** A resource of a service (`resource`, fa-hashtag): its id reads "fs#1". */
+export function HashIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M10.2 3.1a1.2 1.2 0 0 1 1 1.4L10.8 8h3.6l.5-3.9a1.2 1.2 0 1 1 2.4.3L16.8 8h2.7a1.2 1.2 0 1 1 0 2.4h-3L16 13.6h2.5a1.2 1.2 0 1 1 0 2.4h-2.8l-.5 3.9a1.2 1.2 0 1 1-2.4-.3l.5-3.6H9.7l-.5 3.9a1.2 1.2 0 1 1-2.4-.3l.5-3.6H4.5a1.2 1.2 0 1 1 0-2.4h3.1l.4-3.2H5.5a1.2 1.2 0 1 1 0-2.4h2.8l.5-3.9a1.2 1.2 0 0 1 1.4-1Zm.3 7.3-.4 3.2h3.6l.4-3.2h-3.6Z" />
     </Svg>
   );
 }

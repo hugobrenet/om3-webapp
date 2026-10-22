@@ -3,13 +3,18 @@ import {render, screen, waitFor, fireEvent, act, within} from '@testing-library/
 import {BrowserRouter} from 'react-router-dom';
 import {vi} from 'vitest';
 import NodesTable from '../NodesTable.jsx';
+import i18n from '../../i18n';
+import {useActionTracker} from '../../app/action-tracker';
+
+/** What the actions tray holds, the latest first: action, subject, state, reason. */
+const tray = () => useActionTracker.getState().tracked.map((e) => [e.action, e.subject, e.state, e.error ?? null]);
 
 // ── Hoisted mock variables ────────────────────────────────────────────────
 const {
     mockUseFetchDaemonStatus,
     mockUseEventStore,
-    mockStartEventReception,
-    mockCloseEventSource,
+    mockRetainEventReception,
+    mockReleaseEventReception,
     mockStartLoggerReception,
     mockCloseLoggerEventSource,
     mockNavigate,
@@ -17,8 +22,8 @@ const {
 } = vi.hoisted(() => ({
     mockUseFetchDaemonStatus: vi.fn(),
     mockUseEventStore: vi.fn(),
-    mockStartEventReception: vi.fn(),
-    mockCloseEventSource: vi.fn(),
+    mockRetainEventReception: vi.fn(),
+    mockReleaseEventReception: vi.fn(),
     mockStartLoggerReception: vi.fn(),
     mockCloseLoggerEventSource: vi.fn(),
     mockNavigate: vi.fn(),
@@ -34,7 +39,7 @@ const {
 vi.mock('../NodeRow.jsx', () => ({
     default: (props) => (
         <tr data-testid={`row-${props.nodename}`}>
-            <td><input type="checkbox" checked={props.isSelected} onChange={(e) => props.onSelect(e, props.nodename)}/>
+            <td><input type="checkbox" aria-label={`select ${props.nodename}`} checked={props.isSelected} onChange={(e) => props.onSelect(e, props.nodename)}/>
             </td>
             <td>{props.nodename}</td>
             <td>{props.monitor?.state || 'idle'}</td>
@@ -44,23 +49,25 @@ vi.mock('../NodeRow.jsx', () => ({
             <td>{props.stats?.swap_avail || 0}</td>
             <td>{props.status?.agent || ''}</td>
             <td>
-                <button onClick={() => props.onAction(props.nodename, 'freeze')}>Freeze</button>
-                <button onClick={() => props.onAction(props.nodename, 'unfreeze')}>Unfreeze</button>
-                <button onClick={() => props.onAction(props.nodename, 'restart daemon')}>Restart Daemon</button>
                 <span data-testid={`props-${props.nodename}`}>
                     {Object.keys(props).sort().join(',')}
                 </span>
             </td>
             <td>
-                <button onClick={() => props.onOpenLogs(props.nodename)}>Open Logs</button>
+                <button onClick={() => props.onOpen(props.nodename)}>Open {props.nodename}</button>
+                {props.isOpen && <span>open</span>}
             </td>
         </tr>
     ),
 }));
 
-vi.mock('../ActionDialogManager', () => ({
-    __esModule: true,
-    default: ({pendingAction, handleConfirm, target, onClose}) => {
+// The nodes of the cluster configuration; null, not read: the nodes reporting a status.
+const mockClusterOrder = vi.hoisted(() => ({value: null}));
+vi.mock('../../hooks/useClusterNodeOrder', () => ({useClusterNodeOrder: () => mockClusterOrder.value}));
+
+// The confirmation of a node action is tested on its own (NodeActionDialog.test): here, the action confirmed.
+vi.mock('../NodeActionDialog', () => ({
+    NodeActionDialog: ({pending: pendingAction, onConfirm: handleConfirm, target, onClose}) => {
         if (!pendingAction) return null;
         const action = pendingAction.action;
         const actionTitle = action.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
@@ -82,6 +89,16 @@ vi.mock('react-router-dom', async (importOriginal) => {
     };
 });
 
+// The node panel is tested on its own: here, which node it shows and on which tab.
+vi.mock('../NodePanel', () => ({
+    NodeDetailPanel: ({node, tab, onClose}) => (node === undefined ? null : (
+        <div role="dialog" aria-label={`Node ${node}`}>
+            {`${node} on ${tab ?? 'status'}`}
+            <button onClick={onClose}>Close panel</button>
+        </div>
+    )),
+}));
+
 vi.mock('../../components/LogsViewer.jsx', () => ({
     default: ({nodename, type, height}) => (
         <div data-testid="logs-viewer">Logs for {nodename} ({type}), height: {height}</div>
@@ -97,8 +114,10 @@ vi.mock('../../hooks/useEventStore.js', () => ({
 }));
 
 vi.mock('../../eventSourceManager', () => ({
-    startEventReception: mockStartEventReception,
-    closeEventSource: mockCloseEventSource,
+    retainEventReception: (...args) => {
+        mockRetainEventReception(...args);
+        return mockReleaseEventReception;
+    },
     startLoggerReception: mockStartLoggerReception,
     closeLoggerEventSource: mockCloseLoggerEventSource,
 }));
@@ -128,6 +147,8 @@ describe('NodesTable', () => {
     const originalDevicePixelRatio = window.devicePixelRatio;
 
     beforeEach(() => {
+        // The panel lives in the URL: no test inherits the one the test before opened.
+        window.history.replaceState({}, '', '/nodes');
         const fetchNodesMock = vi.fn().mockResolvedValue(undefined);
         mockUseFetchDaemonStatus.mockReturnValue({
             daemon: {nodename: 'node-1'},
@@ -138,9 +159,9 @@ describe('NodesTable', () => {
             selector(createDefaultStore())
         );
 
-        mockStartEventReception.mockImplementation(() => {
+        mockRetainEventReception.mockImplementation(() => {
         });
-        mockCloseEventSource.mockImplementation(() => {
+        mockReleaseEventReception.mockImplementation(() => {
         });
         mockStartLoggerReception.mockImplementation(() => {
         });
@@ -148,6 +169,7 @@ describe('NodesTable', () => {
         });
 
         localStorage.setItem('authToken', 'test-token');
+        useActionTracker.setState({tracked: [], revealed: 0});
         vi.clearAllMocks();
     });
 
@@ -170,17 +192,47 @@ describe('NodesTable', () => {
 
     const renderWithRouter = (ui) => render(<BrowserRouter>{ui}</BrowserRouter>);
 
+    /** Selects node-1 and picks the action in the menu of the selection: the only way to act from the view. */
+    const actOnFirstNode = async (label) => {
+        fireEvent.click(await screen.findByRole('checkbox', {name: 'select node-1'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Actions'}));
+        fireEvent.click(await screen.findByRole('menuitem', {name: new RegExp(`^${label}$`, 'i')}));
+    };
+
     const setStore = (overrides) => {
         const store = {...createDefaultStore(), ...overrides};
         mockUseEventStore.mockImplementation((sel) => sel(store));
         return store;
     };
 
+    test('a node of the cluster dropped keeps its line, and the drops are heard', async () => {
+        mockClusterOrder.value = ['node-1', 'node-2', 'node-3', 'node-4'];
+        try {
+            renderWithRouter(<NodesTable/>);
+            expect(await screen.findByTestId('row-node-4')).toBeInTheDocument();
+            expect(screen.getByTestId('row-node-1')).toBeInTheDocument();
+            expect(mockRetainEventReception.mock.calls[0][1]).toContain('NodeMonitorDeleted');
+        } finally {
+            mockClusterOrder.value = null;
+        }
+    });
+
     test('shows loader when no data, then renders rows', async () => {
         setStore({nodeStatus: {}, nodeStats: {}, nodeMonitor: {}});
         renderWithRouter(<NodesTable/>);
         expect(screen.getByRole('status')).toHaveTextContent('Loading nodes');
         expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+
+    test('speaks French to a French browser', async () => {
+        await i18n.changeLanguage('fr');
+        try {
+            renderWithRouter(<NodesTable/>);
+            expect(await screen.findByText('Sélectionnez des nœuds pour agir dessus, ou ouvrez-en un')).toBeInTheDocument();
+            expect(screen.getByRole('columnheader', {name: 'Charge (15m)'})).toBeInTheDocument();
+        } finally {
+            await i18n.changeLanguage('en');
+        }
     });
 
     test('renders all node names', async () => {
@@ -190,16 +242,17 @@ describe('NodesTable', () => {
         expect(screen.getByText('node-3')).toBeInTheDocument();
     });
 
-    test('enables/disables button based on selection', async () => {
+    test('the actions show with a selection, and go with it', async () => {
         renderWithRouter(<NodesTable/>);
         const checkboxes = await screen.findAllByRole('checkbox');
-        const actionsBtn = screen.getByRole('button', {name: /actions on selected nodes/i});
+        const actions = () => screen.queryByRole('button', {name: 'Actions'});
 
-        expect(actionsBtn).toBeDisabled();
+        expect(actions()).not.toBeInTheDocument();
         fireEvent.click(checkboxes[1]);
-        expect(actionsBtn).toBeEnabled();
+        expect(actions()).toBeInTheDocument();
+        expect(screen.getByText('1 selected')).toBeInTheDocument();
         fireEvent.click(checkboxes[1]);
-        expect(actionsBtn).toBeDisabled();
+        expect(actions()).not.toBeInTheDocument();
 
         expect(checkboxes[0]).toBe(screen.getByRole('checkbox', {name: 'Select all nodes'}));
         fireEvent.click(checkboxes[0]);
@@ -207,36 +260,39 @@ describe('NodesTable', () => {
         expect(checkboxes[1]).toBeChecked();
         expect(checkboxes[2]).toBeChecked();
         expect(checkboxes[3]).toBeChecked();
-        expect(actionsBtn).toBeEnabled();
+        expect(actions()).toBeInTheDocument();
 
         fireEvent.click(checkboxes[0]);
         expect(checkboxes[1]).not.toBeChecked();
-        expect(actionsBtn).toBeDisabled();
+        expect(actions()).not.toBeInTheDocument();
     });
 
     describe('action execution', () => {
         test('opens confirmation dialog and cancels', async () => {
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            await actOnFirstNode('Freeze');
             await waitFor(() =>
-                expect(screen.getByTestId('dialog-freeze')).toHaveTextContent('Confirm Freeze Action on node node-1')
+                expect(screen.getByTestId('dialog-freeze')).toHaveTextContent('Confirm Freeze Action on 1 node')
             );
             fireEvent.click(screen.getByText('Cancel'));
             await waitFor(() => expect(screen.queryByTestId('dialog-freeze')).not.toBeInTheDocument());
         });
 
-        test('successful single-node action', async () => {
-            global.fetch = vi.fn().mockResolvedValue({ok: true, json: () => ({})});
+        test('a node action accepted is followed in the actions tray, no message of its own', async () => {
+            global.fetch = vi.fn((url) => (url.includes('/daemon/exec/')
+                ? new Promise(() => undefined)
+                : Promise.resolve({ok: true, clone: () => ({json: async () => ({exec_id: 'e1', session_id: 's1'})})})));
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            await actOnFirstNode('Freeze');
             fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
-            expect(await screen.findByText(/✅ 'Freeze' succeeded on 1 node\(s\)\./i)).toBeInTheDocument();
+            await waitFor(() => expect(tray()).toEqual([['freeze', 'node-1', 'running', null]]));
+            expect(screen.queryByRole('status', {name: /requested/i})).not.toBeInTheDocument();
         });
 
         test('shows error if token missing', async () => {
             localStorage.removeItem('authToken');
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            await actOnFirstNode('Freeze');
             fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
             expect(await screen.findByRole('alert')).toHaveTextContent(/Authentication token not found/i);
         });
@@ -251,25 +307,28 @@ describe('NodesTable', () => {
             const checkboxes = await screen.findAllByRole('checkbox');
             fireEvent.click(checkboxes[1]);
             fireEvent.click(checkboxes[2]);
-            const actionsBtn = screen.getByRole('button', {name: /actions on selected nodes/i});
+            const actionsBtn = screen.getByRole('button', {name: 'Actions'});
             await waitFor(() => expect(actionsBtn).toBeEnabled());
             fireEvent.click(actionsBtn);
             fireEvent.click(await screen.findByRole('menuitem', {name: /^Freeze$/i}));
             expect(screen.getByTestId('dialog-freeze')).toHaveTextContent('Confirm Freeze Action on 2 nodes');
             fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
-            const alert = await screen.findByRole('alert');
-            expect(alert).toHaveTextContent(/⚠️ 'Freeze' partially succeeded: 1 ok, 1 errors\./i);
+            await waitFor(() => expect(tray()).toHaveLength(2));
+            expect(tray()).toEqual(expect.arrayContaining([
+                ['freeze', 'node-1', 'succeeded', null],
+                ['freeze', 'node-2', 'refused', 'HTTP error'],
+            ]));
         });
 
         test('total failure', async () => {
             global.fetch = vi.fn().mockRejectedValue(new Error('fail'));
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            await actOnFirstNode('Freeze');
             fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
-            expect(await screen.findByText(/❌ 'Freeze' failed on all 1 node\(s\)\./i)).toBeInTheDocument();
+            await waitFor(() => expect(tray()).toEqual([['freeze', 'node-1', 'refused', 'fail']]));
         });
 
-        test('skips freeze when node already frozen', async () => {
+        test('a node already frozen in the selection is not frozen again, the others are', async () => {
             setStore({
                 nodeStatus: {
                     ...createDefaultStore().nodeStatus,
@@ -278,44 +337,31 @@ describe('NodesTable', () => {
             });
             global.fetch = vi.fn().mockResolvedValue({ok: true});
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            fireEvent.click(await screen.findByRole('checkbox', {name: 'select node-2'}));
+            await actOnFirstNode('Freeze');
             fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
-            expect(await screen.findByText(/❌ 'Freeze' failed on all 1 node\(s\)\./i)).toBeInTheDocument();
-            expect(global.fetch).not.toHaveBeenCalled();
-        });
-
-        test('skips unfreeze when node not frozen', async () => {
-            setStore({
-                nodeStatus: {
-                    ...createDefaultStore().nodeStatus,
-                    'node-1': {...createDefaultStore().nodeStatus['node-1'], frozen_at: null},
-                },
-            });
-            global.fetch = vi.fn().mockResolvedValue({ok: true});
-            renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Unfreeze'))[0]);
-            fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
-            expect(await screen.findByText(/❌ 'Unfreeze' failed on all 1 node\(s\)\./i)).toBeInTheDocument();
-            expect(global.fetch).not.toHaveBeenCalled();
+            await waitFor(() => expect(tray()).toEqual([['freeze', 'node-1', 'refused', 'already frozen']]));
+            expect(global.fetch).toHaveBeenCalledTimes(1);
+            expect(global.fetch.mock.calls[0][0]).toContain('/node-2/');
         });
 
         test('handles HTTP error response', async () => {
             global.fetch = vi.fn().mockResolvedValue({ok: false, status: 500});
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            await actOnFirstNode('Freeze');
             fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
             await waitFor(() => {
                 expect(mockLogger.error).toHaveBeenCalledWith(
                     expect.stringContaining('Failed to execute freeze on node-1: HTTP error! status: 500')
                 );
             });
-            expect(await screen.findByText(/❌ 'Freeze' failed on all 1 node\(s\)\./i)).toBeInTheDocument();
+            await waitFor(() => expect(tray()).toEqual([['freeze', 'node-1', 'refused', expect.stringMatching(/^HTTP 500/)]]));
         });
 
         test('correct URL for restart daemon', async () => {
             global.fetch = vi.fn().mockResolvedValue({ok: true});
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Restart Daemon'))[0]);
+            await actOnFirstNode('Restart');
             fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
             await waitFor(() =>
                 expect(global.fetch).toHaveBeenCalledWith(
@@ -330,7 +376,7 @@ describe('NodesTable', () => {
             renderWithRouter(<NodesTable/>);
             const checkboxes = await screen.findAllByRole('checkbox');
             fireEvent.click(checkboxes[1]);
-            const actionsBtn = screen.getByRole('button', {name: /actions on selected nodes/i});
+            const actionsBtn = screen.getByRole('button', {name: 'Actions'});
             await waitFor(() => expect(actionsBtn).toBeEnabled());
             fireEvent.click(actionsBtn);
             fireEvent.click(await screen.findByRole('menuitem', {name: /^Stop$/i}));
@@ -348,7 +394,7 @@ describe('NodesTable', () => {
             renderWithRouter(<NodesTable/>);
             const checkboxes = await screen.findAllByRole('checkbox');
             fireEvent.click(checkboxes[1]);
-            const actionsBtn = screen.getByRole('button', {name: /actions on selected nodes/i});
+            const actionsBtn = screen.getByRole('button', {name: 'Actions'});
             await waitFor(() => expect(actionsBtn).toBeEnabled());
             fireEvent.click(actionsBtn);
             fireEvent.click(await screen.findByRole('menuitem', {name: /^Freeze$/i}));
@@ -361,25 +407,34 @@ describe('NodesTable', () => {
             );
         });
 
+        test('no dequeue: the daemon dequeues the actions the collector says queued, on each feed', async () => {
+            renderWithRouter(<NodesTable/>);
+            const checkboxes = await screen.findAllByRole('checkbox');
+            fireEvent.click(checkboxes[1]);
+            const actionsBtn = screen.getByRole('button', {name: 'Actions'});
+            await waitFor(() => expect(actionsBtn).toBeEnabled());
+            fireEvent.click(actionsBtn);
+            await screen.findByRole('menuitem', {name: /^Drain$/i});
+            expect(screen.queryByRole('menuitem', {name: /dequeue/i})).toBeNull();
+        });
+
         test.each([
             ['Asset', /\/action\/push\/asset$/],
-            ['Disk', /\/action\/push\/disk$/],
-            ['Pkg', /\/action\/push\/pkg$/],
+            ['Disks', /\/action\/push\/disk$/],
+            ['Packages', /\/action\/push\/pkg$/],
             ['Capabilities', /\/action\/scan\/capabilities$/],
             ['Sysreport', /\/action\/sysreport$/],
             ['Drain', /\/action\/drain$/],
-            ['Abort', /\/action\/abort$/],
-            ['Clear', /\/action\/clear$/],
-            ['Dequeue', /\/action\/dequeue$/],
-            ['Scsi Scan', /\/action\/scsi\/scan$/],
-            ['Restart Daemon', /\/daemon\/action\/restart$/],
+            ['Clear monitor', /\/action\/clear$/],
+            ['SCSI', /\/action\/scsi\/scan$/],
+            ['Restart', /\/daemon\/action\/restart$/],
             ['Shutdown', /\/daemon\/action\/shutdown$/],
         ])('correct URL for %s', async (label, urlPattern) => {
             global.fetch = vi.fn().mockResolvedValue({ok: true});
             renderWithRouter(<NodesTable/>);
             const checkboxes = await screen.findAllByRole('checkbox');
             fireEvent.click(checkboxes[1]);
-            const actionsBtn = screen.getByRole('button', {name: /actions on selected nodes/i});
+            const actionsBtn = screen.getByRole('button', {name: 'Actions'});
             await waitFor(() => expect(actionsBtn).toBeEnabled());
             fireEvent.click(actionsBtn);
             fireEvent.click(await screen.findByRole('menuitem', {name: new RegExp(`^${label}$`, 'i')}));
@@ -395,63 +450,88 @@ describe('NodesTable', () => {
         test('handleDialogConfirm with null pendingAction does nothing', async () => {
             global.fetch = vi.fn().mockResolvedValue({ok: true});
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            await actOnFirstNode('Freeze');
             fireEvent.click(screen.getByText('Cancel'));
             expect(global.fetch).not.toHaveBeenCalled();
         });
 
-        test('snackbar onClose triggered by user click', async () => {
-            global.fetch = vi.fn().mockResolvedValue({ok: true});
+        test('the feedback closes with its Close button', async () => {
+            localStorage.removeItem('authToken');
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
+            await actOnFirstNode('Freeze');
             fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
-            const successMsg = await screen.findByText(/✅ 'Freeze' succeeded on 1 node\(s\)\./i);
-            expect(successMsg).toBeInTheDocument();
-            expect(successMsg.closest('[role="status"]')).not.toBeNull();
-            const closeButtons = screen.getAllByRole('button', {name: 'Close'});
-            const alertCloseButton = closeButtons.find(btn => btn.closest('[role="status"]'));
-            expect(alertCloseButton).toBeDefined();
-            fireEvent.click(alertCloseButton);
-            await waitFor(() => {
-                expect(screen.queryByText(/✅ 'Freeze' succeeded on 1 node\(s\)\./i)).not.toBeInTheDocument();
-            });
+            const message = await screen.findByText(/Authentication token not found/i);
+            const close = screen.getAllByRole('button', {name: 'Close'}).find((btn) => btn.closest('[role="alert"]'));
+            expect(close).toBeDefined();
+            fireEvent.click(close);
+            await waitFor(() => expect(message).not.toBeInTheDocument());
         });
 
-        test('snackbar autoHide triggers onClose', async () => {
-            vi.useFakeTimers();
-            global.fetch = vi.fn().mockResolvedValue({ok: true});
+        test('the feedback hides itself after a while', async () => {
+            localStorage.removeItem('authToken');
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
-            fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
-            await screen.findByText(/✅ 'Freeze' succeeded on 1 node\(s\)\./i);
-            act(() => {
-                vi.advanceTimersByTime(5000);
-            });
-            await waitFor(() => {
-                expect(screen.queryByText(/✅ 'Freeze' succeeded on 1 node\(s\)\./i)).not.toBeInTheDocument();
-            });
-            vi.useRealTimers();
+            await actOnFirstNode('Freeze');
+            vi.useFakeTimers();
+            try {
+                fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
+                expect(screen.getByText(/Authentication token not found/i)).toBeInTheDocument();
+                act(() => {
+                    vi.advanceTimersByTime(5000);
+                });
+                expect(screen.queryByText(/Authentication token not found/i)).not.toBeInTheDocument();
+            } finally {
+                vi.useRealTimers();
+            }
         });
     });
 
     describe('menus', () => {
-        test('passes each row its data and callbacks, the row menu being its own', async () => {
+        test('passes each row its data and callbacks: no row actions, the panel holds them', async () => {
             renderWithRouter(<NodesTable/>);
             expect(await screen.findByTestId('props-node-1')).toHaveTextContent(
-                'daemonNodename,isSelected,monitor,nodename,onAction,onOpenLogs,onSelect,stats,status'
+                'daemonNodename,isOpen,isSelected,monitor,nodename,onOpen,onSelect,stats,status'
             );
         });
 
-        test('bulk menu lists every node action but the frozen-state ones that do not apply', async () => {
+        test('bulk menu lists the node actions by group, a column each, each with what it does, the harmful ones red', async () => {
             renderWithRouter(<NodesTable/>);
-            const checkboxes = await screen.findAllByRole('checkbox');
-            fireEvent.click(checkboxes[1]);
-            fireEvent.click(screen.getByRole('button', {name: /actions on selected nodes/i}));
-            const menu = await screen.findByRole('menu', {name: 'Actions on selected nodes'});
-            const names = within(menu).getAllByRole('menuitem').map((item) => item.textContent);
-            expect(names).toContain('Freeze');
-            expect(names).toContain('Restart Daemon');
-            expect(names).not.toContain('Unfreeze');
+            fireEvent.click(await screen.findByRole('checkbox', {name: 'select node-2'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Actions'}));
+            const menu = await screen.findByRole('menu', {name: 'Actions'});
+            // The node, its inventory, its daemon, in that order, a column each in a wide window.
+            expect([...menu.querySelectorAll('[data-menu-heading]')].map((h) => h.textContent)).toEqual(['Node', 'Inventory', 'Daemon']);
+            expect(menu).toHaveClass('md:grid-cols-3');
+            const entries = within(menu).getAllByRole('menuitem');
+            expect(entries.map((item) => item.getAttribute('aria-labelledby') && document.getElementById(item.getAttribute('aria-labelledby')).textContent)).toEqual([
+                'Freeze',
+                'Asset', 'Capabilities', 'Disks', 'Packages', 'SCSI', 'Sysreport',
+                'Clear monitor', 'Restart', 'Shutdown', 'Stop', 'Drain', 'Leave',
+            ]);
+            // Not frozen, no unfreeze; no abort, the badge of the orchestration offers it; no dequeue.
+            expect(within(menu).queryByRole('menuitem', {name: /unfreeze|abort|dequeue/i})).toBeNull();
+            // What each does, described; the harmful ones red.
+            expect(within(menu).getByRole('menuitem', {name: 'Stop'})).toHaveAccessibleDescription('Stop the daemon; the instances keep running, unwatched.');
+            expect(['Shutdown', 'Stop', 'Drain', 'Leave'].every((name) => within(menu).getByRole('menuitem', {name}).classList.contains('text-state-down'))).toBe(true);
+            expect(within(menu).getByRole('menuitem', {name: 'Restart'})).not.toHaveClass('text-state-down');
+        });
+
+        test('leave: the cluster evicts the node, asked of the api node; not offered for the api node itself', async () => {
+            global.fetch = vi.fn().mockResolvedValue({ok: true});
+            renderWithRouter(<NodesTable/>);
+            fireEvent.click(await screen.findByRole('checkbox', {name: 'select node-2'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Actions'}));
+            fireEvent.click(await screen.findByRole('menuitem', {name: 'Leave'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
+            await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+                '/api/cluster/evict',
+                expect.objectContaining({method: 'POST', body: JSON.stringify({node: 'node-2'})}),
+            ));
+            // The api node, node-1, selected: leave off, said why.
+            fireEvent.click(screen.getByRole('checkbox', {name: 'select node-1'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Actions'}));
+            const leave = await screen.findByRole('menuitem', {name: 'Leave'});
+            expect(leave).toBeDisabled();
+            expect(leave).toHaveAccessibleDescription('Ask it from the webapp of another node: this one serves the webapp.');
         });
 
         test('filters based on frozen/unfrozen state and closes via Escape', async () => {
@@ -465,7 +545,7 @@ describe('NodesTable', () => {
             const checkboxes = await screen.findAllByRole('checkbox');
             fireEvent.click(checkboxes[1]);
             fireEvent.click(checkboxes[2]);
-            fireEvent.click(screen.getByRole('button', {name: /actions on selected nodes/i}));
+            fireEvent.click(screen.getByRole('button', {name: 'Actions'}));
             await waitFor(() => {
                 expect(screen.getByRole('menuitem', {name: /^Unfreeze$/i})).toBeInTheDocument();
                 expect(screen.getByRole('menuitem', {name: /^Freeze$/i})).toBeInTheDocument();
@@ -474,28 +554,27 @@ describe('NodesTable', () => {
             await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
         });
 
-        test('empty menu when no nodes selected', async () => {
+        test('no menu while no node is selected: a hint says how to act', async () => {
             renderWithRouter(<NodesTable/>);
-            const actionsBtn = screen.getByRole('button', {name: /actions on selected nodes/i});
-            expect(actionsBtn).toBeDisabled();
-            fireEvent.click(actionsBtn);
-            await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+            await screen.findByText('node-1');
+            expect(screen.queryByRole('button', {name: 'Actions'})).not.toBeInTheDocument();
+            expect(screen.getByText('Select nodes to act on them, or open one')).toBeInTheDocument();
         });
 
         test('handleAction without nodename closes actions menu', async () => {
             renderWithRouter(<NodesTable/>);
             const checkboxes = await screen.findAllByRole('checkbox');
             fireEvent.click(checkboxes[1]);
-            fireEvent.click(screen.getByRole('button', {name: /actions on selected nodes/i}));
+            fireEvent.click(screen.getByRole('button', {name: 'Actions'}));
             await waitFor(() => expect(screen.getByRole('menu')).toBeInTheDocument());
             fireEvent.click(screen.getByRole('menuitem', {name: /^Freeze$/i}));
             await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
         });
 
-        test('handleAction with nodename closes node menu', async () => {
+        test('an action on one node selected is confirmed for that one', async () => {
             renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Freeze'))[0]);
-            await waitFor(() => expect(screen.getByTestId('dialog-freeze')).toHaveTextContent('node node-1'));
+            await actOnFirstNode('Freeze');
+            await waitFor(() => expect(screen.getByTestId('dialog-freeze')).toHaveTextContent('on 1 node'));
         });
     });
 
@@ -597,50 +676,27 @@ describe('NodesTable', () => {
         });
     });
 
-    describe('logs drawer', () => {
-        beforeEach(() => {
-            Object.defineProperty(window, 'innerWidth', {writable: true, configurable: true, value: 1000});
+    describe('node panel', () => {
+        test('a row opens the panel of its node, marked open', async () => {
+            renderWithRouter(<NodesTable/>);
+            fireEvent.click(await screen.findByRole('button', {name: 'Open node-2'}));
+            expect(screen.getByRole('dialog', {name: 'Node node-2'})).toHaveTextContent('node-2 on status');
+            expect(within(screen.getByTestId('row-node-2')).getByText('open')).toBeInTheDocument();
+            expect(window.location.search).toBe('?sel=node-2');
         });
 
-        const logsPanel = () => screen.getByRole('dialog', {name: 'Node Logs'});
-
-        test('opens and closes', async () => {
+        test('no logs column: the logs are a tab of the panel', async () => {
             renderWithRouter(<NodesTable/>);
-            expect(screen.queryByTestId('logs-viewer')).not.toBeInTheDocument();
-            expect(logsPanel()).toHaveAttribute('inert');
-            fireEvent.click((await screen.findAllByText('Open Logs'))[0]);
-            expect(logsPanel()).not.toHaveAttribute('inert');
-            expect(within(logsPanel()).getByTestId('logs-viewer')).toHaveTextContent('Logs for node-1 (node), height: 100%');
-            fireEvent.click(within(logsPanel()).getByRole('button', {name: 'Close'}));
-            await waitFor(() => expect(screen.queryByTestId('logs-viewer')).not.toBeInTheDocument());
-            expect(logsPanel()).toHaveAttribute('inert');
+            await screen.findByTestId('row-node-1');
+            expect(screen.queryByRole('columnheader', {name: 'Logs'})).not.toBeInTheDocument();
         });
 
-        test('shows the logs of the node last asked for', async () => {
+        test('closed, the URL forgets it', async () => {
             renderWithRouter(<NodesTable/>);
-            const buttons = await screen.findAllByText('Open Logs');
-            fireEvent.click(buttons[0]);
-            fireEvent.click(buttons[1]);
-            expect(screen.getByTestId('logs-viewer')).toHaveTextContent('Logs for node-2');
-        });
-
-        test('stays open on a click beside it', async () => {
-            renderWithRouter(<NodesTable/>);
-            fireEvent.click((await screen.findAllByText('Open Logs'))[0]);
-            fireEvent.pointerDown(document.body);
-            expect(screen.getByTestId('logs-viewer')).toBeInTheDocument();
-        });
-
-        test('is resizable from its left edge, by the keyboard', async () => {
-            renderWithRouter(<NodesTable/>);
-            expect(screen.queryByRole('separator', {name: 'Resize drawer'})).not.toBeInTheDocument();
-            fireEvent.click((await screen.findAllByText('Open Logs'))[0]);
-            const handle = screen.getByRole('separator', {name: 'Resize drawer'});
-            const before = handle.getAttribute('aria-valuenow');
-            fireEvent.keyDown(handle, {key: 'ArrowLeft'});
-            await waitFor(() => expect(handle.getAttribute('aria-valuenow')).not.toBe(before));
-            fireEvent.keyDown(handle, {key: 'Enter'});
-            await waitFor(() => expect(handle.getAttribute('aria-valuenow')).toBe(before));
+            fireEvent.click(await screen.findByRole('button', {name: 'Open node-1'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Close panel'}));
+            expect(screen.queryByRole('dialog', {name: /^Node /})).not.toBeInTheDocument();
+            expect(window.location.search).toBe('');
         });
     });
 
@@ -662,7 +718,7 @@ describe('NodesTable', () => {
     test('cleans up event source on unmount', () => {
         const {unmount} = renderWithRouter(<NodesTable/>);
         unmount();
-        expect(mockCloseEventSource).toHaveBeenCalled();
+        expect(mockReleaseEventReception).toHaveBeenCalled();
     });
 
     test('renders the rows once data is there', () => {
@@ -675,7 +731,7 @@ describe('NodesTable', () => {
             renderWithRouter(<NodesTable/>);
             const checkboxes = await screen.findAllByRole('checkbox');
             fireEvent.click(checkboxes[1]);
-            const actionsBtn = screen.getByRole('button', {name: /actions on selected nodes/i});
+            const actionsBtn = screen.getByRole('button', {name: 'Actions'});
             fireEvent.click(actionsBtn);
             expect(actionsBtn).toHaveAttribute('aria-expanded', 'true');
             expect(screen.getByRole('menu')).toBeInTheDocument();

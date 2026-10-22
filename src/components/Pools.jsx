@@ -1,5 +1,6 @@
 import React, {useEffect, useState, useMemo} from "react";
 import axios from "axios";
+import {useTranslation} from "react-i18next";
 import {URL_POOL} from "../config/apiPath.js";
 import logger from '../utils/logger.js';
 import {Table, HeaderRow, SortHeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
@@ -19,31 +20,33 @@ import {UsageBar} from "../ui/components/UsageBar";
  */
 
 const COLUMNS = [
-    {key: "name", label: "Name"},
-    {key: "type", label: "Type"},
-    {key: "volume_count", label: "Volume Count", align: "right"},
-    {key: "usage", label: "Usage", align: "right"},
-    {key: "head", label: "Head"},
+    {key: "name", labelKey: "common.name"},
+    {key: "type", labelKey: "common.type"},
+    {key: "volume_count", labelKey: "pools.columns.volumeCount"},
+    {key: "usage", labelKey: "pools.columns.usage"},
+    {key: "head", labelKey: "pools.columns.head"},
 ];
 
 /** The usage percentage, a small bar beside it: the row keeps one line. */
 const Usage = ({pool}) => {
-    if (!(pool.size && pool.used >= 0)) return "N/A";
+    const {t} = useTranslation();
     return (
         <UsageBar
-            value={(pool.used / pool.size) * 100}
+            value={pool.size && pool.used >= 0 ? (pool.used / pool.size) * 100 : undefined}
+            missing={t("common.notAvailable")}
             title={`${pool.used}/${pool.size}`}
-            label={`Usage of ${pool.name || "N/A"}`}
+            label={t("pools.usageOf", {name: pool.name || t("common.notAvailable")})}
         />
     );
 };
 
 const Pools = () => {
+    const {t} = useTranslation();
     /** @type {[Pool[], function]} */
     const [pools, setPools] = useState([]);
     const [loading, setLoading] = useState(true);
-    /** @type {[string|null, function]} */
-    const [error, setError] = useState(null);
+    /** @type {[boolean, function]} Whether the pools failed to load. */
+    const [error, setError] = useState(false);
     const [sortColumn, setSortColumn] = useState("name");
     const [sortDirection, setSortDirection] = useState("asc");
 
@@ -53,7 +56,7 @@ const Pools = () => {
         const fetchPools = async () => {
             try {
                 setLoading(true);
-                setError(null);
+                setError(false);
                 const token = localStorage.getItem("authToken");
                 const res = await axios.get(URL_POOL, {
                     headers: {
@@ -69,7 +72,7 @@ const Pools = () => {
             } catch (err) {
                 if (isMounted) {
                     setPools([]);
-                    setError("Failed to load pools. Please try again.");
+                    setError(true);
                     setLoading(false);
                 }
                 logger.error("Error retrieving pools", err);
@@ -106,7 +109,7 @@ const Pools = () => {
 
     const handleRetry = () => {
         setLoading(true);
-        setError(null);
+        setError(false);
         setPools([]);
         const fetchPools = async () => {
             try {
@@ -121,7 +124,7 @@ const Pools = () => {
                 setLoading(false);
             } catch (err) {
                 setPools([]);
-                setError("Failed to load pools. Please try again.");
+                setError(true);
                 setLoading(false);
                 logger.error("Error retrieving pools", err);
             }
@@ -138,32 +141,33 @@ const Pools = () => {
         }
     };
 
+    const notAvailable = t("common.notAvailable");
+
     return (
         <div className="p-4 space-y-3">
             {loading ? (
                 <div className="flex justify-center py-8">
-                    <Spinner label="Loading pools"/>
+                    <Spinner label={t("pools.loading")}/>
                 </div>
             ) : error ? (
                 <Alert
                     action={
                         <Button size="sm" onClick={handleRetry}>
-                            Retry
+                            {t("common.retry")}
                         </Button>
                     }
                 >
-                    {String(error)}
+                    {t("pools.loadError")}
                 </Alert>
             ) : (
                 <Table sticky>
-                    <caption className="sr-only">Pools</caption>
+                    <caption className="sr-only">{t("pools.caption")}</caption>
                     <thead>
                         <HeaderRow>
-                            {COLUMNS.map(({key, label, align}) => (
+                            {COLUMNS.map(({key, labelKey}) => (
                                 <SortHeaderCell
                                     key={key}
-                                    label={label}
-                                    align={align}
+                                    label={t(labelKey)}
                                     active={sortColumn === key}
                                     direction={sortDirection}
                                     onSort={() => handleSort(key)}
@@ -173,15 +177,15 @@ const Pools = () => {
                     </thead>
                     <tbody>
                         {sortedPools.length === 0 ? (
-                            <EmptyRow colSpan={COLUMNS.length}>No pools available.</EmptyRow>
+                            <EmptyRow colSpan={COLUMNS.length}>{t("pools.empty")}</EmptyRow>
                         ) : (
                             sortedPools.map((pool) => (
                                 <Row key={pool.name || Math.random()}>
-                                    <Cell className="font-medium">{pool.name || "N/A"}</Cell>
-                                    <Cell>{pool.type || "N/A"}</Cell>
-                                    <Cell numeric>{pool.volume_count ?? "N/A"}</Cell>
+                                    <Cell className="font-medium">{pool.name || notAvailable}</Cell>
+                                    <Cell>{pool.type || notAvailable}</Cell>
+                                    <Cell numeric>{pool.volume_count ?? notAvailable}</Cell>
                                     <Cell numeric><Usage pool={pool}/></Cell>
-                                    <Cell>{pool.head || "N/A"}</Cell>
+                                    <Cell>{pool.head || notAvailable}</Cell>
                                 </Row>
                             ))
                         )}

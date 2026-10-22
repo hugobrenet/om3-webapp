@@ -1,9 +1,11 @@
 import React, {useEffect} from 'react';
+import {useTranslation} from 'react-i18next';
 import {useOidc} from '../context/OidcAuthContext.tsx';
 import logger from '../utils/logger.js';
 
 const SilentRenew = () => {
     const {userManager} = useOidc();
+    const {t} = useTranslation();
 
     useEffect(() => {
         const doSigninSilentCallback = async () => {
@@ -22,7 +24,7 @@ const SilentRenew = () => {
         void doSigninSilentCallback();
     }, [userManager]);
 
-    return <div>Silent renew processing...</div>;
+    return <div>{t('auth.silentRenew.processing')}</div>;
 };
 
 export default SilentRenew;

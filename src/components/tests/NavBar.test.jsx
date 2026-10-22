@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, screen, fireEvent, waitFor} from '@testing-library/react';
+import {render, screen, fireEvent, waitFor, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import NavBar from '../NavBar';
@@ -116,10 +116,10 @@ function setupMocks(overrides = {}) {
     localStorage.clear();
 }
 
-function renderNavBar() {
+function renderNavBar(props = {}) {
     return render(
         <MemoryRouter>
-            <NavBar/>
+            <NavBar {...props}/>
         </MemoryRouter>
     );
 }
@@ -136,10 +136,39 @@ describe('NavBar', () => {
         vi.unstubAllEnvs();
     });
 
+    test('the product name and its cluster tag left out of the bar short of room, below 1200px as the menu folds', () => {
+        renderNavBar();
+        const brand = screen.getByTestId('brand');
+        expect(brand).toHaveClass('hidden', 'min-[1200px]:flex');
+        expect(brand).toHaveTextContent('OpenSVC');
+    });
+
+    test('folded, the menu button carries the alert of its entries; open, none', () => {
+        const alert = {level: 'down', text: '1 object down'};
+        const {unmount} = renderNavBar({showSidebarToggle: true, sidebarOpen: false, menuAlert: alert});
+        const button = screen.getByRole('button', {name: 'Show menu'});
+        const badge = within(button).getByTestId('menu-alert');
+        expect(badge).toHaveAttribute('data-level', 'down');
+        expect(badge).toHaveAttribute('title', '1 object down');
+        unmount();
+        renderNavBar({showSidebarToggle: true, sidebarOpen: true, menuAlert: null});
+        expect(screen.queryByTestId('menu-alert')).not.toBeInTheDocument();
+    });
+
     test('renders cluster breadcrumb and WhoAmI link on /cluster', () => {
         renderNavBar();
         expect(screen.getByRole('link', {name: /navigate to cluster/i})).toHaveAttribute('href', '/');
         expect(screen.getByRole('link', {name: /view user information/i})).toBeInTheDocument();
+    });
+
+    test('the Cluster tag opens the cluster object over the view, its filters kept, its row panel closed', () => {
+        mockUseLocation.mockReturnValue({pathname: '/objects', search: '?globalState=down&sel=svc%2Fweb&tab=logs'});
+        renderNavBar();
+        const tag = screen.getByRole('link', {name: 'Open the cluster'});
+        expect(tag).toHaveAttribute('href', '/objects?globalState=down&peek=object%3Acluster');
+        expect(tag).toHaveTextContent('Cluster');
+        // The product name still leads home.
+        expect(screen.getByRole('link', {name: 'OpenSVC'})).toHaveAttribute('href', '/');
     });
 
     test('does not show breadcrumbs on /login', () => {
@@ -247,10 +276,11 @@ describe('NavBar', () => {
     });
 
     // ---------- object status counts ----------
-    test('is the oc3 top bar: a 44px raised header with a breadcrumb navigation', () => {
+    test('is the oc3 top bar, in the om3 band colour: a 44px header with a breadcrumb navigation', () => {
         renderNavBar();
         const header = screen.getByRole('banner');
-        expect(header).toHaveClass('h-11', 'border-b', 'border-line', 'bg-surface-raised');
+        expect(header).toHaveClass('brand-bar', 'h-11', 'border-b', 'border-line');
+        expect(header).not.toHaveClass('bg-surface-raised');
         expect(screen.getByRole('navigation', {name: 'Breadcrumb'})).toBeInTheDocument();
     });
 
@@ -275,13 +305,18 @@ describe('NavBar', () => {
     });
 
     // ---------- logo ----------
-    test('shows the OpenSVC logo link to the home view, as in oc3', () => {
+    test('names the tab after the cluster, tagged Cluster, not to be taken for oc3', async () => {
+        setupMocks({clusterName: 'dev3'});
+        renderNavBar();
+        await waitFor(() => expect(document.title).toBe('dev3 · OpenSVC Cluster'));
+    });
+
+    test('links the OpenSVC name to the home view, tagged Cluster, without the logo', () => {
         renderNavBar();
         const link = screen.getByRole('link', {name: 'OpenSVC'});
         expect(link).toHaveAttribute('href', '/');
-        const logo = link.querySelector('img');
-        expect(logo).toHaveAttribute('alt', '');
-        expect(logo).toHaveAttribute('width', '24');
+        expect(link.querySelector('img')).toBeNull();
+        expect(link.nextElementSibling).toHaveTextContent('Cluster');
     });
 
     // ---------- sidebar toggle ----------
@@ -339,5 +374,11 @@ describe('NavBar', () => {
         vi.stubEnv('VITE_AI_AGENT_URL', '');
         renderNavBar();
         expect(screen.queryByRole('link', {name: 'Open the AI assistant'})).not.toBeInTheDocument();
+    });
+
+    test('no button for the shortcuts, which read as a help: the "?" key opens them', () => {
+        render(<MemoryRouter><NavBar showSidebarToggle/></MemoryRouter>);
+        expect(screen.queryByRole('button', {name: /shortcuts/i})).not.toBeInTheDocument();
+        expect(document.querySelector('[aria-keyshortcuts="?"]')).toBeNull();
     });
 });

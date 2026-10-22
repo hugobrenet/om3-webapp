@@ -1,0 +1,86 @@
+/*
+ * Identity of om3, on top of the oc3 tokens (tokens.css, kept as oc3 has it): the
+ * webapp of a cluster shares the layout and the components of the collector, and
+ * must not be taken for it at a glance.
+ *
+ * - Its own accent, indigo-violet instead of the oc3 petrol, in the four palettes.
+ *   It stays apart from the state colours, and between the node blue and the code
+ *   keyword violet, which it does not meet in the same places.
+ * - A top bar in a dark slate band (`--brand-*`), neutral, instead of the raised
+ *   white bar of oc3.
+ *
+ * Contrasts (WCAG): accent text on the surfaces 6.6:1 at least, accent-ink on the
+ * accent 7.8:1, the bar ink on the bar 9.9:1 at least, its muted ink 6.3:1 (5:1 on
+ * a hovered button), focus ring included.
+ */
+
+:root {
+  --accent: #4338a8;
+  --accent-ink: #ffffff;
+  --accent-soft: #e7e5f7;
+  --focus-ring: #4338a8;
+
+  --brand: #3b444b;
+  --brand-ink: #ffffff;
+  --brand-ink-muted: #c9d0d5;
+  --brand-hover: #4a545c;
+  --brand-line: #2f373d;
+}
+
+.dark {
+  --accent: #a99ff2;
+  --accent-ink: #14112e;
+  --accent-soft: #2b2756;
+  --focus-ring: #a99ff2;
+
+  /* A band a step above the surfaces: a light one would glare over a dark page. */
+  --brand: #283137;
+  --brand-ink: #e3e8e6;
+  --brand-ink-muted: #a9b4bb;
+  --brand-hover: #343e45;
+  --brand-line: #3d4a52;
+}
+
+.contrast {
+  --accent: #2f2191;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcd8f7;
+  --focus-ring: #2f2191;
+
+  --brand: #2b3237;
+  --brand-ink: #ffffff;
+  --brand-ink-muted: #e1e6e9;
+  --brand-hover: #1c2226;
+  --brand-line: #000000;
+}
+
+.dark.contrast {
+  --accent: #c4bcff;
+  --accent-ink: #000000;
+  --accent-soft: #251d5e;
+  --focus-ring: #c4bcff;
+
+  --brand: #1f2529;
+  --brand-ink: #ffffff;
+  --brand-ink-muted: #d5dce0;
+  --brand-hover: #2c3439;
+  --brand-line: #9aa6ad;
+}
+
+/*
+ * The top bar: the tokens its content uses are turned to the band, so the links,
+ * the buttons, their hover and the focus ring read on it as they do elsewhere.
+ * The om3 tag (accent on accent-soft) becomes a light chip in the band colour:
+ * its pale accent background would melt into the band of the dark mode.
+ */
+.brand-bar {
+  --ink: var(--brand-ink);
+  --ink-muted: var(--brand-ink-muted);
+  --surface-sunken: var(--brand-hover);
+  --line: var(--brand-line);
+  --focus-ring: var(--brand-ink);
+  --accent: var(--brand);
+  --accent-soft: var(--brand-ink);
+  background: var(--brand);
+  color: var(--brand-ink);
+}

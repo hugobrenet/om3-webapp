@@ -1,5 +1,7 @@
 import React, {useEffect} from "react";
+import {useTranslation} from "react-i18next";
 import opensvcLogo from "../ui/assets/opensvc-logo.svg";
+import {ProductTag} from "../ui/components/ProductTag";
 import {Button} from "../ui/components/Button";
 import {Spinner} from "../ui/components/Spinner";
 import {KeyIcon, UserIcon} from "../ui/icons";
@@ -14,6 +16,7 @@ function AuthChoice({authInfo: authInfoProp}) {
     const localAuthInfo = useAuthInfo();
     const authInfo = authInfoProp ?? localAuthInfo;
     const navigate = useNavigate();
+    const {t} = useTranslation();
 
     const handleAuthChoice = async (choice) => {
         if (choice === "openid") {
@@ -52,27 +55,27 @@ function AuthChoice({authInfo: authInfoProp}) {
             <div className="flex items-center gap-2">
                 <img src={opensvcLogo} alt="" className="h-8 w-8"/>
                 <h1 id="auth-choice-title" className="text-title font-semibold">
-                    Authentication Methods
+                    {t("auth.choice.title")}
                 </h1>
+                <span className="ml-auto"><ProductTag/></span>
             </div>
             <p className="text-ink-muted">
-                Please select one of the authentication methods the cluster advertises.
+                {t("auth.choice.prompt")}
             </p>
 
             {!authInfo ? (
                 <div className="flex justify-center py-2">
-                    <Spinner label="Loading authentication methods"/>
+                    <Spinner label={t("auth.choice.loading")}/>
                 </div>
             ) : (
                 <div className="flex flex-col gap-2">
                     {authInfo.openid?.issuer && (
                         <Button
-                            variant="primary"
                             icon={<KeyIcon/>}
                             className="w-full"
                             onClick={() => handleAuthChoice("openid")}
                         >
-                            OpenID
+                            {t("auth.choice.openid")}
                         </Button>
                     )}
                     {authInfo.methods?.includes("basic") && (
@@ -82,7 +85,7 @@ function AuthChoice({authInfo: authInfoProp}) {
                             className="w-full"
                             onClick={() => handleAuthChoice("basic")}
                         >
-                            Login
+                            {t("auth.choice.login")}
                         </Button>
                     )}
                 </div>

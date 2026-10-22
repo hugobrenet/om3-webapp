@@ -87,6 +87,8 @@ describe('objectUtils', () => {
 
     describe('ALLOWED_ACTIONS_BY_KIND', () => {
         test('should have correct action lists for each kind', () => {
+            // The cluster object's actions are the cluster's.
+            expect(ALLOWED_ACTIONS_BY_KIND.ccfg).toEqual(['abort', 'freeze', 'unfreeze']);
             expect(ALLOWED_ACTIONS_BY_KIND.cfg).toEqual(['abort', 'delete']);
             expect(ALLOWED_ACTIONS_BY_KIND.vol).toEqual([
                 'abort', 'delete', 'freeze', 'provision', 'purge', 'unfreeze', 'unprovision'

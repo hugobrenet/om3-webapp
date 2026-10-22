@@ -18,10 +18,9 @@ describe("Button", () => {
   });
 
   test.each([
-    ["primary", "bg-accent"],
-    ["secondary", "bg-surface-raised"],
-    ["danger", "bg-state-down"],
-    ["ghost", "text-ink-muted"],
+    ["create", "bg-accent"],
+    ["secondary", "border-line"],
+    ["delete", "bg-state-down"],
   ] as const)("the %s variant carries %s", (variant, className) => {
     render(<Button variant={variant}>Go</Button>);
     expect(screen.getByRole("button", { name: "Go" })).toHaveClass(className);
@@ -86,21 +85,32 @@ describe("IconButton", () => {
     expect(button).toHaveAttribute("type", "button");
   });
 
-  test("is outlined by default and bare on demand", () => {
+  test("is outlined, of the accent fill creating, of the down fill deleting", () => {
     const { rerender } = render(
       <IconButton label="Close">
         <svg />
       </IconButton>,
     );
-    expect(screen.getByRole("button")).toHaveClass("border", "border-line");
+    expect(screen.getByRole("button")).toHaveClass("border", "border-line", "rounded-(--radius-control)");
     rerender(
-      <IconButton label="Close" bare>
+      <IconButton label="Close" size="sm">
         <svg />
       </IconButton>,
     );
-    const button = screen.getByRole("button");
-    expect(button).not.toHaveClass("border");
-    expect(button).toHaveClass("hover:bg-surface-sunken");
+    expect(screen.getByRole("button")).toHaveClass("border", "border-line", "h-5");
+    rerender(
+      <IconButton label="Add" tone="create">
+        <svg />
+      </IconButton>,
+    );
+    expect(screen.getByRole("button")).toHaveClass("bg-accent");
+    expect(screen.getByRole("button")).not.toHaveClass("border");
+    rerender(
+      <IconButton label="Delete" tone="delete">
+        <svg />
+      </IconButton>,
+    );
+    expect(screen.getByRole("button")).toHaveClass("bg-state-down");
   });
 
   test("forwards its ref and can be disabled", () => {

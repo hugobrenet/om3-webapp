@@ -3,6 +3,8 @@ import {render, screen, fireEvent, waitFor, act} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {vi, beforeAll, afterAll, beforeEach, afterEach, describe, test, expect} from 'vitest';
 import LogsViewer from '../LogsViewer';
+import {resetClusterStatus} from '../../hooks/clusterStatusOnce';
+import i18n from '../../i18n';
 
 // Hoist mocked functions for use in vi.mock factories
 const {
@@ -21,6 +23,7 @@ const {
 // ── Mocks ──────────────────────────────────────────────────────────────
 vi.mock('../../config/apiPath.js', () => ({
     URL_NODE: 'http://mock-api',
+    URL_CLUSTER_STATUS: '/api/cluster/status',
 }));
 
 vi.mock('../../utils/logger.js', () => ({
@@ -34,16 +37,21 @@ global.URL.createObjectURL = vi.fn().mockReturnValue('blob-url');
 global.URL.revokeObjectURL = vi.fn();
 
 // Simulate a readable stream for testing SSE
+/**
+ * The body of a followed log: its chunks, then open, as the daemon keeps it, with
+ * nothing more to read; `ends`, closed after them, as a daemon restarting closes it.
+ */
 class MockReadableStream {
-    constructor(chunks, delay = 0) {
+    constructor(chunks, delay = 0, {ends = false} = {}) {
         this.chunks = chunks || [];
         this.cancelled = false;
         this.delay = delay;
+        this.ends = ends;
     }
 
     getReader() {
         let index = 0;
-        const {chunks, delay} = this;
+        const {chunks, delay, ends} = this;
         const stream = this;
         return {
             read: async () => {
@@ -53,6 +61,7 @@ class MockReadableStream {
                     if (delay > 0) await new Promise(r => setTimeout(r, delay));
                     return {value: new TextEncoder().encode(chunk), done: false};
                 }
+                if (!ends) return new Promise(() => {});
                 return {done: true};
             },
             releaseLock: vi.fn(),
@@ -136,6 +145,18 @@ describe('LogsViewer', () => {
             expect(await screen.findByText('Instance name is required', {exact: false})).toBeInTheDocument();
         });
 
+        test('speaks French in a French browser', async () => {
+            await i18n.changeLanguage('fr');
+            try {
+                mockSuccessfulFetch([]);
+                renderComponent();
+                expect(await screen.findByText('Aucun journal disponible')).toBeInTheDocument();
+                expect(screen.getByPlaceholderText('Rechercher dans les journaux...')).toBeInTheDocument();
+            } finally {
+                await act(() => i18n.changeLanguage('en'));
+            }
+        });
+
         test('shows loading spinner during fetch', async () => {
             global.fetch = vi.fn(() => new Promise(() => {
             }));
@@ -165,6 +186,17 @@ describe('LogsViewer', () => {
                             Accept: 'text/event-stream',
                         }),
                     })
+                );
+            });
+        });
+
+        test('reads only the journal entries the filters match, as the logs of one orchestration', async () => {
+            mockSuccessfulFetch([]);
+            renderComponent({type: 'instance', instanceName: 'inst', namespace: 'ns', kind: 'kind', filters: ['ORCHESTRATION_ID=o-1']});
+            await waitFor(() => {
+                expect(global.fetch).toHaveBeenCalledWith(
+                    'http://mock-api/test-node/instance/path/ns/kind/inst/log?follow=true&filter=ORCHESTRATION_ID%3Do-1',
+                    expect.objectContaining({method: 'GET'}),
                 );
             });
         });
@@ -313,7 +345,18 @@ describe('LogsViewer', () => {
             mockSuccessfulFetch([{__REALTIME_TIMESTAMP: baseTs * 1000, MESSAGE: 'Plain message'}]);
             renderComponent();
             await screen.findByText('Plain message');
-            expect(screen.getByText('[INFO]')).toHaveClass('text-ink');
+            expect(screen.getByText('INFO')).toHaveClass('text-ink');
+            // The level a word, not bold; the message apart from the metadata by a line.
+            expect(screen.getByText('INFO')).not.toHaveClass('font-semibold');
+            // Under the time, in the same cell.
+            expect(screen.getByText('INFO').previousElementSibling.textContent).toMatch(/\d{2}:\d{2}:\d{2}/);
+            expect(screen.getByText('INFO').parentElement).toHaveClass('flex-col');
+            expect(screen.getByText('Plain message').parentElement).toHaveClass('border-l', 'pl-2');
+            // No prefix: the text alone, no line of badges.
+            expect(screen.getByText('Plain message').parentElement.querySelector('[data-meta]')).toBeNull();
+            // No frame nor background, a very light line between entries.
+            expect(findLogsContainer()).not.toHaveClass('bg-surface-sunken', 'border');
+            expect(screen.getByText('Plain message').closest('.log-line')).toHaveClass('border-line/40');
         });
 
         test('parses JSON log with all fields', async () => {
@@ -333,7 +376,7 @@ describe('LogsViewer', () => {
             mockSuccessfulFetch([log]);
             renderComponent();
             await screen.findByText('JSON msg');
-            expect(screen.getByText('[DEBUG]')).toBeInTheDocument();
+            expect(screen.getByText('DEBUG')).toBeInTheDocument();
             expect(screen.getByText('GET')).toBeInTheDocument();
             expect(screen.getByText('/api/test')).toBeInTheDocument();
         });
@@ -495,9 +538,9 @@ describe('LogsViewer', () => {
             renderComponent();
             await screen.findByText('Warn log');
             // The level says itself in a state colour.
-            expect(screen.getByText('[WARN]')).toHaveClass('text-state-warn');
-            expect(screen.getByText('[ERROR]')).toHaveClass('text-state-down');
-            expect(screen.getByText('[DEBUG]')).toHaveClass('text-ink-muted');
+            expect(screen.getByText('WARN')).toHaveClass('text-state-warn');
+            expect(screen.getByText('ERROR')).toHaveClass('text-state-down');
+            expect(screen.getByText('DEBUG')).toHaveClass('text-ink-muted');
         });
     });
 
@@ -619,38 +662,113 @@ describe('LogsViewer', () => {
             vi.useRealTimers();
         });
 
-        test('Go to bottom button appears when not at bottom', async () => {
-            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: 'Test'}]);
-            renderComponent();
-            await screen.findByText('Test');
+        /** Streams that lines are pushed into when the test says: one a request, the last one fed. */
+        const controlledStreams = () => {
+            const streams = [];
+            global.fetch = vi.fn(() => {
+                const queue = [];
+                let wake = null;
+                const reader = {
+                    read: () => (queue.length ? Promise.resolve(queue.shift()) : new Promise((resolve) => {
+                        wake = resolve;
+                    })),
+                    releaseLock: () => {},
+                };
+                streams.push((log) => {
+                    const chunk = {value: new TextEncoder().encode(`data: ${JSON.stringify(log)}\n\n`), done: false};
+                    if (wake) {
+                        const w = wake;
+                        wake = null;
+                        w(chunk);
+                    } else {
+                        queue.push(chunk);
+                    }
+                });
+                return Promise.resolve({ok: true, status: 200, body: {getReader: () => reader}});
+            });
+            return (log) => act(async () => streams.at(-1)(log));
+        };
+        const scrolledTo = (container, scrollTop) => {
+            Object.defineProperty(container, 'scrollHeight', {value: 1000, configurable: true});
+            Object.defineProperty(container, 'clientHeight', {value: 500, configurable: true});
+            container.scrollTop = scrollTop;
+            fireEvent.scroll(container);
+        };
 
-            const goToBottomBtn = screen.getByText('Go to bottom');
-            fireEvent.click(goToBottomBtn);
-            expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
-            expect(screen.queryByText('Go to bottom')).not.toBeInTheDocument();
+        test('opened following; scrolled up, the new lines counted on a button back to the end', async () => {
+            const push = controlledStreams();
+            renderComponent();
+            const ts = Date.now() * 1000;
+            await push({__REALTIME_TIMESTAMP: ts, MESSAGE: 'first'});
+            await screen.findByText('first');
+            expect(screen.getByRole('button', {name: 'Following'})).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.queryByRole('button', {name: /new line|Latest lines/})).toBeNull();
+
+            scrolledTo(findLogsContainer(), 0);
+            expect(screen.getByRole('button', {name: 'Follow'})).toHaveAttribute('aria-pressed', 'false');
+            expect(screen.getByRole('button', {name: 'Latest lines'})).toBeInTheDocument();
+            await push({__REALTIME_TIMESTAMP: ts + 1000, MESSAGE: 'second'});
+            await push({__REALTIME_TIMESTAMP: ts + 2000, MESSAGE: 'third'});
+            const back = await screen.findByRole('button', {name: '2 new lines'});
+            // Not following: the view not moved to the end.
+            expect(findLogsContainer().scrollTop).toBe(0);
+
+            fireEvent.click(back);
+            expect(findLogsContainer().scrollTop).toBe(1000);
+            expect(screen.getByRole('button', {name: 'Following'})).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.queryByRole('button', {name: /new line|Latest lines/})).toBeNull();
         });
 
-        test('handleScroll updates autoScroll when scrolling', async () => {
-            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: 'Test'}]);
+        test('scrolled up, the age of the lines shown by the scroll handle, for a while; none at the end', async () => {
+            const push = controlledStreams();
             renderComponent();
-            await screen.findByText('Test');
+            await push({__REALTIME_TIMESTAMP: String((Date.now() - 5 * 60 * 1000) * 1000), MESSAGE: 'five minutes ago'});
+            await screen.findByText('five minutes ago');
+            const container = findLogsContainer();
+            const age = () => document.querySelector('[data-scroll-age]');
+            scrolledTo(container, 250);
+            expect(age()).toHaveTextContent('5 minutes ago');
+            expect(age()).toHaveClass('bg-accent', 'text-accent-ink');
+            // Where the handle is: halfway down, within the view.
+            expect(age().style.top).toBe(`${Math.round(0.5 * (500 - 22))}px`);
+            await waitFor(() => expect(age()).toBeNull(), {timeout: 2500});
+            scrolledTo(container, 490);
+            expect(age()).toBeNull();
+        });
 
-            const logsContainer = findLogsContainer();
-            expect(logsContainer).toBeInTheDocument();
+        test('back at the end by scrolling, following again', async () => {
+            const push = controlledStreams();
+            renderComponent();
+            await push({__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: 'first'});
+            await screen.findByText('first');
+            scrolledTo(findLogsContainer(), 0);
+            expect(screen.getByRole('button', {name: 'Latest lines'})).toBeInTheDocument();
+            scrolledTo(findLogsContainer(), 490);
+            await waitFor(() => expect(screen.queryByRole('button', {name: 'Latest lines'})).toBeNull());
+            expect(screen.getByRole('button', {name: 'Following'})).toBeInTheDocument();
+        });
 
-            Object.defineProperty(logsContainer, 'scrollHeight', {value: 1000, configurable: true});
-            Object.defineProperty(logsContainer, 'clientHeight', {value: 500, configurable: true});
-            logsContainer.scrollTop = 0;
+        test('older lines read on demand, the journal again further back, put in their place; none left, said', async () => {
+            const ts = Date.now() * 1000;
+            const entry = (offset, message) => ({__REALTIME_TIMESTAMP: String(ts + offset), MESSAGE: message});
+            const older = [entry(-2000, 'older one'), entry(-1000, 'older two'), entry(0, 'recent')];
+            const asText = (logs) => logs.map((log) => `data: ${JSON.stringify(log)}\n\n`).join('');
+            global.fetch = vi.fn((url) => Promise.resolve(url.includes('follow=false')
+                ? {ok: true, status: 200, text: () => Promise.resolve(asText(older))}
+                : {ok: true, status: 200, body: new MockReadableStream([asText([entry(0, 'recent')])], 0)}));
+            renderComponent();
+            await screen.findByText('recent');
+            fireEvent.click(screen.getByRole('button', {name: 'Load older lines'}));
+            await screen.findByText('older one');
+            expect(global.fetch).toHaveBeenCalledWith('http://mock-api/test-node/log?follow=false&lines=250', expect.anything());
+            const messages = [...findLogsContainer().querySelectorAll('.log-line')].map((line) => line.lastElementChild.textContent);
+            expect(messages).toEqual(['older one', 'older two', 'recent']);
+            // Read from the top: the view stays where it is.
+            expect(screen.getByRole('button', {name: 'Follow'})).toBeInTheDocument();
 
-            fireEvent.scroll(logsContainer);
-            let goToBottomBtn = screen.getByText('Go to bottom');
-            expect(goToBottomBtn).toBeInTheDocument();
-
-            logsContainer.scrollTop = 500;
-            fireEvent.scroll(logsContainer);
-            await waitFor(() => {
-                expect(screen.queryByText('Go to bottom')).not.toBeInTheDocument();
-            });
+            fireEvent.click(screen.getByRole('button', {name: 'Load older lines'}));
+            expect(await screen.findByText('No older lines')).toBeInTheDocument();
+            expect(global.fetch).toHaveBeenCalledWith('http://mock-api/test-node/log?follow=false&lines=450', expect.anything());
         });
     });
 
@@ -673,7 +791,182 @@ describe('LogsViewer', () => {
         test('handles empty log message', async () => {
             mockSuccessfulFetch([{__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: ''}]);
             renderComponent();
-            await screen.findByText('[INFO]');
+            await screen.findByText('INFO');
+        });
+    });
+
+    describe('several nodes', () => {
+        beforeEach(() => resetClusterStatus());
+
+        test('a block a node: its marker in the order of the cluster and its name on its first line, faint after', async () => {
+            const entry = (ts, message) => ({__REALTIME_TIMESTAMP: String(ts), MESSAGE: message});
+            const streams = {
+                n1: [entry(1000, 'n1 one'), entry(2000, 'n1 two'), entry(3000, 'n1 three')],
+                n2: [entry(4000, 'n2 one')],
+            };
+            global.fetch = vi.fn((url) => {
+                if (url === '/api/cluster/status') {
+                    return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve({cluster: {config: {nodes: ['n2', 'n1']}}})});
+                }
+                const node = Object.keys(streams).find((n) => url.includes(`/${n}/`));
+                return Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    body: new MockReadableStream(streams[node].map((log) => `data: ${JSON.stringify(log)}\n\n`), 0),
+                });
+            });
+            render(<LogsViewer nodenames={['n1', 'n2']} type="instance" namespace="prod" kind="svc" instanceName="web"/>);
+            await waitFor(() => expect(findLogsContainer()).toHaveTextContent('n2 one'));
+            await waitFor(() => expect(findLogsContainer()).toHaveTextContent('n1 three'));
+            const lines = [...findLogsContainer().querySelectorAll('.log-line')];
+            // n2 first in the cluster: column 0; n1 column 1.
+            await waitFor(() => expect(lines[0].querySelector('[data-node-marker]')).toHaveAttribute('data-node-marker', '1'));
+            expect(lines[3].querySelector('[data-node-marker]')).toHaveAttribute('data-node-marker', '0');
+            // The block of n1: its name on its first line, kept for assistive tools after, the marker faint.
+            expect(lines.map((line) => line.hasAttribute('data-block-start'))).toEqual([true, false, false, true]);
+            expect(lines[1].querySelector('[data-node] .sr-only')).toHaveTextContent('n1');
+            expect(lines[1].querySelector('[data-node-marker]')).toHaveClass('opacity-40');
+            expect(lines[0].querySelector('[data-node-marker]')).not.toHaveClass('opacity-40');
+            // A plainer line where the next node begins.
+            expect(lines[2]).toHaveClass('border-line');
+            expect(lines[1]).toHaveClass('border-line/40');
+        });
+
+        test('the time, the level and the node in columns shared; the message on two lines, its prefixes small badges, then its text', async () => {
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: String(Date.now() * 1000), MESSAGE: 'daemon: imon: kvm/svc/vm1: started'}]);
+            renderComponent();
+            const text = await screen.findByText('started');
+            const cell = text.parentElement;
+            expect(cell).toHaveClass('border-l', 'flex-col');
+            const meta = cell.querySelector('[data-meta]');
+            expect([...meta.children].map((badge) => badge.textContent)).toEqual(['daemon', 'imon', 'kvm/svc/vm1']);
+            expect(meta.firstElementChild).toHaveClass('rounded-full', 'text-ink-muted');
+            expect(meta.nextElementSibling).toBe(text);
+            expect(text.closest('.log-line')).toHaveClass('grid-cols-subgrid', 'col-span-full');
+            expect(text.closest('.log-line').querySelectorAll('button')).toHaveLength(0);
+        });
+
+        test('one node: no marker, no block', async () => {
+            mockSuccessfulFetch([{__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: 'alone'}]);
+            renderComponent();
+            await screen.findByText('alone');
+            expect(document.querySelector('[data-node-marker]')).toBeNull();
+            expect(document.querySelector('[data-block-start]')).toBeNull();
+        });
+
+        test('a stream a node, merged in the order of their time, each line saying its node', async () => {
+            const entry = (ts, message) => ({__REALTIME_TIMESTAMP: String(ts), MESSAGE: message});
+            const streams = {
+                n1: [entry(1000, 'first on n1'), entry(3000, 'third on n1')],
+                n2: [entry(2000, 'second on n2'), entry(3000, 'same instant on n2')],
+            };
+            global.fetch = vi.fn((url) => {
+                const node = Object.keys(streams).find((n) => url.includes(`/${n}/`));
+                return Promise.resolve({
+                    ok: true,
+                    status: 200,
+                    body: new MockReadableStream(streams[node].map((log) => `data: ${JSON.stringify(log)}\n\n`), 0),
+                });
+            });
+            render(<LogsViewer nodenames={['n1', 'n2']} type="instance" namespace="prod" kind="svc" instanceName="web" filters={['RID=app#1']}/>);
+            await waitFor(() => expect(findLogsContainer()).toHaveTextContent('same instant on n2'));
+            // The log streams, beside the cluster status read for the order of the nodes.
+            expect([...new Set(global.fetch.mock.calls.map(([url]) => url))].filter((url) => url !== '/api/cluster/status')).toEqual([
+                'http://mock-api/n1/instance/path/prod/svc/web/log?follow=true&filter=RID%3Dapp%231',
+                'http://mock-api/n2/instance/path/prod/svc/web/log?follow=true&filter=RID%3Dapp%231',
+            ]);
+            await waitFor(() => expect(findLogsContainer()).toHaveTextContent('third on n1'));
+            const lines = [...findLogsContainer().querySelectorAll('.log-line')];
+            expect(lines.map((line) => line.querySelector('[data-node]').textContent)).toEqual(['n1', 'n2', 'n1', 'n2']);
+            expect(lines[0]).toHaveTextContent('first on n1');
+            expect(lines[1]).toHaveTextContent('second on n2');
+            expect(screen.getByText('web on n1, n2')).toBeInTheDocument();
+        });
+    });
+
+    describe('a stream lost', () => {
+        const line = (ms, message) => `data: ${JSON.stringify({__REALTIME_TIMESTAMP: String(ms * 1000), MESSAGE: message})}\n\n`;
+        const status = () => screen.getByText(/^(Connected|Disconnected)$/).parentElement;
+        // The reads of the log not stopped at once.
+        const logReads = () => global.fetch.mock.calls.filter(([url, options]) => url.includes('/log?') && !options?.signal?.aborted).length;
+
+        /** Answered once its reading still goes on: one stopped at once (a second start) takes no body. */
+        const unlessAborted = (options, answer) => Promise.resolve().then(() => (options?.signal?.aborted
+            ? Promise.reject(Object.assign(new Error('aborted'), {name: 'AbortError'}))
+            : answer()));
+
+        /** The bodies of the successive reads of the log, the last one again past them. */
+        const answers = (...bodies) => {
+            let read = 0;
+            global.fetch = vi.fn((url, options) => {
+                if (url === '/api/cluster/status') {
+                    return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve({cluster: {config: {nodes: ['test-node']}}})});
+                }
+                return unlessAborted(options, () => ({ok: true, status: 200, body: bodies[Math.min(read++, bodies.length - 1)]()}));
+            });
+        };
+
+        test('ended by the daemon, it is said, read again, and its lines not shown twice', async () => {
+            const now = Date.now();
+            answers(
+                () => new MockReadableStream([line(now, 'before restart')], 0, {ends: true}),
+                // The daemon back, its stream replays the last lines, then follows.
+                () => new MockReadableStream([line(now, 'before restart'), line(now + 1, 'after restart')]),
+            );
+            renderComponent();
+            await waitFor(() => expect(screen.getByText(/was lost: reconnecting/)).toBeInTheDocument());
+            expect(status()).toHaveAttribute('data-state', 'down');
+            await waitFor(() => expect(findLogsContainer()).toHaveTextContent('after restart'), {timeout: 3000});
+            expect(status()).toHaveAttribute('data-state', 'up');
+            expect(screen.queryByText(/was lost: reconnecting/)).not.toBeInTheDocument();
+            expect(screen.getAllByText('before restart')).toHaveLength(1);
+            expect(logReads()).toBe(2);
+        });
+
+        test('cut (the daemon or the network gone), it is read again', async () => {
+            const now = Date.now();
+            const cut = () => ({
+                getReader: () => ({
+                    read: () => Promise.reject(new TypeError('network error')),
+                    releaseLock: vi.fn(),
+                }),
+            });
+            answers(cut, () => new MockReadableStream([line(now, 'back')]));
+            renderComponent();
+            await waitFor(() => expect(findLogsContainer()).toHaveTextContent('back'), {timeout: 3000});
+            expect(status()).toHaveAttribute('data-state', 'up');
+            expect(screen.queryByText(/Failed to fetch logs/)).not.toBeInTheDocument();
+        });
+
+        test('connected only while the stream of every node is open', async () => {
+            const reads = {n1: 0, n2: 0};
+            global.fetch = vi.fn((url, options) => {
+                if (url === '/api/cluster/status') {
+                    return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve({cluster: {config: {nodes: ['n1', 'n2']}}})});
+                }
+                return unlessAborted(options, () => {
+                    const node = url.includes('/n1/') ? 'n1' : 'n2';
+                    reads[node] += 1;
+                    // The stream of n2 ends once, then follows.
+                    const ends = node === 'n2' && reads.n2 === 1;
+                    return {ok: true, status: 200, body: new MockReadableStream([], 0, {ends})};
+                });
+            });
+            render(<LogsViewer nodenames={['n1', 'n2']}/>);
+            await waitFor(() => expect(screen.getByText(/stream of n2 was lost/)).toBeInTheDocument());
+            expect(status()).toHaveAttribute('data-state', 'down');
+            await waitFor(() => expect(status()).toHaveAttribute('data-state', 'up'), {timeout: 3000});
+            expect(reads).toEqual({n1: 1, n2: 2});
+        });
+
+        test('closed meanwhile, the viewer reads nothing again', async () => {
+            answers(() => new MockReadableStream([], 0, {ends: true}));
+            const {unmount} = renderComponent();
+            await waitFor(() => expect(screen.getByText(/was lost: reconnecting/)).toBeInTheDocument());
+            const before = global.fetch.mock.calls.length;
+            unmount();
+            await new Promise((r) => setTimeout(r, 1500));
+            expect(global.fetch.mock.calls.length).toBe(before);
         });
     });
 });

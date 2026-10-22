@@ -14,6 +14,9 @@ const COMMON_SVC_ACTIONS = [
 ];
 
 const ALLOWED_ACTIONS_BY_KIND = {
+    // The cluster object stands for the cluster: its actions are the cluster's, on
+    // all the nodes (`om cluster freeze`), not an object's (see actionUrl).
+    ccfg: ["abort", "freeze", "unfreeze"],
     cfg: ["abort", "delete"],
     vol: ["abort", "delete", "freeze", "provision", "purge", "unfreeze", "unprovision"],
     sec: ["abort", "delete"],
@@ -30,6 +33,10 @@ const ALLOWED_ACTIONS_BY_KIND = {
 export const parseObjectPath = (objName) => {
     if (!objName || typeof objName !== "string") {
         return {namespace: "root", kind: "svc", name: ""};
+    }
+    // A namespace configuration, as om3 writes it: "<namespace>/", "/" for the root one.
+    if (objName.endsWith("/")) {
+        return {namespace: objName === "/" ? "root" : objName.slice(0, -1), kind: "nscfg", name: "namespace"};
     }
     const parts = objName.split("/");
     let name, kind, namespace;

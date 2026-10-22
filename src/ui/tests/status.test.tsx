@@ -1,16 +1,41 @@
 import { describe, expect, test } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { StatusBadge, type ObjectState } from "../components/StatusBadge";
-import { statusBadge, toObjectState } from "../components/status";
+import { isQuietDown, statusBadge, toObjectState } from "../components/status";
+import { StatusMark } from "../components/StatusMark";
 import { FrozenMark } from "../components/FrozenMark";
 import { ObjectIcon, type ObjectKind, om3ObjectKind } from "../components/ObjectIcon";
+
+describe("isQuietDown", () => {
+  test.each([
+    ["down", "up", true],
+    ["down", "stdby up", true],
+    ["down", "down", false],
+    ["down", "warn", false],
+    ["down", undefined, false],
+    ["up", "up", false],
+    ["stdby down", "up", false],
+  ] as const)("an instance %s of an object %s is quiet: %s", (instance, object, quiet) => {
+    expect(isQuietDown(instance, object)).toBe(quiet);
+  });
+
+  test("a muted mark keeps its shape and its name, in gray", () => {
+    const { container } = render(<StatusMark state="down" muted />);
+    const mark = container.firstElementChild;
+    expect(mark).toHaveAttribute("data-state", "down");
+    expect(mark).toHaveClass("text-ink-muted");
+    expect(mark).not.toHaveClass("text-state-down");
+    expect(mark?.querySelector('[data-glyph="down"]')).not.toBeNull();
+  });
+});
 
 describe("StatusBadge", () => {
   test.each([
     ["up", "up", "text-state-up"],
     ["warn", "warn", "text-state-warn"],
     ["down", "down", "text-state-down"],
-    ["unknown", "n/a", "text-state-unknown"],
+    ["na", "n/a", "text-state-unknown"],
+    ["unknown", "unknown", "text-state-unknown"],
   ] as [ObjectState, string, string][])(
     "%s reads %s with its drawn shape, in %s",
     (state, label, ink) => {
@@ -38,7 +63,7 @@ describe("toObjectState", () => {
     ["up", "up"],
     ["warn", "warn"],
     ["down", "down"],
-    ["n/a", "unknown"],
+    ["n/a", "na"],
     ["", "unknown"],
     [undefined, "unknown"],
     ["stdby up", "unknown"],
@@ -59,7 +84,7 @@ describe("statusBadge", () => {
 
   test("other values map through toObjectState, without a label", () => {
     expect(statusBadge("warn")).toEqual({ state: "warn" });
-    expect(statusBadge("n/a")).toEqual({ state: "unknown" });
+    expect(statusBadge("n/a")).toEqual({ state: "na" });
     expect(statusBadge(undefined)).toEqual({ state: "unknown" });
   });
 });
@@ -108,12 +133,13 @@ describe("ObjectIcon", () => {
     ruleset: "text-icon-compliance",
     complianceLog: "text-icon-compliance",
     designer: "text-icon-compliance",
-    namespace: "text-icon-app",
+    namespace: "text-icon-node",
     kind: "text-icon-tag",
     pool: "text-icon-disk",
     heartbeat: "text-icon-network",
-    config: "text-icon-form",
-    secret: "text-icon-compliance",
+    config: "text-icon-network",
+    secret: "text-icon-dashboard",
+    account: "text-icon-dashboard",
   };
 
   test.each(Object.entries(TINTS) as [ObjectKind, string][])(
@@ -132,6 +158,15 @@ describe("ObjectIcon", () => {
       render(<ObjectIcon kind={kind} />).container.querySelector("svg")?.innerHTML;
     expect(glyph("pool")).toBe(glyph("disk"));
     expect(glyph("kind")).toBe(glyph("tag"));
+    expect(glyph("account")).toBe(glyph("user"));
+  });
+
+  test("om3 kinds never take a red or pink tint, which reads as an issue", () => {
+    const reddish = ["text-icon-app", "text-icon-form", "text-icon-compliance", "text-icon-group", "text-icon-metric"];
+    for (const kind of ["namespace", "config", "secret", "account", "service", "disk", "pool", "kind", "heartbeat"] as ObjectKind[]) {
+      const svg = render(<ObjectIcon kind={kind} />).container.querySelector("svg");
+      for (const tint of reddish) expect(svg).not.toHaveClass(tint);
+    }
   });
 });
 
@@ -141,7 +176,7 @@ describe("om3ObjectKind", () => {
     ["vol", "disk"],
     ["cfg", "config"],
     ["sec", "secret"],
-    ["usr", "user"],
+    ["usr", "account"],
     ["ccfg", "cluster"],
     ["nscfg", "namespace"],
     ["unknown", "service"],

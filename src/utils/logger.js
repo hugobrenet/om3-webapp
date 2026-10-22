@@ -1,20 +1,14 @@
-const isDev = (() => {
+// A production build is told by Vite (import.meta.env.PROD, replaced at build time):
+// `process` does not exist in a browser, and its absence must not read as development.
+// NODE_ENV=production says it too, where `process` exists (tests).
+const isProd = (() => {
     try {
-        if (typeof process !== 'undefined' && process.env) {
-            return process.env.NODE_ENV !== 'production';
-        }
-        return true;
+        if (String(import.meta.env.PROD) === 'true') return true;
     } catch (e) {
-        return true;
+        // No import.meta.env: not built by Vite.
     }
-})();
-
-const isTest = (() => {
     try {
-        if (typeof process !== 'undefined' && process.env) {
-            return process.env.NODE_ENV === 'test';
-        }
-        return false;
+        return typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
     } catch (e) {
         return false;
     }
@@ -31,7 +25,9 @@ const safeSerialize = (arg) => {
     }
 };
 
-const shouldLog = isDev || isTest;
+// In production, only what went wrong: warnings and errors. The traces (log, info,
+// debug) carry events, payloads and configuration, not to be left in a console.
+const shouldTrace = !isProd;
 
 const LOGGER_BEHAVIOR = {
     log: 'log',
@@ -52,19 +48,19 @@ const callConsoleMethod = (method, args) => {
 
 const logger = {
     log: (...args) => {
-        if (shouldLog) callConsoleMethod(LOGGER_BEHAVIOR.log, args);
+        if (shouldTrace) callConsoleMethod(LOGGER_BEHAVIOR.log, args);
     },
     info: (...args) => {
-        if (shouldLog) callConsoleMethod(LOGGER_BEHAVIOR.info, args);
+        if (shouldTrace) callConsoleMethod(LOGGER_BEHAVIOR.info, args);
     },
     warn: (...args) => {
-        if (shouldLog) callConsoleMethod(LOGGER_BEHAVIOR.warn, args);
+        callConsoleMethod(LOGGER_BEHAVIOR.warn, args);
     },
     error: (...args) => {
-        if (shouldLog) callConsoleMethod(LOGGER_BEHAVIOR.error, args);
+        callConsoleMethod(LOGGER_BEHAVIOR.error, args);
     },
     debug: (...args) => {
-        if (shouldLog) callConsoleMethod(LOGGER_BEHAVIOR.debug, args);
+        if (shouldTrace) callConsoleMethod(LOGGER_BEHAVIOR.debug, args);
     },
     serialize: safeSerialize,
 };

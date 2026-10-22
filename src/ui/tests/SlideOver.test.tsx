@@ -203,7 +203,7 @@ describe("SlideOver", () => {
     expect(screen.getByText("History")).toBeInTheDocument();
   });
 
-  test("the p key closes a panel with a rail, not one without", async () => {
+  test("the p key closes a record panel, not another", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const { rerender } = render(
@@ -214,12 +214,58 @@ describe("SlideOver", () => {
     await user.keyboard("p");
     expect(onClose).not.toHaveBeenCalled();
     rerender(
-      <SlideOver open title="t" closeLabel="Close" onClose={onClose} rail={<nav>History</nav>}>
+      <SlideOver open title="t" closeLabel="Close" onClose={onClose} reopenable>
         Body
       </SlideOver>,
     );
     await user.keyboard("p");
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("from the panel, Down goes to its first row that opens something, Up to its last", () => {
+    render(
+      <SlideOver open title="t" closeLabel="Close" onClose={() => {}}>
+        <table>
+          <tbody>
+            <tr><td>plain</td></tr>
+            <tr tabIndex={0}><td>first</td></tr>
+            <tr tabIndex={0}><td>last</td></tr>
+          </tbody>
+        </table>
+      </SlideOver>,
+    );
+    const panel = screen.getByRole("dialog", { name: "t" });
+    expect(panel).toHaveFocus();
+    fireEvent.keyDown(panel, { key: "ArrowDown" });
+    expect(screen.getByRole("row", { name: "first" })).toHaveFocus();
+    panel.focus();
+    fireEvent.keyDown(panel, { key: "ArrowUp" });
+    expect(screen.getByRole("row", { name: "last" })).toHaveFocus();
+  });
+
+  test("another record shown while open, the focus lost: the panel takes it back; kept inside, it stays", () => {
+    const { rerender } = render(
+      <SlideOver open title="a" closeLabel="Close" onClose={() => {}}>
+        <input aria-label="field" />
+      </SlideOver>,
+    );
+    const panel = screen.getByRole("dialog", { name: "a" });
+    // What chose the record, gone with the choice.
+    (document.activeElement as HTMLElement).blur();
+    expect(document.body).toHaveFocus();
+    rerender(
+      <SlideOver open title="b" closeLabel="Close" onClose={() => {}}>
+        <input aria-label="field" />
+      </SlideOver>,
+    );
+    expect(panel).toHaveFocus();
+    screen.getByRole("textbox", { name: "field" }).focus();
+    rerender(
+      <SlideOver open title="c" closeLabel="Close" onClose={() => {}}>
+        <input aria-label="field" />
+      </SlideOver>,
+    );
+    expect(screen.getByRole("textbox", { name: "field" })).toHaveFocus();
   });
 
   test("counts among the open panels while open", () => {
