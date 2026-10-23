@@ -1,7 +1,9 @@
 import React from 'react';
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
-import {beforeEach, describe, expect, test, vi} from 'vitest';
-import AiChat from '../AiChat.jsx';
+import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
+import {axe} from 'vitest-axe';
+import AiChat, {groupConversations} from '../AiChat.jsx';
+import {NARROW_QUERY} from '../../ui/lib/media';
 import {AiAgentError} from '../../services/ai-agent.js';
 import {replayRun} from '../../services/tests/agui-fixtures.js';
 
@@ -47,7 +49,12 @@ const oldMessage = {
 };
 
 describe('AI chatbot page', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+        delete window.matchMedia;
+    });
     beforeEach(() => {
+        localStorage.removeItem('om3.ai.conversations');
         mocks.auth = {authChoice: 'openid', accessToken: 'token', user: 'hugo'};
         mocks.enabled = true;
         mocks.clusterId = 'cluster-id';
@@ -71,8 +78,8 @@ describe('AI chatbot page', () => {
             }),
         };
     });
-    const renderReady = async () => {
-        const view = render(<AiChat />);
+    const renderReady = async (props = {}) => {
+        const view = render(<AiChat {...props} />);
         await waitFor(() =>
             expect(screen.getByRole('button', {name: 'New conversation'})).toBeEnabled()
         );
@@ -491,6 +498,158 @@ describe('AI chatbot page', () => {
             expect(within(card).getByRole('button', {name: 'Approve'})).toBeEnabled();
             expect(within(card).getByText('2')).toBeInTheDocument();
             expect(mocks.client.run).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('layout', () => {
+        const local = (...parts) => new Date(...parts).toISOString();
+        const toggle = (name) => screen.getByRole('button', {name});
+        test('folds the conversations, remembers it, and still starts a conversation folded', async () => {
+            const {unmount} = await renderReady();
+            const hide = toggle('Hide conversations');
+            expect(hide).toHaveAttribute('aria-expanded', 'true');
+            const panel = document.getElementById(hide.getAttribute('aria-controls'));
+            expect(panel).toContainElement(screen.getByRole('button', {name: 'Previous diagnostic'}));
+            fireEvent.click(hide);
+            expect(toggle('Show conversations')).toHaveAttribute('aria-expanded', 'false');
+            expect(panel).not.toBeVisible();
+            expect(screen.queryByRole('button', {name: 'Previous diagnostic'})).not.toBeInTheDocument();
+            expect(localStorage.getItem('om3.ai.conversations')).toBe('closed');
+            unmount();
+            await renderReady();
+            expect(toggle('Show conversations')).toHaveAttribute('aria-expanded', 'false');
+            fireEvent.click(screen.getByRole('button', {name: 'New conversation'}));
+            await waitFor(() => expect(mocks.client.createConversation).toHaveBeenCalledTimes(1));
+            fireEvent.click(toggle('Show conversations'));
+            expect(localStorage.getItem('om3.ai.conversations')).toBe('open');
+            expect(screen.getByRole('button', {name: 'Previous diagnostic'})).toBeVisible();
+        });
+        test('folds the conversations of a narrow window by default, and once one is chosen', async () => {
+            window.matchMedia = vi.fn((query) => ({
+                matches: query === NARROW_QUERY,
+                media: query,
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
+            }));
+            await renderReady();
+            fireEvent.click(toggle('Show conversations'));
+            fireEvent.click(screen.getByRole('button', {name: 'Previous diagnostic'}));
+            expect(toggle('Show conversations')).toHaveAttribute('aria-expanded', 'false');
+            // Narrow, the fold is not a preference.
+            expect(localStorage.getItem('om3.ai.conversations')).toBeNull();
+        });
+        test('searches the titles of the conversations loaded', async () => {
+            mocks.client.listConversations.mockResolvedValue([existing, {id: 'pool', title: 'Pool usage'}, {id: 'untitled'}]);
+            await renderReady();
+            const search = screen.getByRole('searchbox', {name: 'Search conversations'});
+            fireEvent.change(search, {target: {value: 'POOL'}});
+            expect(screen.getByRole('button', {name: 'Pool usage'})).toBeInTheDocument();
+            expect(screen.queryByRole('button', {name: 'Previous diagnostic'})).not.toBeInTheDocument();
+            // An untitled conversation is found by the name it shows.
+            fireEvent.change(search, {target: {value: 'untitled'}});
+            expect(screen.getByRole('button', {name: 'Untitled conversation'})).toBeInTheDocument();
+            fireEvent.change(search, {target: {value: 'nothing like it'}});
+            expect(screen.getByText('No conversation matches.')).toBeInTheDocument();
+            expect(mocks.client.listConversations).toHaveBeenCalledTimes(1);
+        });
+        test('groups the conversations by the day of their last change', async () => {
+            vi.useFakeTimers({toFake: ['Date'], now: new Date(2026, 9, 23, 15, 0)});
+            mocks.client.listConversations.mockResolvedValue([
+                {id: 'a', title: 'Disk check', created_at: local(2026, 9, 1), updated_at: local(2026, 9, 23, 9, 0)},
+                {id: 'b', title: 'Freeze review', updated_at: local(2026, 9, 22, 23, 30)},
+                {id: 'c', title: 'Pool usage', updated_at: local(2026, 9, 18, 12, 0)},
+                {id: 'd', title: 'Old upgrade', updated_at: local(2026, 8, 1)},
+                {id: 'e', title: 'No date'},
+                {id: 'f', title: 'Latest', created_at: local(2026, 9, 23, 14, 0)},
+            ]);
+            await renderReady();
+            const panel = screen.getByRole('region', {name: 'Conversations'});
+            expect(within(panel).getAllByRole('heading', {level: 3}).map((heading) => heading.textContent)).toEqual([
+                'Today',
+                'Yesterday',
+                'Previous 7 days',
+                'Older',
+            ]);
+            const titles = (name) => within(screen.getByRole('list', {name})).getAllByRole('button').map((button) => button.textContent);
+            expect(titles('Today')).toEqual(['Latest', 'Disk check']);
+            expect(titles('Yesterday')).toEqual(['Freeze review']);
+            expect(titles('Previous 7 days')).toEqual(['Pool usage']);
+            expect(titles('Older')).toEqual(['Old upgrade', 'No date']);
+        });
+        test('leaves out the empty groups, by the local day of now', () => {
+            const now = new Date(2026, 9, 23, 0, 30);
+            expect(groupConversations([{id: 'a', updated_at: local(2026, 9, 22, 23, 59)}], now)).toEqual([
+                {key: 'yesterday', items: [{id: 'a', updated_at: local(2026, 9, 22, 23, 59)}]},
+            ]);
+            expect(groupConversations([], now)).toEqual([]);
+        });
+        test('offers first questions from the state of the menu, until the first message', async () => {
+            const status = {
+                objects: {
+                    'prod/svc/api': {avail: 'up', overall: 'warn'},
+                    'prod/svc/web': {avail: 'down', overall: 'down'},
+                    'prod/cfg/settings': {avail: 'n/a', overall: 'warn'},
+                },
+                nodeStatus: {
+                    n1: {frozen_at: '0001-01-01T00:00:00Z'},
+                    n3: {frozen_at: '2026-10-23T10:00:00Z'},
+                    n2: {frozen_at: '2026-10-23T09:00:00Z'},
+                },
+            };
+            await renderReady({status});
+            const starters = screen.getByRole('list', {name: 'Suggested questions'});
+            expect(within(starters).getAllByRole('button').map((button) => button.textContent)).toEqual([
+                'Why is prod/svc/web down?',
+                'Why is n2 frozen?',
+                'Which services are stopped?',
+                'Are all the heartbeats alive?',
+            ]);
+            fireEvent.click(within(starters).getByRole('button', {name: 'Why is prod/svc/web down?'}));
+            await waitFor(() => expect(mocks.client.run).toHaveBeenCalledTimes(1));
+            expect(mocks.client.run).toHaveBeenCalledWith(
+                'new',
+                expect.objectContaining({prompt: 'Why is prod/svc/web down?'}),
+                expect.any(Object)
+            );
+            await screen.findByText('Cluster looks healthy.');
+            expect(screen.queryByRole('list', {name: 'Suggested questions'})).not.toBeInTheDocument();
+        });
+        test('asks about a warn object when none is down, the general questions otherwise', async () => {
+            const {unmount} = await renderReady({status: {objects: {'ns/vol/data': {avail: 'up', overall: 'warn'}}, nodeStatus: {}}});
+            expect(within(screen.getByRole('list', {name: 'Suggested questions'})).getAllByRole('button').map((button) => button.textContent)).toEqual([
+                'Why is ns/vol/data warn?',
+                'Which services are stopped?',
+                'Are all the heartbeats alive?',
+            ]);
+            unmount();
+            await renderReady();
+            expect(within(screen.getByRole('list', {name: 'Suggested questions'})).getAllByRole('button')).toHaveLength(2);
+        });
+        test('puts an object path in a question as text, never as markup or a placeholder', async () => {
+            const path = 'ns/svc/<img src=x onerror=alert(1)>{{node}}$t(ai.title)';
+            const {container} = await renderReady({status: {objects: {[path]: {avail: 'down'}}}});
+            const question = `Why is ${path} down?`;
+            fireEvent.click(screen.getByRole('button', {name: question}));
+            await waitFor(() => expect(mocks.client.run).toHaveBeenCalledWith('new', expect.objectContaining({prompt: question}), expect.any(Object)));
+            expect(container.querySelector('img')).toBeNull();
+        });
+        test('offers no Stop while an approved action runs: its result is what to see', async () => {
+            mocks.client.run.mockImplementationOnce(replayRun('confirmation')).mockImplementationOnce(() => new Promise(() => {}));
+            await renderReady();
+            await submit('Start web with /bin/true');
+            const card = await screen.findByRole('region', {name: 'Action waiting for confirmation'});
+            fireEvent.click(within(card).getByRole('button', {name: 'Approve'}));
+            await waitFor(() => expect(mocks.client.run).toHaveBeenCalledTimes(2));
+            expect(screen.getByRole('button', {name: 'Send'})).toBeDisabled();
+            expect(screen.queryByRole('button', {name: 'Stop'})).not.toBeInTheDocument();
+        });
+        test('accessibility of the layout', async () => {
+            const {container} = await renderReady({status: {objects: {'prod/svc/web': {avail: 'down'}}, nodeStatus: {}}});
+            expect(screen.getByRole('log', {name: 'Conversation messages'})).toBeInTheDocument();
+            expect(toggle('Hide conversations')).toHaveAttribute('aria-controls', 'ai-conversations-panel');
+            expect((await axe(container)).violations).toHaveLength(0);
+            fireEvent.click(toggle('Hide conversations'));
+            expect((await axe(container)).violations).toHaveLength(0);
         });
     });
 });

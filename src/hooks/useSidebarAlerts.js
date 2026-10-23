@@ -40,11 +40,12 @@ export function fullCount(items) {
     ).length;
 }
 
+/** Whether a node status says the node is frozen. */
+export const isFrozen = (status) => !!status?.frozen_at && status.frozen_at !== ZERO_TIME;
+
 /** Frozen nodes. */
 export function frozenCount(nodeStatus) {
-    return Object.values(nodeStatus || {}).filter(
-        (status) => !!status?.frozen_at && status.frozen_at !== ZERO_TIME
-    ).length;
+    return Object.values(nodeStatus || {}).filter(isFrozen).length;
 }
 
 const emptyState = () => ({objects: {}, nodeStatus: {}, heartbeatStatus: {}});
@@ -217,6 +218,13 @@ export function kindOf(path) {
 /** The kinds that run: an object of these has an availability of its own. */
 const ACTORS = ["svc", "vol"];
 
+/** What an object calls attention for: `down`, an actor (svc, vol) down; `warn`, its overall state; else `null`. */
+export function objectAttention(path, status) {
+    if (ACTORS.includes(kindOf(path)) && status?.avail === "down") return "down";
+    if (status?.overall === "warn") return "warn";
+    return null;
+}
+
 /**
  * Objects: red when an actor (svc, vol) is down; else orange when an object's
  * overall state is warn.
@@ -225,8 +233,9 @@ export function objectsAlert(objects) {
     let down = 0;
     let warn = 0;
     for (const [path, status] of Object.entries(objects || {})) {
-        if (ACTORS.includes(kindOf(path)) && status?.avail === "down") down++;
-        else if (status?.overall === "warn") warn++;
+        const attention = objectAttention(path, status);
+        if (attention === "down") down++;
+        else if (attention === "warn") warn++;
     }
     if (down > 0) return {level: "down", text: i18n.t("alerts.objectsDown", {count: down})};
     if (warn > 0) return {level: "warn", text: i18n.t("alerts.objectsWarn", {count: warn})};
@@ -297,19 +306,31 @@ const ofKind = (objects, kind) =>
     Object.fromEntries(Object.entries(objects || {}).filter(([path]) => kindOf(path) === kind));
 
 /**
- * State of the sidebar entries, kept up to date without any user action. For each
- * entry id (`NAV_SECTIONS`), `alert`: what calls for attention, orange or red,
- * `null` when all is well (pools, networks and the lists of keys raise none); and
- * for some entries the `details` lines of their mouseover. All the objects raise
- * the alert of all of them; the services and the volumes, each of theirs only.
+ * The state the sidebar entries are computed from, kept up to date without any
+ * user action: the objects by path, the node and heartbeat status by node, the
+ * pools and the networks.
  */
-export default function useSidebarAlerts({enabled = true} = {}) {
+export function useSidebarState({enabled = true} = {}) {
     const {objects, nodeStatus, heartbeatStatus} = useSidebarEventState(enabled);
     const {pools, networks} = useUsageLists(enabled);
     // Shared with the overview of the cluster: one stream, one poll, for both.
     useEffect(() => {
         useMenuState.setState({objects, nodeStatus, heartbeatStatus, pools, networks, ready: true});
     }, [objects, nodeStatus, heartbeatStatus, pools, networks]);
+    return useMemo(
+        () => ({objects, nodeStatus, heartbeatStatus, pools, networks}),
+        [objects, nodeStatus, heartbeatStatus, pools, networks]
+    );
+}
+
+/**
+ * State of the sidebar entries, out of the state of `useSidebarState`. For each
+ * entry id (`NAV_SECTIONS`), `alert`: what calls for attention, orange or red,
+ * `null` when all is well (pools, networks and the lists of keys raise none); and
+ * for some entries the `details` lines of their mouseover. All the objects raise
+ * the alert of all of them; the services and the volumes, each of theirs only.
+ */
+export function useSidebarAlertsOf({objects, nodeStatus, heartbeatStatus, pools, networks}) {
     // The alerts and details are text: computed again when the language changes.
     const {i18n: {language}} = useTranslation();
 
@@ -323,4 +344,9 @@ export default function useSidebarAlerts({enabled = true} = {}) {
         nodes: {alert: nodesAlert(nodeStatus), details: nodesDetails(nodeStatus)},
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [objects, nodeStatus, heartbeatStatus, pools, networks, language]);
+}
+
+/** The state of the sidebar entries, read from a state of their own. */
+export default function useSidebarAlerts(options) {
+    return useSidebarAlertsOf(useSidebarState(options));
 }

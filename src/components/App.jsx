@@ -8,7 +8,7 @@ import Login from "./Login.jsx";
 import '../styles/main.css';
 import NavBar from './NavBar';
 import {Sidebar, menuAlert, useSidebarOpen} from './Sidebar';
-import useSidebarAlerts from '../hooks/useSidebarAlerts';
+import {useSidebarAlertsOf, useSidebarState} from '../hooks/useSidebarAlerts';
 import {OidcProvider, useOidc} from "../context/OidcAuthContext.tsx";
 import {
     AuthProvider,
@@ -380,7 +380,9 @@ const App = () => {
     // The sign-in screens have no view to navigate to: no menu there.
     const showSidebar = !AUTH_PATHS.some((path) => location.pathname.startsWith(path));
     // The alerts of the menu, read once: on its entries, and on its button while folded.
-    const sidebarAlerts = useSidebarAlerts({enabled: showSidebar});
+    // The assistant asks its first questions from the same state.
+    const sidebarState = useSidebarState({enabled: showSidebar});
+    const sidebarAlerts = useSidebarAlertsOf(sidebarState);
 
     // "n", for navigation, moves the focus to the menu, on the entry of the view on
     // display, unfolding the menu first when it is folded: the focus waits for it to
@@ -468,7 +470,7 @@ const App = () => {
                                         {/* The legal information read by all, signed in or not. */}
                                         <Route path="/about" element={<About/>}/>
                                         <Route path="/token" element={<TokenPage/>}/>
-                                        <Route path="/ai" element={<ProtectedRoute>{aiEnabled ? <AiChat/> : <Navigate to="/" replace/>}</ProtectedRoute>}/>
+                                        <Route path="/ai" element={<ProtectedRoute>{aiEnabled ? <AiChat status={sidebarState}/> : <Navigate to="/" replace/>}</ProtectedRoute>}/>
                                         <Route path="/silent-renew" element={<SilentRenew/>}/>
                                         <Route path="/auth-callback" element={<OidcCallback/>}/>
                                         <Route path="/auth-choice" element={<AuthChoice authInfo={authInfo}/>}/>

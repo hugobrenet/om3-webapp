@@ -1,29 +1,127 @@
-import {useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {useTranslation} from "react-i18next";
 import {useAuth} from "../context/AuthProvider.jsx";
 import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus.jsx";
 import useAiAgent from "../hooks/useAiAgent.js";
 import useAiChat from "../hooks/useAiChat.js";
+import {isFrozen, objectAttention} from "../hooks/useSidebarAlerts.js";
 import AiMarkdown from "./AiMarkdown.jsx";
 import AiArgumentsForm, {argumentsOf, compileSchema, draftOf, formFields, sameArguments, schemaErrors} from "./AiArgumentsForm.jsx";
 import {Alert} from "../ui/components/Alert";
-import {Button} from "../ui/components/Button";
+import {Button, IconButton} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
 import {Checkbox, Field, Input, Textarea} from "../ui/components/Field";
 import {FEEDBACK_REASONS, MAX_FEEDBACK_EXPECTED_CHARACTERS} from "../services/ai-agent.js";
 import {Spinner} from "../ui/components/Spinner";
-import {AlertTriangleIcon, ChatIcon, PencilIcon, PlusIcon, SendIcon, StopIcon, TrashIcon} from "../ui/icons";
+import {AlertTriangleIcon, ChatIcon, PencilIcon, PlusIcon, SearchIcon, SendIcon, SidebarIcon, StopIcon, TrashIcon} from "../ui/icons";
+import {NARROW_QUERY, useMediaQuery} from "../ui/lib/media";
 import {cn} from "../ui/cn";
 
-const PANEL = "flex min-w-0 flex-col rounded-(--radius-panel) border border-line bg-surface-raised";
+const PANEL = "flex min-h-0 min-w-0 flex-col rounded-(--radius-panel) border border-line bg-surface-raised";
 const PANEL_HEADER = "flex flex-wrap items-center gap-2 border-b border-line px-3 py-2";
 
-const FEEDBACK_REASON_LABELS = {
-    not_answered: "Doesn't answer my question",
-    missing_information: "Missing information",
-    incorrect_or_outdated: "Incorrect or outdated information",
-    hard_to_understand: "Hard to understand",
-    action_not_done: "Expected action not done",
-};
+const CONVERSATIONS_KEY = "om3.ai.conversations";
+const CONVERSATIONS_PANEL = "ai-conversations-panel";
+
+/** Folding the conversations is a display comfort, specific to the browser, as the menu. */
+function readConversationsOpen() {
+    try {
+        return localStorage.getItem(CONVERSATIONS_KEY) !== "closed";
+    } catch {
+        // Private browsing or storage refused: the panel opens, as by default.
+        return true;
+    }
+}
+
+/**
+ * Open state of the conversations panel, and what toggles it. A wide window
+ * remembers it in local storage. A narrow one has it folded: by default, on
+ * becoming so, and once a conversation is chosen (`fold`), a choice not remembered.
+ */
+export function useConversationsOpen() {
+    const narrow = useMediaQuery(NARROW_QUERY);
+    const [open, setOpen] = useState(readConversationsOpen);
+    const [narrowOpen, setNarrowOpen] = useState(false);
+    useEffect(() => {
+        if (narrow) setNarrowOpen(false);
+    }, [narrow]);
+    const toggle = useCallback(() => {
+        if (narrow) {
+            setNarrowOpen((previous) => !previous);
+            return;
+        }
+        setOpen((previous) => {
+            const next = !previous;
+            try {
+                localStorage.setItem(CONVERSATIONS_KEY, next ? "open" : "closed");
+            } catch {
+                // Preference not remembered: without consequence for the current session.
+            }
+            return next;
+        });
+    }, [narrow]);
+    const fold = useCallback(() => setNarrowOpen(false), []);
+    return [narrow ? narrowOpen : open, toggle, {narrow, fold}];
+}
+
+export const CONVERSATION_GROUPS = ["today", "yesterday", "week", "older"];
+
+/** The time of the last change of a conversation, NaN when it has none readable. */
+const changedAt = (conversation) => Date.parse(conversation.updated_at || conversation.created_at || "");
+
+/**
+ * The conversations by the day of their last change, in the local time of `now`:
+ * today, yesterday, the 7 days before, older. Each group is sorted from the most
+ * recent; a conversation without a readable date goes to the older ones.
+ */
+export function groupConversations(conversations, now = new Date()) {
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const week = new Date(today);
+    week.setDate(today.getDate() - 7);
+    const groups = Object.fromEntries(CONVERSATION_GROUPS.map((key) => [key, []]));
+    for (const conversation of conversations) {
+        const time = changedAt(conversation);
+        const key = !Number.isFinite(time)
+            ? "older"
+            : time >= today.getTime()
+                ? "today"
+                : time >= yesterday.getTime()
+                    ? "yesterday"
+                    : time >= week.getTime()
+                        ? "week"
+                        : "older";
+        groups[key].push(conversation);
+    }
+    const recentFirst = (left, right) => (changedAt(right) || 0) - (changedAt(left) || 0);
+    return CONVERSATION_GROUPS.filter((key) => groups[key].length).map((key) => ({key, items: groups[key].sort(recentFirst)}));
+}
+
+/**
+ * The first questions offered on a conversation without messages, at most four:
+ * an object down, else one warn, then a frozen node, then two general ones. They
+ * come from the state of the menu pills; paths and node names are untrusted text,
+ * put in the question as they are and only ever rendered as text.
+ */
+export function starterQuestions(status, t) {
+    const objects = status?.objects || {};
+    const nodes = status?.nodeStatus || {};
+    const paths = Object.keys(objects).sort();
+    const questions = [];
+    const object =
+        paths.find((path) => objectAttention(path, objects[path]) === "down") ??
+        paths.find((path) => objectAttention(path, objects[path]) === "warn");
+    if (object !== undefined) {
+        const state = objectAttention(object, objects[object]);
+        questions.push(t("ai.starters.object", {path: object, state}));
+    }
+    const frozen = Object.keys(nodes).sort().find((node) => isFrozen(nodes[node]));
+    if (frozen !== undefined) questions.push(t("ai.starters.frozen", {node: frozen}));
+    questions.push(t("ai.starters.stopped"), t("ai.starters.heartbeats"));
+    return questions.slice(0, 4);
+}
 
 /**
  * The feedback of the user on the answer of a turn: helpful, or to improve
@@ -31,6 +129,7 @@ const FEEDBACK_REASON_LABELS = {
  * again withdraws it.
  */
 function Feedback({rating, onRate, onUnrate}) {
+    const {t} = useTranslation();
     const current = rating?.feedback || null;
     const pending = Boolean(rating?.pending);
     const [form, setForm] = useState(null);
@@ -71,37 +170,36 @@ function Feedback({rating, onRate, onUnrate}) {
 
     return (
         <div className="mt-2 space-y-2 text-data">
-            <div role="group" aria-label="Rate this answer" className="flex flex-wrap items-center gap-2">
-                <Button size="sm" variant={current?.rating === "up" ? "primary" : "ghost"} aria-pressed={current?.rating === "up"} disabled={pending} onClick={clickUp}>
-                    <span aria-hidden="true">👍</span> Helpful
+            <div role="group" aria-label={t("ai.feedback.rate")} className="flex flex-wrap items-center gap-2">
+                <Button size="sm" aria-pressed={current?.rating === "up"} disabled={pending} onClick={clickUp}>
+                    <span aria-hidden="true">👍</span> {t("ai.feedback.helpful")}
                 </Button>
                 <Button
                     size="sm"
-                    variant={current?.rating === "down" ? "primary" : "ghost"}
                     aria-pressed={current?.rating === "down"}
                     aria-expanded={Boolean(form)}
                     disabled={pending}
                     onClick={clickDown}
                 >
-                    <span aria-hidden="true">👎</span> Needs improvement
+                    <span aria-hidden="true">👎</span> {t("ai.feedback.improve")}
                 </Button>
                 {current?.rating === "down" && !form && (
-                    <Button size="sm" variant="ghost" icon={<PencilIcon width={12} height={12}/>} disabled={pending} onClick={openForm}>
-                        Edit
+                    <Button size="sm" icon={<PencilIcon width={12} height={12}/>} disabled={pending} onClick={openForm}>
+                        {t("ai.feedback.edit")}
                     </Button>
                 )}
-                {pending && <Spinner label="Saving feedback…"/>}
-                {current && !pending && !form && <span className="text-ink-muted">Thanks for your feedback.</span>}
+                {pending && <Spinner label={t("ai.feedback.saving")}/>}
+                {current && !pending && !form && <span className="text-ink-muted">{t("ai.feedback.thanks")}</span>}
             </div>
             {rating?.error && <p role="alert" className="text-state-down">{rating.error}</p>}
             {form && (
-                <form aria-label="Feedback details" onSubmit={send} className="space-y-2 rounded-(--radius-control) border border-line bg-surface-sunken p-2">
+                <form aria-label={t("ai.feedback.details")} onSubmit={send} className="space-y-2 rounded-(--radius-control) border border-line bg-surface-sunken p-2">
                     <fieldset className="space-y-1">
-                        <legend className="mb-1 font-medium">What went wrong? (optional)</legend>
+                        <legend className="mb-1 font-medium">{t("ai.feedback.reasonsLegend")}</legend>
                         {FEEDBACK_REASONS.map((reason) => (
                             <div key={reason}>
                                 <Checkbox
-                                    label={FEEDBACK_REASON_LABELS[reason]}
+                                    label={t(`ai.feedback.reasons.${reason}`)}
                                     checked={form.reasons.includes(reason)}
                                     disabled={pending}
                                     onChange={() => toggleReason(reason)}
@@ -110,9 +208,9 @@ function Feedback({rating, onRate, onUnrate}) {
                         ))}
                     </fieldset>
                     <Field
-                        label="What did you expect? (optional)"
-                        hint={tooLong ? undefined : `${expectedLength}/${MAX_FEEDBACK_EXPECTED_CHARACTERS} characters`}
-                        error={tooLong ? `At most ${MAX_FEEDBACK_EXPECTED_CHARACTERS} characters.` : undefined}
+                        label={t("ai.feedback.expected")}
+                        hint={tooLong ? undefined : t("ai.feedback.length", {length: expectedLength, max: MAX_FEEDBACK_EXPECTED_CHARACTERS})}
+                        error={tooLong ? t("ai.feedback.tooLong", {max: MAX_FEEDBACK_EXPECTED_CHARACTERS}) : undefined}
                     >
                         {(control) => (
                             <Textarea
@@ -125,15 +223,13 @@ function Feedback({rating, onRate, onUnrate}) {
                             />
                         )}
                     </Field>
-                    <p className="text-ink-muted">
-                        Your feedback and the exchange it rates are kept to improve the assistant, without your identity.
-                    </p>
+                    <p className="text-ink-muted">{t("ai.feedback.privacy")}</p>
                     <div className="flex justify-end gap-2">
                         <Button size="sm" disabled={pending} onClick={() => setForm(null)}>
-                            Cancel
+                            {t("ai.feedback.cancel")}
                         </Button>
-                        <Button size="sm" type="submit" variant="primary" disabled={pending || tooLong}>
-                            Send
+                        <Button size="sm" type="submit" disabled={pending || tooLong}>
+                            {t("ai.feedback.send")}
                         </Button>
                     </div>
                 </form>
@@ -144,6 +240,7 @@ function Feedback({rating, onRate, onUnrate}) {
 
 /** One message of the transcript: the text, the tool activity and the turn state. */
 function Message({message, feedback}) {
+    const {t} = useTranslation();
     const user = message.role === "user";
     return (
         <li
@@ -152,30 +249,31 @@ function Message({message, feedback}) {
                 user ? "self-end bg-surface-sunken" : "self-start bg-surface"
             )}
         >
-            <p className="mb-1 text-data font-semibold text-ink-muted">{user ? "You" : "Assistant"}</p>
+            <p className="mb-1 text-data font-semibold text-ink-muted">{user ? t("ai.message.you") : t("ai.message.assistant")}</p>
             {message.text && !user && <AiMarkdown text={message.text}/>}
             {message.text && user && <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.text}</div>}
             {message.tools?.length > 0 && (
-                <ul aria-label="Tool activity" className="my-1 list-disc pl-5 text-data">
+                <ul aria-label={t("ai.message.tools")} className="my-1 list-disc pl-5 text-data">
                     {message.tools.map((tool) => (
                         <li key={tool.id} className={tool.status === "failed" ? "text-state-down" : "text-ink-muted"}>
-                            {tool.name} — {tool.status}
-                            {tool.editedArgs && " (with your changes)"}
+                            {t("ai.message.tool", {
+                                name: tool.name,
+                                status: t(`ai.message.toolStatus.${tool.status}`, {defaultValue: tool.status}),
+                            })}
+                            {tool.editedArgs && t("ai.message.withChanges")}
                         </li>
                     ))}
                 </ul>
             )}
-            {message.status === "running" && <Spinner label="Working…" className="mt-1 text-data"/>}
+            {message.status === "running" && <Spinner label={t("ai.message.working")} className="mt-1 text-data"/>}
             {message.status === "awaiting_confirmation" && (
-                <p className="mt-1 text-data text-state-warn">Waiting for your decision on the action below.</p>
+                <p className="mt-1 text-data text-state-warn">{t("ai.message.awaiting")}</p>
             )}
             {["stopped", "failed"].includes(message.status) && (
-                <p className="mt-1 text-data text-state-warn">
-                    Incomplete response — {message.status}. No automatic retry.
-                </p>
+                <p className="mt-1 text-data text-state-warn">{t(`ai.message.${message.status}`)}</p>
             )}
             {typeof message.usage?.total_tokens === "number" && (
-                <p className="mt-1 text-data text-ink-muted">Tokens: {message.usage.total_tokens}</p>
+                <p className="mt-1 text-data text-ink-muted">{t("ai.message.tokens", {total: message.usage.total_tokens})}</p>
             )}
             {feedback}
         </li>
@@ -316,22 +414,40 @@ function ConfirmationCard({confirmation, busy, onApprove, onReject}) {
     );
 }
 
-const AiChat = () => {
+
+/**
+ * The assistant page. It fills the height of the view: the transcript scrolls
+ * between its header and the message box, which stays at the bottom. `status`
+ * is the state of the menu pills, objects by path and node status by node, the
+ * first questions offered come from.
+ */
+const AiChat = ({status}) => {
+    const {t} = useTranslation();
     const auth = useAuth();
     const {clusterId, clusterName, loading, error: statusError, fetchNodes} = useFetchDaemonStatus();
     const {enabled, ready, configurationError, client} = useAiAgent({clusterId});
     // A conversation belongs to an identity on a cluster: changing either resets the view.
     const scope = JSON.stringify([auth.authChoice, auth.user, clusterId]);
     const chat = useAiChat({client, ready, scope});
+    const [conversationsOpen, toggleConversations, {fold: foldConversations}] = useConversationsOpen();
+    const [search, setSearch] = useState("");
     const [draft, setDraft] = useState("");
     const [dialog, setDialog] = useState("");
     const [title, setTitle] = useState("");
     const transcript = useRef(null);
     const scrollAnchor = useRef(null);
     const busy = Boolean(chat.pending);
-    const turning = chat.pending === "turn" || chat.pending === "confirming";
     const waiting = Boolean(chat.confirmation);
     const promptTooLarge = new TextEncoder().encode(draft).length > 32 * 1024;
+    const untitled = t("ai.conversations.untitled");
+    const titleOf = (conversation) => conversation.title || untitled;
+    // The search runs on the titles of the conversations loaded, the agent has none.
+    const needle = search.trim().toLocaleLowerCase();
+    const groups = groupConversations(
+        needle ? chat.conversations.filter((conversation) => titleOf(conversation).toLocaleLowerCase().includes(needle)) : chat.conversations
+    );
+    const starters =
+        chat.historyReady && !busy && !waiting && !chat.messages.length ? starterQuestions(status, t) : [];
 
     useEffect(() => {
         if (enabled && auth.accessToken) void fetchNodes(auth.accessToken);
@@ -382,128 +498,205 @@ const AiChat = () => {
     };
 
     return (
-        <div className="space-y-3 p-4">
+        <div className="flex h-full min-h-0 flex-col gap-3 p-4">
             <div className="flex flex-wrap items-center gap-3">
                 <h1 className="flex items-center gap-2 text-title font-semibold">
                     <ChatIcon width={18} height={18} className="text-ink-muted"/>
-                    AI Assistant
+                    {t("ai.title")}
                 </h1>
                 {ready && (
                     <span className="rounded-full border border-line px-2 py-0.5 text-data text-ink-muted">
-                        {clusterName || "Cluster"}
+                        {clusterName || t("ai.cluster")}
                     </span>
                 )}
             </div>
 
-            {!enabled && (
-                <Alert tone="info">{configurationError || "The AI agent is not configured for this webapp."}</Alert>
-            )}
-            {enabled && !auth.accessToken && (
-                <Alert tone="info">An authenticated session is required to use the AI assistant.</Alert>
-            )}
+            {!enabled && <Alert tone="info">{configurationError || t("ai.notConfigured")}</Alert>}
+            {enabled && !auth.accessToken && <Alert tone="info">{t("ai.authRequired")}</Alert>}
             {enabled && auth.accessToken && !ready && (
                 <Alert
                     tone={statusError ? "error" : "info"}
                     action={
                         <Button size="sm" disabled={loading} onClick={() => fetchNodes(auth.accessToken)}>
-                            Refresh status
+                            {t("ai.refreshStatus")}
                         </Button>
                     }
                 >
-                    {statusError || (loading ? "Loading cluster information…" : "Waiting for the cluster ID.")}
+                    {statusError || (loading ? t("ai.loadingCluster") : t("ai.waitingCluster"))}
                 </Alert>
             )}
 
             {ready && (
-                <div className="grid gap-3 md:grid-cols-[16rem_minmax(0,1fr)]">
-                    <section aria-labelledby="ai-conversations" className={PANEL}>
+                <div
+                    className={cn(
+                        "grid min-h-0 flex-1 gap-3",
+                        // Narrow, the open panel stands above the transcript.
+                        conversationsOpen
+                            ? "grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[16rem_minmax(0,1fr)] md:grid-rows-1"
+                            : "grid-rows-1"
+                    )}
+                >
+                    <section
+                        id={CONVERSATIONS_PANEL}
+                        aria-labelledby="ai-conversations"
+                        hidden={!conversationsOpen}
+                        className={cn(PANEL, "max-md:max-h-[40vh]")}
+                    >
                         <div className={PANEL_HEADER}>
-                            <h2 id="ai-conversations" className="font-semibold">Conversations</h2>
+                            <h2 id="ai-conversations" className="font-semibold">{t("ai.conversations.title")}</h2>
                         </div>
                         <div className="space-y-2 p-3">
                             <Button
-                                variant="primary"
+                                variant="create"
                                 icon={<PlusIcon/>}
                                 disabled={busy}
-                                onClick={() => chat.createConversation()}
+                                onClick={() => {
+                                    foldConversations();
+                                    void chat.createConversation();
+                                }}
                             >
-                                New conversation
+                                {t("ai.conversations.new")}
                             </Button>
-                            {chat.pending === "loading" && <Spinner label="Loading conversations"/>}
-                            {!chat.conversations.length && !busy && (
-                                <p className="text-ink-muted">No conversations yet.</p>
+                            {chat.conversations.length > 0 && (
+                                <div className="relative">
+                                    <SearchIcon
+                                        width={14}
+                                        height={14}
+                                        aria-hidden="true"
+                                        className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-ink-muted"
+                                    />
+                                    <Input
+                                        type="search"
+                                        aria-label={t("ai.conversations.search")}
+                                        title={t("ai.conversations.searchHint")}
+                                        placeholder={t("ai.conversations.search")}
+                                        className="pl-7"
+                                        value={search}
+                                        onChange={(event) => setSearch(event.target.value)}
+                                    />
+                                </div>
                             )}
-                            <ul aria-label="Conversations" className="max-h-48 space-y-0.5 overflow-y-auto md:max-h-[55vh]">
-                                {chat.conversations.map((conversation) => {
-                                    const selected = conversation.id === chat.conversation?.id;
-                                    return (
-                                        <li key={conversation.id}>
-                                            <button
-                                                type="button"
-                                                aria-current={selected ? "true" : undefined}
-                                                disabled={busy}
-                                                onClick={() => chat.resumeConversation(conversation.id)}
-                                                className={cn(
-                                                    "w-full rounded-(--radius-control) px-2 py-1 text-left [overflow-wrap:anywhere] disabled:opacity-60",
-                                                    selected
-                                                        ? "bg-surface-sunken font-medium text-ink"
-                                                        : "text-ink-muted hover:bg-surface-sunken hover:text-ink"
-                                                )}
-                                            >
-                                                {conversation.title || "Untitled conversation"}
-                                            </button>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
+                            {chat.pending === "loading" && <Spinner label={t("ai.conversations.loading")}/>}
+                            {!chat.conversations.length && !busy && (
+                                <p className="text-ink-muted">{t("ai.conversations.empty")}</p>
+                            )}
+                            {chat.conversations.length > 0 && !groups.length && (
+                                <p className="text-ink-muted">{t("ai.conversations.noMatch")}</p>
+                            )}
+                        </div>
+                        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 pb-3">
+                            {groups.map((group) => (
+                                <div key={group.key}>
+                                    <h3 id={`ai-conversations-${group.key}`} className="mb-1 px-2 text-data font-semibold text-ink-muted">
+                                        {t(`ai.conversations.groups.${group.key}`)}
+                                    </h3>
+                                    <ul aria-labelledby={`ai-conversations-${group.key}`} className="space-y-0.5">
+                                        {group.items.map((conversation) => {
+                                            const selected = conversation.id === chat.conversation?.id;
+                                            return (
+                                                <li key={conversation.id}>
+                                                    <button
+                                                        type="button"
+                                                        aria-current={selected ? "true" : undefined}
+                                                        disabled={busy}
+                                                        onClick={() => {
+                                                            foldConversations();
+                                                            void chat.resumeConversation(conversation.id);
+                                                        }}
+                                                        className={cn(
+                                                            "w-full rounded-(--radius-control) px-2 py-1 text-left [overflow-wrap:anywhere] disabled:opacity-60",
+                                                            selected
+                                                                ? "bg-surface-sunken font-medium text-ink"
+                                                                : "text-ink-muted hover:bg-surface-sunken hover:text-ink"
+                                                        )}
+                                                    >
+                                                        {titleOf(conversation)}
+                                                    </button>
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                </div>
+                            ))}
                         </div>
                     </section>
 
                     <section aria-labelledby="ai-transcript" className={PANEL}>
                         <div className={PANEL_HEADER}>
+                            <IconButton
+                                label={conversationsOpen ? t("ai.conversations.hide") : t("ai.conversations.show")}
+                                aria-expanded={conversationsOpen}
+                                aria-controls={CONVERSATIONS_PANEL}
+                                onClick={toggleConversations}
+                            >
+                                <SidebarIcon open={conversationsOpen} width={14} height={14}/>
+                            </IconButton>
                             <h2 id="ai-transcript" className="min-w-0 font-semibold [overflow-wrap:anywhere]">
-                                {chat.conversation?.title || "Ask about your cluster"}
+                                {chat.conversation ? titleOf(chat.conversation) : t("ai.transcript.start")}
                             </h2>
-                            {chat.conversation && (
-                                <div className="ml-auto flex gap-2">
-                                    <Button
-                                        size="sm"
-                                        icon={<PencilIcon/>}
-                                        disabled={busy}
-                                        onClick={() => {
-                                            setTitle(chat.conversation.title || "");
-                                            setDialog("rename");
-                                        }}
-                                    >
-                                        Rename
+                            <div className="ml-auto flex gap-2">
+                                {/* Folded, the panel still lets a conversation start from here. */}
+                                {!conversationsOpen && (
+                                    <Button size="sm" icon={<PlusIcon/>} disabled={busy} onClick={() => chat.createConversation()}>
+                                        {t("ai.conversations.new")}
                                     </Button>
-                                    <Button size="sm" icon={<TrashIcon/>} disabled={busy} onClick={() => setDialog("delete")}>
-                                        Delete
-                                    </Button>
-                                </div>
-                            )}
+                                )}
+                                {chat.conversation && (
+                                    <>
+                                        <Button
+                                            size="sm"
+                                            icon={<PencilIcon/>}
+                                            disabled={busy}
+                                            onClick={() => {
+                                                setTitle(chat.conversation.title || "");
+                                                setDialog("rename");
+                                            }}
+                                        >
+                                            {t("ai.transcript.rename")}
+                                        </Button>
+                                        <Button size="sm" icon={<TrashIcon/>} disabled={busy} onClick={() => setDialog("delete")}>
+                                            {t("ai.transcript.delete")}
+                                        </Button>
+                                    </>
+                                )}
+                            </div>
                         </div>
                         <div
                             ref={transcript}
                             role="log"
-                            aria-label="Conversation messages"
+                            aria-label={t("ai.transcript.log")}
                             aria-live="polite"
                             aria-relevant="additions text"
-                            className="h-[45vh] min-h-60 overflow-y-auto p-3 md:h-[50vh]"
+                            className="min-h-48 flex-1 overflow-y-auto p-3"
                         >
                             {chat.historyCursor && (
                                 <Button size="sm" className="mb-3" disabled={busy} onClick={loadOlder}>
-                                    {chat.pending === "history" ? "Loading earlier messages…" : "Load earlier messages"}
+                                    {chat.pending === "history" ? t("ai.transcript.loadingEarlier") : t("ai.transcript.loadEarlier")}
                                 </Button>
                             )}
                             {!chat.messages.length && (
                                 <p className="text-ink-muted">
                                     {chat.pending === "resuming"
-                                        ? "Loading saved messages…"
+                                        ? t("ai.transcript.loadingSaved")
                                         : !chat.historyReady
-                                            ? "Select a conversation again or create a new one to continue."
-                                            : "Send a prompt to start a conversation or continue the selected one."}
+                                            ? t("ai.transcript.reselect")
+                                            : t("ai.transcript.empty")}
                                 </p>
+                            )}
+                            {starters.length > 0 && (
+                                <ul aria-label={t("ai.starters.label")} className="mt-3 flex flex-wrap gap-2">
+                                    {starters.map((question) => (
+                                        <li key={question} className="max-w-full">
+                                            {/* Reads only: a click sends the question as it reads. */}
+                                            <Button
+                                                className="h-auto max-w-full py-1 text-left [overflow-wrap:anywhere]"
+                                                onClick={() => void chat.send(question)}
+                                            >
+                                                {question}
+                                            </Button>
+                                        </li>
+                                    ))}
+                                </ul>
                             )}
                             <ul className="flex flex-col gap-3">
                                 {chat.messages.map((message, index) => {
@@ -544,15 +737,9 @@ const AiChat = () => {
                         {chat.notice && <Alert tone="info" className="mx-3 mb-2">{chat.notice}</Alert>}
                         <form onSubmit={submit} className="space-y-2 border-t border-line p-3">
                             <Field
-                                label="Message"
-                                hint={
-                                    promptTooLarge
-                                        ? undefined
-                                        : waiting
-                                            ? "Approve or reject the action above before sending a new message."
-                                            : "Enter to send; Shift+Enter for a new line. Uses your current cluster permissions."
-                                }
-                                error={promptTooLarge ? "The prompt must not exceed 32 KiB." : undefined}
+                                label={t("ai.composer.label")}
+                                hint={promptTooLarge ? undefined : waiting ? t("ai.composer.waiting") : t("ai.composer.hint")}
+                                error={promptTooLarge ? t("ai.composer.tooLarge") : undefined}
                             >
                                 {(control) => (
                                     <Textarea
@@ -577,18 +764,20 @@ const AiChat = () => {
                                 )}
                             </Field>
                             <div className="flex justify-end gap-2">
-                                {turning && (
+                                {/* A turn only: after an approval the action runs on the agent,
+                                    which a stop would not cancel; its result is what to see. */}
+                                {chat.pending === "turn" && (
                                     <Button icon={<StopIcon/>} onClick={chat.stop}>
-                                        Stop
+                                        {t("ai.composer.stop")}
                                     </Button>
                                 )}
                                 <Button
                                     type="submit"
-                                    variant="primary"
+                                    variant="create"
                                     icon={<SendIcon/>}
                                     disabled={busy || waiting || !chat.historyReady || !draft.trim() || promptTooLarge}
                                 >
-                                    Send
+                                    {t("ai.composer.send")}
                                 </Button>
                             </div>
                         </form>
@@ -598,27 +787,27 @@ const AiChat = () => {
 
             <Dialog
                 open={ready && Boolean(dialog)}
-                title={dialog === "rename" ? "Rename conversation" : "Delete conversation"}
+                title={dialog === "rename" ? t("ai.dialog.renameTitle") : t("ai.dialog.deleteTitle")}
                 onClose={() => {
                     if (!busy) setDialog("");
                 }}
                 footer={
                     <>
                         <Button disabled={busy} onClick={() => setDialog("")}>
-                            Cancel
+                            {t("ai.dialog.cancel")}
                         </Button>
                         <Button
-                            variant={dialog === "delete" ? "danger" : "primary"}
+                            variant={dialog === "delete" ? "delete" : "secondary"}
                             disabled={busy || (dialog === "rename" && !title.trim())}
                             onClick={confirmDialog}
                         >
-                            {dialog === "rename" ? "Save title" : "Confirm deletion"}
+                            {dialog === "rename" ? t("ai.dialog.save") : t("ai.dialog.confirmDelete")}
                         </Button>
                     </>
                 }
             >
                 {dialog === "rename" ? (
-                    <Field label="Conversation title" hint="Up to 80 Unicode characters.">
+                    <Field label={t("ai.dialog.titleLabel")} hint={t("ai.dialog.titleHint")}>
                         {(control) => (
                             <Input
                                 {...control}
@@ -629,7 +818,7 @@ const AiChat = () => {
                         )}
                     </Field>
                 ) : (
-                    <p>Delete this conversation and its stored context? This cannot be undone.</p>
+                    <p>{t("ai.dialog.deleteText")}</p>
                 )}
                 {chat.error && <Alert>{chat.error}</Alert>}
             </Dialog>

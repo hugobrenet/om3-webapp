@@ -3578,5 +3578,111 @@
       "title": "Sécurité",
       "text": "Signalez une vulnérabilité en toute confidentialité à <mail/>."
     }
+  },
+  "ai": {
+    "title": "Assistant IA",
+    "cluster": "Cluster",
+    "notConfigured": "L'agent IA n'est pas configuré pour cette webapp.",
+    "authRequired": "Une session authentifiée est nécessaire pour utiliser l'assistant IA.",
+    "refreshStatus": "Actualiser l'état",
+    "loadingCluster": "Chargement des informations du cluster…",
+    "waitingCluster": "En attente de l'identifiant du cluster.",
+    "conversations": {
+      "title": "Conversations",
+      "new": "Nouvelle conversation",
+      "show": "Afficher les conversations",
+      "hide": "Masquer les conversations",
+      "loading": "Chargement des conversations",
+      "empty": "Aucune conversation.",
+      "search": "Rechercher une conversation",
+      "searchHint": "Cherche dans les titres des conversations chargées.",
+      "noMatch": "Aucune conversation ne correspond.",
+      "untitled": "Conversation sans titre",
+      "groups": {
+        "today": "Aujourd'hui",
+        "yesterday": "Hier",
+        "week": "7 derniers jours",
+        "older": "Plus ancien"
+      }
+    },
+    "transcript": {
+      "start": "Interrogez votre cluster",
+      "rename": "Renommer",
+      "delete": "Supprimer",
+      "log": "Messages de la conversation",
+      "loadEarlier": "Charger les messages précédents",
+      "loadingEarlier": "Chargement des messages précédents…",
+      "loadingSaved": "Chargement des messages enregistrés…",
+      "reselect": "Sélectionnez à nouveau une conversation, ou créez-en une, pour continuer.",
+      "empty": "Envoyez un message pour démarrer une conversation ou poursuivre celle sélectionnée."
+    },
+    "starters": {
+      "label": "Questions suggérées",
+      "object": "Pourquoi {{path}} est en {{state}} ?",
+      "frozen": "Pourquoi {{node}} est gelé ?",
+      "stopped": "Quels services sont arrêtés ?",
+      "heartbeats": "Les heartbeats sont-ils tous en vie ?"
+    },
+    "message": {
+      "you": "Vous",
+      "assistant": "Assistant",
+      "tools": "Activité des outils",
+      "tool": "{{name}} — {{status}}",
+      "toolStatus": {
+        "running": "en cours",
+        "pending": "en attente",
+        "completed": "terminé",
+        "rejected": "refusé",
+        "interrupted": "interrompu",
+        "failed": "en échec"
+      },
+      "withChanges": " (avec vos modifications)",
+      "working": "En cours…",
+      "awaiting": "En attente de votre décision sur l'action ci-dessous.",
+      "stopped": "Réponse incomplète — arrêtée. Pas de nouvel essai automatique.",
+      "failed": "Réponse incomplète — en échec. Pas de nouvel essai automatique.",
+      "tokens": "Jetons : {{total}}"
+    },
+    "feedback": {
+      "rate": "Évaluer cette réponse",
+      "helpful": "Utile",
+      "improve": "À améliorer",
+      "edit": "Modifier",
+      "saving": "Enregistrement de l'avis…",
+      "thanks": "Merci pour votre avis.",
+      "details": "Détails de l'avis",
+      "reasonsLegend": "Qu'est-ce qui n'allait pas ? (facultatif)",
+      "reasons": {
+        "not_answered": "Ne répond pas à ma question",
+        "missing_information": "Informations manquantes",
+        "incorrect_or_outdated": "Informations fausses ou périmées",
+        "hard_to_understand": "Difficile à comprendre",
+        "action_not_done": "Action attendue non faite"
+      },
+      "expected": "Qu'attendiez-vous ? (facultatif)",
+      "length": "{{length}}/{{max}} caractères",
+      "tooLong": "{{max}} caractères au plus.",
+      "privacy": "Votre avis et l'échange qu'il évalue sont conservés pour améliorer l'assistant, sans votre identité.",
+      "cancel": "Annuler",
+      "send": "Envoyer"
+    },
+    "composer": {
+      "label": "Message",
+      "hint": "Entrée pour envoyer ; Maj+Entrée pour une nouvelle ligne. Utilise vos droits actuels sur le cluster.",
+      "waiting": "Approuvez ou refusez l'action ci-dessus avant d'envoyer un nouveau message.",
+      "tooLarge": "Le message ne doit pas dépasser 32 Kio.",
+      "stop": "Arrêter",
+      "send": "Envoyer"
+    },
+    "dialog": {
+      "renameTitle": "Renommer la conversation",
+      "deleteTitle": "Supprimer la conversation",
+      "cancel": "Annuler",
+      "save": "Enregistrer le titre",
+      "confirmDelete": "Confirmer la suppression",
+      "titleLabel": "Titre de la conversation",
+      "titleHint": "80 caractères Unicode au plus.",
+      "deleteText": "Supprimer cette conversation et son contexte enregistré ? C'est irréversible."
+    }
   }
 }
