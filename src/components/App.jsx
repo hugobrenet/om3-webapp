@@ -8,7 +8,7 @@ import Login from "./Login.jsx";
 import '../styles/main.css';
 import NavBar from './NavBar';
 import {Sidebar, menuAlert, useSidebarOpen} from './Sidebar';
-import useSidebarAlerts from '../hooks/useSidebarAlerts';
+import {useSidebarAlertsOf, useSidebarState} from '../hooks/useSidebarAlerts';
 import {OidcProvider, useOidc} from "../context/OidcAuthContext.tsx";
 import {
     AuthProvider,
@@ -27,7 +27,7 @@ import {isRenewalRefused} from "../context/serialRenewal";
 import {PeekPanel} from "./PeekPanel";
 import {PanelAnchor} from "../app/PanelAnchor";
 import {ActionTray} from "../app/ActionTray";
-import {useMediaQuery} from "../ui/lib/media";
+import {NARROW_QUERY, useMediaQuery} from "../ui/lib/media";
 import {useRecordHistory} from "../app/record-history";
 import {ShortcutsHelp} from "../app/ShortcutsHelp";
 import {useShortcut} from "../ui/lib/shortcuts";
@@ -359,8 +359,6 @@ const ProtectedRoute = ({children}) => {
 
 const AUTH_PATHS = ['/auth', '/login', '/silent-renew'];
 
-/** A narrow window, as Tailwind's max-md: the anchor in the header bar, no gutter for it. */
-const NARROW_QUERY = "(max-width: 47.95rem)";
 
 const App = () => {
     logger.info("App init");
@@ -373,7 +371,9 @@ const App = () => {
     // The sign-in screens have no view to navigate to: no menu there.
     const showSidebar = !AUTH_PATHS.some((path) => location.pathname.startsWith(path));
     // The alerts of the menu, read once: on its entries, and on its button while folded.
-    const sidebarAlerts = useSidebarAlerts({enabled: showSidebar});
+    // The assistant asks its first questions from the same state.
+    const sidebarState = useSidebarState({enabled: showSidebar});
+    const sidebarAlerts = useSidebarAlertsOf(sidebarState);
 
     // "n", for navigation, moves the focus to the menu, on the entry of the view on
     // display, unfolding the menu first when it is folded: the focus waits for it to
@@ -460,7 +460,7 @@ const App = () => {
                                         <Route path="/objects/:objectName" element={<ObjectRedirect/>}/>
                                         <Route path="/nodes/:node/objects/:objectName" element={<InstanceRedirect/>}/>
                                         <Route path="/whoami" element={<ProtectedRoute><WhoAmI/></ProtectedRoute>}/>
-                                        <Route path="/ai" element={<ProtectedRoute>{aiEnabled ? <AiChat/> : <Navigate to="/" replace/>}</ProtectedRoute>}/>
+                                        <Route path="/ai" element={<ProtectedRoute>{aiEnabled ? <AiChat status={sidebarState}/> : <Navigate to="/" replace/>}</ProtectedRoute>}/>
                                         <Route path="/silent-renew" element={<SilentRenew/>}/>
                                         <Route path="/auth-callback" element={<OidcCallback/>}/>
                                         <Route path="/auth-choice" element={<AuthChoice authInfo={authInfo}/>}/>

@@ -18,6 +18,9 @@ export function useMediaQuery(query: string): boolean {
   );
 }
 
+/** A narrow window, as Tailwind's max-md: the side panels fold there. */
+export const NARROW_QUERY = "(max-width: 47.95rem)";
+
 /** The Tailwind breakpoints, for the views that switch layout in script. */
 export const BREAKPOINTS = {
   sm: "(min-width: 40rem)",

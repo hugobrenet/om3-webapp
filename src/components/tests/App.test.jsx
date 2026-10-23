@@ -25,7 +25,7 @@ vi.mock('../../app/record-history', async (importOriginal) => ({
     useRecordHistory: () => mockHistory,
 }));
 vi.mock('../NavBar', () => ({default: ({anchor}) => <div data-testid="navbar">NavBar{anchor}</div>}));
-vi.mock('../../hooks/useSidebarAlerts', () => ({default: () => ({})}));
+vi.mock('../../hooks/useSidebarAlerts', () => ({useSidebarState: () => ({}), useSidebarAlertsOf: () => ({})}));
 vi.mock('../NodesTable', () => ({default: () => <div data-testid="nodes">NodesTable</div>}));
 vi.mock('../Heartbeats', () => ({default: () => <div data-testid="heartbeats">Heartbeats</div>}));
 vi.mock('../Pools', () => ({default: () => <div data-testid="pools">Pools</div>}));

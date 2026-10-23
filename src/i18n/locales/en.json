@@ -1995,5 +1995,111 @@
       "selfSigned": "No ca: self-signed.",
       "reading": "Reading the ca of the sec…"
     }
+  },
+  "ai": {
+    "title": "AI Assistant",
+    "cluster": "Cluster",
+    "notConfigured": "The AI agent is not configured for this webapp.",
+    "authRequired": "An authenticated session is required to use the AI assistant.",
+    "refreshStatus": "Refresh status",
+    "loadingCluster": "Loading cluster information…",
+    "waitingCluster": "Waiting for the cluster ID.",
+    "conversations": {
+      "title": "Conversations",
+      "new": "New conversation",
+      "show": "Show conversations",
+      "hide": "Hide conversations",
+      "loading": "Loading conversations",
+      "empty": "No conversations yet.",
+      "search": "Search conversations",
+      "searchHint": "Searches the titles of the loaded conversations.",
+      "noMatch": "No conversation matches.",
+      "untitled": "Untitled conversation",
+      "groups": {
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "week": "Previous 7 days",
+        "older": "Older"
+      }
+    },
+    "transcript": {
+      "start": "Ask about your cluster",
+      "rename": "Rename",
+      "delete": "Delete",
+      "log": "Conversation messages",
+      "loadEarlier": "Load earlier messages",
+      "loadingEarlier": "Loading earlier messages…",
+      "loadingSaved": "Loading saved messages…",
+      "reselect": "Select a conversation again or create a new one to continue.",
+      "empty": "Send a prompt to start a conversation or continue the selected one."
+    },
+    "starters": {
+      "label": "Suggested questions",
+      "object": "Why is {{path}} {{state}}?",
+      "frozen": "Why is {{node}} frozen?",
+      "stopped": "Which services are stopped?",
+      "heartbeats": "Are all the heartbeats alive?"
+    },
+    "message": {
+      "you": "You",
+      "assistant": "Assistant",
+      "tools": "Tool activity",
+      "tool": "{{name}} — {{status}}",
+      "toolStatus": {
+        "running": "running",
+        "pending": "pending",
+        "completed": "completed",
+        "rejected": "rejected",
+        "interrupted": "interrupted",
+        "failed": "failed"
+      },
+      "withChanges": " (with your changes)",
+      "working": "Working…",
+      "awaiting": "Waiting for your decision on the action below.",
+      "stopped": "Incomplete response — stopped. No automatic retry.",
+      "failed": "Incomplete response — failed. No automatic retry.",
+      "tokens": "Tokens: {{total}}"
+    },
+    "feedback": {
+      "rate": "Rate this answer",
+      "helpful": "Helpful",
+      "improve": "Needs improvement",
+      "edit": "Edit",
+      "saving": "Saving feedback…",
+      "thanks": "Thanks for your feedback.",
+      "details": "Feedback details",
+      "reasonsLegend": "What went wrong? (optional)",
+      "reasons": {
+        "not_answered": "Doesn't answer my question",
+        "missing_information": "Missing information",
+        "incorrect_or_outdated": "Incorrect or outdated information",
+        "hard_to_understand": "Hard to understand",
+        "action_not_done": "Expected action not done"
+      },
+      "expected": "What did you expect? (optional)",
+      "length": "{{length}}/{{max}} characters",
+      "tooLong": "At most {{max}} characters.",
+      "privacy": "Your feedback and the exchange it rates are kept to improve the assistant, without your identity.",
+      "cancel": "Cancel",
+      "send": "Send"
+    },
+    "composer": {
+      "label": "Message",
+      "hint": "Enter to send; Shift+Enter for a new line. Uses your current cluster permissions.",
+      "waiting": "Approve or reject the action above before sending a new message.",
+      "tooLarge": "The prompt must not exceed 32 KiB.",
+      "stop": "Stop",
+      "send": "Send"
+    },
+    "dialog": {
+      "renameTitle": "Rename conversation",
+      "deleteTitle": "Delete conversation",
+      "cancel": "Cancel",
+      "save": "Save title",
+      "confirmDelete": "Confirm deletion",
+      "titleLabel": "Conversation title",
+      "titleHint": "Up to 80 Unicode characters.",
+      "deleteText": "Delete this conversation and its stored context? This cannot be undone."
+    }
   }
 }
