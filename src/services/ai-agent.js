@@ -26,8 +26,6 @@ const FEEDBACK_HTTP_MESSAGES = {
 // The run error codes the webapp explains. The agent message is never shown:
 // any other code gets the generic failure message.
 const RUN_ERROR_MESSAGES = {
-    tool_call_limit:
-        'This question needs more tools at once than the agent runs. Ask a narrower question. It was not retried.',
     request_timeout: 'The agent did not answer in time. It was not retried.',
     tool_name_conflict: 'A tool of the webapp is named as a tool of the agent. It was not retried.',
 };

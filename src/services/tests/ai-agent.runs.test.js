@@ -184,12 +184,11 @@ describe('AI agent AG-UI runs', () => {
             });
         });
 
-        it('explains the tool call limit with its own message, never the agent one', async () => {
-            fetchMock.mockResolvedValue(goldenResponse('tool_call_limit'));
+        it('explains a timeout with its own message, never the agent one', async () => {
+            const failure = {type: 'RUN_ERROR', timestamp: 1760000000000, message: 'the agent request timed out', code: 'request_timeout'};
+            fetchMock.mockResolvedValue(streamResponse([aguiFrame(runStarted) + aguiFrame(failure)]));
             const error = await client.run(GOLDEN_THREAD, prompt('Check everything', 'u-l')).catch((error) => error);
-            expect(error).toMatchObject({code: 'tool_call_limit'});
-            expect(error.message).toContain('Ask a narrower question');
-            expect(error.message).not.toContain('tool calls than the agent runs');
+            expect(error).toMatchObject({code: 'request_timeout', message: 'The agent did not answer in time. It was not retried.'});
             expect(fetchMock).toHaveBeenCalledTimes(1);
         });
 
