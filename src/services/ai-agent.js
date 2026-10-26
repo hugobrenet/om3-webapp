@@ -241,6 +241,104 @@ const parseInputSchema = (value) => {
     return value;
 };
 
+// What a call would do, as the MCP tells it before the user confirms it.
+const MAX_PREVIEW_BYTES = 256 * 1024;
+const MAX_PREVIEW_ERROR_CHARACTERS = 2048;
+const PREVIEW_OPS = ['=', '+=', '-=', '|=', '^=', 'insert', 'unset'];
+const previewKeyPattern = /^[a-z][a-z0-9_]{0,63}$/;
+const isText = (value, max) => typeof value === 'string' && value.length <= max;
+const isOptionalText = (value, max) => value === undefined || isText(value, max);
+
+// The preview of a confirmation, its fields checked and nothing else kept;
+// null when it does not hold. Its texts come from the MCP, the values from
+// the model and the daemon: untrusted, shown as text only.
+export const parsePreview = (value) => {
+    if (!isPlainObject(value) || jsonBytes(value) > MAX_PREVIEW_BYTES) return null;
+    const {summary, changes = [], deleted = [], content, read_at: readAt, warnings = [], secrets_omitted: secrets = 0} = value;
+    if (
+        !isPlainObject(summary) ||
+        !isText(summary.text, 2048) ||
+        !isText(summary.key, 64) ||
+        !previewKeyPattern.test(summary.key) ||
+        (summary.params !== undefined && !isPlainObject(summary.params)) ||
+        Object.values(summary.params || {}).some((param) => !isText(param, 1024)) ||
+        !Array.isArray(changes) ||
+        changes.length > 200 ||
+        changes.some(
+            (change) =>
+                !isPlainObject(change) ||
+                !isText(change.key, 512) ||
+                !PREVIEW_OPS.includes(change.op) ||
+                !isOptionalText(change.scope, 256) ||
+                !isOptionalText(change.value, 8192) ||
+                !isOptionalText(change.before, 8192) ||
+                !isOptionalText(change.after, 16384) ||
+                typeof change.after_computed_by_mcp !== 'boolean' ||
+                !isOptionalText(change.note, 1024) ||
+                (change.note_keys !== undefined &&
+                    (!Array.isArray(change.note_keys) ||
+                        change.note_keys.length > 10 ||
+                        change.note_keys.some((key) => typeof key !== 'string' || !previewKeyPattern.test(key))))
+        ) ||
+        !Array.isArray(deleted) ||
+        deleted.length > 100 ||
+        deleted.some(
+            (section) =>
+                !isPlainObject(section) ||
+                !isText(section.section, 256) ||
+                !Array.isArray(section.keys) ||
+                section.keys.length > 1000 ||
+                section.keys.some((key) => !isText(key, 512)) ||
+                (section.secrets_omitted !== undefined && (!Number.isSafeInteger(section.secrets_omitted) || section.secrets_omitted < 0))
+        ) ||
+        (content !== undefined &&
+            (!isPlainObject(content) || !isText(content.media_type, 128) || typeof content.text !== 'string')) ||
+        (readAt !== undefined && (!isText(readAt, 64) || !Number.isFinite(Date.parse(readAt)))) ||
+        !Array.isArray(warnings) ||
+        warnings.length > 20 ||
+        warnings.some((warning) => !isText(warning, 1024)) ||
+        !Number.isSafeInteger(secrets) ||
+        secrets < 0
+    )
+        return null;
+    return {
+        summary: {text: summary.text, key: summary.key, params: {...(summary.params || {})}},
+        changes: changes.map((change) => ({
+            key: change.key,
+            scope: change.scope || '',
+            op: change.op,
+            ...(change.value !== undefined ? {value: change.value} : {}),
+            ...(change.before !== undefined ? {before: change.before} : {}),
+            ...(change.after !== undefined ? {after: change.after} : {}),
+            computed: change.after_computed_by_mcp,
+            note: change.note || '',
+            noteKeys: [...(change.note_keys || [])],
+        })),
+        deleted: deleted.map((section) => ({section: section.section, keys: [...section.keys], secretsOmitted: section.secrets_omitted || 0})),
+        ...(content ? {content: {mediaType: content.media_type, text: content.text, truncated: content.truncated === true}} : {}),
+        readAt: readAt || '',
+        warnings: [...warnings],
+        secretsOmitted: secrets,
+    };
+};
+
+// The preview fields of a confirmation: what the call would do, why it could
+// not be told, and the edited arguments it is of. A preview that does not
+// hold leaves the confirmation standing, its arguments shown.
+const previewFields = (preview, error, previewArguments) => {
+    const fields = {};
+    if (preview !== undefined && preview !== null) {
+        const parsed = parsePreview(preview);
+        if (parsed) fields.preview = parsed;
+        else fields.preview_error = 'The preview of the agent is invalid.';
+    }
+    if (!fields.preview_error && typeof error === 'string' && error)
+        fields.preview_error = error.slice(0, MAX_PREVIEW_ERROR_CHARACTERS);
+    if (isPlainObject(previewArguments) && jsonBytes(previewArguments) <= MAX_CONFIRMATION_ARGUMENTS_BYTES)
+        fields.preview_arguments = previewArguments;
+    return fields;
+};
+
 // Validate a tool call waiting for the decision of the user: the card shows
 // these fields only, never the model text describing the action.
 export const parseConfirmation = (value) => {
@@ -278,6 +376,7 @@ export const parseConfirmation = (value) => {
         editable,
         ...(editable ? {input_schema: parseInputSchema(value.input_schema)} : {}),
         expires_at: value.expires_at,
+        ...previewFields(value.preview, value.preview_error, value.preview_arguments),
     };
 };
 
@@ -370,7 +469,9 @@ const finishRun = (event, run) => {
     if (outcome.type !== 'interrupt' || !Array.isArray(outcome.interrupts) || outcome.interrupts.length !== 1)
         throw protocolError();
     const interrupt = outcome.interrupts[0];
-    const call = run.calls.get(interrupt?.toolCallId);
+    // A preview asked again ends on the call the run resumed, which the stream
+    // does not start again.
+    const call = run.calls.get(interrupt?.toolCallId) ?? run.resumed;
     if (interrupt?.reason !== 'tool_call' || !call) throw protocolError();
     const metadata = interrupt.metadata || {};
     // The input schema of an editable call is the editedArgs of the response
@@ -385,6 +486,9 @@ const finishRun = (event, run) => {
         editable,
         input_schema: editable ? interrupt.responseSchema?.properties?.editedArgs : undefined,
         expires_at: interrupt.expiresAt,
+        preview: metadata.preview,
+        preview_error: metadata.previewError,
+        preview_arguments: metadata.previewArguments,
     });
     if (confirmation.tool.name !== call.name) throw protocolError();
     return {type: 'RUN_FINISHED', outcome: 'interrupt', turnId: confirmation.turn_id, confirmation, tokens};
@@ -839,6 +943,20 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                     throw new AiAgentError('invalid_run', 'The messages of the run are invalid.');
                 }
                 messages.push({id: promptId, role: 'user', content: prompt});
+            } else if (resume?.preview === true) {
+                // The preview of the call waiting, asked again for the arguments
+                // the user edited: nothing runs, the call waits again.
+                if (
+                    typeof resume.interruptId !== 'string' ||
+                    !confirmationIdPattern.test(resume.interruptId) ||
+                    !isPlainObject(resume.editedArgs) ||
+                    jsonBytes(resume.editedArgs) > MAX_CONFIRMATION_ARGUMENTS_BYTES ||
+                    !toolNamePattern.test(resume.pending?.name) ||
+                    !isPlainObject(resume.pending?.arguments)
+                ) {
+                    throw new AiAgentError('invalid_confirmation', 'A valid confirmation and edited arguments are required.');
+                }
+                answer = [{interruptId: resume.interruptId, status: 'resolved', payload: {action: 'preview', editedArgs: resume.editedArgs}}];
             } else {
                 if (
                     typeof resume?.interruptId !== 'string' ||
@@ -877,7 +995,12 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                     body: JSON.stringify(input),
                 },
                 (response, requestSignal) =>
-                    readRun(response, requestSignal, onEvent, {threadId: id, runId, started: false, text: '', calls: new Map(), finished: null}),
+                    readRun(response, requestSignal, onEvent, {
+                        threadId: id, runId, started: false, text: '', calls: new Map(), finished: null,
+                        ...(resume?.preview === true
+                            ? {resumed: {name: resume.pending.name, arguments: JSON.stringify(resume.pending.arguments), ended: true}}
+                            : {}),
+                    }),
                 signal,
                 runRefusal
             );

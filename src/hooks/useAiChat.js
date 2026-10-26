@@ -570,6 +570,28 @@ const useAiChat = ({client, ready, scope}) => {
         });
     };
 
+    // Ask what the call waiting would do with the arguments the user edited:
+    // nothing runs, and the call waits again under a new confirmation, whose
+    // preview is of the edit. A refused edit leaves the confirmation as it was.
+    const previewAgain = (editedArgs) => {
+        const confirmation = state.scope === scope ? state.confirmation : null;
+        if (!confirmation?.editable || !editedArgs || typeof editedArgs !== 'object' || Array.isArray(editedArgs)) return;
+        const held = heldMessages(state.messages);
+        return perform('previewing', async ({signal, update}) => {
+            const result = await client.run(
+                confirmation.conversationId,
+                {held, resume: {interruptId: confirmation.id, preview: true, editedArgs, pending: {name: confirmation.tool.name, arguments: confirmation.arguments}}},
+                {signal, onEvent: () => {}}
+            );
+            if (result.outcome !== 'interrupt') return true;
+            update((previous) => ({
+                ...previous,
+                confirmation: {...result.confirmation, conversationId: confirmation.conversationId, assistantId: confirmation.assistantId},
+            }));
+            return true;
+        });
+    };
+
     const stop = () => {
         if (active.current) {
             active.current.controller.abort();
@@ -590,6 +612,7 @@ const useAiChat = ({client, ready, scope}) => {
         send,
         stop,
         approve: (editedArgs) => decide(true, editedArgs),
+        previewAgain,
         reject: () => decide(false),
         rate: (turnId, feedback) => rateTurn(turnId, feedback),
         unrate: (turnId) => rateTurn(turnId, null),

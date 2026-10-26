@@ -626,7 +626,7 @@ describe('AI chatbot page', () => {
             expect(within(screen.getByRole('list', {name: 'Suggested questions'})).getAllByRole('button')).toHaveLength(2);
         });
         test('puts an object path in a question as text, never as markup or a placeholder', async () => {
-            const path = 'ns/svc/<img src=x onerror=alert(1)>{{node}}$t(ai.title)';
+            const path = 'ns/svc/<img src=x onerror=alert(1)>{{state}}{{node}}$t(ai.title)';
             const {container} = await renderReady({status: {objects: {[path]: {avail: 'down'}}}});
             const question = `Why is ${path} down?`;
             fireEvent.click(screen.getByRole('button', {name: question}));

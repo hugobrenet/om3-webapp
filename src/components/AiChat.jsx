@@ -6,6 +6,9 @@ import useAiAgent from "../hooks/useAiAgent.js";
 import useAiChat from "../hooks/useAiChat.js";
 import {isFrozen, objectAttention} from "../hooks/useSidebarAlerts.js";
 import AiMarkdown from "./AiMarkdown.jsx";
+import {ConfigText} from "./ConfigText.jsx";
+import {parseObjectPath} from "../utils/objectUtils.jsx";
+import {URL_OBJECT} from "../config/apiPath.js";
 import AiArgumentsForm, {argumentsOf, compileSchema, draftOf, formFields, sameArguments, schemaErrors} from "./AiArgumentsForm.jsx";
 import {Alert} from "../ui/components/Alert";
 import {Button, IconButton} from "../ui/components/Button";
@@ -16,6 +19,7 @@ import {Spinner} from "../ui/components/Spinner";
 import {AlertTriangleIcon, ChatIcon, PencilIcon, PlusIcon, SearchIcon, SendIcon, SidebarIcon, StopIcon, TrashIcon} from "../ui/icons";
 import {NARROW_QUERY, useMediaQuery} from "../ui/lib/media";
 import {cn} from "../ui/cn";
+import {untrustedT} from "../utils/untrustedText";
 
 const PANEL = "flex min-h-0 min-w-0 flex-col rounded-(--radius-panel) border border-line bg-surface-raised";
 const PANEL_HEADER = "flex flex-wrap items-center gap-2 border-b border-line px-3 py-2";
@@ -115,10 +119,10 @@ export function starterQuestions(status, t) {
         paths.find((path) => objectAttention(path, objects[path]) === "warn");
     if (object !== undefined) {
         const state = objectAttention(object, objects[object]);
-        questions.push(t("ai.starters.object", {path: object, state}));
+        questions.push(untrustedT(t, "ai.starters.object", {path: object, state}));
     }
     const frozen = Object.keys(nodes).sort().find((node) => isFrozen(nodes[node]));
-    if (frozen !== undefined) questions.push(t("ai.starters.frozen", {node: frozen}));
+    if (frozen !== undefined) questions.push(untrustedT(t, "ai.starters.frozen", {node: frozen}));
     questions.push(t("ai.starters.stopped"), t("ai.starters.heartbeats"));
     return questions.slice(0, 4);
 }
@@ -280,6 +284,148 @@ function Message({message, feedback}) {
     );
 }
 
+/**
+ * The sentence of a preview, said in the language of the page from its key
+ * and params when the page knows the key, as the MCP wrote it otherwise. The
+ * params come from the arguments of the model: inserted as text, never read
+ * as Markdown nor as placeholders.
+ */
+function previewSentence(summary, t, i18n) {
+    const name = `ai.confirm.summary.${summary.key}`;
+    if (!i18n.exists(name)) return summary.text;
+    const template = String(i18n.getResource(i18n.language, "translation", name) ?? i18n.getResource("en", "translation", name) ?? "");
+    // A sentence missing one of its params is the one of the MCP.
+    const named = [...template.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]);
+    if (named.some((param) => typeof summary.params[param] !== "string")) return summary.text;
+    let sentence = untrustedT(t, name, summary.params);
+    // The optional params end the sentence of an action, unless it names them.
+    for (const param of ["rids", "to"]) {
+        if (summary.params[param] && !template.includes(`{{${param}}}`))
+            sentence += untrustedT(t, `ai.confirm.suffix.${param}`, {[param]: summary.params[param]});
+    }
+    return sentence;
+}
+
+/** A value of the preview, as text; its absence, by what it means. */
+function PreviewValue({value, missing}) {
+    if (value === undefined || value === "") return <span className="text-ink-muted italic">{missing}</span>;
+    return <code className="break-all whitespace-pre-wrap">{value}</code>;
+}
+
+/** The URL of the keywords of the kind of an object, for the help of its file. */
+const keywordsUrlOf = (path) => {
+    const {namespace, kind, name} = parseObjectPath(path);
+    return `${URL_OBJECT}/${[namespace, kind, name].map(encodeURIComponent).join("/")}/config/keywords`;
+};
+
+/**
+ * What the call would do, as the MCP told it: the keys it changes, with their
+ * configured value read now and the one the MCP computes, the sections it
+ * deletes with their keys, the file it writes.
+ */
+function PreviewDetails({preview, path}) {
+    const {t, i18n} = useTranslation();
+    // The notes of a change, said in the language of the page by their keys
+    // when it knows them all, as the MCP wrote them otherwise.
+    const note = (change) =>
+        change.noteKeys.length > 0 && change.noteKeys.every((key) => i18n.exists(`ai.confirm.notes.${key}`))
+            ? change.noteKeys.map((key) => t(`ai.confirm.notes.${key}`)).join("; ")
+            : change.note;
+    // A creation has no current values: the column is left out.
+    const current = preview.changes.some((change) => change.before !== undefined);
+    return (
+        <div className="space-y-2 text-data">
+            {preview.changes.length > 0 && (
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-left">
+                        <caption className="sr-only">{t("ai.confirm.changes")}</caption>
+                        <thead>
+                            <tr className="border-b border-line text-ink-muted">
+                                <th scope="col" className="py-1 pr-3 font-medium">{t("ai.confirm.key")}</th>
+                                {current && <th scope="col" className="py-1 pr-3 font-medium">{t("ai.confirm.current")}</th>}
+                                <th scope="col" className="py-1 pr-3 font-medium">{t("ai.confirm.operation")}</th>
+                                <th scope="col" className="py-1 font-medium">{t("ai.confirm.proposed")}<span aria-hidden="true">*</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {preview.changes.map((change, index) => {
+                                const secret = change.before === undefined && change.after === undefined && change.value === undefined && change.op !== "unset";
+                                return (
+                                    <tr key={index} className="border-b border-line align-top last:border-b-0">
+                                        <th scope="row" className="py-1 pr-3 font-normal">
+                                            <code className="break-all">{change.key}</code>
+                                            {change.note && <span className="block text-ink-muted">{note(change)}</span>}
+                                        </th>
+                                        {current && (
+                                            <td className="py-1 pr-3">
+                                                <PreviewValue value={change.before} missing={secret ? t("ai.confirm.hidden") : t("ai.confirm.empty")}/>
+                                            </td>
+                                        )}
+                                        <td className="py-1 pr-3">
+                                            {t(`ai.confirm.ops.${change.op}`)}
+                                            {change.value !== undefined && (
+                                                <>
+                                                    {" "}
+                                                    <code className="break-all whitespace-pre-wrap">{change.value}</code>
+                                                </>
+                                            )}
+                                        </td>
+                                        <td className="py-1">
+                                            {change.after !== undefined ? (
+                                                <PreviewValue value={change.after} missing={t("ai.confirm.empty")}/>
+                                            ) : (
+                                                <span className="text-ink-muted italic">{secret ? t("ai.confirm.hidden") : t("ai.confirm.notComputed")}</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                    <p className="mt-1 text-ink-muted"><span aria-hidden="true">* </span>{t("ai.confirm.computed")}</p>
+                </div>
+            )}
+            {preview.deleted.map((section) => (
+                <div key={section.section}>
+                    <p>
+                        {section.keys.length
+                            ? untrustedT(t, "ai.confirm.deleted", {section: section.section}, {count: section.keys.length})
+                            : untrustedT(t, "ai.confirm.deletedEmpty", {section: section.section})}
+                    </p>
+                    {section.secretsOmitted > 0 && (
+                        <p className="text-ink-muted">{t("ai.confirm.deletedSecrets", {count: section.secretsOmitted})}</p>
+                    )}
+                    {section.keys.length > 0 && (
+                        <ul aria-label={section.section} className="ml-4 list-disc">
+                            {section.keys.map((key) => (
+                                <li key={key}><code className="break-all">{key}</code></li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            ))}
+            {preview.content && (
+                <div className="space-y-1">
+                    <ConfigText
+                        text={preview.content.text}
+                        label={t("ai.confirm.content")}
+                        lineNumbers
+                        keywordsUrl={path ? keywordsUrlOf(path) : undefined}
+                    />
+                    {preview.content.truncated && <p className="text-ink-muted">{t("ai.confirm.contentTruncated")}</p>}
+                </div>
+            )}
+            {preview.secretsOmitted > 0 && <p className="text-ink-muted">{t("ai.confirm.secrets", {count: preview.secretsOmitted})}</p>}
+            {preview.warnings.map((warning, index) => (
+                <p key={index} className="text-state-warn">{warning}</p>
+            ))}
+            {preview.readAt && (
+                <p className="text-ink-muted">{t("ai.confirm.readAt", {time: new Date(preview.readAt).toLocaleTimeString()})}</p>
+            )}
+        </div>
+    );
+}
+
 /** One argument of the call, its value as JSON when it is not a plain string. */
 const argumentValue = (value) => (typeof value === "string" ? value : JSON.stringify(value));
 
@@ -302,12 +448,16 @@ function ArgumentValue({value, type}) {
 
 /**
  * The tool call waiting for the decision of the user. It shows the call as the
- * agent stored it, the one that runs if approved, never the model text.
+ * agent stored it, the one that runs if approved, never the model text; and,
+ * when the MCP told it, what the call would do. After an edit, the preview is
+ * asked again for the edited arguments, nothing running.
  */
-function ConfirmationCard({confirmation, busy, onApprove, onReject}) {
+function ConfirmationCard({confirmation, busy, previewing, onApprove, onReject, onPreview}) {
+    const {t, i18n} = useTranslation();
     const expires = new Date(confirmation.expires_at).toLocaleTimeString();
     const entries = Object.entries(confirmation.arguments);
     const argumentTypes = confirmation.argument_types || {};
+    const preview = confirmation.preview || null;
     // A call the user may edit is shown in a form built from the input schema
     // of its tool, the arguments the model proposed filled in.
     const fields = useMemo(
@@ -320,34 +470,54 @@ function ConfirmationCard({confirmation, busy, onApprove, onReject}) {
         () => Object.fromEntries(fields.map((field) => [field.name, draftOf(field, confirmation.arguments[field.name])])),
         [fields, confirmation]
     );
-    const [editing, setEditing] = useState(false);
-    const [drafts, setDrafts] = useState(proposedDrafts);
+    // A preview asked again for an edit comes back with that edit: the form
+    // shows it again.
+    const previewDrafts = useMemo(
+        () =>
+            confirmation.preview_arguments
+                ? Object.fromEntries(fields.map((field) => [field.name, draftOf(field, confirmation.preview_arguments[field.name])]))
+                : null,
+        [fields, confirmation]
+    );
+    const [editing, setEditing] = useState(Boolean(previewDrafts));
+    const [drafts, setDrafts] = useState(previewDrafts ?? proposedDrafts);
     useEffect(() => {
-        setEditing(false);
-        setDrafts(proposedDrafts);
-    }, [proposedDrafts]);
+        setEditing(Boolean(previewDrafts));
+        setDrafts(previewDrafts ?? proposedDrafts);
+    }, [proposedDrafts, previewDrafts]);
     const edit = editing ? argumentsOf(fields, drafts, confirmation.arguments) : null;
     const changed = Boolean(edit) && !sameArguments(edit.args, confirmation.arguments);
     const errors = edit ? {...(changed ? schemaErrors(validate, edit.args) : {}), ...edit.errors} : {};
     const invalid = Object.keys(errors).length > 0;
     const approve = () => onApprove(changed ? edit.args : undefined);
+    // The arguments the preview is of: those of the call, or an edit.
+    const previewOf = confirmation.preview_arguments || confirmation.arguments;
+    const stale = Boolean(edit) && !invalid && !sameArguments(edit.args, previewOf);
+    const path = typeof previewOf.path === "string" ? previewOf.path : "";
 
     return (
         <section
-            aria-label="Action waiting for confirmation"
-            className="mx-3 mb-2 space-y-2 rounded-(--radius-control) border border-state-warn bg-state-warn-soft p-3"
+            aria-label={t("ai.confirm.region")}
+            className="mx-3 mb-2 max-h-[60vh] space-y-2 overflow-y-auto rounded-(--radius-control) border border-state-warn bg-state-warn-soft p-3"
         >
             <p className="flex items-center gap-2 font-semibold text-state-warn">
                 <AlertTriangleIcon width={16} height={16}/>
-                {confirmation.tool.destructive ? "Destructive action to confirm" : "Action to confirm"}
+                {confirmation.tool.destructive ? t("ai.confirm.destructive") : t("ai.confirm.action")}
             </p>
+            {preview && <p className="font-medium [overflow-wrap:anywhere]">{previewSentence(preview.summary, t, i18n)}</p>}
             <p className="[overflow-wrap:anywhere]">
-                <span className="font-medium">{confirmation.tool.title}</span>{" "}
+                <span className={preview ? "text-data text-ink-muted" : "font-medium"}>{confirmation.tool.title}</span>{" "}
                 <code className="text-data text-ink-muted">{confirmation.tool.name}</code>
             </p>
+            {preview && <PreviewDetails preview={preview} path={path}/>}
+            {confirmation.preview_error && (
+                <p className="text-data text-ink-muted">{untrustedT(t, "ai.confirm.previewError", {error: confirmation.preview_error})}</p>
+            )}
+            {preview && confirmation.preview_arguments && !stale && <p className="text-data text-ink-muted">{t("ai.confirm.previewOfEdit")}</p>}
+            {preview && stale && <p className="text-data text-state-warn">{t("ai.confirm.previewStale")}</p>}
             {editing ? (
                 <form
-                    aria-label="Arguments of the action"
+                    aria-label={t("ai.confirm.form")}
                     onSubmit={(event) => {
                         event.preventDefault();
                         if (!busy && !invalid) approve();
@@ -362,30 +532,35 @@ function ConfirmationCard({confirmation, busy, onApprove, onReject}) {
                     />
                 </form>
             ) : entries.length > 0 ? (
-                <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 text-data">
-                    {entries.map(([name, value]) => (
-                        <div key={name} className="contents">
-                            <dt className="font-medium">{name}</dt>
-                            <dd className="min-w-0 [overflow-wrap:anywhere]">
-                                <ArgumentValue
-                                    value={value}
-                                    type={Object.hasOwn(argumentTypes, name) ? argumentTypes[name] : ""}
-                                />
-                            </dd>
-                        </div>
-                    ))}
-                </dl>
+                <details open={!preview} className="text-data">
+                    <summary className="cursor-pointer text-ink-muted">{t("ai.confirm.arguments")}</summary>
+                    <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3">
+                        {entries.map(([name, value]) => (
+                            <div key={name} className="contents">
+                                <dt className="font-medium">{name}</dt>
+                                <dd className="min-w-0 [overflow-wrap:anywhere]">
+                                    <ArgumentValue
+                                        value={value}
+                                        type={Object.hasOwn(argumentTypes, name) ? argumentTypes[name] : ""}
+                                    />
+                                </dd>
+                            </div>
+                        ))}
+                    </dl>
+                </details>
             ) : (
-                <p className="text-data text-ink-muted">No arguments.</p>
+                <p className="text-data text-ink-muted">{t("ai.confirm.noArguments")}</p>
             )}
             <p className="text-data text-ink-muted">
-                Expires at {expires}. Nothing runs without your approval.
-                {changed && " The action will run with your changes."}
+                {t("ai.confirm.expires", {time: expires})}
+                {changed && t("ai.confirm.withChanges")}
             </p>
-            <div className="flex flex-wrap justify-end gap-2">
+            {preview && <p className="text-data text-ink-muted">{t("ai.confirm.daemonMayRefuse")}</p>}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                {previewing && <Spinner label={t("ai.confirm.previewing")}/>}
                 {confirmation.editable && !editing && (
                     <Button icon={<PencilIcon/>} disabled={busy} onClick={() => setEditing(true)}>
-                        Edit
+                        {t("ai.confirm.edit")}
                     </Button>
                 )}
                 {editing && (
@@ -396,24 +571,24 @@ function ConfirmationCard({confirmation, busy, onApprove, onReject}) {
                             setEditing(false);
                         }}
                     >
-                        Discard changes
+                        {t("ai.confirm.discard")}
+                    </Button>
+                )}
+                {editing && preview && changed && (
+                    <Button disabled={busy || invalid || !stale} onClick={() => onPreview(edit.args)}>
+                        {t("ai.confirm.recompute")}
                     </Button>
                 )}
                 <Button disabled={busy} onClick={onReject}>
-                    Reject
+                    {t("ai.confirm.reject")}
                 </Button>
-                <Button
-                    variant={confirmation.tool.destructive ? "danger" : "primary"}
-                    disabled={busy || invalid}
-                    onClick={approve}
-                >
-                    {changed ? "Approve with my changes" : "Approve"}
+                <Button variant={confirmation.tool.destructive ? "delete" : "create"} disabled={busy || invalid} onClick={approve}>
+                    {changed ? t("ai.confirm.approveEdited") : t("ai.confirm.approve")}
                 </Button>
             </div>
         </section>
     );
 }
-
 
 /**
  * The assistant page. It fills the height of the view: the transcript scrolls
@@ -727,10 +902,14 @@ const AiChat = ({status}) => {
                         </div>
                         {chat.confirmation && (
                             <ConfirmationCard
+                                // A new confirmation, such as a preview asked again, takes a card of its own.
+                                key={chat.confirmation.id}
                                 confirmation={chat.confirmation}
                                 busy={busy}
+                                previewing={chat.pending === "previewing"}
                                 onApprove={(editedArgs) => void chat.approve(editedArgs)}
                                 onReject={() => void chat.reject()}
+                                onPreview={(editedArgs) => void chat.previewAgain(editedArgs)}
                             />
                         )}
                         {chat.error && <Alert className="mx-3 mb-2">{chat.error}</Alert>}

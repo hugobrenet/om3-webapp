@@ -229,6 +229,117 @@
     "body": "{\"error\":{\"code\":\"invalid_edited_arguments\",\"message\":\"the edited arguments are invalid: validating root: required: missing properties: [\\\"yaml\\\"]\"}}\n"
   },
   {
+    "name": "confirmation_preview_action",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-p",
+          "role": "user",
+          "content": "Stop fs#1 of web on dev5n1"
+        }
+      ],
+      "tools": []
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TOOL_CALL_START\",\"timestamp\":1760000000000,\"toolCallId\":\"call-p\",\"toolCallName\":\"stop_instance\",\"parentMessageId\":\"turn-p:2\"}\n\ndata: {\"type\":\"TOOL_CALL_ARGS\",\"timestamp\":1760000000000,\"delta\":\"{\\\"path\\\":\\\"test/svc/web\\\",\\\"node\\\":\\\"dev5n1\\\",\\\"rids\\\":[\\\"fs#1\\\"]}\",\"toolCallId\":\"call-p\"}\n\ndata: {\"type\":\"TOOL_CALL_END\",\"timestamp\":1760000000000,\"toolCallId\":\"call-p\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"interrupt\",\"interrupts\":[{\"id\":\"confirmation-p\",\"reason\":\"tool_call\",\"message\":\"Confirm the action Stop instance with the arguments of its call.\",\"toolCallId\":\"call-p\",\"responseSchema\":{\"additionalProperties\":false,\"properties\":{\"approved\":{\"type\":\"boolean\"}},\"required\":[\"approved\"],\"type\":\"object\"},\"expiresAt\":\"2026-10-09T17:45:00Z\",\"metadata\":{\"editable\":false,\"preview\":{\"provenance\":{\"source\":\"opensvc_daemon\",\"observed_at\":\"2026-10-26T09:00:00Z\"},\"summary\":{\"text\":\"Stop test/svc/web on dev5n1 (fs#1)\",\"key\":\"stop_instance\",\"params\":{\"node\":\"dev5n1\",\"path\":\"test/svc/web\",\"rids\":\"fs#1\"}}},\"tool\":{\"destructive\":true,\"name\":\"stop_instance\",\"title\":\"Stop instance\"},\"turnId\":\"turn-p\"}}]}}\n\n"
+  },
+  {
+    "name": "confirmation_preview_config",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-u",
+          "role": "user",
+          "content": "Add b to env.list of web"
+        }
+      ],
+      "tools": []
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TOOL_CALL_START\",\"timestamp\":1760000000000,\"toolCallId\":\"call-u\",\"toolCallName\":\"update_object_config\",\"parentMessageId\":\"turn-u:2\"}\n\ndata: {\"type\":\"TOOL_CALL_ARGS\",\"timestamp\":1760000000000,\"delta\":\"{\\\"path\\\":\\\"test/svc/web\\\",\\\"set\\\":[\\\"env.list+=b\\\",\\\"cluster.secret=x\\\"],\\\"unset\\\":[\\\"env.absent\\\"],\\\"delete\\\":[\\\"fs#2\\\"]}\",\"toolCallId\":\"call-u\"}\n\ndata: {\"type\":\"TOOL_CALL_END\",\"timestamp\":1760000000000,\"toolCallId\":\"call-u\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"interrupt\",\"interrupts\":[{\"id\":\"confirmation-u\",\"reason\":\"tool_call\",\"message\":\"Confirm the action Update object configuration with the arguments of its call.\",\"toolCallId\":\"call-u\",\"responseSchema\":{\"additionalProperties\":false,\"properties\":{\"approved\":{\"type\":\"boolean\"},\"editedArgs\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},\"set\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"unset\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"delete\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"path\"]}},\"required\":[\"approved\"],\"type\":\"object\"},\"expiresAt\":\"2026-10-09T17:45:00Z\",\"metadata\":{\"editable\":true,\"preview\":{\"provenance\":{\"source\":\"opensvc_daemon\",\"observed_at\":\"2026-10-26T09:00:00Z\"},\"summary\":{\"text\":\"Update the configuration of test/svc/web: 2 set, 1 unset, 1 sections deleted\",\"key\":\"config_update\",\"params\":{\"deletes\":\"1\",\"path\":\"test/svc/web\",\"sets\":\"2\",\"unsets\":\"1\"}},\"changes\":[{\"key\":\"env.absent\",\"op\":\"unset\",\"before\":\"\",\"after\":\"\",\"after_computed_by_mcp\":true,\"note\":\"not set\",\"note_keys\":[\"not_set\"]},{\"key\":\"env.list\",\"op\":\"+=\",\"value\":\"b\",\"before\":\"a\",\"after\":\"a b\",\"after_computed_by_mcp\":true},{\"key\":\"cluster.secret\",\"op\":\"=\",\"after_computed_by_mcp\":false,\"note\":\"secret: values not shown\",\"note_keys\":[\"secret\"]}],\"deleted\":[{\"section\":\"fs#2\",\"keys\":[\"fs#2.dev\",\"fs#2.type\"]}],\"read_at\":\"2026-10-26T09:00:00Z\",\"secrets_omitted\":1},\"tool\":{\"destructive\":true,\"name\":\"update_object_config\",\"title\":\"Update object configuration\"},\"turnId\":\"turn-u\"}}]}}\n\n"
+  },
+  {
+    "name": "confirmation_preview_create",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-n",
+          "role": "user",
+          "content": "Create new with a flag"
+        }
+      ],
+      "tools": []
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TOOL_CALL_START\",\"timestamp\":1760000000000,\"toolCallId\":\"call-n\",\"toolCallName\":\"create_object\",\"parentMessageId\":\"turn-n:2\"}\n\ndata: {\"type\":\"TOOL_CALL_ARGS\",\"timestamp\":1760000000000,\"delta\":\"{\\\"path\\\":\\\"test/svc/new\\\",\\\"config\\\":\\\"[DEFAULT]\\\\nnodes = dev5n1\\\\n\\\\n[fs#1]\\\\ntype = flag\\\\n\\\",\\\"set\\\":[\\\"env.a=1\\\"]}\",\"toolCallId\":\"call-n\"}\n\ndata: {\"type\":\"TOOL_CALL_END\",\"timestamp\":1760000000000,\"toolCallId\":\"call-n\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"interrupt\",\"interrupts\":[{\"id\":\"confirmation-n\",\"reason\":\"tool_call\",\"message\":\"Confirm the action Create object with the arguments of its call.\",\"toolCallId\":\"call-n\",\"responseSchema\":{\"additionalProperties\":false,\"properties\":{\"approved\":{\"type\":\"boolean\"}},\"required\":[\"approved\"],\"type\":\"object\"},\"expiresAt\":\"2026-10-09T17:45:00Z\",\"metadata\":{\"editable\":false,\"preview\":{\"provenance\":{\"source\":\"opensvc_daemon\",\"observed_at\":\"2026-10-26T09:00:00Z\"},\"summary\":{\"text\":\"Create test/svc/new, a svc of 2 sections\",\"key\":\"object_create\",\"params\":{\"kind\":\"svc\",\"path\":\"test/svc/new\",\"sections\":\"2\"}},\"changes\":[{\"key\":\"env.a\",\"op\":\"=\",\"value\":\"1\",\"after_computed_by_mcp\":false,\"note\":\"applied after the configuration file\",\"note_keys\":[\"applied_after_file\"]}],\"content\":{\"media_type\":\"text/x-ini\",\"text\":\"[DEFAULT]\\nnodes = dev5n1\\n\\n[fs#1]\\ntype = flag\\n\"}},\"tool\":{\"destructive\":true,\"name\":\"create_object\",\"title\":\"Create object\"},\"turnId\":\"turn-n\"}}]}}\n\n"
+  },
+  {
+    "name": "confirmation_preview_error",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-e",
+          "role": "user",
+          "content": "Set env.a of web"
+        }
+      ],
+      "tools": []
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"TOOL_CALL_START\",\"timestamp\":1760000000000,\"toolCallId\":\"call-e\",\"toolCallName\":\"update_object_config\",\"parentMessageId\":\"turn-e:2\"}\n\ndata: {\"type\":\"TOOL_CALL_ARGS\",\"timestamp\":1760000000000,\"delta\":\"{\\\"path\\\":\\\"test/svc/web\\\",\\\"set\\\":[\\\"env.a=1\\\"]}\",\"toolCallId\":\"call-e\"}\n\ndata: {\"type\":\"TOOL_CALL_END\",\"timestamp\":1760000000000,\"toolCallId\":\"call-e\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"interrupt\",\"interrupts\":[{\"id\":\"confirmation-e\",\"reason\":\"tool_call\",\"message\":\"Confirm the action Update object configuration with the arguments of its call.\",\"toolCallId\":\"call-e\",\"responseSchema\":{\"additionalProperties\":false,\"properties\":{\"approved\":{\"type\":\"boolean\"}},\"required\":[\"approved\"],\"type\":\"object\"},\"expiresAt\":\"2026-10-09T17:45:00Z\",\"metadata\":{\"editable\":false,\"previewError\":\"the preview was refused: get object config: OpenSVC daemon returned HTTP 404\",\"tool\":{\"destructive\":true,\"name\":\"update_object_config\",\"title\":\"Update object configuration\"},\"turnId\":\"turn-e\"}}]}}\n\n"
+  },
+  {
+    "name": "resume_preview",
+    "request": {
+      "threadId": "conversation-id",
+      "runId": "run-1",
+      "protocolVersion": "1.0",
+      "messages": [
+        {
+          "id": "u-c",
+          "role": "user"
+        },
+        {
+          "id": "turn-c:2",
+          "role": "assistant"
+        }
+      ],
+      "tools": [],
+      "resume": [
+        {
+          "interruptId": "confirmation-1",
+          "status": "resolved",
+          "payload": {
+            "action": "preview",
+            "editedArgs": {
+              "path": "api",
+              "yaml": "app#1:\n  start: /bin/true\n"
+            }
+          }
+        }
+      ]
+    },
+    "status": 200,
+    "contentType": "text/event-stream; charset=utf-8",
+    "body": "data: {\"type\":\"RUN_STARTED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"protocolVersion\":\"1.0\"}\n\ndata: {\"type\":\"RUN_FINISHED\",\"timestamp\":1760000000000,\"threadId\":\"conversation-id\",\"runId\":\"run-1\",\"outcome\":{\"type\":\"interrupt\",\"interrupts\":[{\"id\":\"confirmation-2\",\"reason\":\"tool_call\",\"message\":\"Confirm the action Update object config with the arguments of its call.\",\"toolCallId\":\"call-7\",\"responseSchema\":{\"additionalProperties\":false,\"properties\":{\"approved\":{\"type\":\"boolean\"},\"editedArgs\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\",\"description\":\"The path of the object.\"},\"yaml\":{\"type\":\"string\",\"contentMediaType\":\"application/yaml\",\"description\":\"The configuration to apply.\"},\"wait\":{\"type\":\"boolean\",\"description\":\"Wait until every live node has it.\"}},\"required\":[\"path\",\"yaml\"],\"additionalProperties\":false}},\"required\":[\"approved\"],\"type\":\"object\"},\"expiresAt\":\"2026-10-09T17:45:00Z\",\"metadata\":{\"argumentTypes\":{\"yaml\":\"application/yaml\"},\"editable\":true,\"preview\":{\"provenance\":{\"source\":\"opensvc_daemon\",\"observed_at\":\"2026-10-26T09:00:00Z\"},\"summary\":{\"text\":\"Update api\",\"key\":\"config_update\",\"params\":{\"path\":\"api\"}}},\"previewArguments\":{\"path\":\"api\",\"yaml\":\"app#1:\\n  start: /bin/true\\n\"},\"tool\":{\"destructive\":true,\"name\":\"update_object_config\",\"title\":\"Update object config\"},\"turnId\":\"turn-c\"}}]}}\n\n"
+  },
+  {
     "name": "confirmation_not_pending",
     "request": {
       "threadId": "conversation-id",

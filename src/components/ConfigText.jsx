@@ -152,9 +152,10 @@ function KeywordDocDialog({keywordsUrl, section, option, name, onClose}) {
 
 /**
  * The file, the name of each key a button opening the documentation of its
- * keyword, read from `keywordsUrl` for that keyword alone.
+ * keyword, read from `keywordsUrl` for that keyword alone. `lineNumbers` numbers
+ * the lines, as a file to confirm is read by them.
  */
-export function ConfigText({text, keywordsUrl, label}) {
+export function ConfigText({text, keywordsUrl, label, lineNumbers = false}) {
     const {t} = useTranslation();
     const lines = useMemo(() => parseConfig(text), [text]);
     const [open, setOpen] = useState(null);
@@ -164,25 +165,33 @@ export function ConfigText({text, keywordsUrl, label}) {
     return (
         <div className="overflow-x-auto rounded-(--radius-control) border border-line bg-surface-sunken p-2">
             <div role="group" aria-label={label} className="font-mono text-data whitespace-pre-wrap text-ink">
-                {lines.map((l, index) => (
-                    <div key={index} data-line={index} className="min-h-[1lh] hover:bg-surface">
-                        {l.key && keywordsUrl ? (
-                            <>
-                                {l.line.slice(0, l.start)}
-                                <button
-                                    type="button"
-                                    aria-label={t("config.keywordHelp.open", {keyword: nameOf(l)})}
-                                    title={t("config.keywordHelp.open", {keyword: nameOf(l)})}
-                                    onClick={() => setOpen(index)}
-                                    className="cursor-pointer rounded-sm underline decoration-line-strong decoration-dotted underline-offset-2 hover:text-accent hover:decoration-accent focus-visible:outline-2 focus-visible:outline-accent"
-                                >
-                                    {l.line.slice(l.start, l.end)}
-                                </button>
-                                {l.line.slice(l.end)}
-                            </>
-                        ) : l.line}
-                    </div>
-                ))}
+                {lines.map((l, index) => {
+                    const content = l.key && keywordsUrl ? (
+                        <>
+                            {l.line.slice(0, l.start)}
+                            <button
+                                type="button"
+                                aria-label={t("config.keywordHelp.open", {keyword: nameOf(l)})}
+                                title={t("config.keywordHelp.open", {keyword: nameOf(l)})}
+                                onClick={() => setOpen(index)}
+                                className="cursor-pointer rounded-sm underline decoration-line-strong decoration-dotted underline-offset-2 hover:text-accent hover:decoration-accent focus-visible:outline-2 focus-visible:outline-accent"
+                            >
+                                {l.line.slice(l.start, l.end)}
+                            </button>
+                            {l.line.slice(l.end)}
+                        </>
+                    ) : l.line;
+                    return lineNumbers ? (
+                        <div key={index} data-line={index} className="flex min-h-[1lh] items-start gap-2 hover:bg-surface">
+                            <span aria-hidden="true" data-testid="config-line-number" className="w-8 shrink-0 text-right text-ink-muted tabular-nums select-none">
+                                {index + 1}
+                            </span>
+                            <span className="min-w-0 flex-1">{content}</span>
+                        </div>
+                    ) : (
+                        <div key={index} data-line={index} className="min-h-[1lh] hover:bg-surface">{content}</div>
+                    );
+                })}
             </div>
             {opened && (
                 <KeywordDocDialog
