@@ -599,12 +599,19 @@ const AiChat = ({status}) => {
     const [dialog, setDialog] = useState("");
     const [tipsOpen, setTipsOpen] = useState(false);
     const [toolsOpen, setToolsOpen] = useState(false);
+    // The conversation the delete dialog asks about.
+    const [deleting, setDeleting] = useState(null);
     // The tools are read as the session: one that ends closes them, and they
     // do not open again by themselves with the next.
     useEffect(() => {
         if (!ready) setToolsOpen(false);
     }, [ready]);
+    // The title edited in place of the heading, while renaming.
     const [title, setTitle] = useState("");
+    const [renaming, setRenaming] = useState(false);
+    // Set once the edit is saved or canceled, so the blur that follows does
+    // nothing more.
+    const renameEnded = useRef(false);
     const transcript = useRef(null);
     const scrollAnchor = useRef(null);
     const busy = Boolean(chat.pending);
@@ -653,6 +660,7 @@ const AiChat = ({status}) => {
         setDraft(chat.takeQueued() ?? "");
         setDialog("");
         setTitle("");
+        setRenaming(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [scope, ready, chat.conversation?.id, chat.pending, chat.historyReady]);
 
@@ -721,8 +729,23 @@ const AiChat = ({status}) => {
             composer.current?.focus();
             return;
         }
-        const result = dialog === "rename" ? await chat.renameConversation(title) : await chat.deleteConversation();
+        const result = await chat.deleteConversation(deleting?.id);
         if (result) setDialog("");
+    };
+
+    const startRenaming = () => {
+        renameEnded.current = false;
+        setTitle(chat.conversation?.title || "");
+        setRenaming(true);
+    };
+    // Enter or leaving the field saves the title, without a confirmation;
+    // Escape, an empty or an unchanged title keeps the one there was.
+    const endRenaming = (save) => {
+        if (renameEnded.current) return;
+        renameEnded.current = true;
+        setRenaming(false);
+        const next = title.trim();
+        if (save && next && next !== (chat.conversation?.title || "")) void chat.renameConversation(next);
     };
     // The replacement of the queued message is asked while a turn runs.
     const dialogBusy = dialog !== "replace" && busy;
@@ -824,7 +847,7 @@ const AiChat = ({status}) => {
                                         {group.items.map((conversation) => {
                                             const selected = conversation.id === chat.conversation?.id;
                                             return (
-                                                <li key={conversation.id}>
+                                                <li key={conversation.id} className="flex items-center gap-1">
                                                     <button
                                                         type="button"
                                                         aria-current={selected ? "true" : undefined}
@@ -834,7 +857,7 @@ const AiChat = ({status}) => {
                                                             void chat.resumeConversation(conversation.id);
                                                         }}
                                                         className={cn(
-                                                            "w-full rounded-(--radius-control) px-2 py-1 text-left [overflow-wrap:anywhere] disabled:opacity-60",
+                                                            "min-w-0 flex-1 rounded-(--radius-control) px-2 py-1 text-left [overflow-wrap:anywhere] disabled:opacity-60",
                                                             selected
                                                                 ? "bg-surface-sunken font-medium text-ink"
                                                                 : "text-ink-muted hover:bg-surface-sunken hover:text-ink"
@@ -842,6 +865,18 @@ const AiChat = ({status}) => {
                                                     >
                                                         {titleOf(conversation)}
                                                     </button>
+                                                    <IconButton
+                                                        size="sm"
+                                                        label={untrustedT(t, "ai.conversations.delete", {title: titleOf(conversation)})}
+                                                        disabled={busy}
+                                                        className="text-ink-muted hover:text-state-down"
+                                                        onClick={() => {
+                                                            setDeleting(conversation);
+                                                            setDialog("delete");
+                                                        }}
+                                                    >
+                                                        <TrashIcon width={12} height={12}/>
+                                                    </IconButton>
                                                 </li>
                                             );
                                         })}
@@ -861,9 +896,40 @@ const AiChat = ({status}) => {
                             >
                                 <SidebarIcon open={conversationsOpen} width={14} height={14}/>
                             </IconButton>
-                            <h2 id="ai-transcript" className="min-w-0 font-semibold [overflow-wrap:anywhere]">
+                            <h2 id="ai-transcript" className={cn("min-w-0 font-semibold [overflow-wrap:anywhere]", renaming && "sr-only")}>
                                 {chat.conversation ? titleOf(chat.conversation) : t("ai.transcript.start")}
                             </h2>
+                            {renaming && chat.conversation ? (
+                                <Input
+                                    autoFocus
+                                    aria-label={t("ai.dialog.titleLabel")}
+                                    title={t("ai.transcript.renameHint")}
+                                    className="h-7 max-w-sm min-w-0 flex-1 font-semibold"
+                                    value={title}
+                                    onFocus={(event) => event.target.select()}
+                                    onChange={(event) => setTitle(event.target.value)}
+                                    onBlur={() => endRenaming(true)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Enter") {
+                                            event.preventDefault();
+                                            endRenaming(true);
+                                        } else if (event.key === "Escape") {
+                                            event.preventDefault();
+                                            endRenaming(false);
+                                        }
+                                    }}
+                                />
+                            ) : chat.conversation && (
+                                <IconButton
+                                    size="sm"
+                                    label={t("ai.transcript.rename")}
+                                    disabled={busy}
+                                    className="text-ink-muted hover:text-ink"
+                                    onClick={startRenaming}
+                                >
+                                    <PencilIcon width={12} height={12}/>
+                                </IconButton>
+                            )}
                             <div className="ml-auto flex gap-2">
                                 <IconButton label={t("ai.tips.open")} onClick={() => setTipsOpen(true)}>
                                     <InfoIcon width={14} height={14}/>
@@ -876,24 +942,6 @@ const AiChat = ({status}) => {
                                     <Button size="sm" icon={<PlusIcon/>} disabled={busy} onClick={() => chat.createConversation()}>
                                         {t("ai.conversations.new")}
                                     </Button>
-                                )}
-                                {chat.conversation && (
-                                    <>
-                                        <Button
-                                            size="sm"
-                                            icon={<PencilIcon/>}
-                                            disabled={busy}
-                                            onClick={() => {
-                                                setTitle(chat.conversation.title || "");
-                                                setDialog("rename");
-                                            }}
-                                        >
-                                            {t("ai.transcript.rename")}
-                                        </Button>
-                                        <Button size="sm" icon={<TrashIcon/>} disabled={busy} onClick={() => setDialog("delete")}>
-                                            {t("ai.transcript.delete")}
-                                        </Button>
-                                    </>
                                 )}
                             </div>
                         </div>
@@ -1082,7 +1130,7 @@ const AiChat = ({status}) => {
             <Dialog
                 open={ready && Boolean(dialog)}
                 title={
-                    dialog === "rename" ? t("ai.dialog.renameTitle") : dialog === "replace" ? t("ai.dialog.replaceTitle") : t("ai.dialog.deleteTitle")
+                    dialog === "replace" ? t("ai.dialog.replaceTitle") : t("ai.dialog.deleteTitle")
                 }
                 onClose={() => {
                     if (!dialogBusy) setDialog("");
@@ -1094,29 +1142,18 @@ const AiChat = ({status}) => {
                         </Button>
                         <Button
                             variant={dialog === "delete" ? "delete" : "secondary"}
-                            disabled={dialogBusy || (dialog === "rename" && !title.trim())}
+                            disabled={dialogBusy}
                             onClick={confirmDialog}
                         >
-                            {dialog === "rename" ? t("ai.dialog.save") : dialog === "replace" ? t("ai.dialog.replace") : t("ai.dialog.confirmDelete")}
+                            {dialog === "replace" ? t("ai.dialog.replace") : t("ai.dialog.confirmDelete")}
                         </Button>
                     </>
                 }
             >
                 {dialog === "replace" ? (
                     <p>{t("ai.dialog.replaceText")}</p>
-                ) : dialog === "rename" ? (
-                    <Field label={t("ai.dialog.titleLabel")} hint={t("ai.dialog.titleHint")}>
-                        {(control) => (
-                            <Input
-                                {...control}
-                                value={title}
-                                disabled={busy}
-                                onChange={(event) => setTitle(event.target.value)}
-                            />
-                        )}
-                    </Field>
                 ) : (
-                    <p>{t("ai.dialog.deleteText")}</p>
+                    <p>{untrustedT(t, "ai.dialog.deleteText", {title: deleting ? titleOf(deleting) : ""})}</p>
                 )}
                 {chat.error && <Alert>{chat.error}</Alert>}
             </Dialog>

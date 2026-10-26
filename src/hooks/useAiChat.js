@@ -493,14 +493,18 @@ const useAiChat = ({client, ready, scope}) => {
         });
     };
 
-    const deleteConversation = () => {
-        if (state.scope !== scope || !state.conversation) return;
-        const id = state.conversation.id;
+    // Delete a conversation, the current one by default; another leaves the
+    // conversation shown as it is.
+    const deleteConversation = (id = state.conversation?.id) => {
+        if (state.scope !== scope || !id) return;
         return perform('deleting', async ({signal, update}) => {
             await client.deleteConversation(id, {signal});
             // A message queued for it goes with it.
             if (queuedRef.current?.conversationId === id) setQueued(null);
-            update((previous) => ({
+            update((previous) => previous.conversation?.id !== id ? {
+                ...previous,
+                conversations: previous.conversations.filter((item) => item.id !== id),
+            } : ({
                 ...previous,
                 conversation: null,
                 messages: [],

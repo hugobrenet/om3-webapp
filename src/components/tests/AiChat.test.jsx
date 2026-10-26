@@ -295,27 +295,68 @@ describe('AI chatbot page', () => {
         expect(await screen.findByText('Saved diagnostic')).toHaveProperty('tagName', 'STRONG');
         expect(mocks.client.run).not.toHaveBeenCalled();
     });
-    test('allows renaming and requires confirmation before deleting', async () => {
+    test('renames in place, Enter saving without a dialog, and requires confirmation before deleting', async () => {
         await renderReady();
         fireEvent.click(screen.getByRole('button', {name: 'New conversation'}));
-        await waitFor(() => expect(screen.getByRole('button', {name: 'Rename'})).toBeEnabled());
-        fireEvent.click(screen.getByRole('button', {name: 'Rename'}));
-        fireEvent.change(screen.getByRole('textbox', {name: 'Conversation title'}), {
-            target: {value: 'Renamed'},
-        });
-        fireEvent.click(screen.getByRole('button', {name: 'Save title'}));
-        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.getByRole('button', {name: 'Rename the conversation'})).toBeEnabled());
+        fireEvent.click(screen.getByRole('button', {name: 'Rename the conversation'}));
+        const field = screen.getByRole('textbox', {name: 'Conversation title'});
+        expect(field).toHaveFocus();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        fireEvent.change(field, {target: {value: '  Renamed  '}});
+        fireEvent.keyDown(field, {key: 'Enter'});
+        // Saved once: the blur of the field leaving does not save again.
+        fireEvent.blur(field);
+        expect(screen.queryByRole('textbox', {name: 'Conversation title'})).not.toBeInTheDocument();
+        await screen.findByRole('heading', {name: 'Renamed'});
+        expect(mocks.client.renameConversation).toHaveBeenCalledTimes(1);
         expect(mocks.client.renameConversation).toHaveBeenCalledWith(
             'new',
             'Renamed',
             expect.any(Object)
         );
-        fireEvent.click(screen.getByRole('button', {name: 'Delete'}));
+        // The trash of its row in the history, the conversation named.
+        fireEvent.click(await screen.findByRole('button', {name: 'Delete Renamed'}));
+        expect(screen.getByRole('dialog')).toHaveTextContent('Delete "Renamed" and its saved context?');
         expect(mocks.client.deleteConversation).not.toHaveBeenCalled();
         fireEvent.click(screen.getByRole('button', {name: 'Confirm deletion'}));
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-        expect(mocks.client.deleteConversation).toHaveBeenCalledTimes(1);
-        expect(screen.queryByRole('button', {name: 'Rename'})).not.toBeInTheDocument();
+        expect(mocks.client.deleteConversation).toHaveBeenCalledWith('new', expect.any(Object));
+        expect(screen.queryByRole('button', {name: 'Rename the conversation'})).not.toBeInTheDocument();
+    });
+    test('keeps the title on Escape, an empty title, and saves it on leaving the field', async () => {
+        await renderReady();
+        fireEvent.click(screen.getByRole('button', {name: 'New conversation'}));
+        await waitFor(() => expect(screen.getByRole('button', {name: 'Rename the conversation'})).toBeEnabled());
+        const edit = () => {
+            fireEvent.click(screen.getByRole('button', {name: 'Rename the conversation'}));
+            return screen.getByRole('textbox', {name: 'Conversation title'});
+        };
+        let field = edit();
+        fireEvent.change(field, {target: {value: 'Not this'}});
+        fireEvent.keyDown(field, {key: 'Escape'});
+        // Escape kept the title there was, and the field starts from it.
+        expect(screen.getByRole('heading', {name: 'New diagnostic'})).toBeInTheDocument();
+        field = edit();
+        expect(field).toHaveValue('New diagnostic');
+        fireEvent.change(field, {target: {value: '   '}});
+        fireEvent.keyDown(field, {key: 'Enter'});
+        expect(mocks.client.renameConversation).not.toHaveBeenCalled();
+        field = edit();
+        fireEvent.change(field, {target: {value: 'Renamed'}});
+        fireEvent.blur(field);
+        await waitFor(() => expect(mocks.client.renameConversation).toHaveBeenCalledWith('new', 'Renamed', expect.any(Object)));
+    });
+    test('deletes another conversation of the history, the one shown staying', async () => {
+        await renderReady();
+        fireEvent.click(screen.getByRole('button', {name: 'New conversation'}));
+        await waitFor(() => expect(screen.getByRole('button', {name: 'Rename the conversation'})).toBeEnabled());
+        fireEvent.click(screen.getByRole('button', {name: 'Delete Previous diagnostic'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Confirm deletion'}));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(mocks.client.deleteConversation).toHaveBeenCalledWith('existing', expect.any(Object));
+        expect(screen.queryByRole('button', {name: 'Previous diagnostic'})).not.toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Rename the conversation'})).toBeInTheDocument();
     });
     test.each(['openid', 'basic'])(
         'aborts and hides the transcript on %s logout',
@@ -580,7 +621,8 @@ describe('AI chatbot page', () => {
                 'Previous 7 days',
                 'Older',
             ]);
-            const titles = (name) => within(screen.getByRole('list', {name})).getAllByRole('button').map((button) => button.textContent);
+            // The title of each row, its first button; the second deletes it.
+            const titles = (name) => within(screen.getByRole('list', {name})).getAllByRole('listitem').map((row) => row.querySelector('button').textContent);
             expect(titles('Today')).toEqual(['Latest', 'Disk check']);
             expect(titles('Yesterday')).toEqual(['Freeze review']);
             expect(titles('Previous 7 days')).toEqual(['Pool usage']);

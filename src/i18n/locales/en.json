@@ -3598,6 +3598,7 @@
       "searchHint": "Searches the titles of the loaded conversations.",
       "noMatch": "No conversation matches.",
       "untitled": "Untitled conversation",
+      "delete": "Delete {{title}}",
       "groups": {
         "today": "Today",
         "yesterday": "Yesterday",
@@ -3607,8 +3608,8 @@
     },
     "transcript": {
       "start": "Ask about your cluster",
-      "rename": "Rename",
-      "delete": "Delete",
+      "rename": "Rename the conversation",
+      "renameHint": "Enter saves the title, Escape keeps the one there was. Up to 80 Unicode characters.",
       "log": "Conversation messages",
       "loadEarlier": "Load earlier messages",
       "loadingEarlier": "Loading earlier messages…",
@@ -3710,14 +3711,11 @@
       "queuedDuringConfirmation": "Your message will be sent after your decision; it does not answer the confirmation."
     },
     "dialog": {
-      "renameTitle": "Rename conversation",
       "deleteTitle": "Delete conversation",
       "cancel": "Cancel",
-      "save": "Save title",
       "confirmDelete": "Confirm deletion",
       "titleLabel": "Conversation title",
-      "titleHint": "Up to 80 Unicode characters.",
-      "deleteText": "Delete this conversation and its stored context? This cannot be undone.",
+      "deleteText": "Delete \"{{title}}\" and its saved context? This cannot be undone.",
       "replaceTitle": "Replace the queued message",
       "replace": "Replace",
       "replaceText": "A message is already queued. Replace it with the one you typed?"

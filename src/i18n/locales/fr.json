@@ -3598,6 +3598,7 @@
       "searchHint": "Cherche dans les titres des conversations chargées.",
       "noMatch": "Aucune conversation ne correspond.",
       "untitled": "Conversation sans titre",
+      "delete": "Supprimer {{title}}",
       "groups": {
         "today": "Aujourd'hui",
         "yesterday": "Hier",
@@ -3607,8 +3608,8 @@
     },
     "transcript": {
       "start": "Interrogez votre cluster",
-      "rename": "Renommer",
-      "delete": "Supprimer",
+      "rename": "Renommer la conversation",
+      "renameHint": "Entrée enregistre le titre, Échap garde l'ancien. Jusqu'à 80 caractères Unicode.",
       "log": "Messages de la conversation",
       "loadEarlier": "Charger les messages précédents",
       "loadingEarlier": "Chargement des messages précédents…",
@@ -3710,14 +3711,11 @@
       "queuedDuringConfirmation": "Ce message partira après votre décision ; il ne répond pas à la confirmation."
     },
     "dialog": {
-      "renameTitle": "Renommer la conversation",
       "deleteTitle": "Supprimer la conversation",
       "cancel": "Annuler",
-      "save": "Enregistrer le titre",
       "confirmDelete": "Confirmer la suppression",
       "titleLabel": "Titre de la conversation",
-      "titleHint": "80 caractères Unicode au plus.",
-      "deleteText": "Supprimer cette conversation et son contexte enregistré ? C'est irréversible.",
+      "deleteText": "Supprimer « {{title}} » et son contexte enregistré ? C'est irréversible.",
       "replaceTitle": "Remplacer le message en file",
       "replace": "Remplacer",
       "replaceText": "Un message est déjà en file. Le remplacer par celui que vous avez tapé ?"
