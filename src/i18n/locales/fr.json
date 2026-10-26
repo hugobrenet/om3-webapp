@@ -3823,6 +3823,7 @@
       "refusal": "Refusé par l'outil :",
       "excerpt": "Résultat :",
       "excerptTruncated": "Résultat, ses 4 premiers Ko :",
+      "argumentsOmitted": "Arguments trop volumineux pour être conservés dans l'historique.",
       "count_one": "{{count}} étape",
       "count_other": "{{count}} étapes",
       "rejected_one": "{{count}} action refusée par vous",

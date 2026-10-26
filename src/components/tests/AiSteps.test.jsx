@@ -243,6 +243,118 @@ describe('the steps of a thread given again', () => {
     });
 });
 
+describe('the steps of a conversation reloaded', () => {
+    const existing = {id: 'existing', title: 'Stop web'};
+    const prompt = {id: 'turn-s:1', turn_id: 'turn-s', role: 'user', text: 'Stop web on dev5n1', created_at: '2026-10-26T10:00:00Z'};
+    const first = {id: 'turn-s:2', turn_id: 'turn-s', role: 'assistant', text: 'I will stop `test/svc/web`.', created_at: '2026-10-26T10:00:02Z'};
+    const step = (id, tool, args, startedAt, endedAt, fields = {}) => ({
+        id, tool, arguments: args, ...(startedAt ? {started_at: startedAt} : {}), ...(endedAt ? {ended_at: endedAt} : {}),
+        status: 'completed', result_excerpt: '{"content":[],"structuredContent":{}}', result_truncated: false, refusal: '', ...fields,
+    });
+    const last = {
+        id: 'turn-s:4', turn_id: 'turn-s', role: 'assistant', text: 'Not stopped.', created_at: '2026-10-26T10:00:09Z',
+        feedback: {rating: 'up', reasons: [], expected: ''},
+        steps: [
+            step('call-1', 'get_object_status', {path: 'test/svc/web'}, T0 + 400, T0 + 700),
+            step('call-2', 'get_node_status', {node: 'dev5n9'}, T0 + 410, T0 + 800),
+            step('call-3', 'get_instance_status', {path: 'test/svc/web', node: 'dev5n1'}, T0 + 1000, T0 + 1100, {status: 'failed', refusal: 'instance not found'}),
+            step('call-6', 'stop_instance', {path: 'test/svc/web', node: 'dev5n1'}, T1, undefined, {status: 'rejected'}),
+        ],
+        runs: [{started_at: T0, ended_at: T0 + 2500}, {started_at: T1, ended_at: T1 + 500}],
+        usage: {total_tokens: 370},
+    };
+    beforeEach(() => {
+        mocks.auth = {authChoice: 'openid', accessToken: 'token', user: 'hugo'};
+        mocks.client = {
+            listConversations: vi.fn().mockResolvedValue([existing]),
+            createConversation: vi.fn(),
+            getConversation: vi.fn().mockResolvedValue(existing),
+            getConversationState: vi.fn().mockResolvedValue({conversation: existing, confirmation: null}),
+            getMessages: vi.fn(),
+            newId: vi.fn(() => 'prompt-2'),
+            run: vi.fn(replayEvents([
+                {type: 'RUN_STARTED', ...run, timestamp: T1 + 9000},
+                ...text('turn-t:2', 'Done.', T1 + 9100),
+                {type: 'RUN_FINISHED', ...run, timestamp: T1 + 9200, outcome: {type: 'success'}, result: {turnId: 'turn-t'}},
+            ])),
+        };
+    });
+    const reload = async (messages) => {
+        mocks.client.getMessages.mockResolvedValue({messages, next_cursor: ''});
+        const view = render(
+            <MemoryRouter>
+                <AiChat status={status}/>
+            </MemoryRouter>
+        );
+        await waitFor(() => expect(screen.getByRole('button', {name: 'Stop web'})).toBeEnabled());
+        fireEvent.click(screen.getByRole('button', {name: 'Stop web'}));
+        await screen.findByText('Not stopped.');
+        return view;
+    };
+    // The messages as the client gives them, read from the page the agent serves.
+    const parse = (messages) => messages.map(({steps, steps_omitted, runs, usage, ...message}) =>
+        steps || runs || usage ? {...message, history: {
+            steps: (steps || []).map((item) => ({
+                id: item.id, tool: item.tool, arguments: item.arguments, startedAt: item.started_at ?? null, endedAt: item.ended_at ?? null,
+                status: item.status, result_excerpt: item.result_excerpt, result_truncated: item.result_truncated, refusal: item.refusal,
+                ...(item.arguments_omitted ? {argumentsOmitted: true} : {}),
+            })),
+            stepsOmitted: steps_omitted || 0,
+            runs: (runs || []).map((item) => ({startedAt: item.started_at, endedAt: item.ended_at ?? null})),
+            usage: usage || null,
+        }} : message);
+
+    test('shows the frise of a turn as the stream showed it, one answer for the turn', async () => {
+        const {container} = await reload(parse([prompt, first, last]));
+        // The two answers of the turn are one message, its feedback on it.
+        const answer = screen.getByText('Not stopped.').closest('li');
+        expect(within(answer).getByText(/I will stop/)).toBeInTheDocument();
+        expect(within(answer).getByRole('button', {name: /Helpful/})).toHaveAttribute('aria-pressed', 'true');
+        expect(within(answer).getByText('3 s · 4 steps · Tokens: 370 · 1 action rejected by you')).toBeInTheDocument();
+        fireEvent.click(within(answer).getByRole('button', {name: '4 steps · 3 s'}));
+        const list = within(answer).getByRole('list', {name: 'Steps of the answer'});
+        const step = (sentence) => within(list).getByRole('button', {name: sentence}).closest('li');
+        expect(step('Read the status of test/svc/web')).toHaveTextContent(/done.*300 ms/);
+        expect(step('Read the status of dev5n9')).toHaveTextContent(/in parallel.*390 ms/);
+        expect(step('Read the status of test/svc/web on dev5n1')).toHaveTextContent('refused by the tool');
+        expect(step('Stop test/svc/web on dev5n1')).toHaveTextContent('rejected by you');
+        expect(within(list).getAllByText(/^model /).map((line) => line.textContent)).toEqual(['model 400 ms', 'model 200 ms']);
+        expect((await axe(container)).violations).toHaveLength(0);
+        // In phase: the next run sends the IDs of both answers, the agent needs no snapshot.
+        fireEvent.change(screen.getByRole('textbox', {name: 'Message'}), {target: {value: 'And now?'}});
+        fireEvent.click(screen.getByRole('button', {name: 'Send'}));
+        await waitFor(() => expect(mocks.client.run).toHaveBeenCalledTimes(1));
+        expect(mocks.client.run.mock.calls[0][1].held.map((message) => message.id)).toEqual(['turn-s:1', 'turn-s:2', 'turn-s:4']);
+    });
+
+    test('keeps the order served of a turn stored without times, with no duration', async () => {
+        const untimed = {...last, runs: undefined, usage: undefined, steps: [
+            step('call-b', 'get_node_status', {node: 'dev5n1'}),
+            step('call-a', 'get_object_status', {path: 'test/svc/web'}),
+        ]};
+        await reload(parse([prompt, untimed]));
+        const answer = screen.getByText('Not stopped.').closest('li');
+        fireEvent.click(within(answer).getByRole('button', {name: /^2 steps · /}));
+        const list = within(answer).getByRole('list', {name: 'Steps of the answer'});
+        expect(within(list).getAllByRole('button', {expanded: false}).map((button) => button.textContent)).toEqual([
+            'Read the status of dev5n1',
+            'Read the status of test/svc/web',
+        ]);
+        expect(within(list).queryByText(/^model /)).toBeNull();
+        expect(list).not.toHaveTextContent(/\d ms|\d s\b/);
+    });
+
+    test('says the arguments the agent left out of the history', async () => {
+        await reload(parse([prompt, {...last, steps: [step('call-1', 'update_object_config', null, T0 + 400, T0 + 700, {arguments_omitted: true})]}]));
+        const answer = screen.getByText('Not stopped.').closest('li');
+        fireEvent.click(within(answer).getByRole('button', {name: /^1 step · /}));
+        const list = within(answer).getByRole('list', {name: 'Steps of the answer'});
+        fireEvent.click(within(list).getByRole('button', {expanded: false}));
+        expect(within(list).getByText('Arguments too large to be kept in the history.')).toBeInTheDocument();
+        expect(within(list).queryByRole('generic', {name: 'Arguments'})).toBeNull();
+    });
+});
+
 describe('formatDuration', () => {
     test.each([
         [4, 'en', '4 ms'],

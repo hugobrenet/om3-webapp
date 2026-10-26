@@ -167,6 +167,7 @@ function Step({step, status, parallel}) {
                         {JSON.stringify(step.arguments, null, 2)}
                     </pre>
                 )}
+                {!step.arguments && step.argumentsOmitted && <p className="text-ink-muted">{t("ai.steps.argumentsOmitted")}</p>}
                 {step.refusal && (
                     <div>
                         <p className="font-medium text-state-down">{t("ai.steps.refusal")}</p>
@@ -205,7 +206,10 @@ export function AiSteps({message, status}) {
     const steps = message.steps || [];
     // Sent, the run not started yet: the page shows it is waiting.
     if (!steps.length && !live) return message.status === "running" ? <Spinner label={t("ai.steps.waiting")} className="text-data"/> : null;
-    const ordered = [...steps].sort((left, right) => (left.startedAt ?? Infinity) - (right.startedAt ?? Infinity));
+    // In the order they started when all have a start; as served otherwise,
+    // such as the steps of a turn stored before the times were.
+    const timed = steps.every((step) => Number.isFinite(step.startedAt));
+    const ordered = timed ? [...steps].sort((left, right) => left.startedAt - right.startedAt) : steps;
     const current = steps.find((step) => step.status === "running");
     const summary = live
         ? untrustedT(t, "ai.steps.running", {time: clock(now - message.liveSince)})

@@ -53,7 +53,9 @@ describe('AI chatbot feedback', () => {
     test('offers the rating under the last answer of each turn only', async () => {
         await resume();
         expect(screen.getAllByRole('group', {name: 'Rate this answer'})).toHaveLength(2);
-        expect(within(answer('Looking.')).queryByRole('group', {name: 'Rate this answer'})).toBeNull();
+        // The answers of a turn are one message, as the stream shows them: its rating once.
+        expect(answer('Looking.')).toBe(answer('There are 484 nodes.'));
+        expect(within(answer('Looking.')).getAllByRole('group', {name: 'Rate this answer'})).toHaveLength(1);
         const rated = within(answer('Linux mostly.'));
         expect(rated.getByRole('button', {name: /Helpful/})).toHaveAttribute('aria-pressed', 'true');
         expect(rated.getByText('Thanks for your feedback.')).toBeInTheDocument();

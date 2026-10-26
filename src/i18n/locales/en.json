@@ -3820,6 +3820,7 @@
       "model": "model {{duration}}",
       "parallel": "in parallel",
       "arguments": "Arguments",
+      "argumentsOmitted": "Arguments too large to be kept in the history.",
       "refusal": "Refused by the tool:",
       "excerpt": "Result:",
       "excerptTruncated": "Result, its first 4 KB:",

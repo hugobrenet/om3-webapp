@@ -75,11 +75,51 @@ const resultStatus = (tool, result) => {
     return AGENT_TOOLS.has(tool) ? 'completed' : 'failed';
 };
 const historyMessages = (messages) =>
-    messages.map(({feedback, ...message}) =>
-        message.role === 'assistant'
-            ? assistantMessage(message.id, {...message, status: 'completed', messageIds: [message.id], textId: message.id})
-            : {...message, status: 'completed', steps: [], usage: null}
+    mergeTurns(
+        messages.map(({feedback, history, ...message}) =>
+            message.role === 'assistant'
+                ? assistantMessage(message.id, {
+                      ...message,
+                      status: 'completed',
+                      messageIds: [message.id],
+                      textId: message.id,
+                      // The steps of the turn, as the stream gave them: the call a
+                      // user edited shows the arguments it ran with.
+                      steps: (history?.steps || []).map(({id, tool, editedArgs, arguments: args, ...fields}) =>
+                          newStep(id, tool, {...fields, arguments: editedArgs ?? args, ...(editedArgs ? {editedArgs} : {})})
+                      ),
+                      stepsOmitted: history?.stepsOmitted || 0,
+                      runs: history?.runs || [],
+                      usage: history?.usage || null,
+                  })
+                : {...message, status: 'completed', steps: [], usage: null}
+        )
     );
+
+// One message of the webapp per turn, as the stream shows it: the assistant
+// messages of a turn the history gives one by one join, their texts as
+// paragraphs, their AG-UI IDs all held, the steps, runs, tokens and feedback
+// of the last one.
+const mergeTurns = (messages) => {
+    const merged = [];
+    for (const message of messages) {
+        const last = merged.at(-1);
+        if (message.role === 'assistant' && last?.role === 'assistant' && last.turn_id && last.turn_id === message.turn_id) {
+            merged[merged.length - 1] = {
+                ...message,
+                text: [last.text, message.text].filter(Boolean).join('\n\n'),
+                messageIds: [...last.messageIds, ...message.messageIds],
+                steps: message.steps.length ? message.steps : last.steps,
+                stepsOmitted: message.stepsOmitted || last.stepsOmitted || 0,
+                runs: message.runs.length ? message.runs : last.runs,
+                usage: message.usage ?? last.usage,
+            };
+            continue;
+        }
+        merged.push(message);
+    }
+    return merged;
+};
 // The feedback the agent returned with the messages, per turn, without
 // replacing what the user changed since.
 const historyRatings = (messages, ratings = {}) => {
@@ -419,13 +459,15 @@ const useAiChat = ({client, ready, scope}) => {
                 signal,
             });
             update((previous) => {
-                const ids = new Set(previous.messages.map((message) => message.id));
+                // Every AG-UI ID held: an answer merged goes by its last one.
+                const ids = new Set(heldMessages(previous.messages).map((message) => message.id));
                 return {
                     ...previous,
-                    messages: [
-                        ...historyMessages(page.messages).filter((message) => !ids.has(message.id)),
+                    // A turn the pages cut in two joins again.
+                    messages: mergeTurns([
+                        ...historyMessages(page.messages.filter((message) => !ids.has(message.id))),
                         ...previous.messages,
-                    ],
+                    ]),
                     historyCursor: page.next_cursor,
                     ratings: historyRatings(page.messages, previous.ratings),
                 };

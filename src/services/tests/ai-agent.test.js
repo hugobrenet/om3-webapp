@@ -143,7 +143,7 @@ describe('AI agent conversations client', () => {
         fetchMock.mockResolvedValue(
             Response.json({
                 messages: [
-                    {...savedMessage, tool_results: 'not display data', usage: 'not saved usage'},
+                    {...savedMessage, tool_results: 'not display data', provider_state: 'not saved state'},
                 ],
                 next_cursor: '',
             })
@@ -151,6 +151,53 @@ describe('AI agent conversations client', () => {
         expect(await client.getMessages(metadata.id)).toEqual({
             messages: [savedMessage],
             next_cursor: '',
+        });
+    });
+    describe('the steps of a turn in its history', () => {
+        const answer = {id: 'turn-1:4', turn_id: 'turn-1', role: 'assistant', text: 'Stopped.', created_at: '2026-10-05T12:00:01Z'};
+        const step = {
+            id: 'call-1', tool: 'get_object_status', arguments: {path: 'web'}, started_at: 1100, ended_at: 1400,
+            status: 'completed', result_excerpt: '{"content":[]}', result_truncated: false, refusal: '',
+        };
+        const served = {...answer, steps: [step, {...step, id: 'call-2', tool: 'stop_instance', status: 'rejected', ended_at: undefined, edited_arguments: {path: 'db'}}], steps_omitted: 2, runs: [{started_at: 1000, ended_at: 2500}], usage: {total_tokens: 370}};
+        const page = (messages) => fetchMock.mockResolvedValue(Response.json({messages, next_cursor: ''}));
+
+        it('reads them with the last assistant message of the turn', async () => {
+            page([{...answer, id: 'turn-1:2', text: 'I will stop it.'}, served]);
+            const {messages} = await client.getMessages(metadata.id);
+            expect(messages[0].history).toBeUndefined();
+            expect(messages[1].history).toEqual({
+                steps: [
+                    {id: 'call-1', tool: 'get_object_status', arguments: {path: 'web'}, startedAt: 1100, endedAt: 1400, status: 'completed', result_excerpt: '{"content":[]}', result_truncated: false, refusal: ''},
+                    {id: 'call-2', tool: 'stop_instance', arguments: {path: 'web'}, startedAt: 1100, endedAt: null, status: 'rejected', result_excerpt: '{"content":[]}', result_truncated: false, refusal: '', editedArgs: {path: 'db'}},
+                ],
+                stepsOmitted: 2,
+                runs: [{startedAt: 1000, endedAt: 2500}],
+                usage: {total_tokens: 370},
+            });
+        });
+
+        it('keeps the arguments the agent left out as such', async () => {
+            page([{...served, steps: [{...step, arguments: null, arguments_omitted: true}]}]);
+            const {messages} = await client.getMessages(metadata.id);
+            expect(messages[0].history.steps[0]).toMatchObject({arguments: null, argumentsOmitted: true});
+        });
+
+        it.each([
+            ['steps on a prompt', [{...savedMessage, steps: []}]],
+            ['steps before the last answer of the turn', [served, {...answer, id: 'turn-1:6'}]],
+            ['an unknown status', [{...served, steps: [{...step, status: 'done'}]}]],
+            ['a time that is no integer', [{...served, steps: [{...step, started_at: 1.5}]}]],
+            ['an excerpt past 4 KiB', [{...served, steps: [{...step, result_excerpt: 'x'.repeat(4097)}]}]],
+            ['arguments that are no object', [{...served, steps: [{...step, arguments: 'web'}]}]],
+            ['a tool that is no name', [{...served, steps: [{...step, tool: 'get object'}]}]],
+            ['the same call twice', [{...served, steps: [step, step]}]],
+            ['more than 64 steps', [{...served, steps: Array.from({length: 65}, (_, index) => ({...step, id: `call-${index}`}))}]],
+            ['a run without start', [{...served, runs: [{ended_at: 5}]}]],
+            ['tokens that are no integer', [{...served, usage: {total_tokens: '370'}}]],
+        ])('refuses %s', async (_, messages) => {
+            page(messages);
+            await expect(client.getMessages(metadata.id)).rejects.toMatchObject({code: 'invalid_response'});
         });
     });
     it('decodes UTF-8 history split across network chunks', async () => {

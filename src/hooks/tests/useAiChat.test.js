@@ -905,4 +905,49 @@ describe('useAiChat', () => {
             expect(result.current.queued).toBeNull();
         });
     });
+
+    it('joins again a turn the pages of its history cut in two', async () => {
+        const at = '2026-10-05T12:00:01Z';
+        const last = {id: 'turn-1:4', turn_id: 'turn-1', role: 'assistant', text: 'Two nodes.', created_at: at,
+            history: {steps: [], stepsOmitted: 0, runs: [{startedAt: 1000, endedAt: 2000}], usage: {total_tokens: 12}}};
+        client.getMessages
+            .mockResolvedValueOnce({messages: [last], next_cursor: '1:4'})
+            .mockResolvedValueOnce({messages: [
+                {id: 'turn-1:1', turn_id: 'turn-1', role: 'user', text: 'How many nodes?', created_at: at},
+                {id: 'turn-1:2', turn_id: 'turn-1', role: 'assistant', text: 'Let me check.', created_at: at},
+            ], next_cursor: ''});
+        const {result} = await setup();
+        await act(async () => {
+            await result.current.resumeConversation('existing');
+        });
+        await act(async () => {
+            await result.current.loadOlderMessages();
+        });
+        expect(result.current.messages).toHaveLength(2);
+        expect(result.current.messages[1]).toMatchObject({
+            id: 'turn-1:4',
+            text: 'Let me check.\n\nTwo nodes.',
+            messageIds: ['turn-1:2', 'turn-1:4'],
+            runs: [{startedAt: 1000, endedAt: 2000}],
+            usage: {total_tokens: 12},
+        });
+    });
+
+    it('leaves out of an older page a message an answer joined holds', async () => {
+        const at = '2026-10-05T12:00:01Z';
+        const check = {id: 'turn-1:2', turn_id: 'turn-1', role: 'assistant', text: 'Let me check.', created_at: at};
+        client.getMessages
+            .mockResolvedValueOnce({messages: [check, {...check, id: 'turn-1:4', text: 'Two nodes.'}], next_cursor: '1:2'})
+            .mockResolvedValueOnce({messages: [{id: 'turn-1:1', turn_id: 'turn-1', role: 'user', text: 'How many nodes?', created_at: at}, check], next_cursor: ''});
+        const {result} = await setup();
+        await act(async () => {
+            await result.current.resumeConversation('existing');
+        });
+        await act(async () => {
+            await result.current.loadOlderMessages();
+        });
+        // turn-1:2 goes by the ID of the answer joined, turn-1:4, and is held.
+        expect(result.current.messages).toHaveLength(2);
+        expect(result.current.messages[1]).toMatchObject({text: 'Let me check.\n\nTwo nodes.', messageIds: ['turn-1:2', 'turn-1:4']});
+    });
 });

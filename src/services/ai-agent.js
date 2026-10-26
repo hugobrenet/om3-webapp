@@ -94,6 +94,62 @@ const storedMessageId = (id, turnId) => {
 const promptIdPattern = /^[\x21-\x7e]{1,128}$/;
 
 // Bound history independently of SSE, including untrusted or still-open bodies.
+// The steps the history gives with the last assistant message of a turn:
+// the calls of its tools, its runs and its tokens, checked as strictly as
+// the rest; a field out of its bounds is an error of the protocol.
+const STEP_STATUSES = ['completed', 'failed', 'rejected', 'interrupted'];
+const MAX_HISTORY_STEPS = 64;
+const isStamp = (value) => value === undefined || (Number.isSafeInteger(value) && value > 0);
+const parseHistorySteps = (message) => {
+    const {steps, steps_omitted: omitted, runs, usage} = message;
+    if (steps === undefined && omitted === undefined && runs === undefined && usage === undefined) return null;
+    if (
+        (steps !== undefined && (!Array.isArray(steps) || steps.length > MAX_HISTORY_STEPS)) ||
+        (omitted !== undefined && (!Number.isSafeInteger(omitted) || omitted < 0)) ||
+        (runs !== undefined && (!Array.isArray(runs) || runs.length > 32)) ||
+        (usage !== undefined && (!isPlainObject(usage) || !Number.isSafeInteger(usage.total_tokens) || usage.total_tokens < 0))
+    )
+        throw protocolError();
+    const ids = new Set();
+    const parsedSteps = (steps || []).map((step) => {
+        if (
+            !isPlainObject(step) ||
+            !isEventId(step.id) ||
+            ids.has(step.id) ||
+            !toolNamePattern.test(step.tool) ||
+            !(step.arguments === null || isPlainObject(step.arguments)) ||
+            (step.arguments_omitted !== undefined && typeof step.arguments_omitted !== 'boolean') ||
+            !isStamp(step.started_at) ||
+            !isStamp(step.ended_at) ||
+            !STEP_STATUSES.includes(step.status) ||
+            !isText(step.result_excerpt, RESULT_EXCERPT_CHARACTERS) ||
+            typeof step.result_truncated !== 'boolean' ||
+            !isText(step.refusal, MAX_REFUSAL_CHARACTERS) ||
+            (step.edited_arguments !== undefined && !isPlainObject(step.edited_arguments))
+        )
+            throw protocolError();
+        ids.add(step.id);
+        return {
+            id: step.id,
+            tool: step.tool,
+            arguments: step.arguments,
+            startedAt: step.started_at ?? null,
+            endedAt: step.ended_at ?? null,
+            status: step.status,
+            result_excerpt: step.result_excerpt,
+            result_truncated: step.result_truncated,
+            refusal: step.refusal,
+            ...(step.arguments_omitted ? {argumentsOmitted: true} : {}),
+            ...(step.edited_arguments ? {editedArgs: step.edited_arguments} : {}),
+        };
+    });
+    const parsedRuns = (runs || []).map((run) => {
+        if (!isPlainObject(run) || !isStamp(run.started_at) || run.started_at === undefined || !isStamp(run.ended_at)) throw protocolError();
+        return {startedAt: run.started_at, endedAt: run.ended_at ?? null};
+    });
+    return {steps: parsedSteps, stepsOmitted: omitted || 0, runs: parsedRuns, usage: usage ? {total_tokens: usage.total_tokens} : null};
+};
+
 const readMessagePage = async (response, signal, limit, before) => {
     if (
         response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !==
@@ -152,6 +208,9 @@ const readMessagePage = async (response, signal, limit, before) => {
             // Only an assistant message carries the feedback of its turn.
             const feedback = message.feedback === undefined ? undefined : parseFeedback(message.feedback);
             if (feedback === null || (feedback && message.role !== 'assistant')) throw protocolError();
+            // Only an assistant message carries the steps of its turn.
+            const history = parseHistorySteps(message);
+            if (history && message.role !== 'assistant') throw protocolError();
             ids.add(message.id);
             return {
                 id: message.id,
@@ -160,7 +219,13 @@ const readMessagePage = async (response, signal, limit, before) => {
                 text: message.text,
                 created_at: message.created_at,
                 ...(feedback ? {feedback} : {}),
+                ...(history ? {history} : {}),
             };
+        });
+        // The steps go with the last assistant message of their turn.
+        messages.forEach((message, index) => {
+            if (message.history && messages.slice(index + 1).some((later) => later.role === 'assistant' && later.turn_id === message.turn_id))
+                throw protocolError();
         });
         return {messages, next_cursor: page.next_cursor};
     } catch {
