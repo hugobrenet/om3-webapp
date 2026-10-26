@@ -17,7 +17,7 @@ import {Dialog} from "../ui/components/Dialog";
 import {Checkbox, Field, Input, Textarea} from "../ui/components/Field";
 import {FEEDBACK_REASONS, MAX_FEEDBACK_EXPECTED_CHARACTERS} from "../services/ai-agent.js";
 import {Spinner} from "../ui/components/Spinner";
-import {AlertTriangleIcon, ChatIcon, PencilIcon, PlusIcon, SearchIcon, SendIcon, SidebarIcon, StopIcon, TrashIcon} from "../ui/icons";
+import {AlertTriangleIcon, ChatIcon, ClockIcon, PencilIcon, PlusIcon, SearchIcon, SendIcon, SidebarIcon, StopIcon, TrashIcon} from "../ui/icons";
 import {NARROW_QUERY, useMediaQuery} from "../ui/lib/media";
 import {cn} from "../ui/cn";
 import {untrustedT} from "../utils/untrustedText";
@@ -438,7 +438,7 @@ function ArgumentValue({value, type}) {
  * when the MCP told it, what the call would do. After an edit, the preview is
  * asked again for the edited arguments, nothing running.
  */
-function ConfirmationCard({confirmation, busy, previewing, onApprove, onReject, onPreview}) {
+function ConfirmationCard({confirmation, busy, previewing, queued, onApprove, onReject, onPreview}) {
     const {t, i18n} = useTranslation();
     const expires = new Date(confirmation.expires_at).toLocaleTimeString();
     const entries = Object.entries(confirmation.arguments);
@@ -542,6 +542,7 @@ function ConfirmationCard({confirmation, busy, previewing, onApprove, onReject, 
                 {changed && t("ai.confirm.withChanges")}
             </p>
             {preview && <p className="text-data text-ink-muted">{t("ai.confirm.daemonMayRefuse")}</p>}
+            {queued && <p className="text-data text-ink-muted">{t("ai.confirm.queuedNote")}</p>}
             <div className="flex flex-wrap items-center justify-end gap-2">
                 {previewing && <Spinner label={t("ai.confirm.previewing")}/>}
                 {confirmation.editable && !editing && (
@@ -600,6 +601,17 @@ const AiChat = ({status}) => {
     const busy = Boolean(chat.pending);
     const waiting = Boolean(chat.confirmation);
     const promptTooLarge = new TextEncoder().encode(draft).length > 32 * 1024;
+    // The message box stays open while a turn runs and while a confirmation
+    // waits: what is sent then is queued. It closes for the short operations,
+    // loading, resuming, creating, confirming, previewing.
+    // A run resumed after an approval is the rest of its turn: the action
+    // runs, then the model goes on, at times for long.
+    const answering = chat.pending === "turn" || chat.pending === "confirming";
+    const queueing = answering || (waiting && !busy);
+    const composerClosed = !chat.historyReady || (busy && !answering);
+    const composer = useRef(null);
+    const [replacement, setReplacement] = useState("");
+    const shownConversation = useRef(null);
     const untitled = t("ai.conversations.untitled");
     const titleOf = (conversation) => conversation.title || untitled;
     // The search runs on the titles of the conversations loaded, the agent has none.
@@ -614,11 +626,30 @@ const AiChat = ({status}) => {
         if (enabled && auth.accessToken) void fetchNodes(auth.accessToken);
     }, [enabled, auth.authChoice, auth.accessToken, fetchNodes]);
 
+    // Another conversation on display, or another identity or cluster: the
+    // message box starts from the message queued, given back, or empty. The
+    // conversation the first turn creates is the one on display: what the
+    // user types meanwhile stays.
+    // A conversation being resumed passes through none, its history not ready:
+    // only the arrival of the conversation it goes to counts.
     useEffect(() => {
-        setDraft("");
+        if (!chat.historyReady) return;
+        const key = JSON.stringify([scope, ready, chat.conversation?.id ?? null]);
+        const previous = shownConversation.current;
+        if (previous === key) return;
+        shownConversation.current = key;
+        if (chat.pending === "turn" && previous === JSON.stringify([scope, ready, null])) return;
+        setDraft(chat.takeQueued() ?? "");
         setDialog("");
         setTitle("");
-    }, [scope, ready, chat.conversation?.id, chat.historyReady]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scope, ready, chat.conversation?.id, chat.pending, chat.historyReady]);
+
+    // The message the dialog would replace went meanwhile: there is nothing
+    // left to replace, and what the user typed stays in the box.
+    useEffect(() => {
+        if (dialog === "replace" && !chat.queued) setDialog("");
+    }, [dialog, chat.queued]);
 
     // Before paint: prepended messages keep the reading position without a jump.
     useLayoutEffect(() => {
@@ -647,16 +678,43 @@ const AiChat = ({status}) => {
 
     const submit = (event) => {
         event.preventDefault();
-        if (!ready || !chat.historyReady || busy || waiting || !draft.trim() || promptTooLarge) return;
+        if (!ready || composerClosed || !draft.trim() || promptTooLarge) return;
+        if (queueing) {
+            // One message queued at most: replacing it is asked first.
+            if (chat.queued) {
+                setReplacement(draft);
+                setDialog("replace");
+                return;
+            }
+            if (chat.queue(draft)) setDraft("");
+            composer.current?.focus();
+            return;
+        }
         const prompt = draft;
         setDraft("");
         void chat.send(prompt);
     };
 
+    // After a stop or a failure, nothing goes alone: the user sends the queued
+    // message again, or takes it back.
+    const resend = () => {
+        const text = chat.takeQueued();
+        if (text) void chat.send(text);
+    };
+
     const confirmDialog = async () => {
+        if (dialog === "replace") {
+            if (chat.queue(replacement)) setDraft("");
+            setReplacement("");
+            setDialog("");
+            composer.current?.focus();
+            return;
+        }
         const result = dialog === "rename" ? await chat.renameConversation(title) : await chat.deleteConversation();
         if (result) setDialog("");
     };
+    // The replacement of the queued message is asked while a turn runs.
+    const dialogBusy = dialog !== "replace" && busy;
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3 p-4">
@@ -894,6 +952,7 @@ const AiChat = ({status}) => {
                                 confirmation={chat.confirmation}
                                 busy={busy}
                                 previewing={chat.pending === "previewing"}
+                                queued={Boolean(chat.queued)}
                                 onApprove={(editedArgs) => void chat.approve(editedArgs)}
                                 onReject={() => void chat.reject()}
                                 onPreview={(editedArgs) => void chat.previewAgain(editedArgs)}
@@ -902,18 +961,64 @@ const AiChat = ({status}) => {
                         {chat.error && <Alert className="mx-3 mb-2">{chat.error}</Alert>}
                         {chat.notice && <Alert tone="info" className="mx-3 mb-2">{chat.notice}</Alert>}
                         <form onSubmit={submit} className="space-y-2 border-t border-line p-3">
+                            {/* Always there, so that the first message queued is announced too. */}
+                            <p aria-live="polite" className="sr-only">
+                                {chat.queued ? untrustedT(t, "ai.queue.announce", {text: chat.queued.text}) : ""}
+                            </p>
+                            {chat.queued && (
+                                <div
+                                    role="group"
+                                    aria-label={t("ai.queue.label")}
+                                    className="flex flex-wrap items-center gap-2 rounded-(--radius-control) border border-line bg-surface-sunken px-2 py-1 text-data"
+                                >
+                                    <ClockIcon width={14} height={14} className="shrink-0 text-ink-muted"/>
+                                    <span className="text-ink-muted">{t("ai.queue.label")}</span>
+                                    {/* The text of the user, as typed. */}
+                                    <span title={chat.queued.text} className="min-w-0 flex-1 truncate">
+                                        {chat.queued.text}
+                                    </span>
+                                    {!queueing && !busy && (
+                                        <Button size="sm" disabled={!chat.historyReady} onClick={resend}>
+                                            {t("ai.queue.resend")}
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="sm"
+                                        // Never over what the user types.
+                                        disabled={Boolean(draft.trim())}
+                                        onClick={() => {
+                                            setDraft(chat.takeQueued() ?? "");
+                                            composer.current?.focus();
+                                        }}
+                                    >
+                                        {t("ai.queue.edit")}
+                                    </Button>
+                                    <Button size="sm" onClick={chat.unqueue}>
+                                        {t("ai.queue.remove")}
+                                    </Button>
+                                </div>
+                            )}
                             <Field
                                 label={t("ai.composer.label")}
-                                hint={promptTooLarge ? undefined : waiting ? t("ai.composer.waiting") : t("ai.composer.hint")}
+                                hint={
+                                    promptTooLarge
+                                        ? undefined
+                                        : waiting && !busy
+                                            ? t("ai.composer.queuedDuringConfirmation")
+                                            : answering
+                                                ? t("ai.composer.queuedHint")
+                                                : t("ai.composer.hint")
+                                }
                                 error={promptTooLarge ? t("ai.composer.tooLarge") : undefined}
                             >
                                 {(control) => (
                                     <Textarea
                                         {...control}
+                                        ref={composer}
                                         rows={3}
                                         className="max-h-48 resize-y"
                                         value={draft}
-                                        disabled={busy || waiting || !chat.historyReady}
+                                        disabled={composerClosed}
                                         onChange={(event) => setDraft(event.target.value)}
                                         onKeyDown={(event) => {
                                             if (
@@ -940,10 +1045,10 @@ const AiChat = ({status}) => {
                                 <Button
                                     type="submit"
                                     variant="create"
-                                    icon={<SendIcon/>}
-                                    disabled={busy || waiting || !chat.historyReady || !draft.trim() || promptTooLarge}
+                                    icon={queueing ? <ClockIcon/> : <SendIcon/>}
+                                    disabled={composerClosed || !draft.trim() || promptTooLarge}
                                 >
-                                    {t("ai.composer.send")}
+                                    {queueing ? t("ai.composer.queue") : t("ai.composer.send")}
                                 </Button>
                             </div>
                         </form>
@@ -953,26 +1058,30 @@ const AiChat = ({status}) => {
 
             <Dialog
                 open={ready && Boolean(dialog)}
-                title={dialog === "rename" ? t("ai.dialog.renameTitle") : t("ai.dialog.deleteTitle")}
+                title={
+                    dialog === "rename" ? t("ai.dialog.renameTitle") : dialog === "replace" ? t("ai.dialog.replaceTitle") : t("ai.dialog.deleteTitle")
+                }
                 onClose={() => {
-                    if (!busy) setDialog("");
+                    if (!dialogBusy) setDialog("");
                 }}
                 footer={
                     <>
-                        <Button disabled={busy} onClick={() => setDialog("")}>
+                        <Button disabled={dialogBusy} onClick={() => setDialog("")}>
                             {t("ai.dialog.cancel")}
                         </Button>
                         <Button
                             variant={dialog === "delete" ? "delete" : "secondary"}
-                            disabled={busy || (dialog === "rename" && !title.trim())}
+                            disabled={dialogBusy || (dialog === "rename" && !title.trim())}
                             onClick={confirmDialog}
                         >
-                            {dialog === "rename" ? t("ai.dialog.save") : t("ai.dialog.confirmDelete")}
+                            {dialog === "rename" ? t("ai.dialog.save") : dialog === "replace" ? t("ai.dialog.replace") : t("ai.dialog.confirmDelete")}
                         </Button>
                     </>
                 }
             >
-                {dialog === "rename" ? (
+                {dialog === "replace" ? (
+                    <p>{t("ai.dialog.replaceText")}</p>
+                ) : dialog === "rename" ? (
                     <Field label={t("ai.dialog.titleLabel")} hint={t("ai.dialog.titleHint")}>
                         {(control) => (
                             <Input

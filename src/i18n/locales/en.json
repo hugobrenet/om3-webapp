@@ -3658,10 +3658,12 @@
     "composer": {
       "label": "Message",
       "hint": "Enter to send; Shift+Enter for a new line. Uses your current cluster permissions.",
-      "waiting": "Approve or reject the action above before sending a new message.",
       "tooLarge": "The prompt must not exceed 32 KiB.",
       "stop": "Stop",
-      "send": "Send"
+      "send": "Send",
+      "queue": "Queue",
+      "queuedHint": "The answer is running: your message will be sent once it ends.",
+      "queuedDuringConfirmation": "Your message will be sent after your decision; it does not answer the confirmation."
     },
     "dialog": {
       "renameTitle": "Rename conversation",
@@ -3671,7 +3673,10 @@
       "confirmDelete": "Confirm deletion",
       "titleLabel": "Conversation title",
       "titleHint": "Up to 80 Unicode characters.",
-      "deleteText": "Delete this conversation and its stored context? This cannot be undone."
+      "deleteText": "Delete this conversation and its stored context? This cannot be undone.",
+      "replaceTitle": "Replace the queued message",
+      "replace": "Replace",
+      "replaceText": "A message is already queued. Replace it with the one you typed?"
     },
     "confirm": {
       "destructive": "Destructive action to confirm",
@@ -3769,7 +3774,8 @@
       "region": "Action waiting for confirmation",
       "form": "Arguments of the action",
       "deletedSecrets_one": "and {{count}} secret key, not named.",
-      "deletedSecrets_other": "and {{count}} secret keys, not named."
+      "deletedSecrets_other": "and {{count}} secret keys, not named.",
+      "queuedNote": "A message is queued: it will be sent after your decision."
     },
     "step": {
       "search_tools": "Search the tools: “{{query}}”",
@@ -3837,6 +3843,13 @@
         "unknown": "unknown"
       },
       "waiting": "Waiting for the agent…"
+    },
+    "queue": {
+      "label": "Queued message",
+      "edit": "Edit",
+      "remove": "Remove",
+      "resend": "Send again",
+      "announce": "Message queued: {{text}}"
     }
   }
 }

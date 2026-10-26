@@ -744,4 +744,165 @@ describe('useAiChat', () => {
             });
         });
     });
+
+    describe('the queued message', () => {
+        // A run that ends when the test says, normally or with an error.
+        const deferredRun = () => {
+            let resolve, reject;
+            const run = vi.fn((_id, _input, {signal, onEvent}) => {
+                onEvent({type: 'RUN_STARTED'});
+                for (const event of text('Working on it', 'turn-1:2')) onEvent(event);
+                return new Promise((ok, ko) => {
+                    resolve = () => ok(completed('turn-1'));
+                    reject = ko;
+                    signal.addEventListener('abort', () => ko(aborted()), {once: true});
+                });
+            });
+            return {run, end: () => resolve(), fail: (error) => reject(error)};
+        };
+        const prompts = () => client.run.mock.calls.map(([, input]) => input.prompt);
+
+        it('goes once the turn ends normally, in its conversation, the thread up to date', async () => {
+            const first = deferredRun();
+            client.run.mockImplementationOnce(first.run);
+            const {result} = await setup();
+            let sent;
+            act(() => {
+                sent = result.current.send('First');
+            });
+            await waitFor(() => expect(result.current.conversation?.id).toBe('new'));
+            act(() => {
+                expect(result.current.queue('Second')).toBe(true);
+            });
+            expect(result.current.queued).toEqual({conversationId: 'new', text: 'Second'});
+            await act(async () => {
+                first.end();
+                await sent;
+            });
+            await waitFor(() => expect(client.run).toHaveBeenCalledTimes(2));
+            expect(prompts()).toEqual(['First', 'Second']);
+            const [id, input] = client.run.mock.calls[1];
+            expect(id).toBe('new');
+            expect(input.held.map((message) => message.role)).toEqual(['user', 'assistant']);
+            await waitFor(() => expect(result.current.pending).toBe(''));
+            expect(result.current.queued).toBeNull();
+        });
+
+        it.each([
+            ['approval', 'resume_approved', (chat) => chat.approve()],
+            ['rejection', 'resume_rejected', (chat) => chat.reject()],
+        ])('waits for the decision on a confirmation, then goes after the %s', async (_, stream, decide) => {
+            client.run.mockImplementationOnce(replayRun('confirmation')).mockImplementationOnce(replayRun(stream));
+            const {result} = await setup();
+            let sent;
+            act(() => {
+                sent = result.current.send('Start web with /bin/true');
+                result.current.queue('Then check it');
+            });
+            await act(async () => {
+                await sent;
+            });
+            expect(result.current.confirmation).not.toBeNull();
+            expect(result.current.queued?.text).toBe('Then check it');
+            expect(client.run).toHaveBeenCalledTimes(1);
+            await act(async () => {
+                await decide(result.current);
+            });
+            await waitFor(() => expect(client.run).toHaveBeenCalledTimes(3));
+            expect(prompts()[2]).toBe('Then check it');
+        });
+
+        it('stays after a stop or a failure, and goes alone never', async () => {
+            const first = deferredRun();
+            client.run.mockImplementationOnce(first.run);
+            const {result} = await setup();
+            let sent;
+            act(() => {
+                sent = result.current.send('First');
+            });
+            await waitFor(() => expect(result.current.pending).toBe('turn'));
+            act(() => {
+                result.current.queue('Second');
+                result.current.stop();
+            });
+            await act(async () => {
+                await sent;
+            });
+            expect(result.current.queued?.text).toBe('Second');
+            const second = deferredRun();
+            client.run.mockImplementationOnce(second.run);
+            act(() => {
+                sent = result.current.send('Again');
+            });
+            await waitFor(() => expect(result.current.pending).toBe('turn'));
+            await act(async () => {
+                second.fail(new AiAgentError('conversation_busy', 'The conversation is busy.', 409));
+                await sent;
+            });
+            await waitFor(() => expect(result.current.pending).toBe(''));
+            expect(result.current.queued?.text).toBe('Second');
+            expect(prompts()).toEqual(['First', 'Again']);
+        });
+
+        it('keeps the last one queued only', async () => {
+            const first = deferredRun();
+            client.run.mockImplementationOnce(first.run);
+            const {result} = await setup();
+            let sent;
+            act(() => {
+                sent = result.current.send('First');
+            });
+            await waitFor(() => expect(result.current.pending).toBe('turn'));
+            act(() => {
+                result.current.queue('Second');
+            });
+            act(() => {
+                result.current.queue('Second, rather');
+            });
+            await act(async () => {
+                first.end();
+                await sent;
+            });
+            await waitFor(() => expect(client.run).toHaveBeenCalledTimes(2));
+            await waitFor(() => expect(result.current.pending).toBe(''));
+            expect(prompts()).toEqual(['First', 'Second, rather']);
+        });
+
+        it('goes with its conversation deleted, and with another identity or cluster', async () => {
+            const {result, rerender, initialProps} = await setup();
+            await act(async () => {
+                await result.current.createConversation();
+            });
+            act(() => {
+                result.current.queue('Later');
+            });
+            await act(async () => {
+                await result.current.deleteConversation();
+            });
+            expect(result.current.queued).toBeNull();
+            act(() => {
+                result.current.queue('Later again');
+            });
+            rerender({...initialProps, scope: 'other:cluster:node1'});
+            await waitFor(() => expect(result.current.queued).toBeNull());
+        });
+
+        it('is given back when taken, and refuses an empty or too long text', async () => {
+            const {result} = await setup();
+            act(() => {
+                result.current.queue('Kept');
+            });
+            let taken;
+            act(() => {
+                taken = result.current.takeQueued();
+            });
+            expect(taken).toBe('Kept');
+            expect(result.current.queued).toBeNull();
+            act(() => {
+                expect(result.current.queue('   ')).toBe(false);
+                expect(result.current.queue('é'.repeat(16 * 1024 + 1))).toBe(false);
+            });
+            expect(result.current.queued).toBeNull();
+        });
+    });
 });

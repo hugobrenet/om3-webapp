@@ -3658,10 +3658,12 @@
     "composer": {
       "label": "Message",
       "hint": "Entrée pour envoyer ; Maj+Entrée pour une nouvelle ligne. Utilise vos droits actuels sur le cluster.",
-      "waiting": "Approuvez ou refusez l'action ci-dessus avant d'envoyer un nouveau message.",
       "tooLarge": "Le message ne doit pas dépasser 32 Kio.",
       "stop": "Arrêter",
-      "send": "Envoyer"
+      "send": "Envoyer",
+      "queue": "Mettre en file",
+      "queuedHint": "La réponse est en cours : votre message partira à la fin.",
+      "queuedDuringConfirmation": "Ce message partira après votre décision ; il ne répond pas à la confirmation."
     },
     "dialog": {
       "renameTitle": "Renommer la conversation",
@@ -3671,7 +3673,10 @@
       "confirmDelete": "Confirmer la suppression",
       "titleLabel": "Titre de la conversation",
       "titleHint": "80 caractères Unicode au plus.",
-      "deleteText": "Supprimer cette conversation et son contexte enregistré ? C'est irréversible."
+      "deleteText": "Supprimer cette conversation et son contexte enregistré ? C'est irréversible.",
+      "replaceTitle": "Remplacer le message en file",
+      "replace": "Remplacer",
+      "replaceText": "Un message est déjà en file. Le remplacer par celui que vous avez tapé ?"
     },
     "confirm": {
       "destructive": "Action destructive à confirmer",
@@ -3769,7 +3774,8 @@
       "region": "Action en attente de confirmation",
       "form": "Arguments de l'action",
       "deletedSecrets_one": "et {{count}} clé secrète, non nommée.",
-      "deletedSecrets_other": "et {{count}} clés secrètes, non nommées."
+      "deletedSecrets_other": "et {{count}} clés secrètes, non nommées.",
+      "queuedNote": "Un message est en file : il partira après votre décision."
     },
     "step": {
       "search_tools": "Recherche d'outils : « {{query}} »",
@@ -3837,6 +3843,13 @@
         "unknown": "inconnu"
       },
       "waiting": "En attente de l'agent…"
+    },
+    "queue": {
+      "label": "Message en file",
+      "edit": "Modifier",
+      "remove": "Retirer",
+      "resend": "Renvoyer",
+      "announce": "Message en file : {{text}}"
     }
   }
 }

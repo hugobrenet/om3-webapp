@@ -246,8 +246,20 @@ const applySnapshot = (previous, snapshot, answerId) => {
 };
 
 // Only metadata is loaded automatically. Creation and turns require explicit user actions.
+// The bound of a prompt, as the agent takes it.
+const MAX_QUEUED_BYTES = 32 * 1024;
+
 const useAiChat = ({client, ready, scope}) => {
     const [state, setState] = useState(() => emptyState(scope));
+    // The queued message, {conversationId, text}, and its copy read after an
+    // await; release, the conversation whose run just ended normally.
+    const [queuedState, setQueuedState] = useState(null);
+    const queuedRef = useRef(null);
+    const setQueued = useCallback((value) => {
+        queuedRef.current = value;
+        setQueuedState(value);
+    }, []);
+    const [release, setRelease] = useState(null);
     const epoch = useRef(0);
     const active = useRef(null);
     const nextId = useRef(0);
@@ -330,6 +342,9 @@ const useAiChat = ({client, ready, scope}) => {
     useEffect(() => {
         epoch.current++;
         setState(emptyState(scope));
+        // Another identity or cluster: the queue is lost, as it is kept in memory only.
+        setQueued(null);
+        setRelease(null);
         if (ready) void refreshConversations();
         return () => {
             epoch.current++;
@@ -441,6 +456,8 @@ const useAiChat = ({client, ready, scope}) => {
         const id = state.conversation.id;
         return perform('deleting', async ({signal, update}) => {
             await client.deleteConversation(id, {signal});
+            // A message queued for it goes with it.
+            if (queuedRef.current?.conversationId === id) setQueued(null);
             update((previous) => ({
                 ...previous,
                 conversation: null,
@@ -530,6 +547,12 @@ const useAiChat = ({client, ready, scope}) => {
         const confirmation = state.scope === scope ? state.confirmation : null;
         if (!confirmation || typeof approved !== 'boolean' || (editedArgs !== undefined && (!approved || !confirmation.editable))) return;
         const held = heldMessages(state.messages);
+        // The conversation whose run ended normally, which releases the queue.
+        let ended = null;
+        const releaseAfter = (outcome) => {
+            if (outcome && ended) setRelease({conversationId: ended});
+            return outcome;
+        };
         return perform('confirming', async ({signal, update}) => {
             let answerId = confirmation.assistantId;
             const exists = state.messages.some((message) => message.id === answerId);
@@ -566,13 +589,16 @@ const useAiChat = ({client, ready, scope}) => {
                 throw error;
             }
             finish(result, confirmation.conversationId, answerId, update);
+            if (result.outcome === 'success') ended = confirmation.conversationId;
             return true;
-        });
+        }).then(releaseAfter);
     };
 
     const send = (prompt) => {
         if (!state.historyReady || state.confirmation || typeof prompt !== 'string' || !prompt.trim()) return;
         const current = state.scope === scope ? state.conversation : null;
+        // The conversation whose run ended normally, which releases the queue.
+        let ended = null;
         const held = current ? heldMessages(state.messages) : [];
         return perform('turn', async ({signal, update}) => {
             // The prompt goes by the ID the webapp gives it, which the agent keeps.
@@ -605,6 +631,7 @@ const useAiChat = ({client, ready, scope}) => {
             );
             finish(result, conversation.id, answerId, update);
             if (result.outcome === 'interrupt') return true;
+            ended = conversation.id;
             // The agent titles a conversation after its first completed turn: read
             // it back, so the list does not keep an untitled entry.
             if (!conversation.title && !signal.aborted) {
@@ -623,8 +650,45 @@ const useAiChat = ({client, ready, scope}) => {
                 }
             }
             return true;
+        }).then((outcome) => {
+            if (outcome && ended) setRelease({conversationId: ended});
+            return outcome;
         });
     };
+
+    // The message the user queued while a turn ran or a confirmation waited,
+    // in memory only: it goes once a run of its conversation ends normally,
+    // never after a stop, a failure or on a confirmation. One at most, the
+    // last one replacing it. Its text is the user's, sent as typed.
+    const queue = (text) => {
+        if (typeof text !== 'string' || !text.trim() || new TextEncoder().encode(text).length > MAX_QUEUED_BYTES) return false;
+        setQueued({conversationId: state.scope === scope ? state.conversation?.id ?? null : null, text});
+        return true;
+    };
+    const unqueue = () => setQueued(null);
+    // Take the queued text back, such as into the message box of the view
+    // the user goes to: it leaves the queue.
+    const takeQueued = () => {
+        const text = queuedRef.current?.text ?? null;
+        setQueued(null);
+        return text;
+    };
+
+    // Once the run that released it is over and rendered, send the queued
+    // message, from a state up to date, if it belongs to that conversation and
+    // nothing else waits. Should another operation start before this effect
+    // runs, the release waits for it, and the message goes once it is over.
+    useEffect(() => {
+        if (!release || state.pending || active.current) return;
+        setRelease(null);
+        const item = queuedRef.current;
+        const conversationId = state.scope === scope ? state.conversation?.id : null;
+        if (!item || state.confirmation || conversationId !== release.conversationId) return;
+        if (item.conversationId !== null && item.conversationId !== conversationId) return;
+        setQueued(null);
+        void send(item.text);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [release, state.pending]);
 
     // Ask what the call waiting would do with the arguments the user edited:
     // nothing runs, and the call waits again under a new confirmation, whose
@@ -668,6 +732,10 @@ const useAiChat = ({client, ready, scope}) => {
         send,
         stop,
         approve: (editedArgs) => decide(true, editedArgs),
+        queued: queuedState,
+        queue,
+        unqueue,
+        takeQueued,
         previewAgain,
         reject: () => decide(false),
         rate: (turnId, feedback) => rateTurn(turnId, feedback),

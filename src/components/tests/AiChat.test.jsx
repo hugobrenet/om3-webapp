@@ -405,7 +405,9 @@ describe('AI chatbot page', () => {
             const yaml = card.querySelector('pre');
             expect(yaml.textContent).toBe('app#1:\n  start: /bin/true\n');
             expect(stepOf(screen.getByRole('log'), 'Update object config')).toHaveTextContent('waiting for your decision');
-            expect(screen.getByRole('button', {name: 'Send'})).toBeDisabled();
+            // The message box stays open: what is sent waits for the decision.
+            expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled();
+            expect(screen.getByRole('button', {name: 'Queue'})).toBeDisabled();
             fireEvent.click(within(card).getByRole('button', {name: 'Approve'}));
             await waitFor(() =>
                 expect(mocks.client.run).toHaveBeenLastCalledWith(
@@ -648,7 +650,9 @@ describe('AI chatbot page', () => {
             const card = await screen.findByRole('region', {name: 'Action waiting for confirmation'});
             fireEvent.click(within(card).getByRole('button', {name: 'Approve'}));
             await waitFor(() => expect(mocks.client.run).toHaveBeenCalledTimes(2));
-            expect(screen.getByRole('button', {name: 'Send'})).toBeDisabled();
+            // The rest of the turn: the box stays open, what is sent is queued.
+            expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled();
+            expect(screen.getByRole('button', {name: 'Queue'})).toBeDisabled();
             expect(screen.queryByRole('button', {name: 'Stop'})).not.toBeInTheDocument();
         });
         test('accessibility of the layout', async () => {
