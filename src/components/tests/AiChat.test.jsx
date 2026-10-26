@@ -48,6 +48,13 @@ const oldMessage = {
     created_at: '2026-10-05T12:00:00Z',
 };
 
+// The step of an answer whose sentence is given, its frise unfolded.
+const stepOf = (log, sentence) => {
+    const folded = within(log).getAllByRole('button', {expanded: false}).find((button) => /^\d+ steps? · /.test(button.textContent));
+    if (folded) fireEvent.click(folded);
+    return within(log).getByRole('button', {name: sentence}).closest('li');
+};
+
 describe('AI chatbot page', () => {
     afterEach(() => {
         vi.useRealTimers();
@@ -72,7 +79,7 @@ describe('AI chatbot page', () => {
             newId: vi.fn(() => 'prompt-1'),
             run: vi.fn(async (_id, _input, {onEvent}) => {
                 onEvent({type: 'TOOL_CALL_START', toolCallId: 'call-1', toolCallName: 'get_cluster_health', parentMessageId: 'turn-9:2'});
-                onEvent({type: 'TOOL_CALL_RESULT', toolCallId: 'call-1', rejected: false});
+                onEvent({type: 'TOOL_CALL_RESULT', toolCallId: 'call-1', rejected: false, structured: true});
                 for (const event of text('Cluster looks healthy.', 'turn-9:4')) onEvent(event);
                 return completed(12);
             }),
@@ -145,8 +152,8 @@ describe('AI chatbot page', () => {
             expect(await screen.findByText('Cluster looks healthy.')).toBeInTheDocument();
             const log = screen.getByRole('log', {name: 'Conversation messages'});
             expect(within(log).getByText('Diagnose my cluster')).toBeInTheDocument();
-            expect(within(log).getByText('get_cluster_health — completed')).toBeInTheDocument();
-            expect(within(log).getByText('Tokens: 12')).toBeInTheDocument();
+            expect(stepOf(log, 'Get cluster health')).toHaveTextContent('done');
+            expect(within(log).getByText(/1 step · Tokens: 12/)).toBeInTheDocument();
             expect(screen.queryByRole('button', {name: 'Stop'})).not.toBeInTheDocument();
         }
     );
@@ -397,7 +404,7 @@ describe('AI chatbot page', () => {
             expect(within(card).getByText('application/yaml')).toBeInTheDocument();
             const yaml = card.querySelector('pre');
             expect(yaml.textContent).toBe('app#1:\n  start: /bin/true\n');
-            expect(screen.getByText('update_object_config — pending')).toBeInTheDocument();
+            expect(stepOf(screen.getByRole('log'), 'Update object config')).toHaveTextContent('waiting for your decision');
             expect(screen.getByRole('button', {name: 'Send'})).toBeDisabled();
             fireEvent.click(within(card).getByRole('button', {name: 'Approve'}));
             await waitFor(() =>
@@ -411,7 +418,7 @@ describe('AI chatbot page', () => {
                 expect(screen.queryByRole('region', {name: 'Action waiting for confirmation'})).not.toBeInTheDocument()
             );
             expect(await screen.findByText('Done: web starts with /bin/true.')).toBeInTheDocument();
-            expect(screen.getByText('update_object_config — completed')).toBeInTheDocument();
+            expect(stepOf(screen.getByRole('log'), 'Update object config')).toHaveTextContent('done');
         });
         test('keeps the line breaks of an untyped text argument', async () => {
             mocks.client.getConversationState.mockResolvedValue({
@@ -465,7 +472,8 @@ describe('AI chatbot page', () => {
                     expect.anything()
                 )
             );
-            expect(await screen.findByText(/update_object_config — completed\s*\(with your changes\)/)).toBeInTheDocument();
+            await screen.findByText('Done: web starts with /bin/false, as you set it.');
+            expect(stepOf(screen.getByRole('log'), 'Update object config')).toHaveTextContent(/done.*\(with your changes\)/);
         });
         test('checks the form against the schema before sending it, and discards the changes', async () => {
             mocks.client.getConversationState.mockResolvedValue({

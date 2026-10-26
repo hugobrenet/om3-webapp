@@ -50,14 +50,20 @@ export const runFinished = (fields = {}) => ({
 // A run of a client of the agent that replays a golden scenario through the
 // reader of the webapp, whatever the conversation: for the tests of the hook
 // and the component.
-export const replayRun = (name) => async (_id, input, options) => {
+export const replayRun = (name) => replayResponse(() => goldenResponse(name));
+
+// A run of a client of the agent that replays the events given, as the agent
+// frames them, through the reader of the webapp.
+export const replayEvents = (events) => replayResponse(() => streamResponse([events.map(aguiFrame).join('')]));
+
+const replayResponse = (response) => async (_id, input, options) => {
     const client = createAiAgentClient({
         baseUrl: 'https://agent.example.com',
         getCredentials: () => ({accessToken: 'token', clusterId: 'cluster-id'}),
         newId: () => GOLDEN_RUN,
     });
     const fetch = globalThis.fetch;
-    globalThis.fetch = async () => goldenResponse(name);
+    globalThis.fetch = async () => response();
     try {
         return await client.run(GOLDEN_THREAD, input, options);
     } finally {

@@ -1,7 +1,8 @@
-import {memo} from "react";
+import {createContext, memo, useContext} from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {cn} from "../ui/cn";
+import {TargetBadge} from "./AiSteps.jsx";
 
 const plugins = [remarkGfm];
 const elements = [
@@ -22,15 +23,43 @@ const safeUrl = (value) => {
     }
 };
 
+// The paths of the objects the cluster holds, by path, for the code spans of
+// the text that name one; and whether a code is in a block, never linked.
+const ObjectsContext = createContext(null);
+const InBlock = createContext(false);
+// A code in a link stays code: a badge is a button, never inside an anchor.
+const InLink = createContext(false);
+
+// A code span naming an object the cluster holds is its badge; any other
+// code, a path the model made up included, stays code.
+function Code({children}) {
+    const objects = useContext(ObjectsContext);
+    const inBlock = useContext(InBlock);
+    const inLink = useContext(InLink);
+    const block = inBlock || inLink;
+    const text = typeof children === "string" ? children : Array.isArray(children) && children.length === 1 && typeof children[0] === "string" ? children[0] : null;
+    if (!block && text && objects && Object.hasOwn(objects, text)) return <TargetBadge kind="object" id={text} status={{objects}}/>;
+    return <code>{children}</code>;
+}
+
 const components = {
-    a: ({href, children}) =>
-        href ? (
-            <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline hover:brightness-110">
-                {children}
-            </a>
-        ) : (
-            <span>{children}</span>
-        ),
+    code: Code,
+    pre: ({children}) => (
+        <InBlock.Provider value={true}>
+            <pre>{children}</pre>
+        </InBlock.Provider>
+    ),
+    a: ({href, children}) => (
+        <InLink.Provider value={true}>
+            {href ? (
+                <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline hover:brightness-110">
+                    {children}
+                </a>
+            ) : (
+                <span>{children}</span>
+            )}
+        </InLink.Provider>
+    ),
     table: ({children}) => (
         <div className="my-2 overflow-x-auto">
             <table>{children}</table>
@@ -55,18 +84,22 @@ const PROSE = cn(
     "[&_hr]:my-3 [&_hr]:border-line"
 );
 
-const AiMarkdown = memo(function AiMarkdown({text}) {
+// objects are the objects of the cluster by path, as the menu pills hold
+// them: the code spans naming one become its badge.
+const AiMarkdown = memo(function AiMarkdown({text, objects = null}) {
     return (
         <div className={PROSE}>
-            <Markdown
-                skipHtml
-                allowedElements={elements}
-                remarkPlugins={plugins}
-                urlTransform={safeUrl}
-                components={components}
-            >
-                {text}
-            </Markdown>
+            <ObjectsContext.Provider value={objects}>
+                <Markdown
+                    skipHtml
+                    allowedElements={elements}
+                    remarkPlugins={plugins}
+                    urlTransform={safeUrl}
+                    components={components}
+                >
+                    {text}
+                </Markdown>
+            </ObjectsContext.Provider>
         </div>
     );
 });

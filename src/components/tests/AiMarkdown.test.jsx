@@ -1,5 +1,6 @@
 import React from 'react';
 import {render, screen} from '@testing-library/react';
+import {MemoryRouter} from 'react-router-dom';
 import {describe, expect, test} from 'vitest';
 import AiMarkdown from '../AiMarkdown.jsx';
 
@@ -106,5 +107,21 @@ describe('AI response Markdown', () => {
         expect(container.querySelectorAll('strong')).toHaveLength(1);
         rerender(<AiMarkdown text={'**Healthy**\n\n```shell\nom status'} />);
         expect(container.querySelector('pre code')).toHaveTextContent('om status');
+    });
+    test('makes a code span naming an object of the cluster its badge, never in a block or a link', () => {
+        const objects = {'test/svc/web': {avail: 'up'}};
+        const {container} = render(
+            <MemoryRouter>
+                <AiMarkdown
+                    objects={objects}
+                    text={'Restart `test/svc/web`, not `test/svc/ghost`.\n\n[`test/svc/web`](https://example.com)\n\n```\ntest/svc/web\n```'}
+                />
+            </MemoryRouter>
+        );
+        expect(screen.getAllByRole('button')).toHaveLength(1);
+        expect(screen.getByRole('button')).toHaveTextContent('test/svc/web');
+        expect(screen.getByText('test/svc/ghost')).toHaveProperty('tagName', 'CODE');
+        expect(container.querySelector('a code')).toHaveTextContent('test/svc/web');
+        expect(container.querySelector('pre code')).toHaveTextContent('test/svc/web');
     });
 });

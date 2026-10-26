@@ -327,8 +327,12 @@ describe('useAiChat', () => {
             turn_id: 'turn-1',
             usage: {total_tokens: 370},
             messageIds: ['turn-1:2', 'turn-1:4'],
-            // search_tools is a tool of the agent itself: it is not shown.
-            tools: [{id: 'call-1', name: 'list_nodes', status: 'completed'}],
+            // search_tools, a tool of the agent itself, is a step too: it
+            // explains a part of the time.
+            steps: [
+                {id: 'call-0', tool: 'search_tools', status: 'completed', arguments: {query: 'nodes'}},
+                {id: 'call-1', tool: 'list_nodes', status: 'completed', arguments: {}},
+            ],
         });
     });
     it('replaces the thread with the snapshot a webapp out of phase receives', async () => {
@@ -349,7 +353,7 @@ describe('useAiChat', () => {
                 status: 'completed',
                 turn_id: 'turn-1',
                 messageIds: ['turn-1:2', 'turn-1:4'],
-                tools: [{id: 'call-1', name: 'list_nodes', status: 'completed'}],
+                steps: [{id: 'call-1', tool: 'list_nodes', status: 'completed'}],
             },
             {id: 'turn-2:1', role: 'user', text: 'Any service?'},
             {role: 'assistant', text: 'No service.', status: 'completed', turn_id: 'turn-2'},
@@ -402,7 +406,7 @@ describe('useAiChat', () => {
         expect(result.current.messages[1]).toMatchObject({
             text: 'Partial',
             status: 'stopped',
-            tools: [{status: 'interrupted'}],
+            steps: [{status: 'interrupted'}],
         });
         expect(result.current.notice).toContain('not retried');
         expect(client.run).toHaveBeenCalledTimes(1);
@@ -594,7 +598,7 @@ describe('useAiChat', () => {
                 text: 'I will apply this configuration.',
                 turn_id: 'turn-c',
                 usage: {total_tokens: 340},
-                tools: [{id: 'call-7', name: 'update_object_config', status: 'pending'}],
+                steps: [{id: 'call-7', tool: 'update_object_config', status: 'pending'}],
             });
             await act(async () => {
                 await result.current.send('another');
@@ -632,7 +636,7 @@ describe('useAiChat', () => {
                 text: `I will apply this configuration.\n\n${answer}`,
                 turn_id: 'turn-c',
                 usage: {total_tokens: tokens},
-                tools: [{id: 'call-7', name: 'update_object_config', status}],
+                steps: [{id: 'call-7', tool: 'update_object_config', status}],
             });
         });
         it('approves with the arguments the user edited, shown on the call', async () => {
@@ -649,7 +653,7 @@ describe('useAiChat', () => {
             expect(client.run.mock.calls[1][1].resume).toEqual({interruptId: 'confirmation-1', approved: true, editedArgs});
             expect(result.current.messages.at(-1)).toMatchObject({
                 status: 'completed',
-                tools: [{id: 'call-7', status: 'completed', editedArgs}],
+                steps: [{id: 'call-7', status: 'completed', editedArgs}],
             });
         });
         it('keeps the confirmation waiting when the agent refuses the edit', async () => {
@@ -666,7 +670,7 @@ describe('useAiChat', () => {
             expect(result.current.error).toContain('Check the form');
             expect(result.current.messages.at(-1)).toMatchObject({
                 status: 'awaiting_confirmation',
-                tools: [{id: 'call-7', status: 'pending'}],
+                steps: [{id: 'call-7', status: 'pending'}],
             });
         });
         it('sends no edit for a call that takes none, nor with a rejection', async () => {
@@ -715,7 +719,7 @@ describe('useAiChat', () => {
                     status: 'completed',
                     turn_id: 'turn-c',
                     text: 'I will apply this configuration.\n\nI did not apply it.',
-                    tools: [{id: 'call-7', name: 'update_object_config', status: 'rejected'}],
+                    steps: [{id: 'call-7', tool: 'update_object_config', status: 'rejected'}],
                 },
             ]);
             expect(result.current.messages).toHaveLength(4);
@@ -736,7 +740,7 @@ describe('useAiChat', () => {
             expect(result.current.error).toBe('The confirmation request expired. The action was not run.');
             expect(result.current.messages.at(-1)).toMatchObject({
                 status: 'failed',
-                tools: [{id: 'call-7', status: 'interrupted'}],
+                steps: [{id: 'call-7', status: 'interrupted'}],
             });
         });
     });

@@ -37,7 +37,7 @@ describe('AI agent AG-UI runs', () => {
             fetchMock.mockResolvedValue(goldenResponse('text_and_tools'));
             const onEvent = vi.fn();
             const result = await client.run(GOLDEN_THREAD, prompt('How many nodes?', 'u-1'), {onEvent});
-            expect(result).toEqual({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-1', tokens: 370});
+            expect(result).toEqual({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-1', tokens: 370, startedAt: 1760000000000, endedAt: 1760000000000});
             const [url, request] = fetchMock.mock.calls[0];
             expect(url).toBe(`${baseUrl}/v1/om3/conversations/conversation-id/runs`);
             expect(request).toMatchObject({
@@ -58,19 +58,26 @@ describe('AI agent AG-UI runs', () => {
                 'TEXT_MESSAGE_CONTENT',
                 'TEXT_MESSAGE_CONTENT',
                 'TOOL_CALL_START',
+                'TOOL_CALL_END',
                 'TOOL_CALL_RESULT',
                 'TOOL_CALL_START',
+                'TOOL_CALL_END',
                 'TOOL_CALL_RESULT',
                 'TEXT_MESSAGE_START',
                 'TEXT_MESSAGE_CONTENT',
             ]);
-            expect(onEvent.mock.calls[6][0]).toEqual({
+            expect(onEvent.mock.calls[7][0]).toEqual({
                 type: 'TOOL_CALL_START',
                 toolCallId: 'call-1',
                 toolCallName: 'list_nodes',
                 parentMessageId: 'turn-1:2',
+                at: 1760000000000,
             });
-            expect(onEvent.mock.calls[9][0]).toEqual({
+            // The steps: the arguments of a call at its end, and of its
+            // result what the webapp keeps.
+            expect(onEvent.mock.calls[8][0]).toEqual({type: 'TOOL_CALL_END', toolCallId: 'call-1', arguments: {}});
+            expect(onEvent.mock.calls[9][0]).toMatchObject({type: 'TOOL_CALL_RESULT', toolCallId: 'call-1', rejected: false, structured: true, refusal: '', at: 1760000000000});
+            expect(onEvent.mock.calls[11][0]).toEqual({
                 type: 'TEXT_MESSAGE_CONTENT',
                 messageId: 'turn-1:4',
                 delta: 'There are two nodes: **n1** and **n2**.',
@@ -81,7 +88,7 @@ describe('AI agent AG-UI runs', () => {
             fetchMock.mockResolvedValue(goldenResponse('confirmation'));
             const onEvent = vi.fn();
             const result = await client.run(GOLDEN_THREAD, prompt('Start web with /bin/true', 'u-c'), {onEvent});
-            expect(result).toEqual({
+            expect(result).toMatchObject({
                 type: 'RUN_FINISHED',
                 outcome: 'interrupt',
                 turnId: 'turn-c',
@@ -111,6 +118,7 @@ describe('AI agent AG-UI runs', () => {
                 'TEXT_MESSAGE_START',
                 'TEXT_MESSAGE_CONTENT',
                 'TOOL_CALL_START',
+                'TOOL_CALL_END',
             ]);
         });
 
@@ -129,9 +137,9 @@ describe('AI agent AG-UI runs', () => {
                 {held, resume: {interruptId: 'confirmation-1', approved}},
                 {onEvent}
             );
-            expect(result).toEqual({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-c', tokens});
+            expect(result).toMatchObject({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-c', tokens});
             expect(sent()).toMatchObject(goldenStream(name).request);
-            expect(onEvent.mock.calls[1][0]).toEqual({type: 'TOOL_CALL_RESULT', toolCallId: 'call-7', rejected});
+            expect(onEvent.mock.calls[1][0]).toMatchObject({type: 'TOOL_CALL_RESULT', toolCallId: 'call-7', rejected});
         });
 
         it('approves a call with the arguments the user edited', async () => {
@@ -151,7 +159,7 @@ describe('AI agent AG-UI runs', () => {
             );
             expect(sent()).toMatchObject(goldenStream('resume_edited').request);
             expect(result).toMatchObject({outcome: 'success', turnId: 'turn-c'});
-            expect(onEvent.mock.calls[1][0]).toEqual({type: 'TOOL_CALL_RESULT', toolCallId: 'call-7', rejected: false});
+            expect(onEvent.mock.calls[1][0]).toMatchObject({type: 'TOOL_CALL_RESULT', toolCallId: 'call-7', rejected: false});
         });
 
         it('explains an edit the agent refuses, never with its message', async () => {
@@ -171,13 +179,13 @@ describe('AI agent AG-UI runs', () => {
             fetchMock.mockResolvedValue(goldenResponse('snapshot'));
             const onEvent = vi.fn();
             await client.run(GOLDEN_THREAD, prompt('Any service?', 'u-2'), {onEvent});
-            expect(onEvent.mock.calls[1][0]).toEqual({
+            expect(onEvent.mock.calls[1][0]).toMatchObject({
                 type: 'MESSAGES_SNAPSHOT',
                 omittedTurns: 0,
                 messages: [
                     {id: 'u-1', role: 'user', content: 'How many nodes?'},
-                    {id: 'turn-1:2', role: 'assistant', content: '', toolCalls: [{id: 'call-1', name: 'list_nodes'}]},
-                    {id: 'call-1-result', role: 'tool', toolCallId: 'call-1', rejected: false},
+                    {id: 'turn-1:2', role: 'assistant', content: '', toolCalls: [{id: 'call-1', name: 'list_nodes', arguments: {}}]},
+                    {id: 'call-1-result', role: 'tool', toolCallId: 'call-1', rejected: false, structured: true},
                     {id: 'turn-1:4', role: 'assistant', content: 'Two nodes.', toolCalls: []},
                     {id: 'turn-2:1', role: 'user', content: 'Any service?'},
                 ],
@@ -380,10 +388,10 @@ describe('AI agent AG-UI runs', () => {
                 ])
             );
             await client.run(GOLDEN_THREAD, prompt('hello', 'u-1'), {onEvent});
-            expect(onEvent.mock.calls.map(([event]) => event).slice(1)).toEqual([
-                {type: 'MESSAGES_SNAPSHOT', omittedTurns: 0, messages: [{id: 'u-1', role: 'user', content: 'Look\nhere'}]},
-                {type: 'TOOL_CALL_RESULT', toolCallId: 'call-7', rejected: true},
-            ]);
+            const events = onEvent.mock.calls.map(([event]) => event).slice(1);
+            expect(events).toHaveLength(2);
+            expect(events[0]).toEqual({type: 'MESSAGES_SNAPSHOT', omittedTurns: 0, messages: [{id: 'u-1', role: 'user', content: 'Look\nhere'}]});
+            expect(events[1]).toMatchObject({type: 'TOOL_CALL_RESULT', toolCallId: 'call-7', rejected: true});
         });
 
         it('ignores warnings and the events of AG-UI the agent does not send', async () => {

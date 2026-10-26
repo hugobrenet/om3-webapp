@@ -420,12 +420,12 @@ const parseSnapshot = (event) => {
             if (!Array.isArray(calls)) throw protocolError();
             const toolCalls = calls.map((call) => {
                 if (!call || !isEventId(call.id) || !toolNamePattern.test(call.function?.name)) throw protocolError();
-                return {id: call.id, name: call.function.name};
+                return {id: call.id, name: call.function.name, arguments: stepArguments(call.function.arguments)};
             });
             messages.push({id: message.id, role: 'assistant', content, toolCalls});
         } else if (message.role === 'tool') {
             if (!isEventId(message.toolCallId)) throw protocolError();
-            messages.push({id: message.id, role: 'tool', toolCallId: message.toolCallId, rejected: isRejected(content)});
+            messages.push({id: message.id, role: 'tool', toolCallId: message.toolCallId, ...parseToolResult(content)});
         }
         // Messages of other roles hold nothing the webapp shows.
     }
@@ -439,6 +439,53 @@ const isRejected = (content) => {
         return JSON.parse(content)?.rejected === true;
     } catch {
         return false;
+    }
+};
+
+// The part of the result of a step the webapp keeps: an excerpt of 4 KiB,
+// bounded at reading, and the text of a refusal of the tool, shown whole.
+export const RESULT_EXCERPT_CHARACTERS = 4096;
+const MAX_REFUSAL_CHARACTERS = 16384;
+
+// What the result of a tool call says: rejected by the user, refused by the
+// tool, isError as the agent gives it with every result, whether it holds a
+// structured content, whether the agent cut it (omitted, past 64 KiB) or the
+// compaction of the history did (_history_compaction, in a snapshot: a large
+// result that succeeded, an error never being compacted), an excerpt of its
+// text and the text of a refusal.
+const parseToolResult = (content) => {
+    const text = contentText(content);
+    let payload = null;
+    try {
+        payload = JSON.parse(text);
+    } catch {
+        // A result that is no JSON is an excerpt only.
+    }
+    const object = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : null;
+    const rejected = object?.rejected === true;
+    const isError = typeof object?.isError === 'boolean' ? object.isError : undefined;
+    const structured = object?.structuredContent !== undefined && object?.structuredContent !== null;
+    const omitted = object?.omitted === true || (object?._history_compaction !== undefined && object?._history_compaction !== null);
+    let refusal = '';
+    if (!rejected && !omitted && (isError === true || (isError === undefined && object && !structured))) {
+        refusal = (Array.isArray(object.content) ? contentText(object.content) : '').slice(0, MAX_REFUSAL_CHARACTERS);
+    }
+    return {rejected, isError, structured, omitted, refusal, excerpt: text.slice(0, RESULT_EXCERPT_CHARACTERS), truncated: text.length > RESULT_EXCERPT_CHARACTERS};
+};
+
+// The time of an event, in milliseconds of the clock of the agent; null when
+// the event carries none.
+const stampOf = (event) => (Number.isSafeInteger(event.timestamp) && event.timestamp > 0 ? event.timestamp : null);
+
+// The arguments of a call as the steps show them: an object, or null for
+// arguments that do not read.
+const stepArguments = (text) => {
+    if (!text) return {};
+    try {
+        const value = JSON.parse(text);
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+    } catch {
+        return null;
     }
 };
 
@@ -464,7 +511,7 @@ const finishRun = (event, run) => {
             throw protocolError();
         const turnId = event.result?.turnId;
         if (turnId !== undefined && (typeof turnId !== 'string' || !turnIdPattern.test(turnId))) throw protocolError();
-        return {type: 'RUN_FINISHED', outcome: 'success', turnId: turnId || '', tokens};
+        return {type: 'RUN_FINISHED', outcome: 'success', turnId: turnId || '', tokens, startedAt: run.startedAt ?? null, endedAt: stampOf(event)};
     }
     if (outcome.type !== 'interrupt' || !Array.isArray(outcome.interrupts) || outcome.interrupts.length !== 1)
         throw protocolError();
@@ -491,7 +538,7 @@ const finishRun = (event, run) => {
         preview_arguments: metadata.previewArguments,
     });
     if (confirmation.tool.name !== call.name) throw protocolError();
-    return {type: 'RUN_FINISHED', outcome: 'interrupt', turnId: confirmation.turn_id, confirmation, tokens};
+    return {type: 'RUN_FINISHED', outcome: 'interrupt', turnId: confirmation.turn_id, confirmation, tokens, startedAt: run.startedAt ?? null, endedAt: stampOf(event)};
 };
 
 // Validate one AG-UI event of a run, in the order of the protocol: RUN_STARTED
@@ -504,7 +551,8 @@ const parseRunEvent = (event, run) => {
         if (event.type !== 'RUN_STARTED' || event.threadId !== run.threadId || event.runId !== run.runId)
             throw protocolError();
         run.started = true;
-        return {type: 'RUN_STARTED'};
+        run.startedAt = stampOf(event);
+        return {type: 'RUN_STARTED', at: run.startedAt};
     }
     switch (event.type) {
         case 'MESSAGES_SNAPSHOT':
@@ -537,6 +585,7 @@ const parseRunEvent = (event, run) => {
                 toolCallId: event.toolCallId,
                 toolCallName: event.toolCallName,
                 parentMessageId: event.parentMessageId || '',
+                at: stampOf(event),
             };
         case 'TOOL_CALL_ARGS': {
             const call = run.calls.get(event.toolCallId);
@@ -554,11 +603,13 @@ const parseRunEvent = (event, run) => {
             const call = run.calls.get(event.toolCallId);
             if (!call || call.ended) throw protocolError();
             call.ended = true;
-            return null;
+            return {type: event.type, toolCallId: event.toolCallId, arguments: call.arguments === null ? null : stepArguments(call.arguments)};
         }
-        case 'TOOL_CALL_RESULT':
+        case 'TOOL_CALL_RESULT': {
             if (!isEventId(event.toolCallId)) throw protocolError();
-            return {type: event.type, toolCallId: event.toolCallId, rejected: isRejected(contentText(event.content))};
+            const result = parseToolResult(event.content);
+            return {type: event.type, toolCallId: event.toolCallId, at: stampOf(event), ...result};
+        }
         case 'RUN_FINISHED':
             run.finished = finishRun(event, run);
             return run.finished;

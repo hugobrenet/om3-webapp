@@ -26,22 +26,59 @@ const errorMessage = (error) =>
 // An answer of the agent: one message of the webapp per turn, holding the
 // AG-UI messages of the turn (messageIds), which tell the agent the webapp is
 // in phase, and the text message last streamed into it (textId).
+// steps are the calls of its tools; runs, the runs of its turn, their start
+// and end on the clock of the agent; liveSince, the time on the clock of the
+// page the running one started at, for its live timer.
 const assistantMessage = (id, fields = {}) => ({
     id,
     role: 'assistant',
     text: '',
-    tools: [],
+    steps: [],
+    runs: [],
+    liveSince: null,
     status: 'running',
     usage: null,
     messageIds: [],
     textId: '',
     ...fields,
 });
+
+/**
+ * A step of an answer: one call of a tool, the form the agent will also serve
+ * with the history. startedAt and endedAt are milliseconds of the clock of
+ * the agent; status is running, pending (waiting for a decision), completed,
+ * failed (refused by the tool), rejected (by the user) or interrupted;
+ * result_excerpt is the start of its result, refusal the text of a refusal.
+ */
+export const newStep = (id, tool, fields = {}) => ({
+    id,
+    tool,
+    arguments: null,
+    startedAt: null,
+    endedAt: null,
+    status: 'running',
+    result_excerpt: '',
+    result_truncated: false,
+    refusal: '',
+    ...fields,
+});
+
+// The status a result gives its step: isError, which the agent gives with
+// every result; a result cut by the agent or by the compaction of the history
+// succeeded. Without isError, from a snapshot of results stored before it, or
+// an older agent, a result of an MCP tool without structured content is a
+// refusal, the tools of the agent giving none when they succeed.
+const resultStatus = (tool, result) => {
+    if (result.rejected) return 'rejected';
+    if (result.isError === true) return 'failed';
+    if (result.isError === false || result.omitted || result.structured) return 'completed';
+    return AGENT_TOOLS.has(tool) ? 'completed' : 'failed';
+};
 const historyMessages = (messages) =>
     messages.map(({feedback, ...message}) =>
         message.role === 'assistant'
             ? assistantMessage(message.id, {...message, status: 'completed', messageIds: [message.id], textId: message.id})
-            : {...message, status: 'completed', tools: [], usage: null}
+            : {...message, status: 'completed', steps: [], usage: null}
     );
 // The feedback the agent returned with the messages, per turn, without
 // replacing what the user changed since.
@@ -81,24 +118,41 @@ const applyRunEvent = (message, event, resumed) => {
             const separate = message.text && message.textId !== event.messageId;
             return {...message, text: message.text + (separate ? '\n\n' : '') + event.delta, textId: event.messageId};
         }
+        case 'RUN_STARTED':
+            return {...message, runs: [...message.runs, {startedAt: event.at ?? null, endedAt: null}], liveSince: Date.now()};
         case 'TOOL_CALL_START': {
             const next = holding(message, event.parentMessageId);
-            // The tools of the agent itself, searching its catalog, are not shown.
-            if (AGENT_TOOLS.has(event.toolCallName)) return next;
-            return {...next, tools: [...next.tools, {id: event.toolCallId, name: event.toolCallName, status: 'running'}]};
+            return {...next, steps: [...next.steps, newStep(event.toolCallId, event.toolCallName, {startedAt: event.at ?? null})]};
         }
+        case 'TOOL_CALL_END':
+            return {
+                ...message,
+                steps: message.steps.map((step) => (step.id === event.toolCallId ? {...step, arguments: event.arguments} : step)),
+            };
         case 'TOOL_CALL_RESULT': {
-            const status = event.rejected ? 'rejected' : 'completed';
+            const runStart = message.runs.at(-1)?.startedAt ?? null;
             // The stream gave the call as the model proposed it: it ran with
             // the arguments the user edited.
-            const edits = resumed?.editedArgs ? {editedArgs: resumed.editedArgs} : {};
-            if (message.tools.some((tool) => tool.id === event.toolCallId))
+            const edited = resumed?.editedArgs;
+            const finish = (step) => {
+                const status = resultStatus(step.tool, event);
                 return {
-                    ...message,
-                    tools: message.tools.map((tool) => (tool.id === event.toolCallId ? {...tool, status, ...edits} : tool)),
+                    ...step,
+                    status,
+                    // A call the user confirmed runs in the run that resumes it.
+                    startedAt: step.status === 'pending' ? (runStart ?? step.startedAt) : step.startedAt,
+                    // A call the user rejected did not run: it has no end.
+                    endedAt: status === 'rejected' ? null : (event.at ?? step.endedAt),
+                    result_excerpt: event.excerpt ?? '',
+                    result_truncated: Boolean(event.truncated),
+                    refusal: status === 'failed' ? event.refusal || '' : '',
+                    ...(edited ? {arguments: edited, editedArgs: edited} : {}),
                 };
+            };
+            if (message.steps.some((step) => step.id === event.toolCallId))
+                return {...message, steps: message.steps.map((step) => (step.id === event.toolCallId ? finish(step) : step))};
             return resumed?.name
-                ? {...message, tools: [...message.tools, {id: event.toolCallId, name: resumed.name, status, ...edits}]}
+                ? {...message, steps: [...message.steps, finish(newStep(event.toolCallId, resumed.name, {startedAt: runStart, status: 'pending'}))]}
                 : message;
         }
         default:
@@ -112,16 +166,22 @@ const applyRunEvent = (message, event, resumed) => {
 const finishRun = (message, result) => {
     const usage =
         result.tokens === null ? message.usage : {total_tokens: (message.usage?.total_tokens || 0) + result.tokens};
+    // The run ends on the clock of the agent; the live timer stops.
+    const runs = message.runs.length
+        ? [...message.runs.slice(0, -1), {startedAt: message.runs.at(-1).startedAt ?? result.startedAt ?? null, endedAt: result.endedAt ?? null}]
+        : message.runs;
     // The call a run ends on waits for the decision of the user.
     return result.outcome === 'interrupt'
         ? {
               ...message,
               status: 'awaiting_confirmation',
               usage,
+              runs,
+              liveSince: null,
               turn_id: message.turn_id || result.turnId,
-              tools: message.tools.map((tool) => (tool.status === 'running' ? {...tool, status: 'pending'} : tool)),
+              steps: message.steps.map((step) => (step.status === 'running' ? {...step, status: 'pending'} : step)),
           }
-        : {...message, status: 'completed', usage, turn_id: result.turnId || message.turn_id};
+        : {...message, status: 'completed', usage, runs, liveSince: null, turn_id: result.turnId || message.turn_id};
 };
 
 // The thread of a snapshot, as the webapp shows it: the prompts, and one
@@ -130,12 +190,12 @@ const snapshotThread = (messages) => {
     const thread = [];
     for (const message of messages) {
         if (message.role === 'user') {
-            thread.push({id: message.id, role: 'user', text: message.content, status: 'completed', tools: [], usage: null});
+            thread.push({id: message.id, role: 'user', text: message.content, status: 'completed', steps: [], usage: null});
             continue;
         }
         if (message.role === 'tool') {
             const index = thread.findLastIndex(
-                (item) => item.role === 'assistant' && item.tools.some((tool) => tool.id === message.toolCallId)
+                (item) => item.role === 'assistant' && item.steps.some((step) => step.id === message.toolCallId)
             );
             if (index >= 0)
                 thread[index] = applyRunEvent(thread[index], {type: 'TOOL_CALL_RESULT', ...message});
@@ -154,12 +214,7 @@ const snapshotThread = (messages) => {
         // A call without its result is the one the turn waits on.
         next = {
             ...next,
-            tools: [
-                ...next.tools,
-                ...message.toolCalls
-                    .filter((call) => !AGENT_TOOLS.has(call.name))
-                    .map((call) => ({id: call.id, name: call.name, status: 'pending'})),
-            ],
+            steps: [...next.steps, ...message.toolCalls.map((call) => newStep(call.id, call.name, {arguments: call.arguments, status: 'pending'}))],
         };
         thread[thread.length - 1] = next;
     }
@@ -236,10 +291,11 @@ const useAiChat = ({client, ready, scope}) => {
                                 : {
                                       ...message,
                                       status: stopped ? 'stopped' : 'failed',
-                                      tools: message.tools.map((tool) =>
-                                          ['running', 'pending'].includes(tool.status)
-                                              ? {...tool, status: 'interrupted'}
-                                              : tool
+                                      liveSince: null,
+                                      steps: message.steps.map((step) =>
+                                          ['running', 'pending'].includes(step.status)
+                                              ? {...step, status: 'interrupted'}
+                                              : step
                                       ),
                                   }
                         ),

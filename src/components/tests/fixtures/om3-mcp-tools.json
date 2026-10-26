@@ -1,0 +1,1208 @@
+[
+  {
+    "name": "abort_cluster_orchestration",
+    "properties": null,
+    "required": []
+  },
+  {
+    "name": "abort_node",
+    "properties": [
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "abort_object_orchestration",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "cap_object",
+    "properties": [
+      "config_updated_at",
+      "path",
+      "sets"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "clear_instance",
+    "properties": [
+      "node",
+      "path"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "clear_node",
+    "properties": [
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "create_object",
+    "properties": [
+      "config",
+      "path",
+      "set",
+      "wait_local"
+    ],
+    "required": [
+      "config",
+      "path"
+    ]
+  },
+  {
+    "name": "create_object_certificate",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "delete_object",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "delete_object_data_key",
+    "properties": [
+      "name",
+      "path",
+      "wait_seconds"
+    ],
+    "required": [
+      "name",
+      "path"
+    ]
+  },
+  {
+    "name": "dequeue_node_actions",
+    "properties": [
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "disable_object",
+    "properties": [
+      "path",
+      "rids"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "drain_node",
+    "properties": [
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "enable_object",
+    "properties": [
+      "path",
+      "rids"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "freeze_cluster",
+    "properties": [
+      "wait_seconds"
+    ],
+    "required": []
+  },
+  {
+    "name": "freeze_instance",
+    "properties": [
+      "config_updated_at",
+      "node",
+      "path",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "freeze_node",
+    "properties": [
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "freeze_object",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "get_caller_identity",
+    "properties": null,
+    "required": []
+  },
+  {
+    "name": "get_cluster_config",
+    "properties": null,
+    "required": []
+  },
+  {
+    "name": "get_cluster_status",
+    "properties": [
+      "node_cursor",
+      "node_limit",
+      "object_cursor",
+      "object_limit"
+    ],
+    "required": []
+  },
+  {
+    "name": "get_container_logs",
+    "properties": [
+      "lines",
+      "node",
+      "path",
+      "resource_id"
+    ],
+    "required": [
+      "node",
+      "path",
+      "resource_id"
+    ]
+  },
+  {
+    "name": "get_daemon_log_level",
+    "properties": [
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "get_instance_logs",
+    "properties": [
+      "lines",
+      "node",
+      "path"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "get_instance_resource_file",
+    "properties": [
+      "name",
+      "node",
+      "path",
+      "rid"
+    ],
+    "required": [
+      "name",
+      "node",
+      "path",
+      "rid"
+    ]
+  },
+  {
+    "name": "get_instance_status",
+    "properties": [
+      "node",
+      "path"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "get_node_config",
+    "properties": [
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "get_node_config_keywords",
+    "properties": [
+      "keywords",
+      "limit",
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "get_node_daemon_metrics",
+    "properties": [
+      "cursor",
+      "limit",
+      "names",
+      "node",
+      "prefixes"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "get_node_drbd_config",
+    "properties": [
+      "name",
+      "node"
+    ],
+    "required": [
+      "name",
+      "node"
+    ]
+  },
+  {
+    "name": "get_node_logs",
+    "properties": [
+      "component",
+      "exec_id",
+      "lines",
+      "node",
+      "orchestration_id",
+      "session_id"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "get_node_san_topology",
+    "properties": [
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "get_node_status",
+    "properties": [
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "get_object_config",
+    "properties": [
+      "keywords",
+      "limit",
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "get_object_data_key",
+    "properties": [
+      "name",
+      "path"
+    ],
+    "required": [
+      "name",
+      "path"
+    ]
+  },
+  {
+    "name": "get_object_status",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "get_relay_status",
+    "properties": [
+      "remote"
+    ],
+    "required": []
+  },
+  {
+    "name": "giveback_object",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "list_cluster_ip_resources",
+    "properties": [
+      "cursor",
+      "limit",
+      "node",
+      "path"
+    ],
+    "required": []
+  },
+  {
+    "name": "list_cluster_locks",
+    "properties": null,
+    "required": []
+  },
+  {
+    "name": "list_cluster_objects",
+    "properties": [
+      "cursor",
+      "limit",
+      "selector"
+    ],
+    "required": []
+  },
+  {
+    "name": "list_daemon_executions",
+    "properties": [
+      "cursor",
+      "exec_id",
+      "limit",
+      "node",
+      "object_path",
+      "orchestration_id",
+      "origins",
+      "rid",
+      "session_id",
+      "states"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_daemon_orchestrations",
+    "properties": [
+      "cursor",
+      "limit",
+      "node",
+      "object_path",
+      "states"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_dns_records",
+    "properties": [
+      "content",
+      "cursor",
+      "limit",
+      "name",
+      "node",
+      "object",
+      "type"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_instance_sync_snapshots",
+    "properties": [
+      "node",
+      "path",
+      "rid"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "list_network_ips",
+    "properties": [
+      "cursor",
+      "limit",
+      "network",
+      "node",
+      "path",
+      "shared_only"
+    ],
+    "required": []
+  },
+  {
+    "name": "list_networks",
+    "properties": [
+      "name"
+    ],
+    "required": []
+  },
+  {
+    "name": "list_node_capabilities",
+    "properties": [
+      "cursor",
+      "limit",
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_node_config_keywords",
+    "properties": [
+      "cursor",
+      "driver",
+      "limit",
+      "node",
+      "option",
+      "options",
+      "section"
+    ],
+    "required": []
+  },
+  {
+    "name": "list_node_disks",
+    "properties": [
+      "claimed_only",
+      "cursor",
+      "limit",
+      "node",
+      "type",
+      "unclaimed_only"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_node_drivers",
+    "properties": [
+      "cursor",
+      "limit",
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_node_hardware",
+    "properties": [
+      "classes",
+      "cursor",
+      "drivers",
+      "limit",
+      "node",
+      "types"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_node_ip_addresses",
+    "properties": [
+      "family",
+      "interface",
+      "node",
+      "unicast_only"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_node_locks",
+    "properties": [
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_node_network_reservations",
+    "properties": [
+      "network",
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_node_packages",
+    "properties": [
+      "architectures",
+      "cursor",
+      "limit",
+      "name_prefixes",
+      "names",
+      "node",
+      "types"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_node_properties",
+    "properties": [
+      "cursor",
+      "limit",
+      "names",
+      "node",
+      "sources"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "list_object_config_keywords",
+    "properties": [
+      "cursor",
+      "driver",
+      "limit",
+      "option",
+      "options",
+      "path",
+      "section"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "list_object_data_keys",
+    "properties": [
+      "name",
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "list_object_instances",
+    "properties": [
+      "cursor",
+      "limit",
+      "node",
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "list_object_resources",
+    "properties": [
+      "cursor",
+      "limit",
+      "node",
+      "path",
+      "rid"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "list_pool_volumes",
+    "properties": [
+      "cursor",
+      "limit",
+      "orphans_only",
+      "pool"
+    ],
+    "required": []
+  },
+  {
+    "name": "list_resource_info",
+    "properties": [
+      "cursor",
+      "key",
+      "limit",
+      "node",
+      "path",
+      "rid",
+      "scope"
+    ],
+    "required": [
+      "path",
+      "scope"
+    ]
+  },
+  {
+    "name": "list_schedules",
+    "properties": [
+      "cursor",
+      "limit",
+      "node",
+      "path",
+      "scope"
+    ],
+    "required": [
+      "scope"
+    ]
+  },
+  {
+    "name": "list_storage_pools",
+    "properties": [
+      "node",
+      "per_node",
+      "pool"
+    ],
+    "required": []
+  },
+  {
+    "name": "mark_instance_unprovisioned",
+    "properties": [
+      "config_updated_at",
+      "node",
+      "path",
+      "rids",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "preview_action",
+    "properties": [
+      "arguments",
+      "tool"
+    ],
+    "required": [
+      "arguments",
+      "tool"
+    ]
+  },
+  {
+    "name": "preview_node_config_update",
+    "properties": [
+      "delete",
+      "node",
+      "set",
+      "unset"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "preview_object_config_update",
+    "properties": [
+      "delete",
+      "path",
+      "set",
+      "unset",
+      "wait_seconds"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "preview_object_create",
+    "properties": [
+      "config",
+      "path",
+      "set",
+      "wait_local"
+    ],
+    "required": [
+      "config",
+      "path"
+    ]
+  },
+  {
+    "name": "probe_node_reachability",
+    "properties": [
+      "node"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "provision_object",
+    "properties": [
+      "adopt",
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "purge_object",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "refresh_instance_status",
+    "properties": [
+      "node",
+      "path",
+      "timeout_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "refresh_node_capabilities",
+    "properties": [
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "refresh_node_disks",
+    "properties": [
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "refresh_node_hardware",
+    "properties": [
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "refresh_node_packages",
+    "properties": [
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "refresh_resource_info",
+    "properties": [
+      "config_updated_at",
+      "node",
+      "path",
+      "rids",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "renew_object_certificate",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "reset_instance_caps",
+    "properties": [
+      "config_updated_at",
+      "node",
+      "path",
+      "rids",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "resize_object",
+    "properties": [
+      "config_updated_at",
+      "path",
+      "size"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "restart_daemon",
+    "properties": [
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "restart_daemon_listener",
+    "properties": [
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "restart_heartbeat",
+    "properties": [
+      "name",
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "name",
+      "node"
+    ]
+  },
+  {
+    "name": "restart_instance",
+    "properties": [
+      "config_updated_at",
+      "disable_rollback",
+      "node",
+      "path",
+      "rids",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "restart_object",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "run_task",
+    "properties": [
+      "config_updated_at",
+      "env",
+      "node",
+      "path",
+      "rids",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path",
+      "rids"
+    ]
+  },
+  {
+    "name": "scan_node_scsi",
+    "properties": [
+      "hba",
+      "lun",
+      "node",
+      "target",
+      "wait_seconds"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "set_daemon_log_level",
+    "properties": [
+      "level",
+      "node"
+    ],
+    "required": [
+      "level",
+      "node"
+    ]
+  },
+  {
+    "name": "set_object_data_key",
+    "properties": [
+      "name",
+      "path",
+      "value",
+      "value_base64",
+      "wait_seconds"
+    ],
+    "required": [
+      "name",
+      "path"
+    ]
+  },
+  {
+    "name": "shutdown_instance",
+    "properties": [
+      "config_updated_at",
+      "node",
+      "path",
+      "rids",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "start_heartbeat",
+    "properties": [
+      "name",
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "name",
+      "node"
+    ]
+  },
+  {
+    "name": "start_instance",
+    "properties": [
+      "config_updated_at",
+      "disable_rollback",
+      "node",
+      "path",
+      "rids",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "start_instance_standby",
+    "properties": [
+      "config_updated_at",
+      "disable_rollback",
+      "node",
+      "path",
+      "rids",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "start_object",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "stop_instance",
+    "properties": [
+      "config_updated_at",
+      "interrupt_syncs",
+      "node",
+      "path",
+      "rids",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "stop_object",
+    "properties": [
+      "interrupt_syncs",
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "switch_object",
+    "properties": [
+      "interrupt_syncs",
+      "live",
+      "path",
+      "to"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "unfreeze_cluster",
+    "properties": [
+      "wait_seconds"
+    ],
+    "required": []
+  },
+  {
+    "name": "unfreeze_instance",
+    "properties": [
+      "config_updated_at",
+      "node",
+      "path",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "unfreeze_node",
+    "properties": [
+      "node",
+      "wait_seconds"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "unfreeze_object",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "unprovision_instance",
+    "properties": [
+      "config_updated_at",
+      "leader",
+      "node",
+      "path",
+      "rids",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "unprovision_object",
+    "properties": [
+      "path"
+    ],
+    "required": [
+      "path"
+    ]
+  },
+  {
+    "name": "update_instance_caps",
+    "properties": [
+      "config_updated_at",
+      "node",
+      "path",
+      "rids",
+      "wait_seconds"
+    ],
+    "required": [
+      "node",
+      "path"
+    ]
+  },
+  {
+    "name": "update_node_config",
+    "properties": [
+      "delete",
+      "node",
+      "set",
+      "unset"
+    ],
+    "required": [
+      "node"
+    ]
+  },
+  {
+    "name": "update_object_config",
+    "properties": [
+      "delete",
+      "path",
+      "set",
+      "unset",
+      "wait_seconds"
+    ],
+    "required": [
+      "path"
+    ]
+  }
+]

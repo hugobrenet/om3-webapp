@@ -6,6 +6,7 @@ import useAiAgent from "../hooks/useAiAgent.js";
 import useAiChat from "../hooks/useAiChat.js";
 import {isFrozen, objectAttention} from "../hooks/useSidebarAlerts.js";
 import AiMarkdown from "./AiMarkdown.jsx";
+import {AiSteps, AnswerFooter} from "./AiSteps.jsx";
 import {ConfigText} from "./ConfigText.jsx";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 import {URL_OBJECT} from "../config/apiPath.js";
@@ -242,8 +243,8 @@ function Feedback({rating, onRate, onUnrate}) {
     );
 }
 
-/** One message of the transcript: the text, the tool activity and the turn state. */
-function Message({message, feedback}) {
+/** One message of the transcript: the text, the steps of its tools and the turn state. */
+function Message({message, feedback, status}) {
     const {t} = useTranslation();
     const user = message.role === "user";
     return (
@@ -254,31 +255,16 @@ function Message({message, feedback}) {
             )}
         >
             <p className="mb-1 text-data font-semibold text-ink-muted">{user ? t("ai.message.you") : t("ai.message.assistant")}</p>
-            {message.text && !user && <AiMarkdown text={message.text}/>}
+            {!user && <AiSteps message={message} status={status}/>}
+            {message.text && !user && <AiMarkdown text={message.text} objects={status?.objects}/>}
             {message.text && user && <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.text}</div>}
-            {message.tools?.length > 0 && (
-                <ul aria-label={t("ai.message.tools")} className="my-1 list-disc pl-5 text-data">
-                    {message.tools.map((tool) => (
-                        <li key={tool.id} className={tool.status === "failed" ? "text-state-down" : "text-ink-muted"}>
-                            {t("ai.message.tool", {
-                                name: tool.name,
-                                status: t(`ai.message.toolStatus.${tool.status}`, {defaultValue: tool.status}),
-                            })}
-                            {tool.editedArgs && t("ai.message.withChanges")}
-                        </li>
-                    ))}
-                </ul>
-            )}
-            {message.status === "running" && <Spinner label={t("ai.message.working")} className="mt-1 text-data"/>}
             {message.status === "awaiting_confirmation" && (
                 <p className="mt-1 text-data text-state-warn">{t("ai.message.awaiting")}</p>
             )}
             {["stopped", "failed"].includes(message.status) && (
                 <p className="mt-1 text-data text-state-warn">{t(`ai.message.${message.status}`)}</p>
             )}
-            {typeof message.usage?.total_tokens === "number" && (
-                <p className="mt-1 text-data text-ink-muted">{t("ai.message.tokens", {total: message.usage.total_tokens})}</p>
-            )}
+            {!user && message.status !== "running" && <AnswerFooter message={message}/>}
             {feedback}
         </li>
     );
@@ -293,7 +279,7 @@ function Message({message, feedback}) {
 function previewSentence(summary, t, i18n) {
     const name = `ai.confirm.summary.${summary.key}`;
     if (!i18n.exists(name)) return summary.text;
-    const template = String(i18n.getResource(i18n.language, "translation", name) ?? i18n.getResource("en", "translation", name) ?? "");
+    const template = String(i18n.getResource(i18n.resolvedLanguage ?? i18n.language, "translation", name) ?? i18n.getResource("en", "translation", name) ?? "");
     // A sentence missing one of its params is the one of the MCP.
     const named = [...template.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]);
     if (named.some((param) => typeof summary.params[param] !== "string")) return summary.text;
@@ -886,6 +872,7 @@ const AiChat = ({status}) => {
                                         <Message
                                             key={message.id}
                                             message={message}
+                                            status={status}
                                             feedback={
                                                 rateable && (
                                                     <Feedback
