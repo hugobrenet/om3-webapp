@@ -6,6 +6,8 @@ import useAiAgent from "../hooks/useAiAgent.js";
 import useAiChat from "../hooks/useAiChat.js";
 import {isFrozen, objectAttention} from "../hooks/useSidebarAlerts.js";
 import AiMarkdown from "./AiMarkdown.jsx";
+import AiPromptTips from "./AiPromptTips.jsx";
+import AiToolsDialog from "./AiToolsDialog.jsx";
 import {AiSteps, AnswerFooter} from "./AiSteps.jsx";
 import {ConfigText} from "./ConfigText.jsx";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
@@ -17,7 +19,7 @@ import {Dialog} from "../ui/components/Dialog";
 import {Checkbox, Field, Input, Textarea} from "../ui/components/Field";
 import {FEEDBACK_REASONS, MAX_FEEDBACK_EXPECTED_CHARACTERS} from "../services/ai-agent.js";
 import {Spinner} from "../ui/components/Spinner";
-import {AlertTriangleIcon, ChatIcon, ClockIcon, PencilIcon, PlusIcon, SearchIcon, SendIcon, SidebarIcon, StopIcon, TrashIcon} from "../ui/icons";
+import {AlertTriangleIcon, ChatIcon, ClockIcon, InfoIcon, PencilIcon, PlusIcon, PuzzleIcon, SearchIcon, SendIcon, SidebarIcon, StopIcon, TrashIcon} from "../ui/icons";
 import {NARROW_QUERY, useMediaQuery} from "../ui/lib/media";
 import {cn} from "../ui/cn";
 import {untrustedT} from "../utils/untrustedText";
@@ -595,6 +597,13 @@ const AiChat = ({status}) => {
     const [search, setSearch] = useState("");
     const [draft, setDraft] = useState("");
     const [dialog, setDialog] = useState("");
+    const [tipsOpen, setTipsOpen] = useState(false);
+    const [toolsOpen, setToolsOpen] = useState(false);
+    // The tools are read as the session: one that ends closes them, and they
+    // do not open again by themselves with the next.
+    useEffect(() => {
+        if (!ready) setToolsOpen(false);
+    }, [ready]);
     const [title, setTitle] = useState("");
     const transcript = useRef(null);
     const scrollAnchor = useRef(null);
@@ -856,6 +865,12 @@ const AiChat = ({status}) => {
                                 {chat.conversation ? titleOf(chat.conversation) : t("ai.transcript.start")}
                             </h2>
                             <div className="ml-auto flex gap-2">
+                                <IconButton label={t("ai.tips.open")} onClick={() => setTipsOpen(true)}>
+                                    <InfoIcon width={14} height={14}/>
+                                </IconButton>
+                                <IconButton label={t("ai.tools.open")} onClick={() => setToolsOpen(true)}>
+                                    <PuzzleIcon width={14} height={14}/>
+                                </IconButton>
                                 {/* Folded, the panel still lets a conversation start from here. */}
                                 {!conversationsOpen && (
                                     <Button size="sm" icon={<PlusIcon/>} disabled={busy} onClick={() => chat.createConversation()}>
@@ -903,6 +918,12 @@ const AiChat = ({status}) => {
                                             ? t("ai.transcript.reselect")
                                             : t("ai.transcript.empty")}
                                 </p>
+                            )}
+                            {!chat.messages.length && chat.historyReady && chat.pending !== "resuming" && (
+                                <section aria-labelledby="ai-tips" className="mt-3 rounded-(--radius-control) bg-surface-sunken p-3">
+                                    <h3 id="ai-tips" className="mb-1.5 font-semibold">{t("ai.tips.title")}</h3>
+                                    <AiPromptTips/>
+                                </section>
                             )}
                             {starters.length > 0 && (
                                 <ul aria-label={t("ai.starters.label")} className="mt-3 flex flex-wrap gap-2">
@@ -1099,6 +1120,10 @@ const AiChat = ({status}) => {
                 )}
                 {chat.error && <Alert>{chat.error}</Alert>}
             </Dialog>
+            <Dialog open={tipsOpen} size="md" title={t("ai.tips.title")} onClose={() => setTipsOpen(false)}>
+                <AiPromptTips/>
+            </Dialog>
+            <AiToolsDialog open={ready && toolsOpen} client={client} onClose={() => setToolsOpen(false)}/>
         </div>
     );
 };

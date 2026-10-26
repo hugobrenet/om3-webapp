@@ -3616,6 +3616,50 @@
       "reselect": "Sélectionnez à nouveau une conversation, ou créez-en une, pour continuer.",
       "empty": "Envoyez un message pour démarrer une conversation ou poursuivre celle sélectionnée."
     },
+    "tools": {
+      "open": "Ce que l'assistant sait faire",
+      "title": "Ce que l'assistant sait faire",
+      "intro": "Les outils que ce déploiement offre à l'assistant. Ce qu'un outil peut faire pour vous dépend de vos droits, vérifiés à l'appel. Leurs descriptions viennent du serveur, en anglais.",
+      "loading": "Lecture des outils…",
+      "unavailable": "L'agent n'a pas pu lire ses outils. Réessayez plus tard.",
+      "failed": "Les outils n'ont pas pu être lus.",
+      "filter": "Filtrer les outils",
+      "count_one": "{{count}} outil",
+      "count_other": "{{count}} outils",
+      "groups": {
+        "read": "Lire",
+        "confirmed": "Agir, après votre confirmation",
+        "act": "Agir"
+      }
+    },
+    "tips": {
+      "title": "Bien formuler sa demande",
+      "open": "Conseils pour formuler une demande",
+      "target": {
+        "lead": "Nommez la cible :",
+        "text": "le chemin complet de l'objet, comme prod/svc/web, et le nœud quand il compte, comme node2."
+      },
+      "goal": {
+        "lead": "Dites le but, pas seulement l'action :",
+        "text": "« arrête proprement prod/svc/web sur node2 avant un reboot, ressources de secours comprises » plutôt que « arrête web »."
+      },
+      "scope": {
+        "lead": "Précisez la portée :",
+        "text": "un nœud, l'objet entier ou tout le cluster."
+      },
+      "symptom": {
+        "lead": "Pour un diagnostic, décrivez le symptôme :",
+        "text": "« Pourquoi prod/svc/web est down sur node1 ? »"
+      },
+      "oneAction": {
+        "lead": "Une action à la fois.",
+        "text": "Avant de modifier le cluster, l'assistant demande votre confirmation : relisez la carte avant d'approuver."
+      },
+      "limits": {
+        "lead": "L'assistant ne voit que ce que vos droits permettent,",
+        "text": "et il peut se tromper : les étapes montrent ce qu'il a lu."
+      }
+    },
     "starters": {
       "label": "Questions suggérées",
       "object": "Pourquoi {{path}} est en {{state}} ?",

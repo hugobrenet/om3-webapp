@@ -3616,6 +3616,50 @@
       "reselect": "Select a conversation again or create a new one to continue.",
       "empty": "Send a prompt to start a conversation or continue the selected one."
     },
+    "tools": {
+      "open": "What the assistant can do",
+      "title": "What the assistant can do",
+      "intro": "The tools this deployment offers the assistant. What a tool may do for you depends on your rights, checked when it is called. Their descriptions come from the server, in English.",
+      "loading": "Reading the tools…",
+      "unavailable": "The agent could not read its tools. Try again later.",
+      "failed": "The tools could not be read.",
+      "filter": "Filter the tools",
+      "count_one": "{{count}} tool",
+      "count_other": "{{count}} tools",
+      "groups": {
+        "read": "Read",
+        "confirmed": "Act, after your confirmation",
+        "act": "Act"
+      }
+    },
+    "tips": {
+      "title": "Writing a good request",
+      "open": "Tips for writing a request",
+      "target": {
+        "lead": "Name the target:",
+        "text": "the full path of the object, such as prod/svc/web, and the node when it matters, such as node2."
+      },
+      "goal": {
+        "lead": "Say the goal, not only the action:",
+        "text": "\"stop prod/svc/web cleanly on node2 before a reboot, standby resources included\" rather than \"stop web\"."
+      },
+      "scope": {
+        "lead": "Give the scope:",
+        "text": "one node, the whole object or the whole cluster."
+      },
+      "symptom": {
+        "lead": "For a diagnosis, describe the symptom:",
+        "text": "\"Why is prod/svc/web down on node1?\""
+      },
+      "oneAction": {
+        "lead": "One action at a time.",
+        "text": "Before changing the cluster, the assistant asks for your confirmation: read the card before approving."
+      },
+      "limits": {
+        "lead": "The assistant sees only what your rights allow,",
+        "text": "and it can be wrong: its steps show what it read."
+      }
+    },
     "starters": {
       "label": "Suggested questions",
       "object": "Why is {{path}} {{state}}?",

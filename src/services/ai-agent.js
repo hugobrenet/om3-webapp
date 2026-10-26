@@ -66,6 +66,7 @@ const checkAborted = (signal) => {
 };
 // The agent serves each backend under its own routes; the webapp talks to om3.
 const CONVERSATIONS_PATH = '/v1/om3/conversations';
+const TOOLS_PATH = '/v1/om3/tools';
 const conversationPath = (id) => {
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) {
         throw new AiAgentError('invalid_conversation', 'A valid conversation ID is required.');
@@ -149,6 +150,34 @@ const parseHistorySteps = (message) => {
     });
     return {steps: parsedSteps, stepsOmitted: omitted || 0, runs: parsedRuns, usage: usage ? {total_tokens: usage.total_tokens} : null};
 };
+
+// The tools the assistant may call, as the agent lists them: at most
+// MAX_TOOLS, a title and a summary of bounded length each.
+const MAX_TOOLS = 512;
+const MAX_TOOL_TITLE_CHARACTERS = 256;
+const MAX_TOOL_SUMMARY_CHARACTERS = 600;
+const parseTools = (result) => {
+    if (!isPlainObject(result) || !Array.isArray(result.tools) || result.tools.length > MAX_TOOLS) throw protocolError();
+    const names = new Set();
+    return result.tools.map((tool) => {
+        if (
+            !isPlainObject(tool) ||
+            !toolNamePattern.test(tool.name) ||
+            names.has(tool.name) ||
+            !isText(tool.title, MAX_TOOL_TITLE_CHARACTERS) ||
+            !isText(tool.summary, MAX_TOOL_SUMMARY_CHARACTERS) ||
+            typeof tool.read_only !== 'boolean' ||
+            typeof tool.needs_confirmation !== 'boolean'
+        )
+            throw protocolError();
+        names.add(tool.name);
+        return {name: tool.name, title: tool.title || tool.name, summary: tool.summary, readOnly: tool.read_only, needsConfirmation: tool.needs_confirmation};
+    });
+};
+const TOOLS_MESSAGES = (status, code) =>
+    status === 502 && code === 'tools_unavailable'
+        ? ['tools_unavailable', 'The agent could not read its tools.']
+        : [undefined, status === 404 ? 'This agent does not list its tools.' : HTTP_MESSAGES[status]];
 
 const readMessagePage = async (response, signal, limit, before) => {
     if (
@@ -946,6 +975,25 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
             jsonRequest(CONVERSATIONS_PATH, 'POST', 'conversation', options),
         listConversations: (options) =>
             jsonRequest(CONVERSATIONS_PATH, 'GET', 'conversations', options),
+        // The tools the assistant may call for the user.
+        listTools: ({signal} = {}) =>
+            request(
+                TOOLS_PATH,
+                {method: 'GET', headers: {Accept: 'application/json'}},
+                async (response, requestSignal) => {
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch {
+                        checkAborted(requestSignal);
+                        throw protocolError();
+                    }
+                    checkAborted(requestSignal);
+                    return parseTools(result);
+                },
+                signal,
+                TOOLS_MESSAGES
+            ),
         getConversation: (id, options) =>
             jsonRequest(conversationPath(id), 'GET', 'conversation', options),
         // The conversation with the tool call it waits on, if any.

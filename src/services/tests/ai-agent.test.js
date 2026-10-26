@@ -200,6 +200,36 @@ describe('AI agent conversations client', () => {
             await expect(client.getMessages(metadata.id)).rejects.toMatchObject({code: 'invalid_response'});
         });
     });
+    describe('the tools the assistant may call', () => {
+        const tool = {name: 'stop_instance', title: 'Stop instance', summary: 'Stop the instance.', read_only: false, needs_confirmation: true};
+
+        it('reads them as the caller, on the om3 backend', async () => {
+            fetchMock.mockResolvedValue(Response.json({tools: [tool, {...tool, name: 'get_node_status', title: '', read_only: true, needs_confirmation: false}]}));
+            expect(await client.listTools()).toEqual([
+                {name: 'stop_instance', title: 'Stop instance', summary: 'Stop the instance.', readOnly: false, needsConfirmation: true},
+                {name: 'get_node_status', title: 'get_node_status', summary: 'Stop the instance.', readOnly: true, needsConfirmation: false},
+            ]);
+            const [url, options] = fetchMock.mock.calls[0];
+            expect(url).toBe(`${baseUrl}/v1/om3/tools`);
+            expect(options).toMatchObject({method: 'GET', credentials: 'omit', headers: {Authorization: 'Bearer current-token', 'X-OpenSVC-Cluster-ID': 'cluster-id'}});
+        });
+
+        it('tells an MCP that did not answer by its code', async () => {
+            fetchMock.mockResolvedValue(Response.json({error: {code: 'tools_unavailable', message: 'x'}}, {status: 502}));
+            await expect(client.listTools()).rejects.toMatchObject({code: 'tools_unavailable', status: 502});
+        });
+
+        it.each([
+            ['no list', {}],
+            ['a name that is no tool name', {tools: [{...tool, name: 'stop instance'}]}],
+            ['a name twice', {tools: [tool, tool]}],
+            ['a summary past its bound', {tools: [{...tool, summary: 'x'.repeat(601)}]}],
+            ['a flag that is no boolean', {tools: [{...tool, read_only: 'false'}]}],
+        ])('refuses %s', async (_, body) => {
+            fetchMock.mockResolvedValue(Response.json(body));
+            await expect(client.listTools()).rejects.toMatchObject({code: 'invalid_response'});
+        });
+    });
     it('decodes UTF-8 history split across network chunks', async () => {
         const page = {messages: [{...savedMessage, text: 'État 😀'}], next_cursor: ''};
         const bytes = new TextEncoder().encode(JSON.stringify(page));
