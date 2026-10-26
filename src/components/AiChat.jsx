@@ -631,8 +631,10 @@ const AiChat = ({status}) => {
     // conversation the first turn creates is the one on display: what the
     // user types meanwhile stays.
     // A conversation being resumed passes through none, its history not ready:
-    // only the arrival of the conversation it goes to counts.
-    useEffect(() => {
+    // only the arrival of the conversation it goes to counts. At the commit,
+    // before any click on the view it shows: a dialog opened right after, such
+    // as the rename of the conversation just created, is not closed by it.
+    useLayoutEffect(() => {
         if (!chat.historyReady) return;
         const key = JSON.stringify([scope, ready, chat.conversation?.id ?? null]);
         const previous = shownConversation.current;
