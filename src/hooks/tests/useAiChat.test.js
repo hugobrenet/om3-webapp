@@ -335,6 +335,23 @@ describe('useAiChat', () => {
             ],
         });
     });
+    it('completes a skill load, whose result carries no structured content', async () => {
+        client.run.mockImplementation(async (_id, _input, {onEvent}) => {
+            onEvent({type: 'RUN_STARTED'});
+            for (const event of text('Following the procedure.')) onEvent(event);
+            onEvent({type: 'TOOL_CALL_START', toolCallId: 'call-1', toolCallName: 'load_skill', parentMessageId: 'turn-9:2'});
+            onEvent({type: 'TOOL_CALL_END', toolCallId: 'call-1', arguments: {skill: 'node-maintenance'}});
+            onEvent({type: 'TOOL_CALL_RESULT', toolCallId: 'call-1', excerpt: 'Skill node-maintenance, loaded from the om3 backend'});
+            return completed();
+        });
+        const {result} = await setup();
+        await act(async () => {
+            await result.current.send('Patch dev5n2');
+        });
+        expect(result.current.messages[1].steps).toMatchObject([
+            {id: 'call-1', tool: 'load_skill', status: 'completed', refusal: '', arguments: {skill: 'node-maintenance'}},
+        ]);
+    });
     it('replaces the thread with the snapshot a webapp out of phase receives', async () => {
         client.getMessages.mockResolvedValue({messages: saved, next_cursor: '1:1'});
         client.run.mockImplementation(replayRun('snapshot'));

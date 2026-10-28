@@ -3822,6 +3822,7 @@
     "step": {
       "search_tools": "Search the tools: “{{query}}”",
       "read_resource": "Read the reference {{uri}}",
+      "load_skill": "Load the procedure “{{skill}}”",
       "get_caller_identity": "Read your identity and rights",
       "get_cluster_config": "Read the cluster configuration",
       "get_cluster_status": "Read the cluster status",

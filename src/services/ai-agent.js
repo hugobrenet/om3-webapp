@@ -7,8 +7,9 @@ const MAX_HISTORY_BYTES = 1024 * 1024;
 const MAX_HISTORY_MESSAGES = 100;
 // The version of AG-UI the webapp speaks, which the agent checks.
 const AGUI_PROTOCOL_VERSION = '1.0';
-// The tools of the agent itself, which the webapp does not show.
-export const AGENT_TOOLS = new Set(['search_tools', 'read_resource']);
+// The tools of the agent itself, which the webapp shows apart: their results
+// carry no structured content when they succeed, unlike the tools of the MCP.
+export const AGENT_TOOLS = new Set(['search_tools', 'read_resource', 'load_skill']);
 // The reasons of a negative feedback, in the order the agent keeps them.
 export const FEEDBACK_REASONS = [
     'not_answered',

@@ -9,7 +9,7 @@ import tools from './fixtures/om3-mcp-tools.json';
 const byName = Object.fromEntries(tools.map((tool) => [tool.name, tool]));
 // The tools of the agent itself, and the sentences of the previews that name
 // no tool, whose params the MCP gives.
-const AGENT_TOOLS = {search_tools: ['query'], read_resource: ['uri']};
+const AGENT_TOOLS = {search_tools: ['query'], read_resource: ['uri'], load_skill: ['skill']};
 const PREVIEW_KEYS = ['config_update', 'node_config_update', 'object_create'];
 const params = (text) => [...text.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]).sort();
 

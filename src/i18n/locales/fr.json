@@ -3822,6 +3822,7 @@
     "step": {
       "search_tools": "Recherche d'outils : « {{query}} »",
       "read_resource": "Lecture de la référence {{uri}}",
+      "load_skill": "Chargement de la procédure « {{skill}} »",
       "get_caller_identity": "Lire votre identité et vos droits",
       "get_cluster_config": "Lire la configuration du cluster",
       "get_cluster_status": "Lire l'état du cluster",
