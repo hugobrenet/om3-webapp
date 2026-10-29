@@ -11,6 +11,23 @@ const savedMessage = {
     text: 'Previous prompt',
     created_at: '2026-10-05T12:00:00Z',
 };
+describe('AI agent client refusing a creation', () => {
+    afterEach(() => vi.unstubAllGlobals());
+    it.each([
+        ['conversation_quota', 'delete conversations, or wait for them to expire'],
+        ['conversation_limit', 'Try again later'],
+    ])('tells the user what %s means', async (code, text) => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+            new Response(JSON.stringify({error: {code, message: 'x'}}), {status: 409, headers: {'Content-Type': 'application/json'}})
+        ));
+        const client = createAiAgentClient({
+            baseUrl: 'https://agent.example.com:8090',
+            getCredentials: () => ({accessToken: 'token', clusterId: 'cluster-id'}),
+        });
+        await expect(client.createConversation()).rejects.toMatchObject({code, status: 409, message: expect.stringContaining(text)});
+    });
+});
+
 describe('AI agent conversations client', () => {
     let credentials, client, fetchMock;
     beforeEach(() => {

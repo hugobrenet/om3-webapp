@@ -3599,6 +3599,7 @@
       "noMatch": "No conversation matches.",
       "untitled": "Untitled conversation",
       "delete": "Delete {{title}}",
+      "deleteAll": "Delete all conversations",
       "groups": {
         "today": "Today",
         "yesterday": "Yesterday",
@@ -3716,6 +3717,8 @@
       "confirmDelete": "Confirm deletion",
       "titleLabel": "Conversation title",
       "deleteText": "Delete \"{{title}}\" and its saved context? This cannot be undone.",
+      "deleteAllTitle": "Delete all conversations",
+      "deleteAllText": "Delete all your conversations ({{count}} loaded) and their stored context? This cannot be undone.",
       "replaceTitle": "Replace the queued message",
       "replace": "Replace",
       "replaceText": "A message is already queued. Replace it with the one you typed?"

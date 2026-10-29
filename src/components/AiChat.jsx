@@ -729,8 +729,10 @@ const AiChat = ({status}) => {
             composer.current?.focus();
             return;
         }
-        const result = await chat.deleteConversation(deleting?.id);
-        if (result) setDialog("");
+        const result = dialog === "deleteAll"
+            ? await chat.deleteAllConversations()
+            : await chat.deleteConversation(deleting?.id);
+        if (result !== undefined && result !== false) setDialog("");
     };
 
     const startRenaming = () => {
@@ -883,6 +885,17 @@ const AiChat = ({status}) => {
                                     </ul>
                                 </div>
                             ))}
+                            {chat.conversations.length > 0 && (
+                                <Button
+                                    size="sm"
+                                    icon={<TrashIcon width={12} height={12}/>}
+                                    disabled={busy}
+                                    className="w-full justify-center text-ink-muted hover:text-state-down"
+                                    onClick={() => setDialog("deleteAll")}
+                                >
+                                    {t("ai.conversations.deleteAll")}
+                                </Button>
+                            )}
                         </div>
                     </section>
 
@@ -1130,7 +1143,9 @@ const AiChat = ({status}) => {
             <Dialog
                 open={ready && Boolean(dialog)}
                 title={
-                    dialog === "replace" ? t("ai.dialog.replaceTitle") : t("ai.dialog.deleteTitle")
+                    dialog === "replace"
+                        ? t("ai.dialog.replaceTitle")
+                        : dialog === "deleteAll" ? t("ai.dialog.deleteAllTitle") : t("ai.dialog.deleteTitle")
                 }
                 onClose={() => {
                     if (!dialogBusy) setDialog("");
@@ -1141,7 +1156,7 @@ const AiChat = ({status}) => {
                             {t("ai.dialog.cancel")}
                         </Button>
                         <Button
-                            variant={dialog === "delete" ? "delete" : "secondary"}
+                            variant={dialog === "delete" || dialog === "deleteAll" ? "delete" : "secondary"}
                             disabled={dialogBusy}
                             onClick={confirmDialog}
                         >
@@ -1152,6 +1167,8 @@ const AiChat = ({status}) => {
             >
                 {dialog === "replace" ? (
                     <p>{t("ai.dialog.replaceText")}</p>
+                ) : dialog === "deleteAll" ? (
+                    <p>{t("ai.dialog.deleteAllText", {count: chat.conversations.length})}</p>
                 ) : (
                     <p>{untrustedT(t, "ai.dialog.deleteText", {title: deleting ? titleOf(deleting) : ""})}</p>
                 )}

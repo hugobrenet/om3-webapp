@@ -324,6 +324,18 @@ describe('AI chatbot page', () => {
         expect(mocks.client.deleteConversation).toHaveBeenCalledWith('new', expect.any(Object));
         expect(screen.queryByRole('button', {name: 'Rename the conversation'})).not.toBeInTheDocument();
     });
+    test('deletes every conversation after a confirmation', async () => {
+        await renderReady();
+        const button = await screen.findByRole('button', {name: 'Delete all conversations'});
+        mocks.client.listConversations.mockResolvedValueOnce([existing]).mockResolvedValueOnce([]);
+        fireEvent.click(button);
+        expect(screen.getByRole('dialog')).toHaveTextContent('Delete all your conversations (1 loaded)');
+        expect(mocks.client.deleteConversation).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', {name: 'Confirm deletion'}));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(mocks.client.deleteConversation).toHaveBeenCalledWith('existing', expect.any(Object));
+        expect(screen.queryByRole('button', {name: 'Delete all conversations'})).not.toBeInTheDocument();
+    });
     test('keeps the title on Escape, an empty title, and saves it on leaving the field', async () => {
         await renderReady();
         fireEvent.click(screen.getByRole('button', {name: 'New conversation'}));

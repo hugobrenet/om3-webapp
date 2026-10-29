@@ -51,6 +51,16 @@ const HTTP_MESSAGES = {
     503: 'Authentication or agent temporarily unavailable.',
 };
 
+// The refusals of a creation, by the code of the agent: the quota of the user
+// says what to do, the limit of the instance that it is not the user's doing.
+const CREATE_MESSAGES = (status, code) => {
+    if (code === 'conversation_quota')
+        return [code, 'Your conversation quota is reached: delete conversations, or wait for them to expire.'];
+    if (code === 'conversation_limit')
+        return [code, 'The assistant holds as many conversations as it can for now. Try again later.'];
+    return undefined;
+};
+
 export class AiAgentError extends Error {
     constructor(code, message, status = null) {
         super(message);
@@ -939,7 +949,7 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
         }
     };
 
-    const jsonRequest = (path, method, key, options = {}, body) =>
+    const jsonRequest = (path, method, key, options = {}, body, httpMessages) =>
         request(
             path,
             {
@@ -968,12 +978,13 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                     throw protocolError();
                 return result[key];
             },
-            options.signal
+            options.signal,
+            httpMessages
         );
 
     return {
         createConversation: (options) =>
-            jsonRequest(CONVERSATIONS_PATH, 'POST', 'conversation', options),
+            jsonRequest(CONVERSATIONS_PATH, 'POST', 'conversation', options, undefined, CREATE_MESSAGES),
         listConversations: (options) =>
             jsonRequest(CONVERSATIONS_PATH, 'GET', 'conversations', options),
         // The tools the assistant may call for the user.

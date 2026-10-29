@@ -3599,6 +3599,7 @@
       "noMatch": "Aucune conversation ne correspond.",
       "untitled": "Conversation sans titre",
       "delete": "Supprimer {{title}}",
+      "deleteAll": "Supprimer toutes les conversations",
       "groups": {
         "today": "Aujourd'hui",
         "yesterday": "Hier",
@@ -3716,6 +3717,8 @@
       "confirmDelete": "Confirmer la suppression",
       "titleLabel": "Titre de la conversation",
       "deleteText": "Supprimer « {{title}} » et son contexte enregistré ? C'est irréversible.",
+      "deleteAllTitle": "Supprimer toutes les conversations",
+      "deleteAllText": "Supprimer toutes vos conversations ({{count}} chargées) et leur contexte enregistré ? C'est irréversible.",
       "replaceTitle": "Remplacer le message en file",
       "replace": "Remplacer",
       "replaceText": "Un message est déjà en file. Le remplacer par celui que vous avez tapé ?"

@@ -561,6 +561,38 @@ describe('useAiChat', () => {
         expect(result.current.conversations).toEqual([existing]);
         expect(result.current.messages).toEqual([]);
     });
+    it('deletes every conversation of the user, page after page, the current one with them', async () => {
+        const {result} = await setup();
+        await act(async () => {
+            await result.current.createConversation();
+        });
+        client.listConversations
+            .mockResolvedValueOnce([created, existing])
+            .mockResolvedValueOnce([{id: 'third', title: 'Third'}])
+            .mockResolvedValueOnce([]);
+        let deleted;
+        await act(async () => {
+            deleted = await result.current.deleteAllConversations();
+        });
+        expect(deleted).toBe(3);
+        expect(client.deleteConversation.mock.calls.map(([id]) => id)).toEqual(['new', 'existing', 'third']);
+        expect(result.current.conversations).toEqual([]);
+        expect(result.current.conversation).toBeNull();
+        expect(result.current.messages).toEqual([]);
+    });
+    it('keeps in the history what a failed deletion of all left', async () => {
+        const {result} = await setup();
+        await act(async () => {
+            await result.current.refreshConversations();
+        });
+        client.listConversations.mockResolvedValueOnce([existing, {id: 'third', title: 'Third'}]);
+        client.deleteConversation.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new AiAgentError('http_error', 'Agent busy.', 409));
+        await act(async () => {
+            await result.current.deleteAllConversations();
+        });
+        expect(result.current.error).toBe('Agent busy.');
+        expect(result.current.conversations.map((item) => item.id)).not.toContain('existing');
+    });
     it('refreshes metadata without erasing the current transcript', async () => {
         const {result} = await setup();
         await act(async () => {
