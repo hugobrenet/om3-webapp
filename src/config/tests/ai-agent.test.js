@@ -7,6 +7,10 @@ describe('AI agent build configuration', () => {
     it.each([undefined, '', '  '])('disables AI when unset (%s)', (value) => {
         expect(getAiAgentConfig(value)).toEqual({url: '', enabled: false, error: null});
     });
+    it('takes the relay of the cluster, from the origin of the webapp', () => {
+        expect(getAiAgentConfig(' /api/ai ')).toEqual({url: '/api/ai', enabled: true, error: null});
+        expect(getAiAgentConfig('/api/ai/').enabled).toBe(false);
+    });
     it('normalizes an HTTPS origin', () => {
         expect(parseAiAgentUrl(' https://agent.example.com:8090/ ')).toBe(
             'https://agent.example.com:8090'

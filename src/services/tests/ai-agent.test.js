@@ -11,6 +11,35 @@ const savedMessage = {
     text: 'Previous prompt',
     created_at: '2026-10-05T12:00:00Z',
 };
+describe('AI agent client through the relay of the cluster', () => {
+    afterEach(() => vi.unstubAllGlobals());
+    it('calls /api/ai on the origin of the webapp, without the cluster header', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            new Response(JSON.stringify({conversations: []}), {status: 200, headers: {'Content-Type': 'application/json'}})
+        );
+        vi.stubGlobal('fetch', fetchMock);
+        const client = createAiAgentClient({
+            baseUrl: '/api/ai',
+            getCredentials: () => ({accessToken: 'current-token', clusterId: 'cluster-id'}),
+        });
+        await client.listConversations();
+        const [url, options] = fetchMock.mock.calls[0];
+        expect(url).toBe('/api/ai/conversations');
+        expect(options.headers.Authorization).toBe('Bearer current-token');
+        expect(options.headers).not.toHaveProperty('X-OpenSVC-Cluster-ID');
+    });
+    it('names the relay when the agent refuses a session the cluster accepts', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+            new Response(JSON.stringify({error: {code: 'ai_token_rejected', message: 'x'}}), {status: 502, headers: {'Content-Type': 'application/json'}})
+        ));
+        const client = createAiAgentClient({
+            baseUrl: '/api/ai',
+            getCredentials: () => ({accessToken: 'current-token', clusterId: 'cluster-id'}),
+        });
+        await expect(client.listConversations()).rejects.toMatchObject({status: 502, message: expect.stringContaining('refused a session the cluster accepts')});
+    });
+});
+
 describe('AI agent client refusing a creation', () => {
     afterEach(() => vi.unstubAllGlobals());
     it.each([

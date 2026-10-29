@@ -1,4 +1,4 @@
-import {parseAiAgentUrl} from '../config/ai-agent.js';
+import {AI_RELAY_PATH, parseAiAgentUrl} from '../config/ai-agent.js';
 
 const MAX_PROMPT_BYTES = 32 * 1024;
 const MAX_STREAM_BYTES = 16 * 1024 * 1024;
@@ -48,6 +48,7 @@ const HTTP_MESSAGES = {
     410: 'Conversation expired.',
     413: 'The request or stored message exceeds the allowed size.',
     429: 'Agent busy. Try again later.',
+    502: 'The AI agent is unavailable, or refused a session the cluster accepts.',
     503: 'Authentication or agent temporarily unavailable.',
 };
 
@@ -76,8 +77,10 @@ const checkAborted = (signal) => {
     if (signal.aborted) throw new DOMException('Request canceled.', 'AbortError');
 };
 // The agent serves each backend under its own routes; the webapp talks to om3.
-const CONVERSATIONS_PATH = '/v1/om3/conversations';
-const TOOLS_PATH = '/v1/om3/tools';
+// Under the om3 backend of the agent, /v1/om3 on the agent, /api/ai on the
+// relay of the cluster.
+const CONVERSATIONS_PATH = '/conversations';
+const TOOLS_PATH = '/tools';
 const conversationPath = (id) => {
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) {
         throw new AiAgentError('invalid_conversation', 'A valid conversation ID is required.');
@@ -884,6 +887,9 @@ const randomId = () =>
 export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId}) => {
     const origin = parseAiAgentUrl(baseUrl);
     if (!origin) throw new AiAgentError('disabled', 'The AI agent is not configured.');
+    // Through the relay, the daemon names the cluster itself.
+    const relayed = origin === AI_RELAY_PATH;
+    const base = relayed ? AI_RELAY_PATH : `${origin}/v1/om3`;
     const requests = new Set();
 
     const request = async (path, options, consume, signal, httpMessages = HTTP_MESSAGES) => {
@@ -907,12 +913,12 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
             checkAborted(controller.signal);
             let response;
             try {
-                response = await fetch(`${origin}${path}`, {
+                response = await fetch(`${base}${path}`, {
                     ...options,
                     headers: {
                         ...options.headers,
                         Authorization: `Bearer ${accessToken}`,
-                        'X-OpenSVC-Cluster-ID': clusterId,
+                        ...(relayed ? {} : {'X-OpenSVC-Cluster-ID': clusterId}),
                     },
                     credentials: 'omit',
                     redirect: 'error',
@@ -924,7 +930,9 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                 if (error.name === 'AbortError') throw error;
                 throw new AiAgentError(
                     'network_error',
-                    'Cannot reach the AI agent. Check its URL, TLS and CORS configuration.'
+                    relayed
+                        ? 'Cannot reach the AI agent relay of the cluster.'
+                        : 'Cannot reach the AI agent. Check its URL, TLS and CORS configuration.'
                 );
             }
             checkAborted(controller.signal);

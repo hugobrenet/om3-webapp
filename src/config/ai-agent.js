@@ -1,6 +1,12 @@
-// This is deployment configuration, never a URL supplied by a token or prompt.
+// The path the daemons of the cluster relay to the AI agent, from the origin
+// of the webapp: no CORS, and the cluster ID is the daemon's.
+export const AI_RELAY_PATH = '/api/ai';
+
+// This is deployment configuration, never a URL supplied by a token or prompt:
+// the relay of the cluster, or the HTTPS origin of the agent.
 export const parseAiAgentUrl = (value) => {
     if (!value?.trim()) return '';
+    if (value.trim() === AI_RELAY_PATH) return AI_RELAY_PATH;
     try {
         const url = new URL(value.trim());
         if (
@@ -16,7 +22,7 @@ export const parseAiAgentUrl = (value) => {
         }
         return url.origin;
     } catch {
-        throw new Error('VITE_AI_AGENT_URL must be an HTTPS origin without credentials or a path.');
+        throw new Error('VITE_AI_AGENT_URL must be /api/ai, the relay of the cluster, or an HTTPS origin without credentials or a path.');
     }
 };
 
