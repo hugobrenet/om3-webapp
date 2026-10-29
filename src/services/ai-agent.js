@@ -48,8 +48,20 @@ const HTTP_MESSAGES = {
     410: 'Conversation expired.',
     413: 'The request or stored message exceeds the allowed size.',
     429: 'Agent busy. Try again later.',
-    502: 'The AI agent is unavailable, or refused a session the cluster accepts.',
+    502: 'The AI agent is unavailable.',
     503: 'Authentication or agent temporarily unavailable.',
+};
+
+// The refusals of the relay of the cluster, by their code: what is wrong, and
+// who fixes it.
+const RELAY_MESSAGES = {
+    ai_token_rejected: [
+        'ai_token_rejected',
+        'The AI agent refuses a session the cluster accepts: the om3-mcp catalogue names another OpenID issuer or audience for this cluster.',
+    ],
+    ai_agent_unavailable: ['ai_agent_unavailable', 'The AI agent does not answer the relay of the cluster.'],
+    ai_openid_required: ['ai_openid_required', 'The assistant needs a single sign-on session.'],
+    ai_not_configured: ['ai_not_configured', 'No AI agent is configured on this cluster.'],
 };
 
 // The refusals of a creation, by the code of the agent: the quota of the user
@@ -897,7 +909,7 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
         if (
             typeof accessToken !== 'string' ||
             !/^[^\s\x00-\x1f\x7f]{1,16384}$/.test(accessToken) ||
-            !isClusterId(clusterId)
+            (!relayed && !isClusterId(clusterId))
         ) {
             throw new AiAgentError(
                 'not_ready',
@@ -939,10 +951,13 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
             if (!response.ok) {
                 // A refusal explained by its code reads the code of the agent,
                 // never its message.
+                // The code of the agent, or of the relay of the cluster, which
+                // explains a refusal the request's own messages do not.
+                const errorCode = await readErrorCode(response);
                 const [code, message] =
-                    typeof httpMessages === 'function'
-                        ? httpMessages(response.status, await readErrorCode(response)) || []
-                        : (await response.body?.cancel().catch(() => {}), [undefined, httpMessages[response.status]]);
+                    (typeof httpMessages === 'function' ? httpMessages(response.status, errorCode) : undefined) ||
+                    RELAY_MESSAGES[errorCode] ||
+                    (typeof httpMessages === 'function' ? [] : [undefined, httpMessages[response.status]]);
                 checkAborted(controller.signal);
                 throw new AiAgentError(
                     code || 'http_error',

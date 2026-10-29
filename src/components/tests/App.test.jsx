@@ -6,6 +6,7 @@ import {vi} from 'vitest';
 import logger from '../../utils/logger.js';
 import oidcConfiguration from '../../config/oidcConfiguration.js';
 import {decodeToken} from '../Login';
+import {resetAiAvailability} from '../../hooks/useAiAvailability.js';
 import {__setMockRecreateUserManager, __setMockIsInitialized} from '../../context/OidcAuthContext.tsx';
 
 // --- Mocks ---
@@ -1034,6 +1035,31 @@ describe('App Component', () => {
         renderApp(['/ai']);
         expect(await screen.findByTestId('auth-choice')).toBeInTheDocument();
         expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
+    });
+
+    test('the AI page through the relay opens once the relay said the cluster has an agent', async () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', '/api/ai');
+        resetAiAvailability();
+        setupOidcAuth();
+        mockAuthState.accessToken = 'token';
+        let answer;
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((url) =>
+            String(url).startsWith('/api/ai/capabilities')
+                ? new Promise((resolve) => { answer = resolve; })
+                : Promise.reject(new Error('not this test'))
+        );
+        try {
+            renderApp(['/ai']);
+            await waitFor(() => expect(answer).toBeDefined());
+            // Nothing shows while the relay is asked: no chat for nothing.
+            expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
+            await act(async () => answer(new Response('{}', {status: 200, headers: {'Content-Type': 'application/json'}})));
+            expect(await screen.findByTestId('ai-chat')).toBeInTheDocument();
+        } finally {
+            fetchSpy.mockRestore();
+            mockAuthState.accessToken = null;
+            resetAiAvailability();
+        }
     });
 
     test('unconfigured AI route redirects to the home view', async () => {

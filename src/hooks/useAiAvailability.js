@@ -8,6 +8,8 @@ import {AI_RELAY_PATH, getAiAgentConfig} from '../config/ai-agent.js';
 const UNAVAILABLE = {ai_not_configured: 'not_configured', ai_openid_required: 'openid_required'};
 
 // The answer of the relay, asked once per sign-in: a renewed token keeps it.
+// A sign-out drops it through a mounted consumer, the top bar, which App
+// renders on every page.
 let probe = null;
 
 const askRelay = async (accessToken) => {

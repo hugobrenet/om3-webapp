@@ -36,7 +36,18 @@ describe('AI agent client through the relay of the cluster', () => {
             baseUrl: '/api/ai',
             getCredentials: () => ({accessToken: 'current-token', clusterId: 'cluster-id'}),
         });
-        await expect(client.listConversations()).rejects.toMatchObject({status: 502, message: expect.stringContaining('refused a session the cluster accepts')});
+        await expect(client.listConversations()).rejects.toMatchObject({code: 'ai_token_rejected', status: 502, message: expect.stringContaining('om3-mcp catalogue')});
+    });
+    it('needs no cluster ID through the relay, the daemon naming the cluster', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            new Response(JSON.stringify({conversations: []}), {status: 200, headers: {'Content-Type': 'application/json'}})
+        );
+        vi.stubGlobal('fetch', fetchMock);
+        const client = createAiAgentClient({baseUrl: '/api/ai', getCredentials: () => ({accessToken: 'current-token'})});
+        await client.listConversations();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const direct = createAiAgentClient({baseUrl: 'https://agent.example.com', getCredentials: () => ({accessToken: 'current-token'})});
+        await expect(direct.listConversations()).rejects.toMatchObject({code: 'not_ready'});
     });
 });
 

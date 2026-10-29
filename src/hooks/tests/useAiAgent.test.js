@@ -19,6 +19,12 @@ describe('useAiAgent', () => {
         vi.unstubAllEnvs();
         vi.unstubAllGlobals();
     });
+    it('is ready through the relay with a token alone, the daemon naming the cluster', () => {
+        vi.stubEnv('VITE_AI_AGENT_URL', '/api/ai');
+        expect(renderHook(() => useAiAgent({clusterId: undefined})).result.current.ready).toBe(true);
+        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
+        expect(renderHook(() => useAiAgent({clusterId: undefined})).result.current.ready).toBe(false);
+    });
     it('disables the client when not configured', () => {
         vi.stubEnv('VITE_AI_AGENT_URL', '');
         const {result} = renderHook(() => useAiAgent(target));

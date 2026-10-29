@@ -370,11 +370,16 @@ const ProtectedRoute = ({children}) => {
 // The token page stands alone too: it is opened on a node to enroll, maybe with no session.
 const AUTH_PATHS = ['/auth', '/login', '/silent-renew', '/token'];
 
-// The assistant page, inside the AuthProvider App renders: it stays open while
-// the relay of the cluster is asked, and redirects once the relay says the
-// cluster has no agent for this session.
-const AiRoute = ({status}) =>
-    useAiAvailability().available === false ? <Navigate to="/" replace/> : <AiChat status={status}/>;
+// The assistant page, inside the AuthProvider App renders: it opens once the
+// relay of the cluster said it has an agent for this session, and redirects
+// otherwise.
+// While the relay is asked, nothing shows: no chat opening on a cluster
+// without agent, no request for nothing.
+const AiRoute = ({status}) => {
+    const {available} = useAiAvailability();
+    if (available === null) return null;
+    return available ? <AiChat status={status}/> : <Navigate to="/" replace/>;
+};
 
 const App = () => {
     logger.info("App init");
