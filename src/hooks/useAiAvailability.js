@@ -29,7 +29,9 @@ const askRelay = async (accessToken) => {
         } catch {
             // Not an answer of the relay: the assistant tells the error itself.
         }
-        const reason = UNAVAILABLE[code];
+        // A 404 without the code of an error is no answer of the relay: a
+        // daemon without it, such as one not yet upgraded, has no agent.
+        const reason = UNAVAILABLE[code] || (response.status === 404 && !code ? 'not_configured' : '');
         return reason ? {available: false, reason} : {available: true, reason: null};
     } catch {
         // A network error is no proof the cluster has no agent: the

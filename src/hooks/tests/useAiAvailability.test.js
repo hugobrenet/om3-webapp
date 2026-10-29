@@ -34,6 +34,8 @@ describe('useAiAvailability', () => {
         ['no agent configured', answer(404, {error: {code: 'ai_not_configured', message: 'x'}}), {available: false, reason: 'not_configured'}],
         ['a session not OpenID', answer(403, {error: {code: 'ai_openid_required', message: 'x'}}), {available: false, reason: 'openid_required'}],
         ['an agent unavailable', answer(502, {error: {code: 'ai_agent_unavailable', message: 'x'}}), {available: true, reason: null}],
+        ['no relay, a daemon not upgraded', answer(404, {message: 'Not Found'}), {available: false, reason: 'not_configured'}],
+        ['an agent of another version', answer(404, {error: {code: 'not_found', message: 'x'}}), {available: true, reason: null}],
     ])('asks the relay of the cluster, which answers %s', async (_name, response, expected) => {
         vi.stubEnv('VITE_AI_AGENT_URL', '/api/ai');
         fetchMock.mockResolvedValue(response);
