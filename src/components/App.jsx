@@ -20,6 +20,7 @@ import {
 } from "../context/AuthProvider";
 import oidcConfiguration from "../config/oidcConfiguration.js";
 import useAuthInfo from "../hooks/AuthInfo.jsx";
+import {getAiAgentConfig} from "../config/ai-agent.js";
 import useAiAvailability from "../hooks/useAiAvailability.js";
 import logger from "../utils/logger.js";
 import {prepareForNavigation} from "../eventSourceManager";
@@ -369,15 +370,19 @@ const ProtectedRoute = ({children}) => {
 // The token page stands alone too: it is opened on a node to enroll, maybe with no session.
 const AUTH_PATHS = ['/auth', '/login', '/silent-renew', '/token'];
 
+// The assistant page, inside the AuthProvider App renders: it stays open while
+// the relay of the cluster is asked, and redirects once the relay says the
+// cluster has no agent for this session.
+const AiRoute = ({status}) =>
+    useAiAvailability().available === false ? <Navigate to="/" replace/> : <AiChat status={status}/>;
+
 const App = () => {
     logger.info("App init");
     const location = useLocation();
     const mainRef = useRef(null);
 
     const authInfo = useAuthInfo();
-    // The assistant page stays open while the relay is asked, and redirects
-    // once it says the cluster has no agent for this session.
-    const aiEnabled = useAiAvailability().available !== false;
+    const aiEnabled = getAiAgentConfig().enabled;
     const [sidebarOpen, toggleSidebar, {compact: compactMenu, fold: foldSidebar}] = useSidebarOpen();
     // The sign-in screens have no view to navigate to: no menu there.
     const showSidebar = !AUTH_PATHS.some((path) => location.pathname.startsWith(path));
@@ -472,7 +477,7 @@ const App = () => {
                                         {/* The legal information read by all, signed in or not. */}
                                         <Route path="/about" element={<About/>}/>
                                         <Route path="/token" element={<TokenPage/>}/>
-                                        <Route path="/ai" element={<ProtectedRoute>{aiEnabled ? <AiChat status={sidebarState}/> : <Navigate to="/" replace/>}</ProtectedRoute>}/>
+                                        <Route path="/ai" element={<ProtectedRoute>{aiEnabled ? <AiRoute status={sidebarState}/> : <Navigate to="/" replace/>}</ProtectedRoute>}/>
                                         <Route path="/silent-renew" element={<SilentRenew/>}/>
                                         <Route path="/auth-callback" element={<OidcCallback/>}/>
                                         <Route path="/auth-choice" element={<AuthChoice authInfo={authInfo}/>}/>
