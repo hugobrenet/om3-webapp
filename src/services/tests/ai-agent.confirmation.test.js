@@ -1,7 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {createAiAgentClient} from '../ai-agent.js';
 
-const baseUrl = 'https://agent.example.com:8090';
 const confirmation = {
     id: 'confirmation-1',
     turn_id: 'turn-1',
@@ -16,8 +15,7 @@ describe('AI agent pending confirmation', () => {
     let client, fetchMock;
     beforeEach(() => {
         client = createAiAgentClient({
-            baseUrl,
-            getCredentials: () => ({accessToken: 'token', clusterId: 'cluster-id'}),
+            getCredentials: () => ({accessToken: 'token'}),
         });
         fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);

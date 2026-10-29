@@ -10,10 +10,10 @@ import {parseConfirmation} from '../../services/ai-agent.js';
 const mocks = vi.hoisted(() => ({auth: null, client: null}));
 vi.mock('../../context/AuthProvider.jsx', () => ({useAuth: () => mocks.auth}));
 vi.mock('../../hooks/useFetchDaemonStatus.jsx', () => ({
-    default: () => ({clusterId: 'cluster-id', clusterName: 'Lab cluster', fetchNodes: vi.fn(), loading: false, error: ''}),
+    default: () => ({clusterName: 'Lab cluster', fetchNodes: vi.fn()}),
 }));
 vi.mock('../../hooks/useAiAgent.js', () => ({
-    default: () => ({client: mocks.client, enabled: true, ready: true, configurationError: null}),
+    default: () => ({client: mocks.client, ready: true}),
 }));
 
 const existing = {id: 'existing', title: 'Previous diagnostic'};

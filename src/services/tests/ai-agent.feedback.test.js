@@ -1,8 +1,8 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {AiAgentError, createAiAgentClient, parseFeedback} from '../ai-agent.js';
 
-const baseUrl = 'https://agent.example.com:8090';
-const path = `${baseUrl}/v1/om3/conversations/conversation-1/turns/turn-1/feedback`;
+const base = '/api/ai';
+const path = `${base}/conversations/conversation-1/turns/turn-1/feedback`;
 const answer = {
     id: 'turn-1:4',
     turn_id: 'turn-1',
@@ -39,7 +39,7 @@ describe('parseFeedback', () => {
 describe('AI agent feedback client', () => {
     let client, fetchMock;
     beforeEach(() => {
-        client = createAiAgentClient({baseUrl, getCredentials: () => ({accessToken: 'token', clusterId: 'cluster-id'})});
+        client = createAiAgentClient({getCredentials: () => ({accessToken: 'token'})});
         fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
     });
@@ -57,7 +57,7 @@ describe('AI agent feedback client', () => {
         expect(options).toMatchObject({
             method: 'PUT',
             credentials: 'omit',
-            headers: {'Content-Type': 'application/json', Authorization: 'Bearer token', 'X-OpenSVC-Cluster-ID': 'cluster-id'},
+            headers: {'Content-Type': 'application/json', Authorization: 'Bearer token'},
         });
         expect(JSON.parse(options.body)).toEqual(stored);
     });

@@ -20,7 +20,6 @@ import {
 } from "../context/AuthProvider";
 import oidcConfiguration from "../config/oidcConfiguration.js";
 import useAuthInfo from "../hooks/AuthInfo.jsx";
-import {getAiAgentConfig} from "../config/ai-agent.js";
 import useAiAvailability from "../hooks/useAiAvailability.js";
 import logger from "../utils/logger.js";
 import {prepareForNavigation} from "../eventSourceManager";
@@ -387,7 +386,6 @@ const App = () => {
     const mainRef = useRef(null);
 
     const authInfo = useAuthInfo();
-    const aiEnabled = getAiAgentConfig().enabled;
     const [sidebarOpen, toggleSidebar, {compact: compactMenu, fold: foldSidebar}] = useSidebarOpen();
     // The sign-in screens have no view to navigate to: no menu there.
     const showSidebar = !AUTH_PATHS.some((path) => location.pathname.startsWith(path));
@@ -482,7 +480,7 @@ const App = () => {
                                         {/* The legal information read by all, signed in or not. */}
                                         <Route path="/about" element={<About/>}/>
                                         <Route path="/token" element={<TokenPage/>}/>
-                                        <Route path="/ai" element={<ProtectedRoute>{aiEnabled ? <AiRoute status={sidebarState}/> : <Navigate to="/" replace/>}</ProtectedRoute>}/>
+                                        <Route path="/ai" element={<ProtectedRoute><AiRoute status={sidebarState}/></ProtectedRoute>}/>
                                         <Route path="/silent-renew" element={<SilentRenew/>}/>
                                         <Route path="/auth-callback" element={<OidcCallback/>}/>
                                         <Route path="/auth-choice" element={<AuthChoice authInfo={authInfo}/>}/>

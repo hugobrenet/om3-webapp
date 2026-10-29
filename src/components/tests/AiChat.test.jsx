@@ -10,27 +10,14 @@ import {replayRun} from '../../services/tests/agui-fixtures.js';
 const mocks = vi.hoisted(() => ({
     auth: null,
     client: null,
-    enabled: true,
-    clusterId: 'cluster-id',
     fetchNodes: vi.fn(),
 }));
 vi.mock('../../context/AuthProvider.jsx', () => ({useAuth: () => mocks.auth}));
 vi.mock('../../hooks/useFetchDaemonStatus.jsx', () => ({
-    default: () => ({
-        clusterId: mocks.clusterId,
-        clusterName: 'Lab cluster',
-        fetchNodes: mocks.fetchNodes,
-        loading: false,
-        error: '',
-    }),
+    default: () => ({clusterName: 'Lab cluster', fetchNodes: mocks.fetchNodes}),
 }));
 vi.mock('../../hooks/useAiAgent.js', () => ({
-    default: () => ({
-        client: mocks.client,
-        enabled: mocks.enabled,
-        ready: mocks.enabled && Boolean(mocks.auth.accessToken && mocks.clusterId),
-        configurationError: null,
-    }),
+    default: () => ({client: mocks.client, ready: Boolean(mocks.auth.accessToken)}),
 }));
 // The events of a run as the client gives them.
 const text = (delta, messageId = 'turn-9:2') => [
@@ -63,8 +50,6 @@ describe('AI chatbot page', () => {
     beforeEach(() => {
         localStorage.removeItem('om3.ai.conversations');
         mocks.auth = {authChoice: 'openid', accessToken: 'token', user: 'hugo'};
-        mocks.enabled = true;
-        mocks.clusterId = 'cluster-id';
         mocks.client = {
             listConversations: vi.fn().mockResolvedValue([existing]),
             createConversation: vi.fn().mockResolvedValue(created),
@@ -427,12 +412,10 @@ describe('AI chatbot page', () => {
             await screen.findByText(/Incomplete response — stopped/);
         }
     );
-    test.each(['disabled', 'missing-token', 'missing-target'])(
-        'does not contact the agent when %s',
-        async (reason) => {
-            if (reason === 'disabled') mocks.enabled = false;
-            if (reason === 'missing-token') mocks.auth.accessToken = null;
-            if (reason === 'missing-target') mocks.clusterId = '';
+    test(
+        'does not contact the agent without a session',
+        async () => {
+            mocks.auth.accessToken = null;
             render(<AiChat />);
             // Information strips are announced politely, as a status.
             expect(screen.getByRole('status')).toBeInTheDocument();

@@ -18,15 +18,6 @@ describe('useAiAvailability', () => {
     });
     afterEach(() => {
         vi.unstubAllGlobals();
-        vi.unstubAllEnvs();
-    });
-
-    it('follows the build configuration with the agent on its own origin, asking nothing', () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
-        expect(renderHook(() => useAiAvailability()).result.current).toEqual({available: true, reason: null});
-        vi.stubEnv('VITE_AI_AGENT_URL', '');
-        expect(renderHook(() => useAiAvailability()).result.current).toEqual({available: false, reason: null});
-        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it.each([
@@ -37,7 +28,6 @@ describe('useAiAvailability', () => {
         ['no relay, a daemon not upgraded', answer(404, {message: 'Not Found'}), {available: false, reason: 'not_configured'}],
         ['an agent of another version', answer(404, {error: {code: 'not_found', message: 'x'}}), {available: true, reason: null}],
     ])('asks the relay of the cluster, which answers %s', async (_name, response, expected) => {
-        vi.stubEnv('VITE_AI_AGENT_URL', '/api/ai');
         fetchMock.mockResolvedValue(response);
         const {result} = renderHook(() => useAiAvailability());
         expect(result.current.available).toBe(null);
@@ -48,14 +38,12 @@ describe('useAiAvailability', () => {
     });
 
     it('keeps the entry on a network error, which the assistant tells', async () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', '/api/ai');
         fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
         const {result} = renderHook(() => useAiAvailability());
         await waitFor(() => expect(result.current.available).toBe(true));
     });
 
     it('asks once per sign-in: a renewed token keeps the answer, a sign-out drops it', async () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', '/api/ai');
         fetchMock.mockResolvedValue(answer(404, {error: {code: 'ai_not_configured', message: 'x'}}));
         const {result, rerender} = renderHook(() => useAiAvailability());
         await waitFor(() => expect(result.current.available).toBe(false));

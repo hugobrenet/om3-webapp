@@ -58,8 +58,7 @@ export const replayEvents = (events) => replayResponse(() => streamResponse([eve
 
 const replayResponse = (response) => async (_id, input, options) => {
     const client = createAiAgentClient({
-        baseUrl: 'https://agent.example.com',
-        getCredentials: () => ({accessToken: 'token', clusterId: 'cluster-id'}),
+        getCredentials: () => ({accessToken: 'token'}),
         newId: () => GOLDEN_RUN,
     });
     const fetch = globalThis.fetch;

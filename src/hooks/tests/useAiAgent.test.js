@@ -4,66 +4,41 @@ import useAiAgent from '../useAiAgent.js';
 
 const state = vi.hoisted(() => ({auth: null}));
 vi.mock('../../context/AuthProvider.jsx', () => ({useAuth: () => state.auth}));
-const target = {clusterId: 'cluster-id'};
 
 describe('useAiAgent', () => {
     beforeEach(() => {
         state.auth = {authChoice: 'openid', accessToken: 'token', user: 'hugo'};
-        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
         vi.stubGlobal(
             'fetch',
             vi.fn(() => Promise.resolve(Response.json({conversations: []})))
         );
     });
     afterEach(() => {
-        vi.unstubAllEnvs();
         vi.unstubAllGlobals();
     });
-    it('is ready through the relay with a token alone, the daemon naming the cluster', () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', '/api/ai');
-        expect(renderHook(() => useAiAgent({clusterId: undefined})).result.current.ready).toBe(true);
-        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
-        expect(renderHook(() => useAiAgent({clusterId: undefined})).result.current.ready).toBe(false);
-    });
-    it('disables the client when not configured', () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', '');
-        const {result} = renderHook(() => useAiAgent(target));
-        expect(result.current).toMatchObject({enabled: false, ready: false, client: null});
-        expect(fetch).not.toHaveBeenCalled();
-    });
-    it('isolates invalid optional configuration from the rest of the webapp', () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', 'http://agent.example.com');
-        const {result} = renderHook(() => useAiAgent(target));
-        expect(result.current.enabled).toBe(false);
-        expect(result.current.configurationError).toContain('HTTPS');
-    });
-    it.each([{clusterId: ''}, {}])('waits for a fresh cluster ID', async (value) => {
-        const {result} = renderHook(() => useAiAgent(value));
-        expect(result.current.ready).toBe(false);
-        await expect(result.current.client.listConversations()).rejects.toMatchObject({
-            code: 'not_ready',
-        });
-        expect(fetch).not.toHaveBeenCalled();
+    it('is ready with a token alone, through the relay, the daemon naming the cluster', async () => {
+        const {result} = renderHook(() => useAiAgent());
+        expect(result.current.ready).toBe(true);
+        await result.current.client.listConversations();
+        expect(fetch.mock.calls[0][0]).toBe('/api/ai/conversations');
+        expect(fetch.mock.calls[0][1].headers).not.toHaveProperty('X-OpenSVC-Cluster-ID');
     });
     it.each(['basic', null, ''])(
         'uses the daemon JWT for a Basic session with authChoice %s',
         async (authChoice) => {
             state.auth.authChoice = authChoice;
-            const {result} = renderHook(() => useAiAgent(target));
+            const {result} = renderHook(() => useAiAgent());
             expect(result.current.ready).toBe(true);
             await result.current.client.listConversations();
             expect(fetch.mock.calls[0][1]).toMatchObject({
                 credentials: 'omit',
-                headers: {
-                    Authorization: 'Bearer token',
-                    'X-OpenSVC-Cluster-ID': 'cluster-id',
-                },
+                headers: {Authorization: 'Bearer token'},
             });
         }
     );
     it.each(['openid', 'basic', null])('rejects a missing token for %s', async (authChoice) => {
         state.auth = {...state.auth, authChoice, accessToken: null};
-        const {result} = renderHook(() => useAiAgent(target));
+        const {result} = renderHook(() => useAiAgent());
         expect(result.current.ready).toBe(false);
         await expect(result.current.client.listConversations()).rejects.toMatchObject({
             code: 'not_ready',
@@ -80,7 +55,7 @@ describe('useAiAgent', () => {
         };
         const token = `${btoa(JSON.stringify({alg: 'RS256', typ: 'JWT'}))}.${btoa(JSON.stringify(payload))}.signature`;
         state.auth = {authChoice: null, accessToken: token, user: null};
-        const {result} = renderHook(() => useAiAgent(target));
+        const {result} = renderHook(() => useAiAgent());
         await result.current.client.listConversations();
         expect(fetch.mock.calls[0][1].headers.Authorization).toBe(`Bearer ${token}`);
         expect(fetch.mock.calls[0][1].body).toBeUndefined();
@@ -89,7 +64,7 @@ describe('useAiAgent', () => {
         'keeps the client stable with a renewed %s token',
         async (authChoice) => {
             state.auth.authChoice = authChoice;
-            const {result, rerender} = renderHook(() => useAiAgent(target));
+            const {result, rerender} = renderHook(() => useAiAgent());
             const client = result.current.client;
             const cancel = vi.spyOn(client, 'cancelAll');
             await client.listConversations();
@@ -101,22 +76,19 @@ describe('useAiAgent', () => {
             expect(fetch.mock.calls[1][1].headers.Authorization).toBe('Bearer renewed-token');
         }
     );
-    it.each(['logout', 'user', 'cluster', 'unmount'])(
+    it.each(['logout', 'user', 'unmount'])(
         'cancels outstanding requests on %s',
         (change) => {
-            const {result, rerender, unmount} = renderHook((props) => useAiAgent(props), {
-                initialProps: target,
-            });
+            const {result, rerender, unmount} = renderHook(() => useAiAgent());
             const cancel = vi.spyOn(result.current.client, 'cancelAll');
             if (change === 'logout') {
                 state.auth = {...state.auth, accessToken: null};
-                rerender(target);
+                rerender();
             }
             if (change === 'user') {
                 state.auth = {...state.auth, user: 'someone-else'};
-                rerender(target);
+                rerender();
             }
-            if (change === 'cluster') rerender({...target, clusterId: 'another-cluster'});
             if (change === 'unmount') unmount();
             expect(cancel).toHaveBeenCalledTimes(1);
         }

@@ -11,15 +11,14 @@ import {
     streamResponse,
 } from './agui-fixtures.js';
 
-const baseUrl = 'https://agent.example.com:8090';
+const base = '/api/ai';
 const prompt = (text, promptId) => ({prompt: text, promptId});
 
 describe('AI agent AG-UI runs', () => {
     let client, fetchMock;
     beforeEach(() => {
         client = createAiAgentClient({
-            baseUrl,
-            getCredentials: () => ({accessToken: 'token', clusterId: 'cluster-id'}),
+            getCredentials: () => ({accessToken: 'token'}),
             newId: () => 'run-1',
         });
         fetchMock = vi.fn();
@@ -39,7 +38,7 @@ describe('AI agent AG-UI runs', () => {
             const result = await client.run(GOLDEN_THREAD, prompt('How many nodes?', 'u-1'), {onEvent});
             expect(result).toEqual({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-1', tokens: 370, startedAt: 1760000000000, endedAt: 1760000000000});
             const [url, request] = fetchMock.mock.calls[0];
-            expect(url).toBe(`${baseUrl}/v1/om3/conversations/conversation-id/runs`);
+            expect(url).toBe(`${base}/conversations/conversation-id/runs`);
             expect(request).toMatchObject({
                 method: 'POST',
                 credentials: 'omit',
@@ -48,7 +47,6 @@ describe('AI agent AG-UI runs', () => {
                     Accept: 'text/event-stream',
                     'Content-Type': 'application/json',
                     Authorization: 'Bearer token',
-                    'X-OpenSVC-Cluster-ID': 'cluster-id',
                 },
             });
             expect(sent()).toMatchObject(goldenStream('text_and_tools').request);

@@ -3592,11 +3592,7 @@
   "ai": {
     "title": "Assistant IA",
     "cluster": "Cluster",
-    "notConfigured": "L'agent IA n'est pas configuré pour cette webapp.",
     "authRequired": "Une session authentifiée est nécessaire pour utiliser l'assistant IA.",
-    "refreshStatus": "Actualiser l'état",
-    "loadingCluster": "Chargement des informations du cluster…",
-    "waitingCluster": "En attente de l'identifiant du cluster.",
     "conversations": {
       "title": "Conversations",
       "new": "Nouvelle conversation",

@@ -1,8 +1,9 @@
 import React from 'react';
-import {render, screen, fireEvent, waitFor, within} from '@testing-library/react';
+import {act, render, screen, fireEvent, waitFor, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import NavBar from '../NavBar';
+import {resetAiAvailability} from '../../hooks/useAiAvailability.js';
 
 // ── Hoisted variables ───────────────────────────────────────────────────
 const {
@@ -133,7 +134,6 @@ describe('NavBar', () => {
 
     afterEach(() => {
         vi.useRealTimers?.();
-        vi.unstubAllEnvs();
     });
 
     test('the cluster tag left out of the bar short of room, below 1200px as the menu folds; the product name in the About page, not the bar', () => {
@@ -361,27 +361,27 @@ describe('NavBar', () => {
         expect(document.querySelector('[aria-keyshortcuts="?"]')).toBeNull();
     });
 
-    test('configured AI assistant is reached from the top bar', () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
-        renderNavBar();
-        expect(screen.getByRole('link', {name: 'Open the AI assistant'})).toHaveAttribute('href', '/ai');
-    });
-
-    test('AI assistant is hidden from the top bar on a cluster whose relay has no agent', async () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', '/api/ai');
+    test.each([
+        ['offers', 200, {backend: 'om3'}, true],
+        ['hides on a cluster whose relay has no agent', 404, {error: {code: 'ai_not_configured', message: 'x'}}, false],
+    ])('the top bar %s the AI assistant as the relay answers', async (_name, status, body, shown) => {
+        resetAiAvailability();
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-            new Response(JSON.stringify({error: {code: 'ai_not_configured', message: 'x'}}), {status: 404, headers: {'Content-Type': 'application/json'}})
+            new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}})
         );
         mockUseAuth.mockReturnValue({authChoice: 'openid', accessToken: 'token-1'});
-        renderNavBar({skipAuthMock: true});
-        await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/ai/capabilities', expect.anything()));
-        expect(screen.queryByRole('link', {name: 'Open the AI assistant'})).not.toBeInTheDocument();
-        fetchSpy.mockRestore();
-    });
-
-    test('AI assistant is hidden from the top bar when not configured', () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', '');
-        renderNavBar();
-        expect(screen.queryByRole('link', {name: 'Open the AI assistant'})).not.toBeInTheDocument();
+        try {
+            renderNavBar({skipAuthMock: true});
+            await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/ai/capabilities', expect.anything()));
+            if (shown) {
+                expect(await screen.findByRole('link', {name: 'Open the AI assistant'})).toHaveAttribute('href', '/ai');
+            } else {
+                await act(async () => {});
+                expect(screen.queryByRole('link', {name: 'Open the AI assistant'})).not.toBeInTheDocument();
+            }
+        } finally {
+            fetchSpy.mockRestore();
+            resetAiAvailability();
+        }
     });
 });

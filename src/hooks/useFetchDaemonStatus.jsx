@@ -11,9 +11,6 @@ const useFetchDaemonStatus = () => {
     const cacheRef = useRef([]);
     const [clusterStats, setClusterStats] = useState({});
     const [clusterName, setClusterName] = useState("");
-    // Routing must never be enabled by a daemon status cached in localStorage.
-    const [clusterId, setClusterId] = useState("");
-    const requestRef = useRef(0);
 
     // Load cached data on mount
     useEffect(() => {
@@ -43,10 +40,7 @@ const useFetchDaemonStatus = () => {
 
     // Memoize refreshDaemonStatus with useCallback
     const refreshDaemonStatus = useCallback(async (token) => {
-        const requestId = ++requestRef.current;
         if (!token) {
-            setClusterId("");
-            setLoading(false);
             setError("Token is required to fetch daemon status");
             return;
         }
@@ -57,7 +51,6 @@ const useFetchDaemonStatus = () => {
 
         try {
             const result = await fetchDaemonStatus(token);
-            if (requestId !== requestRef.current) return;
             pruneDroppedNodes(result);
             const nodesArray = Object.keys(result.cluster.node).map((key) => ({
                 nodename: key,
@@ -69,7 +62,6 @@ const useFetchDaemonStatus = () => {
                 nodeCount: nodesArray.length,
             });
             setClusterName(result.cluster.config.name || "Cluster");
-            setClusterId(typeof result.cluster.config.id === "string" ? result.cluster.config.id : "");
             cacheRef.current = nodesArray;
             // Cache in localStorage
             try {
@@ -81,8 +73,6 @@ const useFetchDaemonStatus = () => {
                 logger.warn("Failed to cache data:", err);
             }
         } catch (err) {
-            if (requestId !== requestRef.current) return;
-            setClusterId("");
             logger.error("Error while fetching daemon statuses:", err);
             setError("Failed to retrieve daemon statuses.");
             // Clear cached data on error
@@ -102,7 +92,7 @@ const useFetchDaemonStatus = () => {
                 logger.warn("Failed to clear cache on error:", storageErr);
             }
         } finally {
-            if (requestId === requestRef.current) setLoading(false);
+            setLoading(false);
         }
     }, []);
 
@@ -111,7 +101,6 @@ const useFetchDaemonStatus = () => {
         nodes,
         clusterStats,
         clusterName,
-        clusterId,
         error,
         loading,
         fetchNodes: refreshDaemonStatus,

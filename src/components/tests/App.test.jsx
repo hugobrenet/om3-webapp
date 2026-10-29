@@ -193,7 +193,6 @@ describe('App Component', () => {
 
     afterEach(() => {
         vi.useRealTimers();
-        vi.unstubAllEnvs();
     });
 
     // --- Routing ---
@@ -1007,38 +1006,34 @@ describe('App Component', () => {
         }
     });
 
-    // --- AI assistant ---
+    // --- AI assistant, through the relay of the cluster ---
+    // The relay answers /api/ai/capabilities with the response given; the
+    // other calls are not those of these tests.
+    const answerRelay = (response) => {
+        resetAiAvailability();
+        return vi.spyOn(globalThis, 'fetch').mockImplementation((url) =>
+            String(url).startsWith('/api/ai/capabilities')
+                ? Promise.resolve(response)
+                : Promise.reject(new Error('not this test'))
+        );
+    };
+    const relayAnswer = (status, body) =>
+        new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}});
+
     test('AI page is protected and requires an authenticated session', async () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
         renderApp(['/ai']);
         expect(await screen.findByTestId('auth-choice')).toBeInTheDocument();
         expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
     });
 
-    test('configured AI page is accessible with the existing OpenID session', async () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
-        setupOidcAuth();
-        renderApp(['/ai']);
-        expect(await screen.findByTestId('ai-chat')).toBeInTheDocument();
-    });
-
-    test('configured AI page is accessible with the existing Basic session', async () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
-        setupBasicAuth();
-        renderApp(['/ai']);
-        expect(await screen.findByTestId('ai-chat')).toBeInTheDocument();
-    });
-
-    test('configured AI route rejects an expired Basic session', async () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', 'https://agent.example.com');
+    test('AI route rejects an expired Basic session', async () => {
         setupBasicAuth(-3600);
         renderApp(['/ai']);
         expect(await screen.findByTestId('auth-choice')).toBeInTheDocument();
         expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
     });
 
-    test('the AI page through the relay opens once the relay said the cluster has an agent', async () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', '/api/ai');
+    test('the AI page opens once the relay said the cluster has an agent', async () => {
         resetAiAvailability();
         setupOidcAuth();
         mockAuthState.accessToken = 'token';
@@ -1053,7 +1048,7 @@ describe('App Component', () => {
             await waitFor(() => expect(answer).toBeDefined());
             // Nothing shows while the relay is asked: no chat for nothing.
             expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
-            await act(async () => answer(new Response('{}', {status: 200, headers: {'Content-Type': 'application/json'}})));
+            await act(async () => answer(relayAnswer(200, {})));
             expect(await screen.findByTestId('ai-chat')).toBeInTheDocument();
         } finally {
             fetchSpy.mockRestore();
@@ -1062,11 +1057,22 @@ describe('App Component', () => {
         }
     });
 
-    test('unconfigured AI route redirects to the home view', async () => {
-        vi.stubEnv('VITE_AI_AGENT_URL', '');
-        setupBasicAuth();
-        renderApp(['/ai']);
-        expect(await screen.findByTestId('cluster')).toBeInTheDocument();
-        expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
+    test.each([
+        ['a cluster without agent', 404, {error: {code: 'ai_not_configured', message: 'x'}}],
+        ['a session not OpenID', 403, {error: {code: 'ai_openid_required', message: 'x'}}],
+        ['a daemon without the relay', 404, {message: 'Not Found'}],
+    ])('the AI page redirects to the home view for %s', async (_name, status, body) => {
+        setupOidcAuth();
+        mockAuthState.accessToken = 'token';
+        const fetchSpy = answerRelay(relayAnswer(status, body));
+        try {
+            renderApp(['/ai']);
+            expect(await screen.findByTestId('cluster')).toBeInTheDocument();
+            expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
+        } finally {
+            fetchSpy.mockRestore();
+            mockAuthState.accessToken = null;
+            resetAiAvailability();
+        }
     });
 });

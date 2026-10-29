@@ -2,7 +2,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {ReadableStream} from 'node:stream/web';
 import {createAiAgentClient} from '../ai-agent.js';
 
-const baseUrl = 'https://agent.example.com:8090';
+const base = '/api/ai';
 const metadata = {id: 'conversation-1', title: 'Diagnostic', expires_at: '2030-01-01T00:00:00Z'};
 const savedMessage = {
     id: 'turn-1:1',
@@ -13,14 +13,13 @@ const savedMessage = {
 };
 describe('AI agent client through the relay of the cluster', () => {
     afterEach(() => vi.unstubAllGlobals());
-    it('calls /api/ai on the origin of the webapp, without the cluster header', async () => {
+    it('calls /api/ai on the origin of the webapp with the token alone, the daemon naming the cluster', async () => {
         const fetchMock = vi.fn().mockResolvedValue(
             new Response(JSON.stringify({conversations: []}), {status: 200, headers: {'Content-Type': 'application/json'}})
         );
         vi.stubGlobal('fetch', fetchMock);
         const client = createAiAgentClient({
-            baseUrl: '/api/ai',
-            getCredentials: () => ({accessToken: 'current-token', clusterId: 'cluster-id'}),
+            getCredentials: () => ({accessToken: 'current-token'}),
         });
         await client.listConversations();
         const [url, options] = fetchMock.mock.calls[0];
@@ -33,21 +32,9 @@ describe('AI agent client through the relay of the cluster', () => {
             new Response(JSON.stringify({error: {code: 'ai_token_rejected', message: 'x'}}), {status: 502, headers: {'Content-Type': 'application/json'}})
         ));
         const client = createAiAgentClient({
-            baseUrl: '/api/ai',
-            getCredentials: () => ({accessToken: 'current-token', clusterId: 'cluster-id'}),
+            getCredentials: () => ({accessToken: 'current-token'}),
         });
         await expect(client.listConversations()).rejects.toMatchObject({code: 'ai_token_rejected', status: 502, message: expect.stringContaining('om3-mcp catalogue')});
-    });
-    it('needs no cluster ID through the relay, the daemon naming the cluster', async () => {
-        const fetchMock = vi.fn().mockResolvedValue(
-            new Response(JSON.stringify({conversations: []}), {status: 200, headers: {'Content-Type': 'application/json'}})
-        );
-        vi.stubGlobal('fetch', fetchMock);
-        const client = createAiAgentClient({baseUrl: '/api/ai', getCredentials: () => ({accessToken: 'current-token'})});
-        await client.listConversations();
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-        const direct = createAiAgentClient({baseUrl: 'https://agent.example.com', getCredentials: () => ({accessToken: 'current-token'})});
-        await expect(direct.listConversations()).rejects.toMatchObject({code: 'not_ready'});
     });
 });
 
@@ -61,8 +48,7 @@ describe('AI agent client refusing a creation', () => {
             new Response(JSON.stringify({error: {code, message: 'x'}}), {status: 409, headers: {'Content-Type': 'application/json'}})
         ));
         const client = createAiAgentClient({
-            baseUrl: 'https://agent.example.com:8090',
-            getCredentials: () => ({accessToken: 'token', clusterId: 'cluster-id'}),
+            getCredentials: () => ({accessToken: 'token'}),
         });
         await expect(client.createConversation()).rejects.toMatchObject({code, status: 409, message: expect.stringContaining(text)});
     });
@@ -71,8 +57,8 @@ describe('AI agent client refusing a creation', () => {
 describe('AI agent conversations client', () => {
     let credentials, client, fetchMock;
     beforeEach(() => {
-        credentials = {accessToken: 'current-token', clusterId: 'cluster-id'};
-        client = createAiAgentClient({baseUrl, getCredentials: () => credentials});
+        credentials = {accessToken: 'current-token'};
+        client = createAiAgentClient({getCredentials: () => credentials});
         fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
     });
@@ -81,7 +67,7 @@ describe('AI agent conversations client', () => {
         vi.unstubAllGlobals();
     });
 
-    it('creates, lists and resumes with the three headers and no cookies', async () => {
+    it('creates, lists and resumes with the token and no cookies', async () => {
         fetchMock
             .mockResolvedValueOnce(Response.json({conversation: metadata}, {status: 201}))
             .mockResolvedValueOnce(Response.json({conversations: [metadata]}))
@@ -90,9 +76,9 @@ describe('AI agent conversations client', () => {
         expect(await client.listConversations()).toEqual([metadata]);
         expect(await client.getConversation(metadata.id)).toEqual(metadata);
         expect(fetchMock.mock.calls.map(([url, request]) => [url, request.method])).toEqual([
-            [`${baseUrl}/v1/om3/conversations`, 'POST'],
-            [`${baseUrl}/v1/om3/conversations`, 'GET'],
-            [`${baseUrl}/v1/om3/conversations/conversation-1`, 'GET'],
+            [`${base}/conversations`, 'POST'],
+            [`${base}/conversations`, 'GET'],
+            [`${base}/conversations/conversation-1`, 'GET'],
         ]);
         for (const [, options] of fetchMock.mock.calls) {
             expect(options).toMatchObject({
@@ -101,7 +87,6 @@ describe('AI agent conversations client', () => {
                 cache: 'no-store',
                 headers: {
                     Authorization: 'Bearer current-token',
-                    'X-OpenSVC-Cluster-ID': 'cluster-id',
                 },
             });
         }
@@ -123,8 +108,8 @@ describe('AI agent conversations client', () => {
         credentials.accessToken = 'renewed-token';
         await client.getMessages(metadata.id, {limit: 10, before: '1:1'});
         expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-            `${baseUrl}/v1/om3/conversations/conversation-1/messages?limit=50`,
-            `${baseUrl}/v1/om3/conversations/conversation-1/messages?limit=10&before=1%3A1`,
+            `${base}/conversations/conversation-1/messages?limit=50`,
+            `${base}/conversations/conversation-1/messages?limit=10&before=1%3A1`,
         ]);
         expect(fetchMock.mock.calls[1][1]).toMatchObject({
             method: 'GET',
@@ -134,7 +119,6 @@ describe('AI agent conversations client', () => {
             headers: {
                 Accept: 'application/json',
                 Authorization: 'Bearer renewed-token',
-                'X-OpenSVC-Cluster-ID': 'cluster-id',
             },
         });
         expect(fetchMock.mock.calls[1][1].body).toBeUndefined();
@@ -267,8 +251,8 @@ describe('AI agent conversations client', () => {
                 {name: 'get_node_status', title: 'get_node_status', summary: 'Stop the instance.', readOnly: true, needsConfirmation: false},
             ]);
             const [url, options] = fetchMock.mock.calls[0];
-            expect(url).toBe(`${baseUrl}/v1/om3/tools`);
-            expect(options).toMatchObject({method: 'GET', credentials: 'omit', headers: {Authorization: 'Bearer current-token', 'X-OpenSVC-Cluster-ID': 'cluster-id'}});
+            expect(url).toBe(`${base}/tools`);
+            expect(options).toMatchObject({method: 'GET', credentials: 'omit', headers: {Authorization: 'Bearer current-token'}});
         });
 
         it('tells an MCP that did not answer by its code', async () => {
@@ -366,7 +350,7 @@ describe('AI agent conversations client', () => {
             renamed
         );
         expect(fetchMock).toHaveBeenCalledWith(
-            `${baseUrl}/v1/om3/conversations/conversation-1`,
+            `${base}/conversations/conversation-1`,
             expect.objectContaining({
                 method: 'PATCH',
                 body: JSON.stringify({title: 'Cluster health'}),
@@ -377,7 +361,6 @@ describe('AI agent conversations client', () => {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
                     Authorization: 'Bearer current-token',
-                    'X-OpenSVC-Cluster-ID': 'cluster-id',
                 },
             })
         );
@@ -402,7 +385,7 @@ describe('AI agent conversations client', () => {
         await expect(client.deleteConversation(metadata.id)).resolves.toBeUndefined();
         expect(json).not.toHaveBeenCalled();
         expect(fetchMock).toHaveBeenCalledWith(
-            `${baseUrl}/v1/om3/conversations/conversation-1`,
+            `${base}/conversations/conversation-1`,
             expect.objectContaining({
                 method: 'DELETE',
                 credentials: 'omit',
@@ -411,7 +394,6 @@ describe('AI agent conversations client', () => {
                 headers: {
                     Accept: 'application/json',
                     Authorization: 'Bearer current-token',
-                    'X-OpenSVC-Cluster-ID': 'cluster-id',
                 },
             })
         );
@@ -491,13 +473,10 @@ describe('AI agent conversations client', () => {
     it.each([
         null,
         {},
-        {accessToken: 'token'},
-        {accessToken: 'token', clusterId: ''},
-        {accessToken: 'token', clusterId: 'cluster-id\r\nInjected: yes'},
-        {accessToken: 'token', clusterId: 'cluster-a,cluster-b'},
-        {accessToken: 'token', clusterId: ' cluster-id'},
-        {accessToken: 'token', clusterId: 'é'.repeat(129)},
-    ])('does not send HTTP without a valid authentication and cluster ID', async (value) => {
+        {accessToken: ''},
+        {accessToken: 'token\r\nInjected: yes'},
+        {accessToken: 'x'.repeat(16385)},
+    ])('does not send HTTP without a valid authentication', async (value) => {
         credentials = value;
         await expect(client.listConversations()).rejects.toMatchObject({code: 'not_ready'});
         expect(fetchMock).not.toHaveBeenCalled();

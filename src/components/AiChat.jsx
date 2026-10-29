@@ -588,10 +588,11 @@ function ConfirmationCard({confirmation, busy, previewing, queued, onApprove, on
 const AiChat = ({status}) => {
     const {t} = useTranslation();
     const auth = useAuth();
-    const {clusterId, clusterName, loading, error: statusError, fetchNodes} = useFetchDaemonStatus();
-    const {enabled, ready, configurationError, client} = useAiAgent({clusterId});
-    // A conversation belongs to an identity on a cluster: changing either resets the view.
-    const scope = JSON.stringify([auth.authChoice, auth.user, clusterId]);
+    // The name of the cluster, on its badge: the relay of this cluster is the way to the agent.
+    const {clusterName, fetchNodes} = useFetchDaemonStatus();
+    const {ready, client} = useAiAgent();
+    // A conversation belongs to an identity: changing it resets the view.
+    const scope = JSON.stringify([auth.authChoice, auth.user]);
     const chat = useAiChat({client, ready, scope});
     const [conversationsOpen, toggleConversations, {fold: foldConversations}] = useConversationsOpen();
     const [search, setSearch] = useState("");
@@ -639,8 +640,8 @@ const AiChat = ({status}) => {
         chat.historyReady && !busy && !waiting && !chat.messages.length ? starterQuestions(status, t) : [];
 
     useEffect(() => {
-        if (enabled && auth.accessToken) void fetchNodes(auth.accessToken);
-    }, [enabled, auth.authChoice, auth.accessToken, fetchNodes]);
+        if (auth.accessToken) void fetchNodes(auth.accessToken);
+    }, [auth.authChoice, auth.accessToken, fetchNodes]);
 
     // Another conversation on display, or another identity or cluster: the
     // message box starts from the message queued, given back, or empty. The
@@ -766,20 +767,7 @@ const AiChat = ({status}) => {
                 )}
             </div>
 
-            {!enabled && <Alert tone="info">{configurationError || t("ai.notConfigured")}</Alert>}
-            {enabled && !auth.accessToken && <Alert tone="info">{t("ai.authRequired")}</Alert>}
-            {enabled && auth.accessToken && !ready && (
-                <Alert
-                    tone={statusError ? "error" : "info"}
-                    action={
-                        <Button size="sm" disabled={loading} onClick={() => fetchNodes(auth.accessToken)}>
-                            {t("ai.refreshStatus")}
-                        </Button>
-                    }
-                >
-                    {statusError || (loading ? t("ai.loadingCluster") : t("ai.waitingCluster"))}
-                </Alert>
-            )}
+            {!ready && <Alert tone="info">{t("ai.authRequired")}</Alert>}
 
             {ready && (
                 <div

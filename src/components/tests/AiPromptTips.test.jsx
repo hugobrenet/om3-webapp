@@ -8,10 +8,10 @@ import AiChat from '../AiChat.jsx';
 const mocks = vi.hoisted(() => ({auth: null, client: null, ready: true}));
 vi.mock('../../context/AuthProvider.jsx', () => ({useAuth: () => mocks.auth}));
 vi.mock('../../hooks/useFetchDaemonStatus.jsx', () => ({
-    default: () => ({clusterId: 'cluster-id', clusterName: 'Lab cluster', fetchNodes: vi.fn(), loading: false, error: ''}),
+    default: () => ({clusterName: 'Lab cluster', fetchNodes: vi.fn()}),
 }));
 vi.mock('../../hooks/useAiAgent.js', () => ({
-    default: () => ({client: mocks.client, enabled: true, ready: mocks.ready, configurationError: null}),
+    default: () => ({client: mocks.client, ready: mocks.ready}),
 }));
 
 const existing = {id: 'existing', title: 'Previous diagnostic'};

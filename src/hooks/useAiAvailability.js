@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import {useAuth} from '../context/AuthProvider.jsx';
-import {AI_RELAY_PATH, getAiAgentConfig} from '../config/ai-agent.js';
+import {AI_RELAY_PATH} from '../services/ai-agent.js';
 
 // The codes of the relay of the cluster saying the assistant is not for this
 // session: no agent configured on the cluster, or a session that is not
@@ -42,18 +42,14 @@ const askRelay = async (accessToken) => {
     }
 };
 
-// Whether the assistant is offered: with the agent on its own origin, as the
-// build configuration says; through the relay of the cluster, as the relay
-// answers once signed in, the entry hidden on a cluster without agent or for
-// a session that is not OpenID. available is null while the relay is asked.
+// Whether the assistant is offered, as the relay of the cluster answers once
+// signed in: the entry hidden on a cluster without agent or for a session that
+// is not OpenID. available is null while the relay is asked.
 const useAiAvailability = () => {
-    const config = getAiAgentConfig();
-    const relayed = config.enabled && config.url === AI_RELAY_PATH;
     const {accessToken} = useAuth();
-    const [state, setState] = useState(() => (relayed && probe?.result ? probe.result : null));
+    const [state, setState] = useState(() => probe?.result ?? null);
 
     useEffect(() => {
-        if (!relayed) return undefined;
         if (!accessToken) {
             probe = null;
             setState(null);
@@ -72,10 +68,8 @@ const useAiAvailability = () => {
         return () => {
             active = false;
         };
-    }, [relayed, accessToken]);
+    }, [accessToken]);
 
-    if (!config.enabled) return {available: false, reason: null};
-    if (!relayed) return {available: true, reason: null};
     return state ? {available: state.available, reason: state.reason} : {available: null, reason: null};
 };
 

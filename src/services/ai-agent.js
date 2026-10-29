@@ -1,4 +1,7 @@
-import {AI_RELAY_PATH, parseAiAgentUrl} from '../config/ai-agent.js';
+// The path the daemon relays to the AI agent its cluster configuration names
+// (listener.ai_agent_url), on the origin of the webapp: the daemon names the
+// cluster, and the token is all the webapp sends.
+export const AI_RELAY_PATH = '/api/ai';
 
 const MAX_PROMPT_BYTES = 32 * 1024;
 const MAX_STREAM_BYTES = 16 * 1024 * 1024;
@@ -844,13 +847,6 @@ const readRun = async (response, signal, onEvent, run) => {
     }
 };
 
-// The agent requires one cluster ID: at most 256 bytes, without whitespace,
-// control characters or commas. It selects the daemon that verifies the token.
-const isClusterId = (value) =>
-    typeof value === 'string' &&
-    /^[^\s\x00-\x1f\x7f,]+$/.test(value) &&
-    new TextEncoder().encode(value).length <= 256;
-
 // The code of a JSON error of the agent, {"error": {"code"}}, read within
 // 4 KiB; empty for any other body.
 const readErrorCode = async (response) => {
@@ -896,25 +892,13 @@ const runRefusal = (status, code) => {
 const randomId = () =>
     Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
 
-export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId}) => {
-    const origin = parseAiAgentUrl(baseUrl);
-    if (!origin) throw new AiAgentError('disabled', 'The AI agent is not configured.');
-    // Through the relay, the daemon names the cluster itself.
-    const relayed = origin === AI_RELAY_PATH;
-    const base = relayed ? AI_RELAY_PATH : `${origin}/v1/om3`;
+export const createAiAgentClient = ({getCredentials, newId = randomId}) => {
     const requests = new Set();
 
     const request = async (path, options, consume, signal, httpMessages = HTTP_MESSAGES) => {
-        const {accessToken, clusterId} = getCredentials() || {};
-        if (
-            typeof accessToken !== 'string' ||
-            !/^[^\s\x00-\x1f\x7f]{1,16384}$/.test(accessToken) ||
-            (!relayed && !isClusterId(clusterId))
-        ) {
-            throw new AiAgentError(
-                'not_ready',
-                'An authenticated session and the current cluster ID are required.'
-            );
+        const {accessToken} = getCredentials() || {};
+        if (typeof accessToken !== 'string' || !/^[^\s\x00-\x1f\x7f]{1,16384}$/.test(accessToken)) {
+            throw new AiAgentError('not_ready', 'An authenticated session is required.');
         }
         const controller = new AbortController();
         const abort = () => controller.abort();
@@ -925,12 +909,11 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
             checkAborted(controller.signal);
             let response;
             try {
-                response = await fetch(`${base}${path}`, {
+                response = await fetch(`${AI_RELAY_PATH}${path}`, {
                     ...options,
                     headers: {
                         ...options.headers,
                         Authorization: `Bearer ${accessToken}`,
-                        ...(relayed ? {} : {'X-OpenSVC-Cluster-ID': clusterId}),
                     },
                     credentials: 'omit',
                     redirect: 'error',
@@ -940,12 +923,7 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
             } catch (error) {
                 checkAborted(controller.signal);
                 if (error.name === 'AbortError') throw error;
-                throw new AiAgentError(
-                    'network_error',
-                    relayed
-                        ? 'Cannot reach the AI agent relay of the cluster.'
-                        : 'Cannot reach the AI agent. Check its URL, TLS and CORS configuration.'
-                );
+                throw new AiAgentError('network_error', 'Cannot reach the AI agent relay of the cluster.');
             }
             checkAborted(controller.signal);
             if (!response.ok) {
