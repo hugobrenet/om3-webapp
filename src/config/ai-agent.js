@@ -6,7 +6,7 @@ export const AI_RELAY_PATH = '/api/ai';
 // the relay of the cluster, or the HTTPS origin of the agent.
 export const parseAiAgentUrl = (value) => {
     if (!value?.trim()) return '';
-    if (value.trim() === AI_RELAY_PATH) return AI_RELAY_PATH;
+    if (value.trim().replace(/\/+$/, '') === AI_RELAY_PATH) return AI_RELAY_PATH;
     try {
         const url = new URL(value.trim());
         if (

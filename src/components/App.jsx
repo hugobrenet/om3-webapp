@@ -20,7 +20,7 @@ import {
 } from "../context/AuthProvider";
 import oidcConfiguration from "../config/oidcConfiguration.js";
 import useAuthInfo from "../hooks/AuthInfo.jsx";
-import {getAiAgentConfig} from "../config/ai-agent.js";
+import useAiAvailability from "../hooks/useAiAvailability.js";
 import logger from "../utils/logger.js";
 import {prepareForNavigation} from "../eventSourceManager";
 import {isRenewalRefused} from "../context/serialRenewal";
@@ -375,7 +375,9 @@ const App = () => {
     const mainRef = useRef(null);
 
     const authInfo = useAuthInfo();
-    const aiEnabled = getAiAgentConfig().enabled;
+    // The assistant page stays open while the relay is asked, and redirects
+    // once it says the cluster has no agent for this session.
+    const aiEnabled = useAiAvailability().available !== false;
     const [sidebarOpen, toggleSidebar, {compact: compactMenu, fold: foldSidebar}] = useSidebarOpen();
     // The sign-in screens have no view to navigate to: no menu there.
     const showSidebar = !AUTH_PATHS.some((path) => location.pathname.startsWith(path));

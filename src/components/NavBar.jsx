@@ -12,7 +12,7 @@ import {useEffect, useState, useCallback} from "react";
 import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 import logger from '../utils/logger.js';
-import {getAiAgentConfig} from "../config/ai-agent.js";
+import useAiAvailability from "../hooks/useAiAvailability.js";
 
 // Header icon buttons: outlined, as every button that neither creates nor deletes; muted ink, darker on hover.
 const HEADER_BUTTON =
@@ -36,8 +36,9 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
     const [storedClusterName, setStoredClusterName] = useState(null);
     const online = useOnlineStatus();
     const {t} = useTranslation();
-    // Built once: the AI entry depends on the build configuration only.
-    const aiEnabled = getAiAgentConfig().enabled;
+    // The AI entry: as the build configuration says, or, through the relay of
+    // the cluster, once the relay said the cluster has an agent for this session.
+    const aiEnabled = useAiAvailability().available === true;
 
     const getPathBreadcrumbs = useCallback(() => {
         const pathParts = location.pathname.split("/").filter(Boolean);
