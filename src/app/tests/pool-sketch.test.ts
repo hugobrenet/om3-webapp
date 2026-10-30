@@ -47,6 +47,11 @@ describe("pool sketch", () => {
   test("a volume on the nodes of its consumers, its size its detail", () => {
     expect(volumeNodes(VOLUMES[0])).toEqual(["n1", "n2"]);
     expect(volumeNodes({ path: "x", children: ["ns/svc/a", "ns/svc/b@n1", "ns/svc/c@n1"] })).toEqual(["n1"]);
+    // A drbd volume: a copy on each node holding it, whichever its consumer runs on.
+    expect(volumeNodes({ path: "x", children: ["ns/svc/a@n2"], nodes: ["n1", "n2", "n3"] })).toEqual(["n1", "n2", "n3"]);
+    expect(volumeNodes({ path: "x", children: ["ns/svc/a"], nodes: ["n1", "n2"] })).toEqual(["n1", "n2"]);
+    // Unused: drawn apart, wherever it is held.
+    expect(volumeNodes({ path: "x", children: [], nodes: ["n1", "n2"] })).toEqual([]);
     const input = poolSketchInput({ pool: POOL, perNode: PER_NODE, values: {}, nodes: ["n1", "n2"], volumes: VOLUMES }, format);
     expect(input.title).toBe("drbdz · drbd");
     expect(input.route).toBeNull();
