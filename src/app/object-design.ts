@@ -388,6 +388,8 @@ export function designText(sections: DesignSection[]): string {
  * calls minimal follow, then those every resource takes.
  */
 const POPULAR: Record<string, string[]> = {
+  // A guest is what it runs on, rather than the command of a container.
+  "container.kvm": ["vcpus", "memory", "disk", "network", "image", "cloud_init"],
   DEFAULT: ["nodes", "orchestrate", "topology", "placement", "parents", "children"],
   app: ["start", "stop", "check", "info", "environment", "user"],
   container: ["image", "command", "rm", "environment", "volume_mounts", "netns", "hostname"],
@@ -411,7 +413,7 @@ const POPULAR_RESOURCE = ["tags", "subset", "standby", "optional", "monitor"];
 export function popularKeywords(keywords: DesignKeyword[], section: DesignSection, hideRoot = false, max = 6): DesignKeyword[] {
   const offered = offeredKeywords(keywords, section, hideRoot);
   const names = [
-    ...(POPULAR[section.group ?? section.name] ?? []),
+    ...(POPULAR[`${section.group}.${section.type}`] ?? POPULAR[section.group ?? section.name] ?? []),
     // What its provision reads, at hand for a resource om provisions.
     ...(section.group && !isUnmanaged(section) ? offered.filter((k) => k.provisioning).map((k) => k.option) : []),
     ...offered.filter((k) => k.minimal).map((k) => k.option),
@@ -423,6 +425,20 @@ export function popularKeywords(keywords: DesignKeyword[], section: DesignSectio
     if (keyword && !picked.includes(keyword)) picked.push(keyword);
   }
   return picked.slice(0, max);
+}
+
+/** The words of a list value: those done, and the one being typed, empty after a space. */
+export function listWords(value: string): { done: string[]; typed: string } {
+  const words = value.split(/\s+/);
+  const typed = words.pop() ?? "";
+  return { done: words.filter((w) => w !== ""), typed };
+}
+
+/** The resources of a design a guest takes as its disks, each told by its driver. */
+export function guestDiskChoices(sections: DesignSection[]): { value: string; info: string[] }[] {
+  return sections
+    .filter((s) => s.group === "disk" || s.group === "volume")
+    .map((s) => ({ value: s.name, info: [s.type ? `${s.group}.${s.type}` : (s.group as string)] }));
 }
 
 /** The required entries of the sections left without a value: none, the design is complete. */

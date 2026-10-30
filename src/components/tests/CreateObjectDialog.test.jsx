@@ -369,6 +369,35 @@ describe('CreateObjectDialog', () => {
             expect(screen.getByRole('textbox', {name: 'Value of netns'})).not.toHaveAttribute('list');
         });
 
+        test('a guest on several networks: a pick adds a word, a network picked not offered again', async () => {
+            answers['GET /api/network'] = {status: 200, text: JSON.stringify({items: [
+                {name: 'backend3', type: 'routed_bridge', network: '10.100.0.0/22'},
+                {name: 'backend5', type: 'routed_bridge', network: 'fd01::/64'},
+            ]})};
+            KW('container.kvm', [
+                {section: 'container', option: 'type', required: true},
+                {section: 'container', option: 'network', types: ['kvm'], converter: 'list'},
+            ]);
+            await design();
+            fireEvent.click(screen.getByRole('button', {name: 'Add a resource'}));
+            fireEvent.change(await screen.findByLabelText('Driver, as group.type'), {target: {value: 'container.kvm'}});
+            fireEvent.click(within(card('[data-add-resource]')).getByRole('button', {name: 'Add a resource'}));
+            await screen.findByRole('heading', {name: /\[container#1\]/});
+            fireEvent.click(screen.getByRole('button', {name: 'Add network'}));
+            const network = await screen.findByRole('combobox', {name: 'Value of network'});
+            const offered = () => within(screen.getByRole('listbox', {name: 'The values of network'})).getAllByRole('option');
+            await waitFor(() => {
+                fireEvent.click(network);
+                expect(offered()).toHaveLength(2);
+            });
+            fireEvent.mouseDown(offered()[0]);
+            expect(network).toHaveValue('backend3');
+            fireEvent.change(network, {target: {value: 'backend3 '}});
+            expect(offered().map((o) => o.getAttribute('data-pick'))).toEqual(['backend5']);
+            fireEvent.mouseDown(offered()[0]);
+            expect(network).toHaveValue('backend3 backend5');
+        });
+
         test('an example taken as the value, by a click or the right arrow; a default left to apply', async () => {
             KW('DEFAULT', [
                 {section: 'DEFAULT', option: 'nodes', example: 'n1 n2'},
