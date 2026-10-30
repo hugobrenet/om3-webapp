@@ -30,7 +30,7 @@ import {MenuButton} from "../ui/components/MenuButton";
 import {Button} from "../ui/components/Button";
 import {Checkbox} from "../ui/components/Field";
 import {BoltIcon, CloseIcon} from "../ui/icons";
-import {INSTANCE_ACTIONS, RESOURCE_ACTIONS, actionLabel} from "../constants/actions";
+import {ONE_RESOURCE_ACTIONS, INSTANCE_ACTIONS, RESOURCE_ACTIONS, actionLabel} from "../constants/actions";
 import {actionDescription, explainedMenu} from "../app/action-menu";
 import {SymbolHelp} from "../app/SymbolHelp";
 import {Term} from "../app/Term";
@@ -204,7 +204,7 @@ export function InstanceStatus({path, node}) {
     };
     const pickedTypes = pickedRids.map((rid) => status.resources?.[rid]?.type).filter(Boolean);
     const resourceItems = RESOURCE_ACTIONS
-        .filter((a) => (a.name === "console" ? pickedRids.length === 1 : true)
+        .filter((a) => (ONE_RESOURCE_ACTIONS.includes(a.name) ? pickedRids.length === 1 : true)
             && pickedRids.every((rid) => resourceActions(rid, status.resources?.[rid]?.type).some((b) => b.name === a.name)))
         .map((a) => {
             const variant = syncVariant(a.name, pickedTypes);
@@ -388,7 +388,7 @@ function ResourceActions({path, rid, nodes, type}) {
         subject: t("statusBoard.subjects.resource", {rid, path, where: nodes.join(", ")}),
     };
     const items = resourceActions(rid, type)
-        .filter((a) => a.name !== "console" || nodes.length === 1)
+        .filter((a) => !ONE_RESOURCE_ACTIONS.includes(a.name) || nodes.length === 1)
         .map((a) => {
             const variant = syncVariant(a.name, type ? [type] : []);
             return {

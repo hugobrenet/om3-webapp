@@ -1,3 +1,4 @@
+import {ONE_RESOURCE_ACTIONS} from "../constants/actions";
 import {resourceActions} from "../components/objectActions";
 
 /*
@@ -32,5 +33,5 @@ export function commonResourceActions(lines) {
     const [first, ...others] = lines.map((l) => resourceActions(l.rid, l.type));
     return first
         .filter((action) => others.every((actions) => actions.some((a) => a.name === action.name)))
-        .filter((action) => action.name !== "console" || lines.length === 1);
+        .filter((action) => !ONE_RESOURCE_ACTIONS.includes(action.name) || lines.length === 1);
 }

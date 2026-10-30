@@ -705,6 +705,17 @@ export function RssIcon(props: IconProps) {
 }
 
 /** A command line: the prompt and its cursor. */
+export function DisplayIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path
+        fillRule="evenodd"
+        d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-7v2h3v2H8v-2h3v-2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 2v10h16V6H4Z"
+      />
+    </Svg>
+  );
+}
+
 export function TerminalIcon(props: IconProps) {
   return (
     <Svg {...props}>

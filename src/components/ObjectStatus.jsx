@@ -19,13 +19,14 @@ import {Button} from "../ui/components/Button";
 import {MenuButton} from "../ui/components/MenuButton";
 import {Spinner} from "../ui/components/Spinner";
 import {BoltIcon, CloseIcon} from "../ui/icons";
-import {INSTANCE_ACTIONS, OBJECT_ACTIONS, RESOURCE_ACTIONS, actionLabel, objectActionsFor} from "../constants/actions";
+import {ONE_RESOURCE_ACTIONS, INSTANCE_ACTIONS, OBJECT_ACTIONS, RESOURCE_ACTIONS, actionLabel, objectActionsFor} from "../constants/actions";
 import {OrchestrationBadge, orchestrationOf} from "./OrchestrationBadge";
 import {cn} from "../ui/cn";
 import {PolicyTag} from "../ui/components/PolicyTag";
 import {BADGE} from "./ObjectCells";
 import ActionDialogManager from "./ActionDialogManager";
 import ConsoleTerminal from "./ConsoleTerminal.jsx";
+import ConsoleDisplay from "./ConsoleDisplay.jsx";
 import {CLEAR_ACTION, noteFixAction, postAction, resourceActions, syncVariant} from "./objectActions";
 import {DatastoreLinks, RefreshStatusButton, datastoresOf, volumesOf} from "./InstanceActions";
 import logger from "../utils/logger.js";
@@ -208,6 +209,7 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
     const [pending, setPending] = useState(null);
     const [running, setRunning] = useState(false);
     const [consoleTarget, setConsoleTarget] = useState(null);
+    const [displayTarget, setDisplayTarget] = useState(null);
     // The instances and the resources picked on the board, to act on together: the
     // nodes of the instances, and the resources as `node/rid`, one per node.
     const [pickedNodes, setPickedNodes] = useState([]);
@@ -221,9 +223,10 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
      * terminal on its resource at once: no action to confirm.
      */
     const ask = useCallback((action, {targets = [], subject, fromSelection = false} = {}) => {
-        if (action === "console") {
+        if (ONE_RESOURCE_ACTIONS.includes(action)) {
             const {namespace, kind, name} = parseObjectPath(path);
-            setConsoleTarget({node: targets[0].node, namespace, kind, name, rid: targets[0].rid});
+            const open = action === "console" ? setConsoleTarget : setDisplayTarget;
+            open({node: targets[0].node, namespace, kind, name, rid: targets[0].rid});
             return;
         }
         // The actions on the cluster object are the cluster's, on all its nodes (actionUrl).
@@ -447,7 +450,7 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
             });
         const typeOf = (r) => (r.typ ? `${r.name.split("#")[0]}.${r.typ}` : undefined);
         return RESOURCE_ACTIONS
-            .filter((a) => (a.name === "console" ? cellsPicked.length === 1 : true)
+            .filter((a) => (ONE_RESOURCE_ACTIONS.includes(a.name) ? cellsPicked.length === 1 : true)
                 && rows.every((r) => resourceActions(r.name, typeOf(r)).some((b) => b.name === a.name)))
             .map((a) => {
                 const variant = syncVariant(a.name, rows.map(typeOf).filter(Boolean));
@@ -527,6 +530,7 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
                 onClose={() => setPending(null)}
             />
             <ConsoleTerminal open={consoleTarget !== null} target={consoleTarget} onClose={() => setConsoleTarget(null)}/>
+            <ConsoleDisplay open={displayTarget !== null} target={displayTarget} onClose={() => setDisplayTarget(null)}/>
         </div>
     );
 };

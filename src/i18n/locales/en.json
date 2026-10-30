@@ -272,6 +272,7 @@
       "info": "Info",
       "status": "Status",
       "console": "Console",
+      "display": "Display",
       "clear": "Clear",
       "drain": "Drain",
       "scsiScan": "Scsi scan",
@@ -435,6 +436,12 @@
     }
   },
   "console": {
+    "display": {
+      "title": "Display",
+      "titleRidNode": "Display of {{rid}} on {{node}}",
+      "ended": "The display session ended.",
+      "ctrlAltDel": "Send Ctrl+Alt+Del"
+    },
     "title": "Console",
     "titleRid": "Console {{rid}}",
     "titleNode": "Console on {{node}}",
@@ -2549,6 +2556,7 @@
       "restart": "Restart the resources picked.",
       "run": "Run the tasks picked now, outside their schedule.",
       "console": "Open a console in the container.",
+      "display": "Open the screen of the guest.",
       "startStandby": "Bring up the resources picked meant to stay up on a standby node.",
       "prstart": "Preempt the exclusive write reservation of the devices of the resources picked.",
       "prstop": "Release the write reservation of the devices of the resources picked.",

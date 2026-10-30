@@ -1,5 +1,5 @@
 import {URL_CLUSTER, URL_NODE, URL_OBJECT} from "../config/apiPath.js";
-import {INSTANCE_ACTIONS, NODE_ACTIONS, OBJECT_ACTIONS, RESOURCE_ACTIONS, objectActionsFor} from "../constants/actions";
+import {ONE_RESOURCE_ACTIONS, INSTANCE_ACTIONS, NODE_ACTIONS, OBJECT_ACTIONS, RESOURCE_ACTIONS, objectActionsFor} from "../constants/actions";
 import {getResponseErrorMessage} from "../services/api.jsx";
 import {isActionAllowedForSelection, parseObjectPath} from "../utils/objectUtils.jsx";
 import {trackRefused, trackResponse} from "../app/action-tracker";
@@ -68,7 +68,7 @@ export function actionUrl({path, action, node, rid}) {
 }
 
 /** The instance actions asking for no configuration in particular: they change nothing of it. */
-const UNSTAMPED = [CLEAR_ACTION.name, "status", "info", "console"];
+const UNSTAMPED = [CLEAR_ACTION.name, "status", "info", ...ONE_RESOURCE_ACTIONS];
 
 /** What an action runs on, for its options: the object, instances, resources of instances. */
 export const actionScope = ({node, rid}) => (rid !== undefined ? "resource" : node !== undefined ? "instance" : "object");
@@ -97,7 +97,7 @@ export function actionRequest({path, action, node, rid, options}) {
 }
 
 /** Actions with nothing to follow: a refresh of the status, a clear of a failed monitor. */
-const UNTRACKED = ["status", CLEAR_ACTION.name, "console"];
+const UNTRACKED = ["status", CLEAR_ACTION.name, ...ONE_RESOURCE_ACTIONS];
 
 /** What an action acts on, in words, for the actions tray. */
 export function actionSubject({path, node, rid}) {

@@ -2,10 +2,11 @@ import React, {useCallback, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {IconButton} from "../ui/components/Button";
 import {RefreshIcon} from "../ui/icons";
-import {INSTANCE_ACTIONS, OBJECT_ACTIONS, RESOURCE_ACTIONS} from "../constants/actions";
+import {ONE_RESOURCE_ACTIONS, INSTANCE_ACTIONS, OBJECT_ACTIONS, RESOURCE_ACTIONS} from "../constants/actions";
 import {CrossLink} from "../app/CrossLink";
 import ActionDialogManager from "./ActionDialogManager";
 import ConsoleTerminal from "./ConsoleTerminal.jsx";
+import ConsoleDisplay from "./ConsoleDisplay.jsx";
 import {CLEAR_ACTION, postAction} from "./objectActions";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 import useEventStore from "../hooks/useEventStore.js";
@@ -34,11 +35,13 @@ export function useActionRunner(path) {
     const [pending, setPending] = useState(null);
     const [running, setRunning] = useState(false);
     const [consoleTarget, setConsoleTarget] = useState(null);
+    const [displayTarget, setDisplayTarget] = useState(null);
 
     const ask = useCallback((action, {targets, subject, onDone, variant, names}) => {
-        if (action === "console") {
+        if (ONE_RESOURCE_ACTIONS.includes(action)) {
             const {namespace, kind, name} = parseObjectPath(targets[0].path ?? path);
-            setConsoleTarget({node: targets[0].node, namespace, kind, name, rid: targets[0].rid});
+            const open = action === "console" ? setConsoleTarget : setDisplayTarget;
+            open({node: targets[0].node, namespace, kind, name, rid: targets[0].rid});
             return;
         }
         setPending({action, targets, subject, onDone, variant, names});
@@ -70,6 +73,7 @@ export function useActionRunner(path) {
                 onClose={() => setPending(null)}
             />
             <ConsoleTerminal open={consoleTarget !== null} target={consoleTarget} onClose={() => setConsoleTarget(null)}/>
+            <ConsoleDisplay open={displayTarget !== null} target={displayTarget} onClose={() => setDisplayTarget(null)}/>
         </>
     );
     return {ask, running, dialogs};

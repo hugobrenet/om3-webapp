@@ -272,6 +272,7 @@
       "info": "Infos",
       "status": "Statut",
       "console": "Console",
+      "display": "Écran",
       "clear": "Effacer",
       "drain": "Drainer",
       "scsiScan": "Scan SCSI",
@@ -435,6 +436,12 @@
     }
   },
   "console": {
+    "display": {
+      "title": "Écran",
+      "titleRidNode": "Écran de {{rid}} sur {{node}}",
+      "ended": "La session d'écran est terminée.",
+      "ctrlAltDel": "Envoyer Ctrl+Alt+Suppr"
+    },
     "title": "Console",
     "titleRid": "Console {{rid}}",
     "titleNode": "Console sur {{node}}",
@@ -2549,6 +2556,7 @@
       "restart": "Redémarrer les ressources choisies.",
       "run": "Exécuter les tâches choisies maintenant, hors de leur planification.",
       "console": "Ouvrir une console dans le conteneur.",
+      "display": "Ouvrir l'écran de l'invité.",
       "startStandby": "Démarrer les ressources choisies destinées à rester actives sur un nœud de secours.",
       "prstart": "Préempter la réservation d'écriture exclusive des périphériques des ressources choisies.",
       "prstop": "Libérer la réservation d'écriture des périphériques des ressources choisies.",

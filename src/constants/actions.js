@@ -6,6 +6,7 @@ import {
     CloseIcon,
     CpuIcon,
     CubeIcon,
+    DisplayIcon,
     DatabaseIcon,
     DownloadIcon,
     DropIcon,
@@ -151,6 +152,9 @@ const groupsBut = (...names) => (type) => !names.includes(groupOf(type));
  * sync actions too; the disks and what holds them reserve their devices; a container
  * has a console. The groups, the endpoints and the costs those of the instance actions.
  */
+/** The resource actions opening a session on one resource of one node, rather than run. */
+export const ONE_RESOURCE_ACTIONS = ["console", "display"];
+
 export const RESOURCE_ACTIONS = [
     {name: "start", group: "operator", icon: icon(PlayIcon), endpoint: "start", on: groupsBut("task", "sync")},
     {name: "stop", group: "operator", icon: icon(StopIcon), endpoint: "stop", impacts: ["downTime"], on: groupsBut("task", "sync")},
@@ -159,6 +163,8 @@ export const RESOURCE_ACTIONS = [
     {name: "restart", group: "operator", icon: icon(RefreshIcon), endpoint: "restart", impacts: ["downTime"], on: groupsBut("task", "sync")},
     {name: "start standby", group: "operator", icon: icon(PauseIcon), endpoint: "startstandby", on: groupsBut("task", "sync")},
     {name: "console", group: "operator", icon: icon(TerminalIcon), on: groups("container")},
+    // The screen of a guest, which only a virtual machine has.
+    {name: "display", group: "operator", icon: icon(DisplayIcon), on: (id) => id === "container.kvm"},
 
     {name: "prstart", group: "operatorDisk", icon: icon(StepForwardIcon), endpoint: "prstart", on: groups("disk", "fs", "app", "container")},
     {name: "prstop", group: "operatorDisk", icon: icon(StepBackwardIcon), endpoint: "prstop", on: groups("disk", "fs", "app", "container")},
