@@ -435,6 +435,23 @@
       "noChange": "Aucun changement"
     }
   },
+  "volumeFiles": {
+    "title": "Fichiers",
+    "upload": "Envoyer un fichier",
+    "choose": "Le fichier à envoyer",
+    "hint": "Ce depuis quoi un invité de cet espace de noms s'installe : une ressource utilisant ce volume comme volume#2 désigne un fichier par volume#2:/noble.qcow2 dans son image ou son cdrom. La taille du volume borne ce qu'il contient.",
+    "none": "Ce volume ne contient aucun fichier.",
+    "node": "Nœud",
+    "name": "Nom",
+    "size": "Taille",
+    "delete": "Supprimer",
+    "deleting": "Suppression…",
+    "deleteQuestion": "Supprimer {{name}} ?",
+    "cancel": "Annuler",
+    "sending": "Envoi de {{name}}",
+    "failed": "{{name}} n'a pas été envoyé : {{message}}",
+    "notAvailable": "Ce volume n'est démarré sur aucun nœud : démarrez-le pour accéder à ses fichiers."
+  },
   "console": {
     "display": {
       "title": "Écran",
@@ -1939,6 +1956,7 @@
       "status": "État",
       "usage": "Usage",
       "capacity": "Capacité",
+      "files": "Fichiers",
       "events": "Événements",
       "logs": "Journaux",
       "resources": "Ressources",

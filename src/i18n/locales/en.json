@@ -435,6 +435,23 @@
       "noChange": "No change"
     }
   },
+  "volumeFiles": {
+    "title": "Files",
+    "upload": "Upload a file",
+    "choose": "The file to upload",
+    "hint": "What a guest of this namespace is installed from: a resource using this volume as volume#2 names a file as volume#2:/noble.qcow2 in its image or cdrom. The size of the volume bounds what it holds.",
+    "none": "This volume holds no file.",
+    "node": "Node",
+    "name": "Name",
+    "size": "Size",
+    "delete": "Delete",
+    "deleting": "Deleting…",
+    "deleteQuestion": "Delete {{name}}?",
+    "cancel": "Cancel",
+    "sending": "Sending {{name}}",
+    "failed": "{{name}} was not uploaded: {{message}}",
+    "notAvailable": "This volume is not up on any node: start it to reach its files."
+  },
   "console": {
     "display": {
       "title": "Display",
@@ -1939,6 +1956,7 @@
       "status": "Status",
       "usage": "Usage",
       "capacity": "Capacity",
+      "files": "Files",
       "events": "Events",
       "logs": "Logs",
       "resources": "Resources",

@@ -17,6 +17,7 @@ import {NamespaceClaims} from "./NamespaceClaims";
 import {ObjectUsage} from "./InstanceRecord";
 import {ClusterUsage} from "./ClusterUsage";
 import {CAPACITY_KINDS, ObjectCapacity} from "./ObjectCapacity";
+import {FILES_KINDS, VolumeFiles} from "./VolumeFiles";
 import {ClusterLocks} from "./ClusterLocks";
 import {ObjectSnapshots, useSnapshotNodes} from "./ObjectSnapshots";
 import {InstanceLink, ResourceLink} from "./RecordLinks";
@@ -111,6 +112,7 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
             {key: "usage", label: t("panel.tabs.usage")},
             // Its size and its caps: a service's and a volume's.
             ...(CAPACITY_KINDS.includes(kind) ? [{key: "capacity", label: t("panel.tabs.capacity")}] : []),
+            ...(FILES_KINDS.includes(kind) ? [{key: "files", label: t("panel.tabs.files")}] : []),
             {key: "schedules", label: t("panel.tabs.schedules")},
             // A sync resource keeping snapshots on one of its instances: the snapshots its
             // sync.store resources took, in every store, and restored from them. None
@@ -149,6 +151,7 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
                     </div>
                     {active === "usage" && (kind === "ccfg" ? <ClusterUsage/> : <ObjectUsage key={path} path={path}/>)}
                     {active === "capacity" && <ObjectCapacity key={path} path={path} nodes={nodes}/>}
+                    {active === "files" && <VolumeFiles key={path} path={path}/>}
                     {active === "schedules" && <ObjectSchedules key={path} path={path}/>}
                     {active === "snapshots" && <StoreSnapshots key={path} path={path}/>}
                     {active === "restore" && <ObjectSnapshots key={path} path={path}/>}
