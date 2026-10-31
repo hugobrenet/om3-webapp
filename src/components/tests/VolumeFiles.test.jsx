@@ -2,7 +2,7 @@ import React from "react";
 import {render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {VolumeFiles} from "../VolumeFiles.jsx";
-import {deleteFile, filesUrl, listFiles, uploadFile} from "../../services/volume-files.js";
+import {deleteFile, filesUrl, listFiles, uploadFile, uploadUrl} from "../../services/volume-files.js";
 import useEventStore from "../../hooks/useEventStore.js";
 
 vi.mock("../../services/volume-files.js", async (importOriginal) => ({
@@ -65,6 +65,21 @@ describe("VolumeFiles", () => {
         await screen.findByText("noble.qcow2");
         await userEvent.upload(screen.getByLabelText("The file to upload"), new File(["x"], "big.iso"));
         expect(await screen.findByText(/big.iso was not uploaded: .*is full/)).toBeInTheDocument();
+    });
+
+    test("a console port not reached tells where to accept its certificate", async () => {
+        up({n1: "up"});
+        const error = Object.assign(new Error("the console port could not be reached"), {certificateUrl: "https://n1:1216/"});
+        uploadFile.mockReturnValue({done: Promise.reject(error), abort: () => {}});
+        render(<VolumeFiles path={PATH}/>);
+        await screen.findByText("noble.qcow2");
+        await userEvent.upload(screen.getByLabelText("The file to upload"), new File(["x"], "a.iso"));
+        expect(await screen.findByRole("link", {name: /n1:1216/})).toHaveAttribute("href", "https://n1:1216/");
+    });
+
+    test("the address of a transfer is the console port, in https", () => {
+        expect(uploadUrl({ticket: "t", port: 1216}, {hostname: "n1"})).toBe("https://n1:1216/?ticket=t");
+        expect(uploadUrl({ticket: "t", port: 1216, url: "wss://access.example.com/console/"})).toBe("https://access.example.com/console/?ticket=t");
     });
 
     test("a file is deleted once confirmed", async () => {

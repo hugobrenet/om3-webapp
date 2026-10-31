@@ -1,4 +1,5 @@
 import {URL_NODE} from "../config/apiPath.js";
+import {consoleCertificateUrl, consoleUrl} from "./console-service.js";
 import {authHeaders, getResponseErrorMessage} from "./api.jsx";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 
@@ -23,36 +24,60 @@ export async function deleteFile(path, node, name) {
 }
 
 /**
+ * The ticket a file is sent with. The transfer is not the api's: it goes to the
+ * console endpoint, served by a process of its own, for the daemon not to carry it.
+ */
+export async function requestUploadTicket(path, node, name) {
+    const response = await fetch(filesUrl(path, node, name), {method: "POST", headers: authHeaders()});
+    if (!response.ok) throw new Error((await getResponseErrorMessage(response)) || `HTTP ${response.status}`);
+    return response.json();
+}
+
+/** The https address a ticket sends a file to. */
+export function uploadUrl(ticket, location = window.location) {
+    const u = new URL(consoleUrl(ticket, location));
+    u.protocol = "https:";
+    return u.toString();
+}
+
+/**
  * Sends a file to a volume, `onProgress` told the part sent (0 to 1), which a
- * fetch does not tell. Resolves once the node holds it whole.
+ * fetch does not tell. Resolves once the node holds it whole. A connection
+ * refused rejects with `certificateUrl`, the page accepting the certificate of
+ * the console port: a browser does not say why it refused one it does not trust.
  *
  * @returns {{done: Promise<void>, abort: () => void}}
  */
 export function uploadFile(path, node, file, onProgress) {
     const xhr = new XMLHttpRequest();
-    const done = new Promise((resolve, reject) => {
-        xhr.open("PUT", filesUrl(path, node, file.name));
-        for (const [key, value] of Object.entries(authHeaders())) xhr.setRequestHeader(key, value);
+    let aborted = false;
+    const send = (url) => new Promise((resolve, reject) => {
+        xhr.open("PUT", url);
         xhr.setRequestHeader("Content-Type", "application/octet-stream");
         xhr.upload.onprogress = (e) => {
             if (e.lengthComputable) onProgress?.(e.loaded / e.total);
         };
         xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                resolve();
-                return;
-            }
-            let detail = "";
-            try {
-                detail = JSON.parse(xhr.responseText)?.detail ?? "";
-            } catch {
-                detail = xhr.responseText;
-            }
-            reject(new Error(detail || `HTTP ${xhr.status}`));
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(xhr.responseText.trim() || `HTTP ${xhr.status}`));
         };
-        xhr.onerror = () => reject(new Error("the connection was lost"));
+        xhr.onerror = () => {
+            const error = new Error("the console port could not be reached");
+            error.certificateUrl = consoleCertificateUrl(url);
+            reject(error);
+        };
         xhr.onabort = () => reject(new DOMException("aborted", "AbortError"));
         xhr.send(file);
     });
-    return {done, abort: () => xhr.abort()};
+    const done = requestUploadTicket(path, node, file.name).then((ticket) => {
+        if (aborted) throw new DOMException("aborted", "AbortError");
+        return send(uploadUrl(ticket));
+    });
+    return {
+        done,
+        abort: () => {
+            aborted = true;
+            xhr.abort();
+        },
+    };
 }

@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from "react";
-import {useTranslation} from "react-i18next";
+import {Trans, useTranslation} from "react-i18next";
 import useEventStore from "../hooks/useEventStore.js";
 import {deleteFile, listFiles, uploadFile} from "../services/volume-files.js";
 import {formatBytes} from "../utils/cgroupMetrics.js";
@@ -30,6 +30,7 @@ export function VolumeFiles({path}) {
     const node = nodes.includes(picked) ? picked : nodes[0];
     const [files, setFiles] = useState(null);
     const [error, setError] = useState("");
+    const [certificateUrl, setCertificateUrl] = useState("");
     const [sending, setSending] = useState(null);
     const [deleting, setDeleting] = useState("");
     const upload = useRef(null);
@@ -55,6 +56,7 @@ export function VolumeFiles({path}) {
 
     const send = async (file) => {
         setError("");
+        setCertificateUrl("");
         setSending({name: file.name, part: 0});
         const transfer = uploadFile(path, node, file, (part) => setSending({name: file.name, part}));
         upload.current = transfer;
@@ -62,7 +64,10 @@ export function VolumeFiles({path}) {
             await transfer.done;
             await refresh();
         } catch (err) {
-            if (err.name !== "AbortError") setError(t("volumeFiles.failed", {name: file.name, message: err.message}));
+            if (err.name !== "AbortError") {
+                setError(t("volumeFiles.failed", {name: file.name, message: err.message}));
+                setCertificateUrl(err.certificateUrl ?? "");
+            }
         } finally {
             upload.current = null;
             setSending(null);
@@ -111,7 +116,28 @@ export function VolumeFiles({path}) {
             }
         >
             <p className="text-ink-muted">{t("volumeFiles.hint")}</p>
-            {error && <Alert tone="error">{error}</Alert>}
+            {error && (
+                <Alert tone="error">
+                    {error}
+                    {certificateUrl && (
+                        <>
+                            {" "}
+                            <Trans
+                                i18nKey="console.certificateHint"
+                                values={{url: certificateUrl}}
+                                components={{
+                                    certLink: <a
+                                        href={certificateUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="break-all text-accent underline"
+                                    />,
+                                }}
+                            />
+                        </>
+                    )}
+                </Alert>
+            )}
             {sending && (
                 <div className="flex items-center gap-2">
                     <progress
