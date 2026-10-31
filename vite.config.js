@@ -33,11 +33,31 @@ const appVersion = (() => {
     }
 })();
 
+/**
+ * noVNC probes the H.264 decoder of the browser at load, with a top-level await. The
+ * single-file build holds all the modules in one script, which stops there: what
+ * fires meanwhile reaches the code after it, not initialized yet, and the page stays
+ * blank, in Firefox and Safari. The probe runs aside: until it ends, the decoder reads
+ * as absent, which an encoding falls back from. A noVNC writing it otherwise fails
+ * the build, the bundle not holding it any better then.
+ */
+const noVNCProbeAside = {
+    name: 'novnc-probe-aside',
+    enforce: 'pre',
+    transform(code, id) {
+        if (!id.includes('@novnc/novnc/core/util/browser.js')) return null;
+        const line = 'supportsWebCodecsH264Decode = await _checkWebCodecsH264DecodeSupport();';
+        if (!code.includes(line)) this.error('noVNC changed its H.264 probe: see noVNCProbeAside');
+        return code.replace(line, '_checkWebCodecsH264DecodeSupport().then((v) => { supportsWebCodecsH264Decode = v; });');
+    },
+};
+
 export default defineConfig({
     define: {
         __APP_VERSION__: JSON.stringify(appVersion),
     },
     plugins: [
+        noVNCProbeAside,
         react({
             babel: {
                 presets: ['@babel/preset-typescript'],
