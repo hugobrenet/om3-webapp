@@ -47,6 +47,7 @@ vi.mock('../PeekPanel', () => ({PeekPanel: () => <div data-testid="peek-panel"/>
 vi.mock('../../app/PanelReopenKey', () => ({PanelReopenKey: () => <div data-testid="panel-reopen-key"/>}));
 vi.mock('../../app/ShortcutsHelp', () => ({ShortcutsHelp: () => <div data-testid="shortcuts-help"/>}));
 vi.mock('../WhoAmI', () => ({default: () => <div data-testid="whoami">WhoAmI</div>}));
+vi.mock('../SessionPage', () => ({default: () => <div data-testid="session-page">SessionPage</div>}));
 vi.mock('../AiChat', () => ({default: () => <div data-testid="ai-chat">AI Assistant</div>}));
 vi.mock('../SilentRenew.jsx', () => ({default: () => <div data-testid="silent-renew">SilentRenew</div>}));
 vi.mock('../AuthChoice.jsx', () => ({default: () => <div data-testid="auth-choice">AuthChoice</div>}));
@@ -324,6 +325,38 @@ describe('App Component', () => {
         expect(screen.queryByTestId('auth-choice')).not.toBeInTheDocument();
         expect(mockLocalStorage.removeItem).not.toHaveBeenCalledWith('authToken');
         expect(mockLocalStorage.removeItem).not.toHaveBeenCalledWith('authChoice');
+    });
+
+    describe('a session in a tab of its own', () => {
+        const URL = '/session/console?path=a/svc/b&rid=container%231&node=n1';
+
+        test('nothing of the webapp around it', async () => {
+            setupBasicAuth();
+            renderApp([URL]);
+            expect(await screen.findByTestId('session-page')).toBeInTheDocument();
+            expect(screen.queryByTestId('navbar')).not.toBeInTheDocument();
+            expect(screen.queryByTestId('peek-panel')).not.toBeInTheDocument();
+        });
+
+        test('the sign-in asked as it opens, not under a session running', async () => {
+            setupBasicAuth();
+            const view = renderApp([URL]);
+            await screen.findByTestId('session-page');
+            setupBasicAuth(-3600);
+            view.rerender(
+                <MemoryRouter initialEntries={[URL]}>
+                    <App/>
+                </MemoryRouter>,
+            );
+            expect(await screen.findByTestId('session-page')).toBeInTheDocument();
+            expect(screen.queryByTestId('auth-choice')).not.toBeInTheDocument();
+        });
+
+        test('expired as it opens, the sign-in', async () => {
+            setupBasicAuth(-3600);
+            renderApp([URL]);
+            expect(await screen.findByTestId('auth-choice')).toBeInTheDocument();
+        });
     });
 
     test('ProtectedRoute: the heartbeats shown signed in, the sign-in asked without a token', async () => {

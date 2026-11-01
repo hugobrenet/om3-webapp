@@ -6,10 +6,10 @@ vi.mock('../../i18n', () => ({default: {t: (key) => key}}));
 const names = (rid, type) => resourceActions(rid, type).map((a) => a.name);
 
 describe('the actions of a resource, by its driver type', () => {
-    test('a task runs, neither starts nor stops; a container has a console, reserves its devices; what stops, unstops', () => {
+    test('a task runs, neither starts nor stops; a container reserves its devices; what stops, unstops', () => {
         expect(names('task#1', 'task.host')).toEqual(['run']);
         expect(names('container#1', 'container.docker')).toEqual(
-            ['start', 'stop', 'unstop', 'restart', 'start standby', 'console', 'prstart', 'prstop', 'provision', 'unprovision']);
+            ['start', 'stop', 'unstop', 'restart', 'start standby', 'prstart', 'prstop', 'provision', 'unprovision']);
     });
 
     test('a sync resource replicates: the sync actions of its driver, neither start nor stop', () => {

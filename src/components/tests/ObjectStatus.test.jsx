@@ -24,10 +24,6 @@ vi.mock('../../services/api.jsx', () => ({
     apiFetch: mockApiFetch,
     getResponseErrorMessage: async (response) => response.detail ?? '',
 }));
-// The console, an xterm, is tested on its own: here, what it is opened on.
-vi.mock('../ConsoleTerminal.jsx', () => ({
-    default: ({open, target}) => (open ? <div data-testid="console">{`${target.rid} on ${target.node}`}</div> : null),
-}));
 vi.mock('../../eventSourceManager.jsx', () => ({
     retainEventReception: (...args) => {
         mockRetain(...args);
@@ -683,8 +679,6 @@ describe('ObjectStatus', () => {
             pickRow('container#janitor');
             pickCell('container#server', 'dev3n1');
             fireEvent.click(selectionButton());
-            // A console is for one resource: not among the actions of several.
-            expect(screen.queryByRole('menuitem', {name: 'Console'})).not.toBeInTheDocument();
             pick('Restart');
             expect(screen.getByRole('dialog', {name: /restart/i})).toHaveTextContent(
                 'container#janitor on all nodes, container#server on dev3n1 of system/svc/dns',
@@ -812,15 +806,9 @@ describe('ObjectStatus', () => {
             expect(screen.getByRole('menuitem', {name: 'Unfreeze'})).toBeInTheDocument();
         });
 
-        test('a container on one node opens a console; a volume has none', async () => {
+        test('a console is no action: a tab of the resource', async () => {
             await ready();
             pickCell('container#server', 'dev3n1');
-            fireEvent.click(selectionButton());
-            pick('Console');
-            expect(screen.getByTestId('console')).toHaveTextContent('container#server on dev3n1');
-            expect(posted).toEqual([]);
-            fireEvent.click(screen.getByRole('button', {name: 'Clear the selection'}));
-            pickCell('volume#1', 'dev3n1');
             fireEvent.click(selectionButton());
             expect(screen.queryByRole('menuitem', {name: 'Console'})).not.toBeInTheDocument();
         });

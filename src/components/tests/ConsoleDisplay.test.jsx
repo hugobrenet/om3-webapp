@@ -3,7 +3,6 @@ import {act, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ConsoleDisplay from "../ConsoleDisplay.jsx";
 import {requestConsoleTicket} from "../../services/console-service.js";
-import {resourceActions} from "../objectActions.js";
 
 // The client of the display protocol draws in a canvas the test environment
 // does not have: what the component asks of it is recorded instead.
@@ -64,7 +63,7 @@ describe("ConsoleDisplay", () => {
     });
 
     const opened = async () => {
-        render(<ConsoleDisplay open target={TARGET} onClose={() => {}}/>);
+        render(<ConsoleDisplay target={TARGET}/>);
         await waitFor(() => expect(clients).toHaveLength(1));
         return clients[0];
     };
@@ -105,7 +104,7 @@ describe("ConsoleDisplay", () => {
     });
 
     test("a session ending is said, and closing ends it", async () => {
-        const {unmount} = render(<ConsoleDisplay open target={TARGET} onClose={() => {}}/>);
+        const {unmount} = render(<ConsoleDisplay target={TARGET}/>);
         await waitFor(() => expect(clients).toHaveLength(1));
         const client = clients[0];
         act(() => {
@@ -119,11 +118,3 @@ describe("ConsoleDisplay", () => {
     });
 });
 
-describe("the display action", () => {
-    test("a virtual machine alone has a screen", () => {
-        const has = (rid, type) => resourceActions(rid, type).some((a) => a.name === "display");
-        expect(has("container#1", "container.kvm")).toBe(true);
-        expect(has("container#1", "container.docker")).toBe(false);
-        expect(has("container#1", undefined)).toBe(false);
-    });
-});

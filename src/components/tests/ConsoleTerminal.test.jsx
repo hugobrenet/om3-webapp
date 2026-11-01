@@ -93,7 +93,7 @@ const ticket = {ticket: "T", port: 1216};
 
 // startSession renders an open console whose ticket was issued, and returns
 // the session the component opened and the handlers it gave it.
-const startSession = async (onClose = vi.fn()) => {
+const startSession = async () => {
     const session = {send: vi.fn(), resize: vi.fn(), close: vi.fn()};
     let handlers;
     requestConsoleTicket.mockResolvedValue(ticket);
@@ -103,9 +103,9 @@ const startSession = async (onClose = vi.fn()) => {
         handlers = h;
         return session;
     });
-    const view = render(<ConsoleTerminal open target={target} onClose={onClose}/>);
+    const view = render(<ConsoleTerminal target={target}/>);
     await waitFor(() => expect(openConsoleSession).toHaveBeenCalled());
-    return {session, handlers: () => handlers, view, onClose};
+    return {session, handlers: () => handlers, view};
 };
 
 describe("ConsoleTerminal", () => {
@@ -119,24 +119,17 @@ describe("ConsoleTerminal", () => {
         localStorage.clear();
     });
 
-    test("renders nothing of a session while closed", () => {
-        render(<ConsoleTerminal open={false} target={target} onClose={vi.fn()}/>);
+    test("opens no session without a target", () => {
+        render(<ConsoleTerminal target={null}/>);
         expect(requestConsoleTicket).not.toHaveBeenCalled();
         expect(terminals).toHaveLength(0);
-    });
-
-    test("opens no session without a target", () => {
-        render(<ConsoleTerminal open target={null} onClose={vi.fn()}/>);
-        expect(screen.getByText("Console")).toBeInTheDocument();
-        expect(requestConsoleTicket).not.toHaveBeenCalled();
     });
 
     test("speaks French in a French browser", async () => {
         requestConsoleTicket.mockReturnValue(new Promise(() => {}));
         await i18n.changeLanguage("fr");
         try {
-            render(<ConsoleTerminal open target={target} onClose={vi.fn()}/>);
-            expect(screen.getByText("Console container#1 sur n1")).toBeInTheDocument();
+            render(<ConsoleTerminal target={target}/>);
             expect(screen.getByText("Ouverture de la console...")).toBeInTheDocument();
         } finally {
             await act(() => i18n.changeLanguage("en"));
@@ -148,7 +141,6 @@ describe("ConsoleTerminal", () => {
         expect(requestConsoleTicket).toHaveBeenCalledWith({...target, token: "tok"});
         expect(consoleUrl).toHaveBeenCalledWith(ticket);
         expect(openConsoleSession.mock.calls[0][0]).toBe("wss://n1:1216/?ticket=T");
-        expect(screen.getByText("Console container#1 on n1")).toBeInTheDocument();
         expect(screen.getByText("Opening console...")).toBeInTheDocument();
 
         const term = terminals[0];
@@ -175,19 +167,34 @@ describe("ConsoleTerminal", () => {
         expect(session.resize).toHaveBeenLastCalledWith(132, 43);
     });
 
-    test("fits the terminal when the window is resized, whatever the fit says", async () => {
-        await startSession();
-        const fit = fits[0];
-        const before = fit.calls;
-        act(() => {
-            window.dispatchEvent(new Event("resize"));
+    test("fits the terminal to its room, whatever the fit says; hidden, it has none", async () => {
+        let resized;
+        vi.stubGlobal("ResizeObserver", class {
+            constructor(callback) {
+                resized = callback;
+            }
+
+            observe() {
+            }
+
+            disconnect() {
+            }
         });
-        expect(fit.calls).toBe(before + 1);
-        fit.fail = true;
-        act(() => {
-            window.dispatchEvent(new Event("resize"));
-        });
-        expect(fit.calls).toBe(before + 2);
+        try {
+            await startSession();
+            const fit = fits[0];
+            const before = fit.calls;
+            resized();
+            expect(fit.calls).toBe(before);
+            Object.defineProperty(screen.getByTestId("console-terminal"), "clientHeight", {value: 400});
+            resized();
+            expect(fit.calls).toBe(before + 1);
+            fit.fail = true;
+            resized();
+            expect(fit.calls).toBe(before + 2);
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 
     test("says the session ended with the exit code of its command", async () => {
@@ -225,44 +232,48 @@ describe("ConsoleTerminal", () => {
 
     test("says why the ticket was refused", async () => {
         requestConsoleTicket.mockRejectedValue(new Error("HTTP 403: not allowed"));
-        render(<ConsoleTerminal open target={target} onClose={vi.fn()}/>);
+        render(<ConsoleTerminal target={target}/>);
         expect(await screen.findByText("Failed to open console: HTTP 403: not allowed")).toBeInTheDocument();
         expect(openConsoleSession).not.toHaveBeenCalled();
     });
 
     test("opens no session without an auth token", async () => {
         localStorage.clear();
-        render(<ConsoleTerminal open target={target} onClose={vi.fn()}/>);
+        render(<ConsoleTerminal target={target}/>);
         expect(await screen.findByText("Auth token not found.")).toBeInTheDocument();
         expect(requestConsoleTicket).not.toHaveBeenCalled();
     });
 
-    test("ends the session and the terminal when it is closed", async () => {
-        const {session, view, onClose, handlers} = await startSession();
+    test("ends the session and the terminal when it goes", async () => {
+        const {session, view, handlers} = await startSession();
         const term = terminals[0];
-        await userEvent.click(screen.getByRole("button", {name: "Close"}));
-        expect(onClose).toHaveBeenCalled();
-
-        view.rerender(<ConsoleTerminal open={false} target={target} onClose={onClose}/>);
+        view.rerender(<ConsoleTerminal target={null}/>);
         await waitFor(() => expect(session.close).toHaveBeenCalled());
         expect(term.disposed).toBe(true);
         expect(term.dataDisposed).toBe(true);
         expect(term.resizeDisposed).toBe(true);
 
-        // What the session says after the dialog closed is not shown.
+        // What the session says after it closed is not shown.
         act(() => handlers().onEnd({opened: true, exit: null}));
         expect(screen.queryByText("The console connection was lost.")).not.toBeInTheDocument();
     });
 
-    test("is a dialog named after the console", async () => {
-        await startSession();
-        expect(screen.getByRole("dialog", {name: "Console container#1 on n1"})).toBeInTheDocument();
-    });
-
-    test("closes on Escape", async () => {
-        const {onClose} = await startSession();
-        await userEvent.keyboard("{Escape}");
-        expect(onClose).toHaveBeenCalled();
+    test("tells where it stands", async () => {
+        const onStatus = vi.fn();
+        requestConsoleTicket.mockResolvedValue(ticket);
+        consoleUrl.mockReturnValue("wss://n1:1216/?ticket=T");
+        let handlers;
+        openConsoleSession.mockImplementation((url, h) => {
+            handlers = h;
+            return {send: vi.fn(), resize: vi.fn(), close: vi.fn()};
+        });
+        render(<ConsoleTerminal target={target} onStatus={onStatus}/>);
+        await waitFor(() => expect(openConsoleSession).toHaveBeenCalled());
+        expect(onStatus).toHaveBeenLastCalledWith("connecting");
+        act(() => handlers.onOpen());
+        expect(onStatus).toHaveBeenLastCalledWith("open");
+        act(() => handlers.onEnd({opened: true, exit: {code: 0}}));
+        expect(onStatus).toHaveBeenLastCalledWith("ended");
     });
 
     test("draws the terminal in the colours of the design tokens, and follows the theme", async () => {
@@ -299,12 +310,12 @@ describe("ConsoleTerminal", () => {
         }
     });
 
-    test("opens no session for a ticket issued after the dialog closed", async () => {
+    test("opens no session for a ticket issued after it closed", async () => {
         let resolve;
         requestConsoleTicket.mockReturnValue(new Promise((r) => {
             resolve = r;
         }));
-        const view = render(<ConsoleTerminal open target={target} onClose={vi.fn()}/>);
+        const view = render(<ConsoleTerminal target={target}/>);
         await waitFor(() => expect(requestConsoleTicket).toHaveBeenCalled());
         view.unmount();
         await act(async () => {
@@ -313,12 +324,12 @@ describe("ConsoleTerminal", () => {
         expect(openConsoleSession).not.toHaveBeenCalled();
     });
 
-    test("shows nothing of a ticket refused after the dialog closed", async () => {
+    test("shows nothing of a ticket refused after it closed", async () => {
         let reject;
         requestConsoleTicket.mockReturnValue(new Promise((_, r) => {
             reject = r;
         }));
-        const view = render(<ConsoleTerminal open target={target} onClose={vi.fn()}/>);
+        const view = render(<ConsoleTerminal target={target}/>);
         await waitFor(() => expect(requestConsoleTicket).toHaveBeenCalled());
         view.unmount();
         await act(async () => {

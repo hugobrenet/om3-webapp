@@ -35,11 +35,7 @@ describe('commonResourceActions', () => {
         expect(both.every((name) => names([fs]).includes(name) && names([sync]).includes(name))).toBe(true);
     });
 
-    test('a console, of one resource alone; none selected, nothing', () => {
-        const c1 = line('o', 'n1', 'container#1', 'container.docker');
-        const c2 = line('o', 'n2', 'container#1', 'container.docker');
-        expect(names([c1])).toContain('console');
-        expect(names([c1, c2])).not.toContain('console');
+    test('none selected, nothing', () => {
         expect(commonResourceActions([])).toEqual([]);
     });
 });

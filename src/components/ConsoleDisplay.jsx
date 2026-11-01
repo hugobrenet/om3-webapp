@@ -1,7 +1,6 @@
 import React, {useEffect, useRef, useState} from "react";
 import {Alert} from "../ui/components/Alert";
 import {Button} from "../ui/components/Button";
-import {Dialog} from "../ui/components/Dialog";
 import {Trans, useTranslation} from "react-i18next";
 import i18n from "../i18n";
 import {consoleCertificateUrl, consoleUrl, requestConsoleTicket} from "../services/console-service.js";
@@ -19,18 +18,17 @@ const loadRFB = () => import("@novnc/novnc").then((m) => m.default);
 /**
  * The screen of a guest, in a console session of its resource.
  *
- * The session is opened when the dialog opens, and ended when it closes. The
- * websocket is opened here rather than by the client of the protocol: what
- * refuses a display is the reason of its close message, which that client
- * does not tell.
+ * The session is opened when it mounts, and ended when it unmounts. The websocket
+ * is opened here rather than by the client of the protocol: what refuses a display
+ * is the reason of its close message, which that client does not tell. `onStatus`
+ * is told where it stands.
  *
  * @param {{
- *   open: boolean,
  *   target: null | {node: string, namespace: string, kind: string, name: string, rid?: string},
- *   onClose: () => void,
+ *   onStatus?: (status: string) => void,
  * }} props
  */
-const ConsoleDisplay = ({open, target, onClose}) => {
+const ConsoleDisplay = ({target, onStatus}) => {
     const {t} = useTranslation();
     const [container, setContainer] = useState(/** @type {HTMLDivElement | null} */ (null));
     const clientRef = useRef(/** @type {any} */ (null));
@@ -45,7 +43,11 @@ const ConsoleDisplay = ({open, target, onClose}) => {
     const rid = target?.rid;
 
     useEffect(() => {
-        if (!open || !container || !node || !name) {
+        onStatus?.(status);
+    }, [status, onStatus]);
+
+    useEffect(() => {
+        if (!container || !node || !name) {
             return undefined;
         }
         let cancelled = false;
@@ -121,23 +123,10 @@ const ConsoleDisplay = ({open, target, onClose}) => {
             clientRef.current = null;
             ws?.close();
         };
-    }, [open, container, node, namespace, kind, name, rid]);
+    }, [container, node, namespace, kind, name, rid]);
 
     return (
-        <Dialog
-            open={open}
-            onClose={onClose}
-            size="xl"
-            title={rid && node ? t("console.display.titleRidNode", {rid, node}) : t("console.display.title")}
-            footer={
-                <Button
-                    disabled={status !== DISPLAY_STATUS.open}
-                    onClick={() => clientRef.current?.sendCtrlAltDel()}
-                >
-                    {t("console.display.ctrlAltDel")}
-                </Button>
-            }
-        >
+        <div className="flex h-full min-h-0 flex-col gap-2">
             {status === DISPLAY_STATUS.connecting && <p className="text-ink-muted">{t("console.opening")}</p>}
             {status === DISPLAY_STATUS.ended && <Alert tone="info">{message}</Alert>}
             {status === DISPLAY_STATUS.failed && (
@@ -165,9 +154,18 @@ const ConsoleDisplay = ({open, target, onClose}) => {
             <div
                 ref={setContainer}
                 data-testid="console-display"
-                className="h-[60vh] overflow-hidden rounded-(--radius-control) border border-line bg-black"
+                className="min-h-0 flex-1 overflow-hidden rounded-(--radius-control) border border-line bg-black"
             />
-        </Dialog>
+            <div className="flex justify-end">
+                <Button
+                    size="sm"
+                    disabled={status !== DISPLAY_STATUS.open}
+                    onClick={() => clientRef.current?.sendCtrlAltDel()}
+                >
+                    {t("console.display.ctrlAltDel")}
+                </Button>
+            </div>
+        </div>
     );
 };
 

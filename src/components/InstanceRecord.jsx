@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useRef, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useTranslation} from "react-i18next";
 import useEventStore from "../hooks/useEventStore.js";
@@ -19,8 +19,10 @@ import {NotProvisionedMark} from "../ui/components/StateMarks";
 import {toObjectState} from "../ui/components/status";
 import {ReadErrors, TotalTile, cpuText} from "./NamespaceMetrics";
 import {ObjectResources} from "./ObjectTabs";
-import {ContainerLogs, isContainerResource} from "./ContainerLogs";
-import {InstanceLink, ResourceLink} from "./RecordLinks";
+import {ContainerLogs} from "./ContainerLogs";
+import {ResourceConsole} from "./ResourceConsole";
+import {isContainerResource, isRunning, mayOpenSession, sessionKinds} from "../app/resource-sessions";
+import {InstanceLink, ResourceLink, ResourceSessionLinks} from "./RecordLinks";
 import {ObjectLogs} from "./ObjectLogs";
 import ObjectConfig from "./ObjectConfig";
 import {DatastoreLinks, RefreshStatusButton, actionIcon, datastoresOf, useActionRunner, volumesOf} from "./InstanceActions";
@@ -28,9 +30,11 @@ import {CLEAR_ACTION, resourceActions, syncVariant} from "./objectActions";
 import {usePanelHeader} from "../app/panel-header";
 import {MenuButton} from "../ui/components/MenuButton";
 import {Button} from "../ui/components/Button";
+import {Dialog} from "../ui/components/Dialog";
+import {useGrants} from "../hooks/useGrants";
 import {Checkbox} from "../ui/components/Field";
 import {BoltIcon, CloseIcon} from "../ui/icons";
-import {ONE_RESOURCE_ACTIONS, INSTANCE_ACTIONS, RESOURCE_ACTIONS, actionLabel} from "../constants/actions";
+import {INSTANCE_ACTIONS, RESOURCE_ACTIONS, actionLabel} from "../constants/actions";
 import {actionDescription, explainedMenu} from "../app/action-menu";
 import {SymbolHelp} from "../app/SymbolHelp";
 import {Term} from "../app/Term";
@@ -196,7 +200,7 @@ export function InstanceStatus({path, node}) {
         />
     );
 
-    // The resources checked: the actions every one of them takes; a console on one alone.
+    // The resources checked: the actions every one of them takes.
     const onResources = {
         targets: [{node, rid: pickedRids.join(",")}],
         subject: t("statusBoard.subjects.resource", {rid: pickedRids.join(", "), path, where: node}),
@@ -204,8 +208,7 @@ export function InstanceStatus({path, node}) {
     };
     const pickedTypes = pickedRids.map((rid) => status.resources?.[rid]?.type).filter(Boolean);
     const resourceItems = RESOURCE_ACTIONS
-        .filter((a) => (ONE_RESOURCE_ACTIONS.includes(a.name) ? pickedRids.length === 1 : true)
-            && pickedRids.every((rid) => resourceActions(rid, status.resources?.[rid]?.type).some((b) => b.name === a.name)))
+        .filter((a) => pickedRids.every((rid) => resourceActions(rid, status.resources?.[rid]?.type).some((b) => b.name === a.name)))
         .map((a) => {
             const variant = syncVariant(a.name, pickedTypes);
             return {
@@ -287,7 +290,12 @@ export function InstanceStatus({path, node}) {
                                     aria-label={t("instance.panel.selectResource", {rid})}
                                 />
                             </Cell>
-                            <Cell className="whitespace-nowrap"><ResourceLink path={path} rid={rid}/></Cell>
+                            <Cell className="whitespace-nowrap">
+                                <span className="inline-flex items-center gap-1.5">
+                                    <ResourceLink path={path} rid={rid}/>
+                                    <ResourceSessionLinks path={path} rid={rid} node={node} type={r.type}/>
+                                </span>
+                            </Cell>
                             <Cell><StatusWord status={r.status} notProvisioned={r.provisioned?.state === "false"}/></Cell>
                             <Cell className="text-ink-muted">{r.type}</Cell>
                             <Cell className="break-all">{r.label}</Cell>
@@ -388,7 +396,6 @@ function ResourceActions({path, rid, nodes, type}) {
         subject: t("statusBoard.subjects.resource", {rid, path, where: nodes.join(", ")}),
     };
     const items = resourceActions(rid, type)
-        .filter((a) => !ONE_RESOURCE_ACTIONS.includes(a.name) || nodes.length === 1)
         .map((a) => {
             const variant = syncVariant(a.name, type ? [type] : []);
             return {
@@ -477,7 +484,8 @@ export function InstanceDetailPanel({id, tab, onTabChange, onClose}) {
  * then what it reports on each (`om <path> resource info list`, ObjectResources),
  * then its logs on all of them, merged, then its section of the configuration of
  * the object; a container, what it writes too (ContainerLogs), on the nodes it is
- * on. By `path:rid@node`, the same on the instance of that node alone. It closes
+ * on, and for who may a session on it (ResourceConsole), kept open from a tab to
+ * another, closing the panel on one asked first. By `path:rid@node`, the same on the instance of that node alone. It closes
  * once the object, or that instance, is gone.
  */
 export function ResourceDetailPanel({id, tab, onTabChange, onClose}) {
@@ -496,16 +504,33 @@ export function ResourceDetailPanel({id, tab, onTabChange, onClose}) {
     const rid = parsed?.rid;
     const resourceNodes = useMemo(() => nodes.filter((node) => instances?.[node]?.resources?.[rid] !== undefined), [nodes, instances, rid]);
     const upNodes = useMemo(() => resourceNodes.filter((node) => instances[node].resources[rid].status === "up"), [resourceNodes, instances, rid]);
+    const runningNodes = useMemo(() => resourceNodes.filter((node) => isRunning(instances[node].resources[rid].status)), [resourceNodes, instances, rid]);
     const type = resourceNodes.map((node) => instances[node].resources[rid].type).find(Boolean);
     const container = rid !== undefined && isContainerResource(rid, type);
+    const grants = useGrants();
+    const sessions = parsed !== null && mayOpenSession(grants, parsed.path) ? sessionKinds(parsed.rid, type) : [];
+    // The sessions open, and the panel asked to close on them.
+    const [liveSessions, setLiveSessions] = useState([]);
+    const [closing, setClosing] = useState(false);
+    const markLive = useCallback((session, live) => setLiveSessions((list) => {
+        const others = list.filter((s) => s !== session);
+        return live ? [...others, session] : others;
+    }), []);
     const tabs = [
         {key: "status", label: t("panel.tabs.status")},
         {key: "info", label: t("panel.tabs.info")},
         {key: "logs", label: t("panel.tabs.logs")},
         ...(container ? [{key: "container", label: t("panel.tabs.containerLogs")}] : []),
+        ...sessions.map((session) => ({key: session, label: t(`panel.tabs.${session}`)})),
         {key: "config", label: t("panel.tabs.config")},
     ];
+    const askClose = () => (liveSessions.length > 0 ? setClosing(true) : onClose());
+    const closeSessions = () => {
+        setClosing(false);
+        onClose();
+    };
     return (
+        <>
         <RecordPanel
             open={parsed !== null}
             kind="resource"
@@ -513,7 +538,7 @@ export function ResourceDetailPanel({id, tab, onTabChange, onClose}) {
             title={parsed === null ? ""
                 : onNode === undefined ? t("resource.panel.title", {path: parsed.path, rid: parsed.rid})
                     : t("resource.panel.titleOnNode", {path: parsed.path, rid: parsed.rid, node: onNode})}
-            onClose={onClose}
+            onClose={askClose}
             tabs={tabs}
             tab={tab}
             onTabChange={onTabChange}
@@ -523,7 +548,21 @@ export function ResourceDetailPanel({id, tab, onTabChange, onClose}) {
                 <>
                     {/* Its actions in the title bar, whatever the tab: on its node, or on the nodes holding it. */}
                     <ResourceActions key={`actions:${id}`} path={parsed.path} rid={parsed.rid} nodes={resourceNodes} type={type}/>
-                    {active === "config"
+                    {/* Mounted whatever the tab: a session outlives a look at another one. */}
+                    {sessions.map((session) => (
+                        <ResourceConsole
+                            key={`${session}:${id}`}
+                            kind={session}
+                            path={parsed.path}
+                            rid={parsed.rid}
+                            nodes={resourceNodes}
+                            upNodes={runningNodes}
+                            hidden={active !== session}
+                            onLive={markLive}
+                        />
+                    ))}
+                    {sessions.includes(active) ? null
+                        : active === "config"
                         ? <ObjectConfig key={id} path={parsed.path} section={parsed.rid}/>
                         : active === "logs"
                         ? <ObjectLogs key={id} path={parsed.path} nodes={nodes} filters={[`RID=${parsed.rid}`]}/>
@@ -535,5 +574,19 @@ export function ResourceDetailPanel({id, tab, onTabChange, onClose}) {
                 </>
             ))}
         </RecordPanel>
+        <Dialog
+            open={closing}
+            onClose={() => setClosing(false)}
+            title={t("console.close.title")}
+            footer={(
+                <>
+                    <Button onClick={() => setClosing(false)}>{t("common.cancel")}</Button>
+                    <Button variant="change" onClick={closeSessions}>{t("console.close.confirm")}</Button>
+                </>
+            )}
+        >
+            {t("console.close.text")}
+        </Dialog>
+        </>
     );
 }

@@ -20,7 +20,7 @@ import {CAPACITY_KINDS, ObjectCapacity} from "./ObjectCapacity";
 import {FILES_KINDS, VolumeFiles} from "./VolumeFiles";
 import {ClusterLocks} from "./ClusterLocks";
 import {ObjectSnapshots, useSnapshotNodes} from "./ObjectSnapshots";
-import {InstanceLink, ResourceLink} from "./RecordLinks";
+import {InstanceLink, ResourceLink, ResourceSessionLinks} from "./RecordLinks";
 import {CrossLink} from "../app/CrossLink";
 import {usePeek} from "../app/panel-search";
 import {resourceId} from "../app/peek";
@@ -71,7 +71,12 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
     const linkNode = useCallback((node) => (kind === "ccfg"
         ? <CrossLink kind="node" id={node}>{node}</CrossLink>
         : <InstanceLink path={path} node={node}/>), [kind, path]);
-    const linkResource = useCallback((rid) => <ResourceLink path={path} rid={rid}/>, [path]);
+    const linkResource = useCallback((rid) => (
+        <>
+            <ResourceLink path={path} rid={rid}/>
+            <ResourceSessionLinks path={path} rid={rid}/>
+        </>
+    ), [path]);
     // The value of a resource on a node, its cell: the resource on that instance alone.
     const peek = usePeek();
     const openCell = useCallback((rid, node) => peek("resource", resourceId(path, rid, node)), [peek, path]);

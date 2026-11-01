@@ -271,8 +271,6 @@
       "pgUpdate": "Pg update",
       "info": "Info",
       "status": "Status",
-      "console": "Console",
-      "display": "Display",
       "clear": "Clear",
       "drain": "Drain",
       "scsiScan": "Scsi scan",
@@ -454,15 +452,10 @@
   },
   "console": {
     "display": {
-      "title": "Display",
-      "titleRidNode": "Display of {{rid}} on {{node}}",
       "ended": "The display session ended.",
-      "ctrlAltDel": "Send Ctrl+Alt+Del"
+      "ctrlAltDel": "Send Ctrl+Alt+Del",
+      "idle": "Connect opens the screen of the guest on {{node}}."
     },
-    "title": "Console",
-    "titleRid": "Console {{rid}}",
-    "titleNode": "Console on {{node}}",
-    "titleRidNode": "Console {{rid}} on {{node}}",
     "opening": "Opening console...",
     "ended": "Session ended (exit code {{code}}).",
     "certificateHint": "If the certificate of the console port is not trusted by this browser, open <certLink>{{url}}</certLink> to accept it, then open the console again.",
@@ -472,7 +465,23 @@
       "unreachable": "The console could not be reached.",
       "lost": "The console connection was lost.",
       "openFailed": "Failed to open console: {{message}}"
-    }
+    },
+    "node": "Node of the session",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "idle": "Connect opens a shell on {{node}}.",
+    "notRunning": "Not running on {{node}}.",
+    "open": {
+      "console": "Open the console of {{rid}}",
+      "display": "Open the display of {{rid}}"
+    },
+    "close": {
+      "title": "End the session?",
+      "text": "Closing this panel ends the session open in it.",
+      "confirm": "End the session"
+    },
+    "newTab": "Open in a new tab",
+    "tabTitle": "{{rid}} @ {{node}} · {{path}}"
   },
   "events": {
     "title": "Event Logger",
@@ -1967,7 +1976,9 @@
       "containerLogs": "Container logs",
       "locks": "Locks",
       "snapshots": "Snapshots",
-      "restore": "Restore"
+      "restore": "Restore",
+      "console": "Console",
+      "display": "Display"
     },
     "crossLink": "Show the {{kind}} here",
     "kinds": {
@@ -2573,8 +2584,6 @@
       "stop": "Bring down the resources picked.",
       "restart": "Restart the resources picked.",
       "run": "Run the tasks picked now, outside their schedule.",
-      "console": "Open a console in the container.",
-      "display": "Open the screen of the guest.",
       "startStandby": "Bring up the resources picked meant to stay up on a standby node.",
       "prstart": "Preempt the exclusive write reservation of the devices of the resources picked.",
       "prstop": "Release the write reservation of the devices of the resources picked.",

@@ -271,8 +271,6 @@
       "pgUpdate": "Mettre à jour le groupe de placement",
       "info": "Infos",
       "status": "Statut",
-      "console": "Console",
-      "display": "Écran",
       "clear": "Effacer",
       "drain": "Drainer",
       "scsiScan": "Scan SCSI",
@@ -454,15 +452,10 @@
   },
   "console": {
     "display": {
-      "title": "Écran",
-      "titleRidNode": "Écran de {{rid}} sur {{node}}",
       "ended": "La session d'écran est terminée.",
-      "ctrlAltDel": "Envoyer Ctrl+Alt+Suppr"
+      "ctrlAltDel": "Envoyer Ctrl+Alt+Suppr",
+      "idle": "Connecter ouvre l'écran de l'invité sur {{node}}."
     },
-    "title": "Console",
-    "titleRid": "Console {{rid}}",
-    "titleNode": "Console sur {{node}}",
-    "titleRidNode": "Console {{rid}} sur {{node}}",
     "opening": "Ouverture de la console...",
     "ended": "Session terminée (code de sortie {{code}}).",
     "certificateHint": "Si le certificat du port de la console n'est pas reconnu par ce navigateur, ouvrez <certLink>{{url}}</certLink> pour l'accepter, puis rouvrez la console.",
@@ -472,7 +465,23 @@
       "unreachable": "La console est injoignable.",
       "lost": "La connexion à la console a été perdue.",
       "openFailed": "Échec de l'ouverture de la console : {{message}}"
-    }
+    },
+    "node": "Nœud de la session",
+    "connect": "Connecter",
+    "disconnect": "Déconnecter",
+    "idle": "Connecter ouvre un shell sur {{node}}.",
+    "notRunning": "Ne tourne pas sur {{node}}.",
+    "open": {
+      "console": "Ouvrir la console de {{rid}}",
+      "display": "Ouvrir l'écran de {{rid}}"
+    },
+    "close": {
+      "title": "Terminer la session ?",
+      "text": "Fermer ce panneau termine la session qui y est ouverte.",
+      "confirm": "Terminer la session"
+    },
+    "newTab": "Ouvrir dans un onglet",
+    "tabTitle": "{{rid}} @ {{node}} · {{path}}"
   },
   "events": {
     "title": "Journal des événements",
@@ -1967,7 +1976,9 @@
       "containerLogs": "Journaux du conteneur",
       "locks": "Verrous",
       "snapshots": "Instantanés",
-      "restore": "Restauration"
+      "restore": "Restauration",
+      "console": "Console",
+      "display": "Écran"
     },
     "crossLink": "Afficher la fiche ici ({{kind}})",
     "kinds": {
@@ -2573,8 +2584,6 @@
       "stop": "Arrêter les ressources choisies.",
       "restart": "Redémarrer les ressources choisies.",
       "run": "Exécuter les tâches choisies maintenant, hors de leur planification.",
-      "console": "Ouvrir une console dans le conteneur.",
-      "display": "Ouvrir l'écran de l'invité.",
       "startStandby": "Démarrer les ressources choisies destinées à rester actives sur un nœud de secours.",
       "prstart": "Préempter la réservation d'écriture exclusive des périphériques des ressources choisies.",
       "prstop": "Libérer la réservation d'écriture des périphériques des ressources choisies.",
