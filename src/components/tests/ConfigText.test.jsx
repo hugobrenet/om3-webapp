@@ -1,6 +1,10 @@
 import React from 'react';
 import {fireEvent, render, screen, within} from '@testing-library/react';
 import {vi} from 'vitest';
+import {MemoryRouter, useLocation} from 'react-router-dom';
+vi.mock('../KeysSection', () => ({
+    default: ({decodedObjectName, keyOnly, onKeyClosed}) => <button type="button" data-testid="key-shown" onClick={onKeyClosed}>{`${keyOnly} of ${decodedObjectName}`}</button>,
+}));
 import {ConfigText, clearKeywordsCache, findKeyword, parseConfig} from '../ConfigText';
 
 describe('findKeyword', () => {
@@ -69,6 +73,65 @@ describe('parseConfig', () => {
 });
 
 describe('ConfigText', () => {
+    describe('its from <datastore> key <name>', () => {
+        const Where = () => <div data-testid="url">{useLocation().search}</div>;
+        const TEXT = `[volume#0]
+install = /a/b from ./cfg/oc3 key conf.yaml mode 0755
+  /c from cfg/shared key {name}
+  /d from ./sec/haproxy-* key cert
+  /e from ./sec/oc3 key dir/*
+  /f from sec/ca key {name}.pem
+comment = copied from ./cfg/oc3 key conf.yaml
+
+[env]
+a = from ./cfg/oc3 key conf.yaml`;
+        const show = (props) => render(<MemoryRouter><ConfigText text={TEXT} label="file" {...props}/><Where/></MemoryRouter>);
+        const urlOf = () => decodeURIComponent(screen.getByTestId('url').textContent);
+        const linkIn = (line, name) => within(document.querySelector(`[data-line="${line}"]`)).getByRole('button', {name});
+
+        test('the datastore opens on its keys; ./ of the namespace of the object', () => {
+            show({path: 'dev/svc/oc3'});
+            fireEvent.click(linkIn(1, './cfg/oc3'));
+            expect(urlOf()).toBe('?peek=object:dev/cfg/oc3&peektab=keys');
+        });
+
+        test('the name shows the key where it stands: the file on display, no panel changed', () => {
+            show({path: 'dev/svc/oc3'});
+            fireEvent.click(linkIn(1, 'conf.yaml'));
+            expect(screen.getByTestId('key-shown')).toHaveTextContent('conf.yaml of dev/cfg/oc3');
+            expect(urlOf()).toBe('');
+            fireEvent.click(screen.getByTestId('key-shown'));
+            expect(screen.queryByTestId('key-shown')).toBeNull();
+        });
+
+        test('two words are of the root namespace, in an object of another too', () => {
+            show({path: 'dev/svc/oc3'});
+            fireEvent.click(linkIn(2, 'cfg/shared'));
+            expect(urlOf()).toBe('?peek=object:cfg/shared&peektab=keys');
+        });
+
+        test('what the node alone resolves stays as written, the text kept', () => {
+            show({path: 'dev/svc/oc3'});
+            // The name a reference, the datastore a pattern, the name a pattern.
+            expect(within(document.querySelector('[data-line="2"]')).queryByRole('button', {name: '{name}'})).toBeNull();
+            expect(within(document.querySelector('[data-line="3"]')).queryAllByRole('button')).toEqual([]);
+            expect(within(document.querySelector('[data-line="4"]')).getAllByRole('button').map((b) => b.textContent)).toEqual(['./sec/oc3']);
+            expect(within(document.querySelector('[data-line="5"]')).getAllByRole('button').map((b) => b.textContent)).toEqual(['sec/ca']);
+            expect([...document.querySelectorAll('[data-line]')].map((e) => e.textContent).join('\n')).toBe(TEXT);
+        });
+
+        test('no way out of a comment nor of a free key', () => {
+            show({path: 'dev/svc/oc3'});
+            expect(within(document.querySelector('[data-line="6"]')).queryAllByRole('button')).toEqual([]);
+            expect(within(document.querySelector('[data-line="9"]')).queryAllByRole('button')).toEqual([]);
+        });
+
+        test('without the object, a relative one means nothing: none', () => {
+            show({});
+            expect(screen.queryAllByRole('button')).toEqual([]);
+        });
+    });
+
     describe('its colours, as om <path> config show', () => {
         const TEXT = `# see {not.a.reference}
 [DEFAULT]

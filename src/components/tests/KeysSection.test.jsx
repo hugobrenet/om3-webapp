@@ -1438,6 +1438,60 @@ describe('KeysSection certificate', () => {
     });
 });
 
+describe('KeysSection, a key alone', () => {
+    beforeEach(() => {
+        localStorage.setItem('authToken', 'valid-token');
+    });
+
+    const alone = (object, key, text, props = {}) => {
+        mockFetch({keys: [{name: key, node: 'n', size: text.length}], keyBlob: makeMockBlob(encodeText(text))});
+        const onKeyClosed = vi.fn();
+        render(<KeysSection decodedObjectName={object} openSnackbar={vi.fn()} keyOnly={key} onKeyClosed={onKeyClosed} {...props}/>);
+        return onKeyClosed;
+    };
+
+    test('its dialog and nothing of the list, which is not read', async () => {
+        alone('dev/cfg/oc3', 'conf.yaml', 'its content');
+        const dialog = await screen.findByRole('dialog', {name: 'View Key: conf.yaml'});
+        expect(await within(dialog).findByDisplayValue('its content')).toBeInTheDocument();
+        expect(screen.queryByRole('table')).not.toBeInTheDocument();
+        expect(global.fetch.mock.calls.filter(([url]) => url.includes('/data/keys'))).toEqual([]);
+    });
+
+    test('a secret, asked for by a click, shows as from the list', async () => {
+        alone('dev/sec/oc3', 'token', 's3cret');
+        const dialog = await screen.findByRole('dialog', {name: 'View Key: token'});
+        expect(await within(dialog).findByDisplayValue('s3cret')).toBeInTheDocument();
+    });
+
+    test('closed, it ends', async () => {
+        const onKeyClosed = alone('dev/cfg/oc3', 'conf.yaml', 'its content');
+        const dialog = await screen.findByRole('dialog', {name: 'View Key: conf.yaml'});
+        await within(dialog).findByDisplayValue('its content');
+        expect(onKeyClosed).not.toHaveBeenCalled();
+        await user.click(within(dialog).getAllByRole('button', {name: 'Close'})[0]);
+        await waitFor(() => expect(onKeyClosed).toHaveBeenCalledTimes(1));
+    });
+
+    test('edited from there, it goes on in the form, not ended', async () => {
+        const onKeyClosed = alone('dev/cfg/oc3', 'conf.yaml', 'its content');
+        const dialog = await screen.findByRole('dialog', {name: 'View Key: conf.yaml'});
+        await within(dialog).findByDisplayValue('its content');
+        await user.click(within(dialog).getByRole('button', {name: 'Edit'}));
+        expect(await screen.findByRole('dialog', {name: 'Update Key'})).toBeInTheDocument();
+        expect(onKeyClosed).not.toHaveBeenCalled();
+    });
+
+    test('not read, it ends, the reason said', async () => {
+        const openSnackbar = vi.fn();
+        const onKeyClosed = vi.fn();
+        global.fetch = vi.fn(() => Promise.resolve({ok: false, status: 404, text: () => Promise.resolve(''), json: () => Promise.resolve({})}));
+        render(<KeysSection decodedObjectName="dev/cfg/oc3" openSnackbar={openSnackbar} keyOnly="gone" onKeyClosed={onKeyClosed}/>);
+        await waitFor(() => expect(onKeyClosed).toHaveBeenCalled());
+        expect(openSnackbar).toHaveBeenCalled();
+    });
+});
+
 describe('KeysSection in French', () => {
     afterEach(async () => {
         await i18n.changeLanguage('en');
