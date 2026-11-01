@@ -69,6 +69,39 @@ describe('parseConfig', () => {
 });
 
 describe('ConfigText', () => {
+    describe('its colours, as om <path> config show', () => {
+        const TEXT = `# see {not.a.reference}
+[DEFAULT]
+nodes@n1 = {clusternodes}
+
+[data]
+free@n2 = {a} and {b#1.c:d}
+[fs#1]
+mnt = /a
+  {continued}`;
+        const tokens = (kind) => [...document.querySelectorAll(`[data-config-token="${kind}"]`)].map((e) => e.textContent);
+
+        test.each([['documented', '/keywords'], ['plain', undefined]])('the sections, the keys, the scopes, the references, the text kept: %s', (_, keywordsUrl) => {
+            render(<ConfigText text={TEXT} keywordsUrl={keywordsUrl} label="file"/>);
+            expect(tokens('section')).toEqual(['[DEFAULT]', '[data]', '[fs#1]']);
+            expect(tokens('key')).toEqual(['nodes@n1', 'free@n2', 'mnt']);
+            expect(tokens('scope')).toEqual(['@n1', '@n2']);
+            expect(tokens('reference')).toEqual(['{clusternodes}', '{a}', '{b#1.c:d}', '{continued}']);
+            // What the file says is left as it is, line by line.
+            const lines = [...document.querySelectorAll('[data-line]')].map((e) => e.textContent);
+            expect(lines.join('\n')).toBe(TEXT);
+        });
+
+        test('in the colours of the theme; a comment plain, even holding a reference', () => {
+            render(<ConfigText text={TEXT} label="file"/>);
+            expect(document.querySelector('[data-config-token="section"]')).toHaveClass('text-code-keyword');
+            expect(document.querySelector('[data-config-token="key"]')).toHaveClass('text-ink-muted');
+            expect(document.querySelector('[data-config-token="scope"]')).toHaveClass('text-state-down');
+            expect(document.querySelector('[data-config-token="reference"]')).toHaveClass('text-state-up');
+            expect(document.querySelector('[data-line="0"]').querySelector('[data-config-token]')).toBeNull();
+        });
+    });
+
     beforeEach(() => {
         clearKeywordsCache();
         localStorage.setItem('authToken', 'tok');
@@ -89,7 +122,7 @@ describe('ConfigText', () => {
             ['What app#1.start does', 'start'],
         ]);
         expect(file.querySelector('[data-line="6"]')).toHaveTextContent(/^mnt_opt = rw$/);
-        expect(screen.getByText('private_key = crypt:abc')).toBeInTheDocument();
+        expect([...document.querySelectorAll('[data-line]')].map((e) => e.textContent)).toContain('private_key = crypt:abc');
         expect(screen.getByText('# nodes = commented out')).toBeInTheDocument();
         expect(global.fetch).not.toHaveBeenCalled();
     });

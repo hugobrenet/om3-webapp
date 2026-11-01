@@ -41,13 +41,18 @@ export const clearKeywordsCache = () => docCache.clear();
 const SECTION = /^\s*\[([^\]]+)\]\s*$/;
 // A key at the start of its line, not a comment nor the continuation of a value.
 const KEY = /^([^\s#;=[][^=]*?)\s*=/;
+// As `om <path> config show` tells them (core/rawconfig): a scope, `{a.reference}`.
+const SCOPE = /(@[\w.-_]+)/;
+const REFERENCE = /({[\w#.-_:]+})/;
+const COMMENT = /^\s*[#;]/;
 /** The sections of free keys, no keyword of them: the data of a secret or a configuration, the env and labels. */
 const FREE_SECTIONS = new Set(["data", "env", "labels"]);
 
 /**
- * The lines of the file, each key line with its section, its key without the
- * scope (`nodes@n1` is `nodes`), and where the key as written stands in the line;
- * a key of a section of free keys, none.
+ * The lines of the file, a section with `heading`, a comment with `comment`; a key
+ * line with where the key as written stands in the line, and with its section and
+ * its key without the scope (`nodes@n1` is `nodes`), a key of a section of free keys
+ * having none of those two.
  */
 export function parseConfig(text) {
     let section = "DEFAULT";
@@ -55,15 +60,28 @@ export function parseConfig(text) {
         const s = line.match(SECTION);
         if (s) {
             section = s[1].trim();
-            return {line};
+            return {line, heading: true};
         }
+        if (COMMENT.test(line)) return {line, comment: true};
         const k = line.match(KEY);
-        if (!k || FREE_SECTIONS.has(section)) return {line};
+        if (!k) return {line};
         const written = k[1].trim();
         const start = line.indexOf(written);
-        return {line, section, key: written.split("@")[0], start, end: start + written.length};
+        const end = start + written.length;
+        if (FREE_SECTIONS.has(section)) return {line, start, end};
+        return {line, section, key: written.split("@")[0], start, end};
     });
 }
+
+/** A text split on a pattern capturing what `paint` draws, each piece matched painted. */
+const painted = (text, pattern, paint) => text.split(pattern)
+    .map((piece, index) => (index % 2 === 1 ? <React.Fragment key={index}>{paint(piece)}</React.Fragment> : piece));
+
+/** A key as written, its scope said apart. */
+const keyName = (text) => painted(text, SCOPE, (scope) => <span data-config-token="scope" className="text-state-down">{scope}</span>);
+
+/** A value, its references said apart. */
+const value = (text) => painted(text, REFERENCE, (ref) => <span data-config-token="reference" className="text-state-up">{ref}</span>);
 
 /**
  * The keyword a key of a section sets, in a list of keywords: of the kind of the
@@ -151,9 +169,11 @@ function KeywordDocDialog({keywordsUrl, section, option, name, onClose}) {
 }
 
 /**
- * The file, the name of each key a button opening the documentation of its
- * keyword, read from `keywordsUrl` for that keyword alone. `lineNumbers` numbers
- * the lines, as a file to confirm is read by them.
+ * The file, coloured as `om <path> config show` does: the sections, the keys, their
+ * scopes, the references in the values; the comments left plain. The name of each
+ * key a button opening the documentation of its keyword, read from `keywordsUrl` for
+ * that keyword alone. `lineNumbers` numbers the lines, as a file to confirm is read
+ * by them.
  */
 export function ConfigText({text, keywordsUrl, label, lineNumbers = false}) {
     const {t} = useTranslation();
@@ -166,7 +186,10 @@ export function ConfigText({text, keywordsUrl, label, lineNumbers = false}) {
         <div className="overflow-x-auto rounded-(--radius-control) border border-line bg-surface-sunken p-2">
             <div role="group" aria-label={label} className="font-mono text-data whitespace-pre-wrap text-ink">
                 {lines.map((l, index) => {
-                    const content = l.key && keywordsUrl ? (
+                    const name = l.start === undefined ? null : <span data-config-token="key" className="text-ink-muted">{keyName(l.line.slice(l.start, l.end))}</span>;
+                    const content = l.heading ? <span data-config-token="section" className="text-code-keyword">{l.line}</span>
+                        : l.comment ? l.line
+                        : l.key && keywordsUrl ? (
                         <>
                             {l.line.slice(0, l.start)}
                             <button
@@ -175,11 +198,17 @@ export function ConfigText({text, keywordsUrl, label, lineNumbers = false}) {
                                 onClick={() => setOpen(index)}
                                 className="cursor-pointer rounded-sm underline decoration-line-strong decoration-dotted underline-offset-2 hover:text-accent hover:decoration-accent focus-visible:outline-2 focus-visible:outline-accent"
                             >
-                                {l.line.slice(l.start, l.end)}
+                                {name}
                             </button>
-                            {l.line.slice(l.end)}
+                            {value(l.line.slice(l.end))}
                         </>
-                    ) : l.line;
+                    ) : name ? (
+                        <>
+                            {l.line.slice(0, l.start)}
+                            {name}
+                            {value(l.line.slice(l.end))}
+                        </>
+                    ) : value(l.line);
                     return lineNumbers ? (
                         <div key={index} data-line={index} className="flex min-h-[1lh] items-start gap-2 hover:bg-surface">
                             <span aria-hidden="true" data-testid="config-line-number" className="w-8 shrink-0 text-right text-ink-muted tabular-nums select-none">
