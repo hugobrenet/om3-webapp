@@ -97,7 +97,7 @@ describe('useNodeData', () => {
             });
         });
 
-        test('keeps previous data when instanceStatus disappears (covers prevDataRef not null branch)', () => {
+        test('an instance deleted while shown: said gone, not as it was', () => {
             // Start with a real instance
             mockState = {
                 objectInstanceStatus: {
@@ -117,16 +117,16 @@ describe('useNodeData', () => {
             const initialData = result.current;
             expect(initialData.frozen).toBe('frozen');
 
-            // Remove the instance status – hook should keep the last known data
+            // The daemon deletes its status: its column shows the "?" of no instance.
             mockState = {...mockState, objectInstanceStatus: {}};
             rerender();
 
-            expect(result.current).toBe(initialData); // same reference, old data preserved
+            expect(result.current).not.toBe(initialData);
             expect(result.current).toEqual({
-                avail: 'up',
-                frozen: 'frozen',
-                state: 'running',
-                provisioned: true,
+                avail: null,
+                frozen: 'unfrozen',
+                state: null,
+                provisioned: null,
             });
 
             // After that, further renders with still missing status keep the same reference

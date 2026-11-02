@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { buildBoard, marker, splitLabels, words, type Board, type ObjectData, type Text } from "../statusboard";
+import { buildBoard, marker, resourceNotes, splitLabels, words, type Board, type ObjectData, type Text } from "../statusboard";
 import { selectionEdges } from "../StatusBoard";
 import dns from "./fixtures/system-svc-dns.json";
 import foo001 from "./fixtures/root-svc-foo001.json";
@@ -134,9 +134,35 @@ describe("status board", () => {
     const used = buildBoard({ path: "system/vol/dns", object: vol("up") });
     expect(icons(used)).toEqual(["error", "error"]);
     expect(used.notes.map((g) => g.text)).not.toContain("children are down");
+    // Why its down is an issue: the child up, named.
+    expect(used.notes[0]).toMatchObject({ level: "error", text: "down while its child system/svc/dns is up: the child needs the vol" });
+    // Several up, on their nodes: all named, once each.
+    const two = vol("up");
+    if (two.instances?.n1?.monitor) two.instances.n1.monitor.children = { "ns/svc/b@n1": "up", "ns/svc/a": "warn", "ns/svc/c": "down" };
+    expect(buildBoard({ path: "system/vol/dns", object: two }).notes[0]?.text).toBe("down while its children ns/svc/a, ns/svc/b@n1 are up: they need the vol");
     const unused = buildBoard({ path: "system/vol/dns", object: vol("down") });
     expect(icons(unused)).toEqual(["secondary", "secondary"]);
     expect(unused.notes).toContainEqual(expect.objectContaining({ level: "info", text: "children are down" }));
+    // No children, or none of them an object (undef): gray, said so.
+    const childless = (children?: Record<string, string>): ObjectData => {
+      const o = vol("down");
+      const monitor = o.instances?.n1?.monitor ?? {};
+      if (children === undefined) delete monitor.children;
+      else monitor.children = children;
+      return o;
+    };
+    for (const o of [childless(), childless({}), childless({ "ns/svc/gone": "undef" })]) {
+      const board = buildBoard({ path: "system/vol/dns", object: o });
+      expect(icons(board)).toEqual(["secondary", "secondary"]);
+      expect(board.notes).toContainEqual(expect.objectContaining({ level: "info", text: "no children" }));
+    }
+    // One child gone, the other down: its children are down.
+    const mixed = buildBoard({ path: "system/vol/dns", object: childless({ "ns/svc/gone": "undef", "ns/svc/s": "down" }) });
+    expect(mixed.notes).toContainEqual(expect.objectContaining({ text: "children are down" }));
+    // No monitor known: nothing said of its children, its downs red.
+    const unmonitored = vol("down");
+    delete unmonitored.instances?.n1?.monitor;
+    expect(icons(buildBoard({ path: "system/vol/dns", object: unmonitored }))).toEqual(["error", "error"]);
   });
 
   test("a failover service with an unsupported driver reads as om shows it", () => {
@@ -295,6 +321,21 @@ describe("status board", () => {
       "    app#a|O RM2|O M2|simple|",
     ]);
     expect(board.notes[0]?.text).toMatch(/^rpo breached since 2026-10-12T11:00:00Z/);
+  });
+
+  test("the notes of a resource on its nodes: grouped by text, errors first, the RPO breached too", () => {
+    const notes = resourceNotes([
+      ["n1", { log: [{ level: "info", message: "started" }, { level: "error", message: "exit 1" }] }],
+      ["n2", { log: [{ level: "info", message: "started" }], rpo_breached_at: "1970-01-01T00:00:00Z" }],
+    ]);
+    expect(notes.map((n) => [n.level, n.nodes, n.text.split(":")[0]])).toEqual([
+      ["error", "n1", "exit 1"],
+      ["error", "n2", "rpo breached"],
+      ["info", "all", "started"],
+    ]);
+    // On one node: no nodes said.
+    expect(resourceNotes([["n1", { log: [{ level: "warn", message: "slow" }] }]])).toEqual([{ marker: "", level: "warn", text: "slow", nodes: "" }]);
+    expect(resourceNotes([["n1", {}]])).toEqual([]);
   });
 
   test("labels split in what the nodes share and what they do not", () => {

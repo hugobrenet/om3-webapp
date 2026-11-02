@@ -13,7 +13,8 @@ import { Cell, HeaderCell, HeaderRow, Row, Table } from "../ui/components/Table"
 import { SYMBOLS_HINT, hideIntro, useHiddenIntros, useIntrosEnabled } from "./page-intro";
 import { SymbolHelp } from "./SymbolHelp";
 import { Term } from "./Term";
-import type { Board, BoardRow, Level, NoteFix, Span, Text, Tone } from "./statusboard";
+import { HoverCard } from "../ui/components/HoverCard";
+import type { Board, BoardRow, Level, NoteFix, RowNote, Span, Text, Tone } from "./statusboard";
 
 
 /** The rows of the board named by a word of the glossary, its key by the kind of row. */
@@ -226,10 +227,51 @@ export function SymbolLegend() {
 }
 
 /**
- * What a cell holds: the status glyph, the marks, the flags, the markers of the notes.
- * The symbols said on demand; `inert` in a button, the click being the button's.
+ * Notes, by each its level, its marker, its text, the nodes it is about: in the card
+ * of a resource, or in the panel of one (`className`, its width there).
  */
-function Pieces({ text, kind, inert = false }: { text: Text; kind: BoardRow["kind"]; inert?: boolean }) {
+export function NotesList({ notes, className = "max-w-sm" }: { notes: RowNote[]; className?: string }) {
+  const { t } = useTranslation();
+  return (
+    <ul data-notes-card="" className={cn("space-y-1.5", className)}>
+      {notes.map((n, i) => {
+        const { ink, Icon } = LEVELS[n.level];
+        return (
+          <li key={i} className="flex items-start gap-1.5">
+            <Icon aria-hidden="true" className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", ink)} />
+            <span className="sr-only">{t(`statusBoard.levels.${n.level}`)}</span>
+            <span className="min-w-0">
+              {n.marker !== "" && <sup className={cn("mr-0.5 font-medium", ink)}>{n.marker}</sup>}
+              <span className="text-ink">{n.text}</span>
+              {n.nodes !== "" && <span className="ml-1.5 text-ink-muted">{n.nodes}</span>}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/**
+ * The name of a resource, its notes in a card on hover, from all the room of its
+ * name: those of all its instances. Hover alone, the name opening the resource
+ * being a link of its own.
+ */
+function ResourceNotes({ notes, children }: { notes: RowNote[]; children: ReactNode }) {
+  if (notes.length === 0) return <>{children}</>;
+  return (
+    <HoverCard inert className="flex min-w-0 flex-1" card={<NotesList notes={notes} />}>
+      <span data-resource-notes="" className="flex min-w-0 flex-1 items-center">{children}</span>
+    </HoverCard>
+  );
+}
+
+/**
+ * What a cell holds: the status glyph, the marks, the flags, the markers of the notes.
+ * The symbols said on demand, a marker by its note (`notes`, those of the cell);
+ * `inert` in a button, the click being the button's.
+ */
+function Pieces({ text, kind, inert = false, notes = [] }: { text: Text; kind: BoardRow["kind"]; inert?: boolean; notes?: RowNote[] }) {
   const { t } = useTranslation();
   if (text.length === 0) return null;
   return (
@@ -253,13 +295,24 @@ function Pieces({ text, kind, inert = false }: { text: Text; kind: BoardRow["kin
               <Flag span={s} />
             </SymbolHelp>
           );
-        if (s.note)
-          return (
-            <sup key={i} className={cn("text-[0.75rem] font-medium", TONES[s.tone ?? "secondary"])}>
+        if (s.note) {
+          // At the top of the value, not raised by the half of an em of a sup (the
+          // preflight's): it would stand out of the badge of the value.
+          const marker = (
+            <sup key={i} className={cn("static self-start text-[0.6875rem] leading-none font-medium", TONES[s.tone ?? "secondary"])}>
               <span aria-hidden="true">{s.text}</span>
               <span className="sr-only">{t("statusBoard.seeNote", { marker: s.text })}</span>
             </sup>
           );
+          const of = notes.filter((n) => n.marker === s.text);
+          if (of.length === 0) return marker;
+          return (
+            <HoverCard key={i} inert={inert} className="self-start" card={<NotesList notes={of} />}>
+              {/* Some room around the marker, for the pointer to find it. */}
+              <span className="-mx-1 inline-flex cursor-help self-start px-1">{marker}</span>
+            </HoverCard>
+          );
+        }
         if (s.text.trim() === "") return null;
         // A value with no meaning of its own: a monitor state, an expectation…
         if (s.text === "·") return <span key={i} className="text-ink-muted" aria-label={t("statusBoard.none")}>–</span>;
@@ -520,8 +573,10 @@ function NodeBlocks({
                           </span>
                         )}
                         <span className="min-w-0 flex-1">
-                          <span className="inline-flex">
-                            <span className="font-medium">{linkResource ? linkResource(r.name) : r.name}</span>
+                          <span className="flex">
+                            <ResourceNotes notes={r.cellNotes[j] ?? []}>
+                              <span className="font-medium">{linkResource ? linkResource(r.name) : r.name}</span>
+                            </ResourceNotes>
                           </span>
                           <SideText row={r} />
                         </span>
@@ -533,10 +588,10 @@ function NodeBlocks({
                               onClick={() => openCell(r.name, n.name)}
                               className="inline-flex min-h-5 min-w-9 cursor-pointer items-center justify-center gap-1 rounded-full border border-line bg-surface px-1.5 py-px hover:border-line-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-(--focus-ring)"
                             >
-                              <Pieces text={cell} kind="resource" inert />
+                              <Pieces text={cell} kind="resource" inert notes={r.cellNotes[j] ?? []} />
                             </button>
                           ) : (
-                            <Pieces text={cell} kind="resource" />
+                            <Pieces text={cell} kind="resource" notes={r.cellNotes[j] ?? []} />
                           )}
                         </span>
                       </li>
@@ -841,7 +896,11 @@ export function StatusBoard({
                     )}
                     <span className="flex w-full">
                       <span className="flex w-full items-center gap-1">
-                        {r.kind === "resource" && linkResource ? linkResource(r.name) : shownName}
+                        {r.kind === "resource" ? (
+                          <ResourceNotes notes={r.rowNotes}>{linkResource ? linkResource(r.name) : shownName}</ResourceNotes>
+                        ) : (
+                          shownName
+                        )}
                       </span>
                     </span>
                   </span>
@@ -892,10 +951,10 @@ export function StatusBoard({
                               onClick={() => openCell?.(r.name, node)}
                               className="inline-flex min-h-5 max-w-full min-w-9 cursor-pointer items-center justify-center gap-1 rounded-full border border-line bg-surface px-1.5 py-px text-left hover:border-line-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-(--focus-ring)"
                             >
-                              <Pieces text={c} kind={r.kind} inert />
+                              <Pieces text={c} kind={r.kind} inert notes={r.cellNotes[j] ?? []} />
                             </button>
                           ) : (
-                            <Pieces text={c} kind={r.kind} />
+                            <Pieces text={c} kind={r.kind} notes={r.cellNotes[j] ?? []} />
                           )}
                         </span>
                       </span>

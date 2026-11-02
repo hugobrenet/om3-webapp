@@ -259,6 +259,12 @@ function sortedResources(resources: Record<string, ResourceStatus> | undefined) 
 }
 
 const isActor = (s: InstanceStates) => s.config !== undefined && "resources" in s.config;
+/**
+ * An instance of an object that runs, a svc or a vol: by its config, or by its
+ * status, which has resources, a config of a cfg or a sec none. The lists read
+ * no config: by its status alone there.
+ */
+const runs = (s: InstanceStates) => isActor(s) || s.status?.resources !== undefined;
 const isFrozen = (s: InstanceStates) => !isZeroTime(s.status?.frozen_at);
 const isStopped = (s: InstanceStates) => !isZeroTime(s.status?.stopped_at);
 const isUnprovisioned = (s: InstanceStates) =>
@@ -338,6 +344,53 @@ const toLevel = (level: string | undefined): Level =>
 
 const LEVEL_TONE: Record<Level, Tone> = { error: "error", warn: "warning", info: "secondary" };
 
+/**
+ * The notes of a resource on a node: what it logged, in its order, then its RPO
+ * breached, which it does not log.
+ */
+function notesOn(rs: ResourceStatus): { level: Level; text: string }[] {
+  const l = (rs.log ?? []).map((e) => ({ level: toLevel(e.level), text: e.message ?? "" }));
+  if (isPast(rs.rpo_breached_at)) {
+    const at = rs.rpo_breached_at as string;
+    l.push({
+      level: "error",
+      text:
+        Date.parse(at) === 0
+          ? "rpo breached: no copy was ever received here, and taking over here would lose all the data"
+          : `rpo breached since ${new Date(at).toISOString().replace(/\.\d+Z$/, "Z")}: the copy here is older than the max delay of the resource allows, and taking over here would lose more data`,
+    });
+  }
+  return l;
+}
+
+/**
+ * The notes of a resource on its nodes (`byNode`, its status on each), as the board
+ * says them: errors first, then warnings, then infos, each in the order met; the
+ * same text at the same level once, with the nodes it is on: "all" when on every
+ * one of several, none when there is one.
+ */
+export function resourceNotes(byNode: readonly (readonly [string, ResourceStatus])[]): RowNote[] {
+  const rank: Record<Level, number> = { error: 0, warn: 1, info: 2 };
+  const groups = new Map<string, { level: Level; text: string; nodes: string[]; at: number }>();
+  for (const [node, rs] of byNode) {
+    for (const n of notesOn(rs)) {
+      const key = `${n.level}\0${n.text}`;
+      const g = groups.get(key) ?? { ...n, nodes: [], at: groups.size };
+      if (!g.nodes.includes(node)) g.nodes.push(node);
+      groups.set(key, g);
+    }
+  }
+  const total = byNode.length;
+  return [...groups.values()]
+    .sort((a, b) => rank[a.level] - rank[b.level] || a.at - b.at)
+    .map((g) => ({
+      marker: "",
+      level: g.level,
+      text: g.text,
+      nodes: total <= 1 ? "" : g.nodes.length === total ? "all" : g.nodes.join(" "),
+    }));
+}
+
 /** The availabilities of a child that has its parent vol in use. */
 const CHILD_UP: ReadonlySet<string> = new Set(["up", "warn", "stdby up"]);
 
@@ -347,18 +400,51 @@ function kindOf(path: string): string {
   return parts.length >= 3 ? (parts[1] as string) : parts.length === 2 ? (parts[0] as string) : "svc";
 }
 
+/** The availability the daemon gives a child that is no object: undef. */
+const isChildOfNoObject = (st: string) => st === "" || st === "undef";
+
 /**
- * A vol down whose children, as its instance monitors report them, are all down
- * too: nothing uses it, its down is no issue. A vol down under a child up is one.
+ * The children of a vol down, as its instance monitors report them: "up", one of
+ * them up, the vol in use; "down", all of them down; "none", no child, or none of
+ * them an object. Null for another object, a vol not down, or one no monitor of
+ * which is known yet.
+ */
+export function volChildren(
+  path: string,
+  avail: string | undefined,
+  monitors: readonly (InstanceMonitor | undefined)[],
+): "up" | "down" | "none" | null {
+  if (kindOf(path) !== "vol" || avail !== "down") return null;
+  const known = monitors.filter((m) => m !== undefined && m !== null);
+  if (known.length === 0) return null;
+  const children = known.flatMap((m) => Object.values(m?.children ?? {})).filter((st) => !isChildOfNoObject(st));
+  if (children.length === 0) return "none";
+  return children.some((st) => CHILD_UP.has(st)) ? "up" : "down";
+}
+
+/**
+ * The children of an object up, as its instance monitors report them: by path, or
+ * path@node, once each, in the order of their names.
+ */
+export function childrenUp(monitors: readonly (InstanceMonitor | undefined)[]): string[] {
+  const up = new Set<string>();
+  for (const m of monitors) {
+    for (const [child, st] of Object.entries(m?.children ?? {})) if (CHILD_UP.has(st)) up.add(child);
+  }
+  return [...up].sort();
+}
+
+/**
+ * A vol down nothing uses: its children all down too, or none of them there. Its
+ * down is no issue. A vol down under a child up is one.
  */
 export function childrenDown(
   path: string,
   avail: string | undefined,
   monitors: readonly (InstanceMonitor | undefined)[],
 ): boolean {
-  if (kindOf(path) !== "vol" || avail !== "down") return false;
-  const children = monitors.flatMap((m) => Object.values(m?.children ?? {}));
-  return children.length > 0 && !children.some((st) => CHILD_UP.has(st));
+  const children = volChildren(path, avail, monitors);
+  return children === "down" || children === "none";
 }
 
 export function buildBoard(digest: Digest): Board {
@@ -389,7 +475,8 @@ export function buildBoard(digest: Digest): Board {
         : 0;
   const excess = allowed <= 0 || up <= allowed ? 0 : up - allowed;
   const hasExpectedInstances = actor && up >= Math.max(1, expected);
-  const isChildrenDown = childrenDown(digest.path, obj.avail, nodes.map((n) => stateOf(n).monitor));
+  const children = volChildren(digest.path, obj.avail, nodes.map((n) => stateOf(n).monitor));
+  const isChildrenDown = children === "down" || children === "none";
 
   /** A status as the om mon icon says it; a down is gray where no instance is missing, or nothing uses it. */
   const statusIcon = (st: string | undefined): Span => {
@@ -496,7 +583,7 @@ export function buildBoard(digest: Digest): Board {
       }),
     );
   }
-  if (anyNode((s) => isActor(s) && isUnprovisioned(s))) {
+  if (anyNode((s) => runs(s) && isUnprovisioned(s))) {
     rows.push(
       row({
         kind: "provisioned",
@@ -577,16 +664,7 @@ export function buildBoard(digest: Digest): Board {
       const pieces: Piece[] = [statusIcon(rs.status)];
       const f = flags(rid, s, rs);
       if (f.length > 0) pieces.push(span(" "), ...f);
-      const refs: Note[] = [];
-      for (const e of rs.log ?? []) refs.push(noteOf(rid, node, toLevel(e.level), e.message ?? ""));
-      if (isPast(rs.rpo_breached_at)) {
-        const at = rs.rpo_breached_at as string;
-        const text =
-          Date.parse(at) === 0
-            ? "rpo breached: no copy was ever received here, and taking over here would lose all the data"
-            : `rpo breached since ${new Date(at).toISOString().replace(/\.\d+Z$/, "Z")}: the copy here is older than the max delay of the resource allows, and taking over here would lose more data`;
-        refs.push(noteOf(rid, node, "error", text));
-      }
+      const refs = notesOn(rs).map((n) => noteOf(rid, node, n.level, n.text));
       const unique = refs.filter((n, i) => refs.indexOf(n) === i);
       if (unique.length > 0) pieces.push(span(" "), { notes: unique });
       return pieces;
@@ -672,7 +750,20 @@ export function buildBoard(digest: Digest): Board {
     action,
     nodes: about.length === nodes.length && nodes.length > 1 ? [] : about,
   });
-  if (isChildrenDown) add("info", "children", [], "children are down");
+  if (children === "up") {
+    // Down while a child is up: the child needs it.
+    const up = childrenUp(nodes.map((n) => stateOf(n).monitor));
+    add(
+      "error",
+      "children",
+      [],
+      up.length === 1
+        ? `down while its child ${up[0] ?? ""} is up: the child needs the vol`
+        : `down while its children ${up.join(", ")} are up: they need the vol`,
+    );
+  }
+  if (children === "down") add("info", "children", [], "children are down");
+  if (children === "none") add("info", "children", [], "no children");
   if (excess > 0) {
     add(
       "error",
@@ -718,7 +809,7 @@ export function buildBoard(digest: Digest): Board {
   const startFix =
     obj.topology === "flex" ? fixOn("start", stopped) : obj.avail !== "up" ? { action: "start" as const, nodes: [] } : undefined;
   if (stopped.length > 0) add("info", "stopped", stopped, "stopped on purpose: the daemon does not start it back", startFix);
-  const unprovisioned = nodesWith((s) => isActor(s) && isUnprovisioned(s));
+  const unprovisioned = nodesWith((s) => runs(s) && isUnprovisioned(s));
   if (unprovisioned.length > 0) add("error", "provisioned", unprovisioned, "the instance is not provisioned, or partly", fixOn("provision", unprovisioned));
 
   // The notes by level, errors first; the same text at the same level shares a

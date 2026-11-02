@@ -1,6 +1,14 @@
 import {useMemo, useRef} from 'react';
 import useEventStore from './useEventStore';
 
+/** No instance there, or one the daemon deleted: one value, for the selector to give the same. */
+const NO_INSTANCE = Object.freeze({
+    avail: null,
+    frozen: 'unfrozen',
+    state: null,
+    provisioned: null,
+});
+
 export const useNodeData = (objectName, node) => {
     const prevDataRef = useRef(null);
 
@@ -10,17 +18,10 @@ export const useNodeData = (objectName, node) => {
             const monitorKey = `${node}:${objectName}`;
             const monitor = state.instanceMonitor?.[monitorKey] || {};
 
+            // Gone, deleted while shown: said gone, not as it was.
             if (!instanceStatus) {
-                const emptyData = {
-                    avail: null,
-                    frozen: 'unfrozen',
-                    state: null,
-                    provisioned: null,
-                };
-                if (!prevDataRef.current) {
-                    prevDataRef.current = emptyData;
-                }
-                return prevDataRef.current;
+                prevDataRef.current = NO_INSTANCE;
+                return NO_INSTANCE;
             }
 
             const avail = instanceStatus.avail;

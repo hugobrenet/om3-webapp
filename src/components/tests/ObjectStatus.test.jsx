@@ -149,6 +149,42 @@ describe('ObjectStatus', () => {
         });
     });
 
+    describe('the notes of a resource, on hover', () => {
+        const notesCard = () => document.querySelector('[data-notes-card]');
+        const hover = (element) => {
+            fireEvent.mouseEnter(element);
+            act(() => {
+                vi.advanceTimersByTime(HOVER_CARD_DELAY_MS);
+            });
+        };
+
+        test('its name: the notes of all its instances; a marker: its note', async () => {
+            answer(structuredClone(dns));
+            render(<ObjectStatus path="system/svc/dns"/>);
+            await screen.findByRole('table');
+            const name = screen.getByRole('rowheader', {name: /volume#1$/}).querySelector('[data-resource-notes]');
+            vi.useFakeTimers();
+            try {
+                hover(name);
+                expect(notesCard()).toHaveTextContent(/^info¹system\/vol\/dns avail downall$/);
+                fireEvent.mouseLeave(name.parentElement);
+                expect(notesCard()).toBeNull();
+                const row = screen.getByRole('rowheader', {name: /volume#1$/}).closest('tr');
+                hover(within(row).getAllByText('¹')[0].closest('.cursor-help'));
+                expect(notesCard()).toHaveTextContent('system/vol/dns avail down');
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        test('a resource with no note: no card', async () => {
+            answer(structuredClone(dns));
+            render(<ObjectStatus path="system/svc/dns"/>);
+            await screen.findByRole('table');
+            expect(screen.getByRole('rowheader', {name: /container#janitor$/}).querySelector('[data-resource-notes]')).toBeNull();
+        });
+    });
+
     describe('the symbols, a hint', () => {
         const legend = () => screen.queryByText('What the symbols mean');
 

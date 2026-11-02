@@ -6,6 +6,7 @@ import useSidebarAlerts, {
     applySidebarEvent,
     objectsAlert,
     volMonitors,
+    ofClusterNodes,
     heartbeatAlert,
     nodesAlert,
     SIDEBAR_EVENTS_URL,
@@ -61,6 +62,10 @@ describe('objectsAlert', () => {
         const monitorsOf = (child) => (path) => volMonitors({'ns1/vol/v': {n1: {'ns1/svc/s': child}, n2: {'ns1/svc/s': child}}}, path);
         expect(objectsAlert(objects, monitorsOf('up'))).toEqual({level: 'down', text: '1 object down'});
         expect(objectsAlert(objects, monitorsOf('down'))).toBeNull();
+        // Its children no objects, or none: no alert; its monitors not known yet: red.
+        expect(objectsAlert(objects, monitorsOf('undef'))).toBeNull();
+        expect(objectsAlert(objects, (path) => volMonitors({'ns1/vol/v': {n1: {}}}, path))).toBeNull();
+        expect(objectsAlert(objects, () => [])).toEqual({level: 'down', text: '1 object down'});
     });
 
     test('a down object that is no actor, a cfg say, raises nothing red', () => {
@@ -70,7 +75,7 @@ describe('objectsAlert', () => {
 
 describe('applySidebarEvent', () => {
     test('applies object, node and heartbeat events, and object deletions', () => {
-        const state = {objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}};
+        const state = {objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null};
         applySidebarEvent(state, 'ObjectStatusUpdated', {path: 'a', object_status: {avail: 'up'}});
         applySidebarEvent(state, 'ObjectStatusUpdated', {labels: {path: 'b'}, object_status: {avail: 'down'}});
         applySidebarEvent(state, 'NodeStatusUpdated', {node: 'n1', node_status: {frozen_at: 'x'}});
@@ -87,6 +92,7 @@ describe('applySidebarEvent', () => {
             nodeStatus: {n1: {frozen_at: 'x'}},
             heartbeatStatus: {n1: {streams: []}},
             volChildren: {'ns/vol/v': {n1: {'ns/svc/s': 'down'}}},
+            clusterConfig: null,
         });
         applySidebarEvent(state, 'ObjectDeleted', {path: 'ns/vol/v'});
         expect(state.volChildren).toEqual({});
@@ -99,6 +105,19 @@ describe('applySidebarEvent', () => {
         const config = {id: 'cluster-id', name: 'dev5', ai: {agent_url: 'https://agent.example.com:8090'}};
         applySidebarEvent(state, 'ClusterConfigUpdated', {node: 'n1', cluster_config: config});
         expect(state.clusterConfig).toEqual(config);
+    });
+});
+
+describe('the cluster configuration', () => {
+    test('read from the stream, the nodes of the others kept out', () => {
+        const state = {objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null};
+        applySidebarEvent(state, 'ClusterConfigUpdated', {cluster_config: {name: 'dev3', id: 'x', nodes: ['n1'], ai: {agent_url: 'https://a'}}});
+        expect(state.clusterConfig).toEqual({name: 'dev3', id: 'x', nodes: ['n1'], ai: {agent_url: 'https://a'}});
+        // A node gone out of the cluster, replayed by the daemon: kept out.
+        const byNode = {n1: {}, gone: {}};
+        expect(ofClusterNodes(byNode, state.clusterConfig)).toEqual({n1: {}});
+        // The configuration not read: all of them.
+        expect(ofClusterNodes(byNode, null)).toBe(byNode);
     });
 });
 

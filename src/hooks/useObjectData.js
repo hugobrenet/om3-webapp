@@ -1,6 +1,17 @@
 import {useMemo, useRef} from 'react';
 import useEventStore from './useEventStore';
 
+/** No object there, or one the daemon deleted: one value, for the selector to give the same. */
+const NO_OBJECT = Object.freeze({
+    avail: 'n/a',
+    frozen: 'unfrozen',
+    globalExpect: null,
+    isNotProvisioned: false,
+    isFrozen: false,
+    hasAnyNodeFrozen: false,
+    rawStatus: undefined,
+});
+
 export const useObjectData = (objectName) => {
     const prevDataRef = useRef(null);
 
@@ -9,20 +20,10 @@ export const useObjectData = (objectName) => {
             const status = state.objectStatus?.[objectName];
             const instances = state.objectInstanceStatus?.[objectName] || {};
 
+            // Gone, deleted while shown: said gone, not as it was.
             if (!status && Object.keys(instances).length === 0) {
-                const emptyData = {
-                    avail: 'n/a',
-                    frozen: 'unfrozen',
-                    globalExpect: null,
-                    isNotProvisioned: false,
-                    isFrozen: false,
-                    hasAnyNodeFrozen: false,
-                    rawStatus: status,
-                };
-                if (!prevDataRef.current) {
-                    prevDataRef.current = emptyData;
-                }
-                return prevDataRef.current;
+                prevDataRef.current = NO_OBJECT;
+                return NO_OBJECT;
             }
 
             let globalExpect = null;

@@ -4,6 +4,8 @@ import {
   designChanges,
   designText,
   parseDesign,
+  readValue,
+  writeValue,
   poolTypes,
   offeredTypes,
   catalogDrivers,
@@ -125,9 +127,57 @@ describe("object design", () => {
       { name: "DEFAULT", entries: [{ key: "nodes", value: "n1 n2" }] },
       { name: "env", entries: [{ key: "ip@n1", value: "10.0.0.1" }] },
       { name: "fs#1", group: "fs", type: "flag", entries: [] },
-      { name: "app#1", group: "app", type: "", entries: [{ key: "start", value: "a\nb" }] },
+      // Continued below its key, the indentation of the lines kept, as om reads it.
+      { name: "app#1", group: "app", type: "", entries: [{ key: "start", value: "a\n  b" }] },
     ]);
     expect(parseDesign("", designStart(false))).toEqual([{ name: "DEFAULT", entries: [] }]);
+  });
+
+  // Each written by writeValue, created on a cluster, and read back by the daemon
+  // (om config get) as the value, but the last, which no quoting can hold.
+  const VALUES: [string, string][] = [
+    ['sh -c "a ; b"', '`sh -c "a ; b"`'],
+    ["echo done # not a comment", "`echo done # not a comment`"],
+    ['"quoted"', '`"quoted"`'],
+    ["'single'", `"'single'"`],
+    ["  leading space", '"  leading space"'],
+    ["trailing space  ", '"trailing space  "'],
+    ["ends with backslash\\", '"ends with backslash\\"'],
+    ["multi\n    indented\n        deeper", "multi\n    indented\n        deeper"],
+    ["line1\nline2", "`line1\nline2`"],
+    ['back`tick and " # too', '"""back`tick and " # too"""'],
+    ["", ""],
+    ["a;b#c", "a;b#c"],
+    ["x ;y", "`x ;y`"],
+  ];
+
+  test("a value written as om writes it: the least quoted that om reads back as the value", () => {
+    for (const [value, written] of VALUES) {
+      expect(writeValue(value)).toBe(written);
+      const [first, ...more] = written.split("\n");
+      expect(readValue(first as string, [...more, ""])).toEqual({ value, taken: more.length });
+    }
+    // None reads back: as is, om reading it cut at its comment.
+    expect(writeValue('all """ ` " # kinds')).toBe('all """ ` " # kinds');
+  });
+
+  test("a value read as om reads it: comments, quotes, continuations", () => {
+    expect(readValue(" a # b", [])).toEqual({ value: "a", taken: 0 });
+    expect(readValue(' "a ; b"', [])).toEqual({ value: '"a', taken: 0 });
+    expect(readValue(" 'x'", [])).toEqual({ value: "x", taken: 0 });
+    expect(readValue(" `a\nb` ignored", [])).toEqual({ value: "a\nb", taken: 0 });
+    expect(readValue(" `open", ["middle", "close` after", "next = 1"])).toEqual({ value: "open\nmiddle\nclose", taken: 2 });
+    expect(readValue(" a \\", ["  b", "c"])).toEqual({ value: "a b", taken: 1 });
+    expect(readValue(" a", ["\tb", "    c", "d = 1"])).toEqual({ value: "a\n\tb\n    c", taken: 2 });
+    expect(readValue("", ["  b", ""])).toEqual({ value: "\n  b", taken: 1 });
+  });
+
+  test("a design written then read back: each value the same, quoted or on several lines", () => {
+    const design: DesignSection[] = [
+      { name: "DEFAULT", entries: [{ key: "nodes", value: "n1" }] },
+      { name: "env", entries: VALUES.map(([value], i) => ({ key: `k${i}`, value })) },
+    ];
+    expect(parseDesign(designText(design))).toEqual(design);
   });
 
   test("the changes of a design: sections gone deleted, keys gone unset, new or changed set, a new section its type first", () => {

@@ -367,7 +367,7 @@ describe('InstanceDetailPanel', () => {
 });
 
 describe('ResourceStatus', () => {
-    test('the resource on each node reporting it: status, flags, label, last message; badges to its object and instances', () => {
+    test('the resource on each node reporting it: status, flags, label, then all its notes; badges to its object and instances', () => {
         // On n4 too; not on n2 nor n3.
         useEventStore.setState((state) => ({objectInstanceStatus: {'prod/svc/web': {
             ...state.objectInstanceStatus['prod/svc/web'],
@@ -379,9 +379,12 @@ describe('ResourceStatus', () => {
         const rows = within(screen.getByRole('table', {name: 'The resource on each node'})).getAllByRole('row').slice(1)
             .map((row) => within(row).getAllByRole('cell').map((c) => c.textContent));
         expect(rows).toEqual([
-            ['on n1', 'downdownP', 'optional', 'run', 'exit 1'],
-            ['on n4', 'upup', '-', 'run', '-'],
+            ['on n1', 'downdownP', 'optional', 'run'],
+            ['on n4', 'upup', '-', 'run'],
         ]);
+        // All it logged, not the last message only: errors first, by the nodes they are on.
+        const notes = within(screen.getByRole('region', {name: 'Notes (2)'})).getAllByRole('listitem').map((li) => li.textContent);
+        expect(notes).toEqual(['errorexit 1n1', 'infostartedn1']);
         fireEvent.click(screen.getByRole('button', {name: 'on n4'}));
         expect(screen.getByTestId('search')).toHaveTextContent('peek=instance%3Aprod%2Fsvc%2Fweb%40n4');
         fireEvent.click(within(fact('Object')).getByRole('button', {name: 'prod/svc/web'}));
@@ -566,7 +569,9 @@ describe('ResourceStatus', () => {
             const panel = screen.getByRole('dialog', {name: 'app#1 of prod/svc/web on n4'});
             const rows = within(within(panel).getByRole('table', {name: 'The resource on each node'})).getAllByRole('row').slice(1)
                 .map((row) => within(row).getAllByRole('cell').map((c) => c.textContent));
-            expect(rows).toEqual([['on n4', 'upup', '-', 'run', '-']]);
+            expect(rows).toEqual([['on n4', 'upup', '-', 'run']]);
+            // No note there: no section.
+            expect(screen.queryByRole('region', {name: /^Notes/})).toBeNull();
             const instance = within(panel).getByText('Instance', {selector: 'dt'}).nextElementSibling;
             fireEvent.click(within(instance).getByRole('button', {name: 'on n4'}));
             expect(screen.getByTestId('search')).toHaveTextContent('peek=instance%3Aprod%2Fsvc%2Fweb%40n4');

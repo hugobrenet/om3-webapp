@@ -1,5 +1,5 @@
 import {create} from "zustand";
-import {persist, createJSONStorage} from "zustand/middleware";
+import {persist} from "zustand/middleware";
 import logger from '../utils/logger.js';
 
 const parseObjectPath = (objName) => {
@@ -28,6 +28,14 @@ const shallowEqual = (obj1, obj2) => {
 
 const PERSIST_DEBOUNCE_MS = 800;
 
+/**
+ * The storage of the store in localStorage, written a while after its last change.
+ * It keeps the state it is given, not its JSON: the whole of the objects, their
+ * instances, monitors and configs, some megabytes on a large cluster, turned into
+ * text once, when written, rather than at each change, as many a second as the
+ * events come. The state of the store is never changed in place, only replaced:
+ * the one kept is the one written.
+ */
 const createDebouncedLocalStorage = (delayMs = PERSIST_DEBOUNCE_MS) => {
     let pendingKey = null;
     let pendingValue = null;
@@ -40,7 +48,7 @@ const createDebouncedLocalStorage = (delayMs = PERSIST_DEBOUNCE_MS) => {
         }
         if (pendingKey !== null) {
             try {
-                window.localStorage.setItem(pendingKey, pendingValue);
+                window.localStorage.setItem(pendingKey, JSON.stringify(pendingValue));
             } catch (e) {
                 logger.warn('Failed to persist event store to localStorage:', e);
             }
@@ -59,7 +67,14 @@ const createDebouncedLocalStorage = (delayMs = PERSIST_DEBOUNCE_MS) => {
     return {
         getItem: (name) => {
             if (pendingKey === name) return pendingValue;
-            return window.localStorage.getItem(name);
+            try {
+                const text = window.localStorage.getItem(name);
+                return text === null ? null : JSON.parse(text);
+            } catch (e) {
+                // Unreadable, or not JSON: the store starts empty, the stream fills it.
+                logger.warn('Failed to read the event store from localStorage:', e);
+                return null;
+            }
         },
         setItem: (name, value) => {
             pendingKey = name;
@@ -74,7 +89,11 @@ const createDebouncedLocalStorage = (delayMs = PERSIST_DEBOUNCE_MS) => {
             }
             pendingKey = null;
             pendingValue = null;
-            window.localStorage.removeItem(name);
+            try {
+                window.localStorage.removeItem(name);
+            } catch (e) {
+                logger.warn('Failed to clear the event store in localStorage:', e);
+            }
         },
     };
 };
@@ -113,6 +132,16 @@ function instancesWithout(state, isGone) {
         && instanceMonitor === state.instanceMonitor) return null;
     return {objectInstanceStatus, instanceConfig, instanceMonitor};
 }
+
+/** The entries of a map by node, of these nodes only; all of them when not known. */
+const ofNodes = (byNode, nodes) => {
+    if (!Array.isArray(nodes) || !byNode) return byNode;
+    const gone = Object.keys(byNode).filter((node) => !nodes.includes(node));
+    if (gone.length === 0) return byNode;
+    const next = {...byNode};
+    for (const node of gone) delete next[node];
+    return next;
+};
 
 const useEventStore = create(
     persist(
@@ -194,6 +223,26 @@ const useEventStore = create(
                         instanceConfig: newInstanceConfig,
                         instanceMonitor: newInstanceMonitor,
                     };
+                }),
+
+            // The status of an instance the daemon deleted (InstanceStatusDeleted).
+            removeInstanceStatus: (objectPath, node) =>
+                set((state) => {
+                    const byNode = state.objectInstanceStatus?.[objectPath];
+                    if (!byNode || !(node in byNode)) return state;
+                    const next = {...byNode};
+                    delete next[node];
+                    return {objectInstanceStatus: {...state.objectInstanceStatus, [objectPath]: next}};
+                }),
+
+            // The monitor of an instance the daemon deleted (InstanceMonitorDeleted).
+            removeInstanceMonitor: (objectPath, node) =>
+                set((state) => {
+                    const key = `${node}:${objectPath}`;
+                    if (!state.instanceMonitor || !(key in state.instanceMonitor)) return state;
+                    const next = {...state.instanceMonitor};
+                    delete next[key];
+                    return {instanceMonitor: next};
                 }),
 
             setObjectStatuses: (objectStatus) =>
@@ -284,17 +333,49 @@ const useEventStore = create(
                     return {nodeStatus, nodeMonitor, nodeStats, ...instances};
                 }),
 
+            // The nodes of the cluster configuration, once read: the status the daemon
+            // replays of a node gone out of the cluster is not taken.
+            clusterNodes: null,
+
+            /**
+             * The nodes of the cluster are these (`cluster.nodes`): what the views keep
+             * of the others goes, and their statuses are no longer taken.
+             */
+            forgetNodesOutOf: (nodes) => {
+                if (!Array.isArray(nodes) || nodes.length === 0) return;
+                set((state) => ({
+                    clusterNodes: nodes,
+                    nodeStatus: ofNodes(state.nodeStatus, nodes),
+                    nodeMonitor: ofNodes(state.nodeMonitor, nodes),
+                    nodeStats: ofNodes(state.nodeStats, nodes),
+                    heartbeatStatus: ofNodes(state.heartbeatStatus, nodes),
+                }));
+                get().pruneInstancesOfNodes(nodes);
+            },
+
             setNodeStatuses: (nodeStatus) =>
-                set((state) => shallowEqual(state.nodeStatus, nodeStatus) ? state : {nodeStatus}),
+                set((state) => {
+                    const next = ofNodes(nodeStatus, state.clusterNodes);
+                    return shallowEqual(state.nodeStatus, next) ? state : {nodeStatus: next};
+                }),
 
             setNodeMonitors: (nodeMonitor) =>
-                set((state) => shallowEqual(state.nodeMonitor, nodeMonitor) ? state : {nodeMonitor}),
+                set((state) => {
+                    const next = ofNodes(nodeMonitor, state.clusterNodes);
+                    return shallowEqual(state.nodeMonitor, next) ? state : {nodeMonitor: next};
+                }),
 
             setNodeStats: (nodeStats) =>
-                set((state) => shallowEqual(state.nodeStats, nodeStats) ? state : {nodeStats}),
+                set((state) => {
+                    const next = ofNodes(nodeStats, state.clusterNodes);
+                    return shallowEqual(state.nodeStats, next) ? state : {nodeStats: next};
+                }),
 
             setHeartbeatStatuses: (heartbeatStatus) =>
-                set((state) => shallowEqual(state.heartbeatStatus, heartbeatStatus) ? state : {heartbeatStatus}),
+                set((state) => {
+                    const next = ofNodes(heartbeatStatus, state.clusterNodes);
+                    return shallowEqual(state.heartbeatStatus, next) ? state : {heartbeatStatus: next};
+                }),
 
             setInstanceMonitors: (instanceMonitor) =>
                 set((state) => shallowEqual(state.instanceMonitor, instanceMonitor) ? state : {instanceMonitor}),
@@ -368,7 +449,7 @@ const useEventStore = create(
         }),
         {
             name: 'om3-event-storage',
-            storage: createJSONStorage(() => createDebouncedLocalStorage()),
+            storage: createDebouncedLocalStorage(),
             partialize: (state) => ({
                 objectStatus: state.objectStatus,
                 objectInstanceStatus: state.objectInstanceStatus,

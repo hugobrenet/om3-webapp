@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import React, {useCallback, useEffect, useId, useMemo, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useTranslation} from "react-i18next";
 import useEventStore from "../hooks/useEventStore.js";
@@ -28,6 +28,8 @@ import ObjectConfig from "./ObjectConfig";
 import {DatastoreLinks, RefreshStatusButton, actionIcon, datastoresOf, useActionRunner, volumesOf} from "./InstanceActions";
 import {CLEAR_ACTION, resourceActions, syncVariant} from "./objectActions";
 import {usePanelHeader} from "../app/panel-header";
+import {resourceNotes} from "../app/statusboard";
+import {NotesList} from "../app/StatusBoard";
 import {MenuButton} from "../ui/components/MenuButton";
 import {Button} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
@@ -315,8 +317,9 @@ const FLAGS = ["disable", "monitor", "optional", "standby", "encap"];
 /**
  * A resource of an object on all its nodes: its object, a badge, its type, the
  * datastores it uses, a badge each, then its state node by node, each node the
- * badge of the instance there: its status, provisioning, flags, label and its last
- * log message. With `node`, on the instance of that node alone, a badge too.
+ * badge of the instance there: its status, provisioning, flags and label; then its
+ * notes, all it logged and its RPO breached, by the nodes they are on. With `node`,
+ * on the instance of that node alone, a badge too.
  */
 export function ResourceStatus({path, rid, node: onNode}) {
     const {t} = useTranslation();
@@ -328,6 +331,8 @@ export function ResourceStatus({path, rid, node: onNode}) {
     const type = rows.find(({r}) => r.type)?.r.type;
     const datastores = datastoresOf(rows.map(({r}) => r));
     const volumes = volumesOf(rows.map(({r}) => r));
+    const notes = resourceNotes(rows.map(({node, r}) => [node, r]));
+    const notesId = useId();
     return (
         <div className="space-y-4" data-testid="resource-status">
             <div className="flex items-start justify-between gap-2">
@@ -355,29 +360,29 @@ export function ResourceStatus({path, rid, node: onNode}) {
                         <HeaderCell>{t("common.status")}</HeaderCell>
                         <HeaderCell>{t("resource.panel.flags")}</HeaderCell>
                         <HeaderCell>{t("instance.panel.label")}</HeaderCell>
-                        <HeaderCell>{t("resource.panel.log")}</HeaderCell>
                     </HeaderRow>
                 </thead>
                 <tbody>
-                    {rows.map(({node, r}) => {
-                        const last = (r.log ?? []).at(-1);
-                        return (
-                            <Row key={node}>
-                                <Cell className="whitespace-nowrap"><InstanceLink path={path} node={node}/></Cell>
-                                <Cell><StatusWord status={r.status} notProvisioned={r.provisioned?.state === "false"}/></Cell>
-                                <Cell className="text-ink-muted">
-                                    {FLAGS.filter((flag) => r[flag]).map((flag) => t(`resource.panel.flag.${flag}`)).join(", ") || "-"}
-                                </Cell>
-                                <Cell className="break-all">{r.label}</Cell>
-                                <Cell className={last?.level === "error" ? "text-state-down" : last?.level === "warn" ? "text-state-warn" : "text-ink-muted"}>
-                                    {last?.message ?? "-"}
-                                </Cell>
-                            </Row>
-                        );
-                    })}
-                    {rows.length === 0 && <EmptyRow colSpan={5}>{t("resource.panel.none")}</EmptyRow>}
+                    {rows.map(({node, r}) => (
+                        <Row key={node}>
+                            <Cell className="whitespace-nowrap"><InstanceLink path={path} node={node}/></Cell>
+                            <Cell><StatusWord status={r.status} notProvisioned={r.provisioned?.state === "false"}/></Cell>
+                            <Cell className="text-ink-muted">
+                                {FLAGS.filter((flag) => r[flag]).map((flag) => t(`resource.panel.flag.${flag}`)).join(", ") || "-"}
+                            </Cell>
+                            <Cell className="break-all">{r.label}</Cell>
+                        </Row>
+                    ))}
+                    {rows.length === 0 && <EmptyRow colSpan={4}>{t("resource.panel.none")}</EmptyRow>}
                 </tbody>
             </Table>
+            {/* What it logged on its nodes and its RPO breached, as the status board says them. */}
+            {notes.length > 0 && (
+                <section aria-labelledby={`${notesId}-notes`} className="space-y-1">
+                    <h3 id={`${notesId}-notes`} className="font-semibold">{t("statusBoard.notes", {count: notes.length})}</h3>
+                    <NotesList notes={notes} className="max-w-none"/>
+                </section>
+            )}
         </div>
     );
 }

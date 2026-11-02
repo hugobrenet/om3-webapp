@@ -135,7 +135,7 @@ describe('AI chatbot page', () => {
         expect(mocks.client.run).not.toHaveBeenCalled();
         expect(mocks.client.createConversation).not.toHaveBeenCalled();
     });
-    test('renders the target and loads metadata without creating or sending a turn', async () => {
+    test('renders the target without creating or sending a turn', async () => {
         await renderReady();
         expect(screen.getByRole('heading', {name: /AI Assistant/})).toBeInTheDocument();
         expect(screen.getByText('Lab cluster')).toBeInTheDocument();

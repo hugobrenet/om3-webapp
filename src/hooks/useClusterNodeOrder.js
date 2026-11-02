@@ -1,22 +1,29 @@
 import {useEffect, useState} from "react";
 import {readClusterStatus} from "./clusterStatusOnce";
+import {useMenuState} from "./useSidebarAlerts";
 
 /**
  * The nodes of the cluster in the order of its configuration (`cluster.nodes`), the
- * order om numbers them in; null while read or when it could not be, while `enabled`.
+ * order om numbers them in, live: from the cluster configuration the menu stream
+ * reads (ClusterConfigUpdated), a node leaving the cluster leaving it; until then,
+ * from the cluster status read once. Null while read or when it could not be,
+ * while `enabled`.
  */
 export function useClusterNodeOrder(enabled = true) {
-    const [order, setOrder] = useState(null);
+    const live = useMenuState((s) => s.clusterConfig?.nodes);
+    const [read, setRead] = useState(null);
+    const hasLive = Array.isArray(live);
     useEffect(() => {
-        if (!enabled) return undefined;
-        let live = true;
+        if (!enabled || hasLive) return undefined;
+        let current = true;
         readClusterStatus().then((status) => {
             const nodes = status?.cluster?.config?.nodes;
-            if (live) setOrder(Array.isArray(nodes) ? nodes : null);
+            if (current) setRead(Array.isArray(nodes) ? nodes : null);
         });
         return () => {
-            live = false;
+            current = false;
         };
-    }, [enabled]);
-    return order;
+    }, [enabled, hasLive]);
+    if (!enabled) return null;
+    return hasLive ? live : read;
 }

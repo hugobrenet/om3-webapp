@@ -62,11 +62,98 @@ const KEPT_SECTIONS = ["data"];
 /** The keys a design leaves as they are: the id of the object. */
 const KEPT_KEYS = ["DEFAULT.id"];
 
+/** A line continuing the value above it, as om reads one: starting with a space, a tab or a form feed. */
+const isContinuation = (line: string) => line.length > 0 && (line[0] === " " || line[0] === "\t" || line[0] === "\f");
+
+/** A value in quotes of `quote` alone, none inside: om reads it without them. */
+const surrounded = (s: string, quote: string) =>
+  s.length >= 2 && s[0] === quote && s[s.length - 1] === quote && s.indexOf(quote, 1) === s.length - 1;
+
+/**
+ * The value of a key as om reads it (util/ini, readValue, with the options of the
+ * object configurations): `rest`, its key line after the `=`, then `following`,
+ * the lines after it, none when the key line ends the file. Returns the value and
+ * how many of the following lines it took.
+ *
+ * In backticks or triple quotes, it is as written, on several lines if they close
+ * below. Otherwise a ` #` or a ` ;` starts a comment, the spaces around it go, and
+ * one pair of quotes around it too; a trailing backslash continues it on the next
+ * line, joined, and the lines below starting with a space or a tab continue it,
+ * their indentation kept.
+ */
+export function readValue(rest: string, following: readonly string[]): { value: string; taken: number } {
+  const terminated = following.length > 0;
+  const continued = (value: string) => {
+    let taken = 0;
+    while (taken < following.length && isContinuation(following[taken] as string)) {
+      value += `\n${following[taken]}`;
+      taken++;
+    }
+    return { value, taken };
+  };
+  const line = rest.trimStart();
+  if (line === "") return terminated ? continued("") : { value: "", taken: 0 };
+  const quote = line.length > 3 && line.startsWith('"""') ? '"""' : line[0] === "`" ? "`" : "";
+  if (quote !== "") {
+    const body = line.slice(quote.length);
+    const pos = body.lastIndexOf(quote);
+    if (pos > -1) return { value: body.slice(0, pos), taken: 0 };
+    // Closed on a line below: the line breaks between are the value's.
+    let value = terminated ? `${body}\n` : body;
+    for (let n = 0; n < following.length; n++) {
+      const next = n < following.length - 1 ? `${following[n]}\n` : (following[n] as string);
+      const end = next.lastIndexOf(quote);
+      if (end > -1) return { value: value + next.slice(0, end), taken: n + 1 };
+      value += next;
+    }
+    // Never closed: om refuses the file.
+    return { value, taken: following.length };
+  }
+  let seg = line.trimEnd();
+  if (seg.endsWith("\\")) {
+    let value = seg.slice(0, -1);
+    let taken = 0;
+    while (taken < following.length) {
+      const next = (following[taken] as string).trim();
+      taken++;
+      if (next === "") break;
+      value += next;
+      if (!value.endsWith("\\")) break;
+      value = value.slice(0, -1);
+    }
+    return { value, taken };
+  }
+  let comment = seg.indexOf(" #");
+  if (comment === -1) comment = seg.indexOf(" ;");
+  if (comment > -1) seg = seg.slice(0, comment).trimEnd();
+  if (surrounded(seg, "'") || surrounded(seg, '"')) return { value: seg.slice(1, -1), taken: 0 };
+  return terminated ? continued(seg) : { value: seg, taken: 0 };
+}
+
+/**
+ * A value written as om writes it (util/ini, encodeKeyLine): the first of as is,
+ * in quotes, in backticks, in triple quotes, that om reads back as the value, the
+ * line below it starting no continuation. As is when none does, which om reads
+ * otherwise, or refuses.
+ */
+export function writeValue(value: string): string {
+  const candidates = [value];
+  if (!value.includes('"')) candidates.push(`"${value}"`);
+  if (!value.includes("`")) candidates.push(`\`${value}\``);
+  if (!value.includes('"""')) candidates.push(`"""${value}"""`);
+  for (const candidate of candidates) {
+    const [first, ...more] = candidate.split("\n");
+    const read = readValue(first as string, [...more, ""]);
+    if (read.taken === more.length && read.value === value) return candidate;
+  }
+  return value;
+}
+
 /**
  * The design of a configuration file, on the sections of `start`: a section each,
  * a resource its driver (its group from its name, its type from its `type` key),
- * a value continued on the indented lines below its key; the comments, the kept
- * sections and keys left out.
+ * each value as om reads it (`readValue`), its continuation lines kept as they
+ * are; the comments, the kept sections and keys left out.
  */
 export function parseDesign(text: string, start: DesignSection[] = designStart()): DesignSection[] {
   const sections: DesignSection[] = start.map((section) => ({ ...section, entries: [...section.entries] }));
@@ -80,34 +167,30 @@ export function parseDesign(text: string, start: DesignSection[] = designStart()
   };
   let current: DesignSection | null = null;
   let kept = false;
-  let last: DesignEntry | null = null;
-  for (const line of text.replace(/\r/g, "").split("\n")) {
+  const lines = text.replace(/\r/g, "").split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] as string;
     const head = line.match(/^\s*\[([^\]]+)\]\s*$/);
     if (head) {
-      const name = head[1].trim();
+      const name = (head[1] as string).trim();
       kept = KEPT_SECTIONS.includes(name);
       current = kept ? null : at(name);
-      last = null;
       continue;
     }
-    if (/^\s*([#;]|$)/.test(line)) {
-      last = null;
-      continue;
-    }
-    if (/^\s/.test(line)) {
-      if (last) last.value += `\n${line.trim()}`;
-      continue;
-    }
-    const kv = line.match(/^([^=]+?)\s*=\s?(.*)$/);
-    if (!kv || kept) continue;
+    // A comment, a blank line, or an indented one no key is above: nothing of the design.
+    if (/^\s*([#;]|$)/.test(line) || isContinuation(line)) continue;
+    const kv = line.match(/^([^=]+?)\s*=(.*)$/);
+    if (!kv) continue;
+    // Its value, and the lines below that continue it, as om reads them.
+    const { value, taken } = readValue(kv[2] as string, lines.slice(i + 1));
+    i += taken;
+    if (kept) continue;
     const section = current ?? at("DEFAULT");
-    const key = kv[1].trim();
-    last = null;
+    const key = (kv[1] as string).trim();
     if (key === "type" && section.group !== undefined && !NEEDS_GROUPS.includes(section.group)) {
-      section.type = kv[2];
+      section.type = value;
     } else if (!KEPT_KEYS.includes(`${section.name}.${key}`)) {
-      last = { key, value: kv[2] };
-      section.entries.push(last);
+      section.entries.push({ key, value });
     }
   }
   return sections;
@@ -376,7 +459,8 @@ export function designText(sections: DesignSection[]): string {
   const blocks: string[] = [];
   for (const section of sections) {
     const entries = section.entries.filter((e) => e.key.trim() !== "");
-    const lines = [...(section.type ? [`type = ${section.type}`] : []), ...entries.map((e) => `${e.key.trim()} = ${e.value}`)];
+    // Each value as om writes it: in quotes when, as is, om would read it otherwise.
+    const lines = [...(section.type ? [`type = ${section.type}`] : []), ...entries.map((e) => `${e.key.trim()} = ${writeValue(e.value)}`)];
     if (lines.length === 0 && !section.group) continue;
     blocks.push([`[${section.name}]`, ...lines].join("\n"));
   }

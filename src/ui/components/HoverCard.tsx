@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "../cn";
 import { usePlaceCard } from "./card-place";
 
 /** How long the pointer stays on what it wraps before the card shows: a pointer passing by shows none. */
@@ -13,15 +14,18 @@ export const HOVER_CARD_DELAY_MS = 800;
  * the hover alone, and the click left to the button.
  *
  * The card is in a portal, placed against the window: a side panel sliding in or a
- * table scrolling sideways would otherwise clip it.
+ * table scrolling sideways would otherwise clip it. `className`, the room the pointer
+ * shows it from, wider than what it wraps.
  */
 export function HoverCard({
   card,
   inert = false,
+  className,
   children,
 }: {
   card: ReactNode;
   inert?: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   const id = useId();
@@ -90,7 +94,7 @@ export function HoverCard({
           toggle(event);
         }
       }}
-      className="inline-flex rounded-(--radius-control) focus-visible:outline-2 focus-visible:outline-accent"
+      className={cn("inline-flex rounded-(--radius-control) focus-visible:outline-2 focus-visible:outline-accent", className)}
     >
       {children}
       {open &&

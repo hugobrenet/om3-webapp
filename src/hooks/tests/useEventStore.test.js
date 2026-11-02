@@ -14,6 +14,7 @@ describe('useEventStore', () => {
     beforeEach(() => {
         act(() => {
             useEventStore.setState({
+                clusterNodes: null,
                 nodeStatus: {},
                 nodeMonitor: {},
                 nodeStats: {},
@@ -825,6 +826,60 @@ describe('useEventStore', () => {
         });
     });
 
+    describe('removeInstanceStatus and removeInstanceMonitor', () => {
+        test('drop the status or the monitor of one instance, the others kept', () => {
+            useEventStore.setState({
+                objectInstanceStatus: {'ns/svc/s': {n1: {avail: 'up'}, n2: {avail: 'down'}}},
+                instanceMonitor: {'n1:ns/svc/s': {state: 'idle'}, 'n2:ns/svc/s': {state: 'idle'}},
+            });
+            useEventStore.getState().removeInstanceStatus('ns/svc/s', 'n2');
+            useEventStore.getState().removeInstanceMonitor('ns/svc/s', 'n2');
+            const s = useEventStore.getState();
+            expect(s.objectInstanceStatus).toEqual({'ns/svc/s': {n1: {avail: 'up'}}});
+            expect(s.instanceMonitor).toEqual({'n1:ns/svc/s': {state: 'idle'}});
+        });
+
+        test('one not known changes nothing', () => {
+            const before = useEventStore.getState();
+            useEventStore.getState().removeInstanceStatus('ns/svc/none', 'n1');
+            useEventStore.getState().removeInstanceMonitor('ns/svc/none', 'n1');
+            expect(useEventStore.getState()).toBe(before);
+        });
+    });
+
+    describe('forgetNodesOutOf', () => {
+        test('a node gone out of the cluster: what it reported goes, its replayed statuses are not taken', () => {
+            useEventStore.setState({
+                nodeStatus: {n1: {agent: 'a'}, gone: {agent: 'b'}},
+                nodeMonitor: {gone: {state: 'idle'}},
+                nodeStats: {gone: {score: 1}},
+                heartbeatStatus: {n1: {}, gone: {}},
+                objectInstanceStatus: {'ns/svc/s': {n1: {avail: 'up'}, gone: {avail: 'down'}}},
+            });
+            useEventStore.getState().forgetNodesOutOf(['n1']);
+            let s = useEventStore.getState();
+            expect(s.nodeStatus).toEqual({n1: {agent: 'a'}});
+            expect(s.nodeMonitor).toEqual({});
+            expect(s.nodeStats).toEqual({});
+            expect(s.heartbeatStatus).toEqual({n1: {}});
+            expect(s.objectInstanceStatus).toEqual({'ns/svc/s': {n1: {avail: 'up'}}});
+            // The daemon replays the last status of the node gone: not taken.
+            useEventStore.getState().setNodeStatuses({...s.nodeStatus, gone: {agent: 'b'}});
+            useEventStore.getState().setNodeStats({gone: {score: 1}});
+            s = useEventStore.getState();
+            expect(s.nodeStatus).toEqual({n1: {agent: 'a'}});
+            expect(s.nodeStats).toEqual({});
+        });
+
+        test('no nodes known: nothing forgotten', () => {
+            useEventStore.setState({nodeStatus: {n1: {}}});
+            useEventStore.getState().forgetNodesOutOf([]);
+            useEventStore.getState().forgetNodesOutOf(undefined);
+            expect(useEventStore.getState().nodeStatus).toEqual({n1: {}});
+            expect(useEventStore.getState().clusterNodes).toBeNull();
+        });
+    });
+
     describe('removeInstanceFromObject', () => {
         test('removes instance from all three maps', () => {
             act(() => {
@@ -960,6 +1015,31 @@ describe('useEventStore', () => {
             expect(key).toBe('om3-event-storage');
             const parsed = JSON.parse(value);
             expect(parsed.state.objectStatus).toEqual({obj1: {status: 'up'}});
+        });
+
+        test('the state turned into JSON once, when written, not at each change', () => {
+            const stringify = vi.spyOn(JSON, 'stringify');
+            const ofStore = () => stringify.mock.calls.filter(([value]) => value?.state?.objectStatus !== undefined).length;
+            for (let i = 0; i < 20; i++) {
+                act(() => {
+                    useEventStore.getState().setObjectStatuses({[`obj${i}`]: {status: 'up'}});
+                });
+            }
+            expect(ofStore()).toBe(0);
+            vi.advanceTimersByTime(800);
+            expect(ofStore()).toBe(1);
+            expect(JSON.parse(Storage.prototype.setItem.mock.calls[0][1]).state.objectStatus).toEqual({obj19: {status: 'up'}});
+        });
+
+        test('a store kept unreadable starts empty', () => {
+            // Nothing pending from the tests before: read from localStorage.
+            act(() => {
+                useEventStore.persist.clearStorage();
+            });
+            Storage.prototype.getItem.mockReturnValue('{not json');
+            const storage = useEventStore.persist.getOptions().storage;
+            expect(storage.getItem('om3-event-storage')).toBeNull();
+            expect(logger.warn).toHaveBeenCalled();
         });
 
         test('flush clears pending and does not call setItem if no pending', () => {
