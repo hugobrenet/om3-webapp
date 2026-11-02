@@ -40,6 +40,7 @@ const InstanceCard = ({
                           onOpenLogs = () => logger.warn("onOpenLogs not provided"),
                           onViewInstance,
                           objectAvail,
+                          childrenDown = false,
                       }) => {
     const {t} = useTranslation();
     const resolvedInstanceName = instanceName || nodeData?.instanceName || nodeData?.name || node;
@@ -78,7 +79,7 @@ const InstanceCard = ({
                     aria-label={t("instance.card.selectNode", {node})}
                 />
             </span>
-            <StatusMark state={toObjectState(avail)} label={avail || t("instance.unknown")} muted={isQuietDown(avail, objectAvail)}/>
+            <StatusMark state={toObjectState(avail)} label={avail || t("instance.unknown")} muted={isQuietDown(avail, objectAvail, childrenDown)}/>
             {canView ? (
                 <button
                     type="button"

@@ -1724,7 +1724,8 @@
     "reason": {
       "more_one": "+{{count}} autre",
       "more_other": "+{{count}} autres",
-      "fix": "{{action}} {{name}}"
+      "fix": "{{action}} {{name}}",
+      "optimal": "optimal"
     },
     "noInstanceStatus": "Aucun état de {{node}} : le nœud est perdu ou ne répond pas",
     "flex": {

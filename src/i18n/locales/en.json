@@ -1724,7 +1724,8 @@
     "reason": {
       "more_one": "+{{count}} more",
       "more_other": "+{{count}} more",
-      "fix": "{{action}} {{name}}"
+      "fix": "{{action}} {{name}}",
+      "optimal": "optimal"
     },
     "noInstanceStatus": "No status from {{node}}: the node is gone or not heard from",
     "flex": {

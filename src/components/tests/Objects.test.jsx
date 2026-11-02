@@ -348,17 +348,19 @@ describe('Objects Component', () => {
         expect(mockRetainEventReception).not.toHaveBeenCalled();
     });
 
-    test('an object not up says why under its name, as its status board: its first note, the others counted; one up, nothing', async () => {
+    test('an object not up says why under its name, as its status board: its first note, the others counted; one up, optimal', async () => {
         setup({}, '', {isWideScreen: true, isMobile: false});
         await waitForLoad();
         const reason = (name) => objectRow(name).querySelector('[data-reason]');
-        expect(reason('test-ns/svc/test1')).toBeNull();
+        // Nothing to say: optimal, the row as high as the others.
+        expect(reason('test-ns/svc/test1')).toHaveAttribute('data-reason', 'optimal');
+        expect(reason('test-ns/svc/test1')).toHaveTextContent(/^optimal$/);
         expect(reason('test-ns/svc/test2')).toHaveAttribute('data-reason', 'error');
         expect(reason('test-ns/svc/test2')).toHaveTextContent(/^failed: the orchestration gave up, clear the instance to retry \+1 moreClear$/);
         // The whole of it hovered.
         expect(reason('root/svc/test3')).toHaveTextContent(/^no instance monitor/);
         // n/a: no reason to give.
-        expect(reason('test-ns/svc/test4')).toBeNull();
+        expect(reason('test-ns/svc/test4')).toHaveAttribute('data-reason', 'optimal');
     });
 
     test('the action a reason asks for, a button at its end: confirmed, then posted, the panel not opened', async () => {

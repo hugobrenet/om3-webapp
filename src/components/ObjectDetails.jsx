@@ -24,6 +24,7 @@ import {trackRefused, trackResponse} from "../app/action-tracker";
 import {actionSubject, refusalReason} from "./objectActions";
 import logger from "../utils/logger";
 import {explainedMenu} from "../app/action-menu";
+import {childrenDown} from "../app/statusboard";
 
 const DEFAULT_CHECKBOXES = {failover: false};
 const DEFAULT_STOP_CHECKBOX = false;
@@ -164,6 +165,13 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
         });
         return enhanced;
     }, [objectInstanceStatus, instanceConfig, instanceMonitor, decodedObjectName]);
+
+    // A vol down that nothing uses, its children down too: the downs of its instances gray.
+    const isChildrenDown = childrenDown(
+        decodedObjectName,
+        objectStatus?.avail,
+        nodesList.map((node) => instanceMonitor[`${node}:${decodedObjectName}`]),
+    );
 
     const fetchFallbackData = useCallback(async () => {
         if (hasFallbackFired.current) return;
@@ -640,6 +648,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
                                 onOpenLogs={handleOpenLogs}
                                 onViewInstance={viewInstance}
                                 objectAvail={objectStatus?.avail}
+                                childrenDown={isChildrenDown}
                             />
                         ))}
                     </div>

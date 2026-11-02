@@ -114,6 +114,31 @@ describe("status board", () => {
     ]);
   });
 
+  test("a vol down: its downs red under a child up, gray with a note when its children are down", () => {
+    const at = "2026-10-28T10:00:00Z";
+    const vol = (child: string): ObjectData => ({
+      avail: "down",
+      overall: "down",
+      provisioned: "true",
+      topology: "flex",
+      flex: { min: 0, max: 2, target: 0 },
+      scope: ["n1"],
+      instances: {
+        n1: {
+          status: { avail: "down", overall: "down", provisioned: "true", resources: { "fs#0": { status: "down", type: "fs.tmpfs" } } },
+          monitor: { state: "idle", updated_at: at, children: { "system/svc/dns": child } },
+        },
+      },
+    });
+    const icons = (board: Board) => ["instance", "fs#0"].map((name) => board.rows.find((r) => r.name === name)?.cells[0]?.[0]?.tone);
+    const used = buildBoard({ path: "system/vol/dns", object: vol("up") });
+    expect(icons(used)).toEqual(["error", "error"]);
+    expect(used.notes.map((g) => g.text)).not.toContain("children are down");
+    const unused = buildBoard({ path: "system/vol/dns", object: vol("down") });
+    expect(icons(unused)).toEqual(["secondary", "secondary"]);
+    expect(unused.notes).toContainEqual(expect.objectContaining({ level: "info", text: "children are down" }));
+  });
+
   test("a failover service with an unsupported driver reads as om shows it", () => {
     const board = buildBoard({ path: "foo001", object: foo001 as ObjectData });
     expect(toText(board)).toBe(`foo001   failover · ha · nodes order

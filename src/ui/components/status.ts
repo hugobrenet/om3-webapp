@@ -8,10 +8,11 @@ import type { ObjectState } from "./StatusBadge";
  */
 /**
  * A down instance that is no issue: its object is up, or standby up, so the
- * instance it misses is not wanted. Drawn gray rather than red.
+ * instance it misses is not wanted; or `childrenDown`, a vol nothing uses
+ * (`childrenDown` of statusboard). Drawn gray rather than red.
  */
-export function isQuietDown(instanceAvail: string | undefined, objectAvail: string | undefined): boolean {
-  return instanceAvail === "down" && (objectAvail === "up" || objectAvail === "stdby up");
+export function isQuietDown(instanceAvail: string | undefined, objectAvail: string | undefined, childrenDown = false): boolean {
+  return instanceAvail === "down" && (objectAvail === "up" || objectAvail === "stdby up" || childrenDown);
 }
 
 export function toObjectState(value: string | undefined): ObjectState {

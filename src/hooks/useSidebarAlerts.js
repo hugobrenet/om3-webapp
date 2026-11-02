@@ -6,6 +6,7 @@ import {useTranslation} from "react-i18next";
 import i18n from "../i18n";
 import {URL_NETWORK, URL_NODE_EVENT, URL_POOL} from "../config/apiPath.js";
 import logger from "../utils/logger.js";
+import {childrenDown} from "../app/statusboard";
 
 /** Pools and networks have no events: their usage is polled at this period. */
 export const SIDEBAR_USAGE_REFRESH_MS = 15000;
@@ -26,6 +27,9 @@ const SIDEBAR_EVENTS = [
     "ObjectDeleted",
     "NodeStatusUpdated",
     "DaemonHeartbeatUpdated",
+    // For the children of the vols only: a vol down nothing uses is no alert.
+    "InstanceMonitorUpdated",
+    "InstanceMonitorDeleted",
 ];
 
 export const SIDEBAR_EVENTS_URL =
@@ -36,7 +40,7 @@ const ZERO_TIME = "0001-01-01T00:00:00Z";
 /** Whether a node status says the node is frozen. */
 export const isFrozen = (status) => !!status?.frozen_at && status.frozen_at !== ZERO_TIME;
 
-const emptyState = () => ({objects: {}, nodeStatus: {}, heartbeatStatus: {}});
+const emptyState = () => ({objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}});
 
 /** Applies one event of the sidebar stream to the state maps, in place. */
 export function applySidebarEvent(state, type, data) {
@@ -47,7 +51,22 @@ export function applySidebarEvent(state, type, data) {
             if (path && data.object_status) state.objects[path] = data.object_status;
             break;
         case "ObjectDeleted":
-            if (path) delete state.objects[path];
+            if (path) {
+                delete state.objects[path];
+                delete state.volChildren[path];
+            }
+            break;
+        case "InstanceMonitorUpdated":
+            // The children of a vol instance, by node; the other monitors not kept.
+            if (path && node && kindOf(path) === "vol") {
+                state.volChildren[path] = {...state.volChildren[path], [node]: data.instance_monitor?.children ?? {}};
+            }
+            break;
+        case "InstanceMonitorDeleted":
+            if (path && node && state.volChildren[path]) {
+                const {[node]: _gone, ...rest} = state.volChildren[path];
+                state.volChildren[path] = rest;
+            }
             break;
         case "NodeStatusUpdated":
             if (node && data.node_status) state.nodeStatus[node] = data.node_status;
@@ -86,6 +105,7 @@ function useSidebarEventState(enabled) {
                 objects: {...working.objects},
                 nodeStatus: {...working.nodeStatus},
                 heartbeatStatus: {...working.heartbeatStatus},
+                volChildren: {...working.volChildren},
             };
             setState(snapshot);
         };
@@ -192,7 +212,7 @@ function useUsageLists(enabled) {
  * networks, polled. `ready`, a first state read.
  */
 export const useMenuState = create(() => ({
-    objects: {}, nodeStatus: {}, heartbeatStatus: {}, pools: [], networks: [], ready: false,
+    objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, pools: [], networks: [], ready: false,
 }));
 
 /** The kind of an object path, as om3 writes it: "ns/kind/name", "kind/name", a bare svc name, "ns/". */
@@ -206,22 +226,31 @@ export function kindOf(path) {
 /** The kinds that run: an object of these has an availability of its own. */
 const ACTORS = ["svc", "vol"];
 
-/** What an object calls attention for: `down`, an actor (svc, vol) down; `warn`, its overall state; else `null`. */
-export function objectAttention(path, status) {
-    if (ACTORS.includes(kindOf(path)) && status?.avail === "down") return "down";
+/** The monitors of a vol's instances as `childrenDown` reads them, out of its children by node. */
+export const volMonitors = (volChildren, path) =>
+    Object.values(volChildren?.[path] ?? {}).map((children) => ({children}));
+
+/**
+ * What an object calls attention for: `down`, an actor (svc, vol) down, but a vol
+ * whose children are all down too (`monitors`, its instance monitors); `warn`, its
+ * overall state; else `null`.
+ */
+export function objectAttention(path, status, monitors = []) {
+    if (ACTORS.includes(kindOf(path)) && status?.avail === "down" && !childrenDown(path, status.avail, monitors)) return "down";
     if (status?.overall === "warn") return "warn";
     return null;
 }
 
 /**
- * Objects: red when an actor (svc, vol) is down; else orange when an object's
- * overall state is warn.
+ * Objects: red when an actor (svc, vol) is down, a vol nothing uses aside; else
+ * orange when an object's overall state is warn. `monitorsOf`, the instance
+ * monitors of a path.
  */
-export function objectsAlert(objects) {
+export function objectsAlert(objects, monitorsOf = () => []) {
     let down = 0;
     let warn = 0;
     for (const [path, status] of Object.entries(objects || {})) {
-        const attention = objectAttention(path, status);
+        const attention = objectAttention(path, status, monitorsOf(path));
         if (attention === "down") down++;
         else if (attention === "warn") warn++;
     }
@@ -270,15 +299,15 @@ const ofKind = (objects, kind) =>
  * pools and the networks.
  */
 export function useSidebarState({enabled = true} = {}) {
-    const {objects, nodeStatus, heartbeatStatus} = useSidebarEventState(enabled);
+    const {objects, nodeStatus, heartbeatStatus, volChildren} = useSidebarEventState(enabled);
     const {pools, networks} = useUsageLists(enabled);
     // Shared with the overview of the cluster: one stream, one poll, for both.
     useEffect(() => {
-        useMenuState.setState({objects, nodeStatus, heartbeatStatus, pools, networks, ready: true});
-    }, [objects, nodeStatus, heartbeatStatus, pools, networks]);
+        useMenuState.setState({objects, nodeStatus, heartbeatStatus, volChildren, pools, networks, ready: true});
+    }, [objects, nodeStatus, heartbeatStatus, volChildren, pools, networks]);
     return useMemo(
-        () => ({objects, nodeStatus, heartbeatStatus, pools, networks}),
-        [objects, nodeStatus, heartbeatStatus, pools, networks]
+        () => ({objects, nodeStatus, heartbeatStatus, volChildren, pools, networks}),
+        [objects, nodeStatus, heartbeatStatus, volChildren, pools, networks]
     );
 }
 
@@ -288,18 +317,21 @@ export function useSidebarState({enabled = true} = {}) {
  * `null` when all is well (the lists of keys raise none). All the objects raise
  * the alert of all of them; the services and the volumes, each of theirs only.
  */
-export function useSidebarAlertsOf({objects, nodeStatus, heartbeatStatus}) {
+export function useSidebarAlertsOf({objects, nodeStatus, heartbeatStatus, volChildren}) {
     // The alerts are text: computed again when the language changes.
     const {i18n: {language}} = useTranslation();
 
-    return useMemo(() => ({
-        "objects-any": {alert: objectsAlert(objects)},
-        "objects-services": {alert: objectsAlert(ofKind(objects, "svc"))},
-        "objects-volumes": {alert: objectsAlert(ofKind(objects, "vol"))},
-        links: {alert: heartbeatAlert(heartbeatStatus)},
-        nodes: {alert: nodesAlert(nodeStatus)},
+    return useMemo(() => {
+        const monitorsOf = (path) => volMonitors(volChildren, path);
+        return {
+            "objects-any": {alert: objectsAlert(objects, monitorsOf)},
+            "objects-services": {alert: objectsAlert(ofKind(objects, "svc"), monitorsOf)},
+            "objects-volumes": {alert: objectsAlert(ofKind(objects, "vol"), monitorsOf)},
+            links: {alert: heartbeatAlert(heartbeatStatus)},
+            nodes: {alert: nodesAlert(nodeStatus)},
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [objects, nodeStatus, heartbeatStatus, language]);
+    }, [objects, nodeStatus, heartbeatStatus, volChildren, language]);
 }
 
 /** The state of the sidebar entries, read from a state of their own. */
