@@ -61,7 +61,12 @@ describe("why an object is not up", () => {
       },
       configs: undefined,
     });
-    expect(objectReason("system/vol/dns", events("up"))).toEqual({ level: "error", text: "fs#0 down", more: 0 });
+    // Its child up: said why its down is an issue.
+    expect(objectReason("system/vol/dns", events("up"))).toEqual({
+      level: "error",
+      text: "down while its child system/svc/dns is up: the child needs the vol",
+      more: 0,
+    });
     expect(objectReason("system/vol/dns", events("down"))).toEqual({ level: "info", text: "children are down", more: 0 });
     // Its child no object: no children, gray too.
     expect(objectReason("system/vol/dns", events("undef"))).toEqual({ level: "info", text: "no children", more: 0 });

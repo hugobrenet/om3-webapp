@@ -134,6 +134,12 @@ describe("status board", () => {
     const used = buildBoard({ path: "system/vol/dns", object: vol("up") });
     expect(icons(used)).toEqual(["error", "error"]);
     expect(used.notes.map((g) => g.text)).not.toContain("children are down");
+    // Why its down is an issue: the child up, named.
+    expect(used.notes[0]).toMatchObject({ level: "error", text: "down while its child system/svc/dns is up: the child needs the vol" });
+    // Several up, on their nodes: all named, once each.
+    const two = vol("up");
+    if (two.instances?.n1?.monitor) two.instances.n1.monitor.children = { "ns/svc/b@n1": "up", "ns/svc/a": "warn", "ns/svc/c": "down" };
+    expect(buildBoard({ path: "system/vol/dns", object: two }).notes[0]?.text).toBe("down while its children ns/svc/a, ns/svc/b@n1 are up: they need the vol");
     const unused = buildBoard({ path: "system/vol/dns", object: vol("down") });
     expect(icons(unused)).toEqual(["secondary", "secondary"]);
     expect(unused.notes).toContainEqual(expect.objectContaining({ level: "info", text: "children are down" }));

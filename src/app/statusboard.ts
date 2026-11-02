@@ -417,6 +417,18 @@ export function volChildren(
 }
 
 /**
+ * The children of an object up, as its instance monitors report them: by path, or
+ * path@node, once each, in the order of their names.
+ */
+export function childrenUp(monitors: readonly (InstanceMonitor | undefined)[]): string[] {
+  const up = new Set<string>();
+  for (const m of monitors) {
+    for (const [child, st] of Object.entries(m?.children ?? {})) if (CHILD_UP.has(st)) up.add(child);
+  }
+  return [...up].sort();
+}
+
+/**
  * A vol down nothing uses: its children all down too, or none of them there. Its
  * down is no issue. A vol down under a child up is one.
  */
@@ -732,6 +744,18 @@ export function buildBoard(digest: Digest): Board {
     action,
     nodes: about.length === nodes.length && nodes.length > 1 ? [] : about,
   });
+  if (children === "up") {
+    // Down while a child is up: the child needs it.
+    const up = childrenUp(nodes.map((n) => stateOf(n).monitor));
+    add(
+      "error",
+      "children",
+      [],
+      up.length === 1
+        ? `down while its child ${up[0] ?? ""} is up: the child needs the vol`
+        : `down while its children ${up.join(", ")} are up: they need the vol`,
+    );
+  }
   if (children === "down") add("info", "children", [], "children are down");
   if (children === "none") add("info", "children", [], "no children");
   if (excess > 0) {
