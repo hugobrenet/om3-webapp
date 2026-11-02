@@ -3637,9 +3637,7 @@
     "notConfigured": "Aucun agent IA n'est configuré sur ce cluster : un administrateur règle ai.agent_url dans la configuration du cluster.",
     "openidRequired": "L'assistant demande une session d'authentification unique : connectez-vous avec le fournisseur d'identité.",
     "authRequired": "Une session authentifiée est nécessaire pour utiliser l'assistant IA.",
-    "refreshStatus": "Actualiser l'état",
     "loadingCluster": "Chargement des informations du cluster…",
-    "waitingCluster": "En attente de l'identifiant du cluster.",
     "conversations": {
       "title": "Conversations",
       "new": "Nouvelle conversation",

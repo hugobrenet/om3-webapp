@@ -12,16 +12,16 @@ const mocks = vi.hoisted(() => ({
     client: null,
     enabled: true,
     clusterId: 'cluster-id',
-    fetchNodes: vi.fn(),
 }));
 vi.mock('../../context/AuthProvider.jsx', () => ({useAuth: () => mocks.auth}));
-vi.mock('../../hooks/useFetchDaemonStatus.jsx', () => ({
+// The configuration of the cluster, as the event stream of the menu keeps it:
+// the page reads no cluster status.
+vi.mock('../../hooks/useClusterConfig.js', () => ({
     default: () => ({
         clusterId: mocks.clusterId,
         clusterName: 'Lab cluster',
-        fetchNodes: mocks.fetchNodes,
-        loading: false,
-        error: '',
+        agentUrl: 'https://agent.example.com:8090',
+        loaded: Boolean(mocks.clusterId),
     }),
 }));
 vi.mock('../../hooks/useAiAgent.js', () => ({
@@ -139,7 +139,6 @@ describe('AI chatbot page', () => {
         await renderReady();
         expect(screen.getByRole('heading', {name: /AI Assistant/})).toBeInTheDocument();
         expect(screen.getByText('Lab cluster')).toBeInTheDocument();
-        expect(mocks.fetchNodes).toHaveBeenCalledWith('token');
         expect(mocks.client.createConversation).not.toHaveBeenCalled();
         expect(mocks.client.run).not.toHaveBeenCalled();
     });
@@ -149,7 +148,6 @@ describe('AI chatbot page', () => {
         async (authChoice) => {
             mocks.auth.authChoice = authChoice;
             await renderReady();
-            expect(mocks.fetchNodes).toHaveBeenCalledWith('token');
             await submit('Diagnose my cluster');
             expect(await screen.findByText('Cluster looks healthy.')).toBeInTheDocument();
             const log = screen.getByRole('log', {name: 'Conversation messages'});
@@ -432,7 +430,7 @@ describe('AI chatbot page', () => {
     test.each([
         ['disabled', /No AI agent is configured on this cluster/],
         ['missing-token', /An authenticated session is required/],
-        ['missing-target', /Loading cluster information|Waiting for the cluster ID/],
+        ['missing-target', /Loading cluster information/],
         ['not-openid', /needs a single sign-on session/],
     ])(
         'does not contact the agent when %s, and tells why',
