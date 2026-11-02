@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 import {
@@ -324,5 +324,29 @@ describe("Table cards", () => {
     );
     expect(screen.getByRole("table", { name: "Disks" })).toHaveAttribute("data-cards");
     expect(screen.getByRole("table", { name: "Board" })).not.toHaveAttribute("data-cards");
+  });
+});
+
+describe("Table, cards always", () => {
+  test("its rows as cards whatever the window, its cells named after their columns", () => {
+    render(
+      <Table cards="always" aria-label="Namespaces">
+        <thead>
+          <HeaderRow>
+            <HeaderCell>Name</HeaderCell>
+          </HeaderRow>
+        </thead>
+        <tbody>
+          <Row>
+            <Cell>prod</Cell>
+          </Row>
+        </tbody>
+      </Table>,
+    );
+    const table = screen.getByRole("table", { name: "Namespaces" });
+    expect(table).toHaveAttribute("data-cards");
+    expect(table).toHaveClass("[&>thead]:hidden");
+    expect(table).not.toHaveClass("max-md:[&>thead]:hidden");
+    expect(screen.getByRole("cell")).toHaveAttribute("data-label", "Name");
   });
 });

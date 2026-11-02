@@ -1081,14 +1081,12 @@
   "namespaces": {
     "columns": {
       "namespace": "Name",
-      "services": "Services",
-      "volumes": "Volumes",
-      "sec": "Secrets",
-      "cfg": "Configs",
+      "objects": "Objects",
       "pools": "Pools",
       "nets": "Networks",
       "cpu": "CPU",
-      "memory": "Memory"
+      "memory": "Memory",
+      "claims": "Claims"
     },
     "empty": "No namespaces available",
     "tableLabel": "Namespaces",
@@ -1106,17 +1104,18 @@
       "claimed": "{{name}}: {{used}} of {{total}} claimed ({{percent}})",
       "unclaimed": "{{name}}: {{used}} of {{total}}, no claim ({{percent}})",
       "error": "Pool and network usage could not be read: {{message}}",
-      "percentOf": "{{percent}} of {{total}}",
       "free": "Free",
       "used": "Used",
       "total": "Total",
       "cap": "Cap",
       "noClaim": "no claim",
       "share": "Share",
-      "barLabel": "{{title}}: {{parts}}"
-    },
-    "memory": {
-      "used": "{{used}} used"
+      "barLabel": "{{title}}: {{parts}}",
+      "ofCap": "of {{cap}}",
+      "cpuOf": "CPU used by {{namespace}}, of its cap",
+      "memoryOf": "Memory used by {{namespace}}, of its cap",
+      "addresses_one": "{{value}} address",
+      "addresses_other": "{{value}} addresses"
     },
     "panel": {
       "tabs": {
@@ -1273,7 +1272,26 @@
       "selectAll": "Select all the {{list}}"
     },
     "count_one": "{{count}} namespace",
-    "count_other": "{{count}} namespaces"
+    "count_other": "{{count}} namespaces",
+    "kinds": {
+      "short": {
+        "svc": "svc",
+        "vol": "vol",
+        "cfg": "cfg",
+        "sec": "sec"
+      },
+      "show": {
+        "svc_one": "Show the {{count}} service of {{namespace}}",
+        "svc_other": "Show the {{count}} services of {{namespace}}",
+        "vol_one": "Show the {{count}} volume of {{namespace}}",
+        "vol_other": "Show the {{count}} volumes of {{namespace}}",
+        "cfg_one": "Show the {{count}} configuration of {{namespace}}",
+        "cfg_other": "Show the {{count}} configurations of {{namespace}}",
+        "sec_one": "Show the {{count}} secret of {{namespace}}",
+        "sec_other": "Show the {{count}} secrets of {{namespace}}"
+      },
+      "avail": "{{count}} {{avail}}"
+    }
   },
   "nav": {
     "routes": {

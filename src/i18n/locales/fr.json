@@ -1081,14 +1081,12 @@
   "namespaces": {
     "columns": {
       "namespace": "Nom",
-      "services": "Services",
-      "volumes": "Volumes",
-      "sec": "Secrets",
-      "cfg": "Configs",
+      "objects": "Objets",
       "pools": "Pools",
       "nets": "Réseaux",
       "cpu": "CPU",
-      "memory": "Mémoire"
+      "memory": "Mémoire",
+      "claims": "Réclamations"
     },
     "empty": "Aucun namespace disponible",
     "tableLabel": "Namespaces",
@@ -1106,17 +1104,18 @@
       "claimed": "{{name}} : {{used}} sur {{total}} réclamé ({{percent}})",
       "unclaimed": "{{name}} : {{used}} sur {{total}}, sans réclamation ({{percent}})",
       "error": "L'usage des pools et des réseaux n'a pas pu être lu : {{message}}",
-      "percentOf": "{{percent}} de {{total}}",
       "free": "Libre",
       "used": "Utilisé",
       "total": "Total",
       "cap": "Plafond",
       "noClaim": "aucune réclamation",
       "share": "Part",
-      "barLabel": "{{title}} : {{parts}}"
-    },
-    "memory": {
-      "used": "{{used}} utilisé"
+      "barLabel": "{{title}} : {{parts}}",
+      "ofCap": "sur {{cap}}",
+      "cpuOf": "CPU utilisé par {{namespace}}, de sa limite",
+      "memoryOf": "Mémoire utilisée par {{namespace}}, de sa limite",
+      "addresses_one": "{{value}} adresse",
+      "addresses_other": "{{value}} adresses"
     },
     "panel": {
       "tabs": {
@@ -1273,7 +1272,26 @@
       "selectAll": "Sélectionner tous les objets de type {{list}}"
     },
     "count_one": "{{count}} namespace",
-    "count_other": "{{count}} namespaces"
+    "count_other": "{{count}} namespaces",
+    "kinds": {
+      "short": {
+        "svc": "svc",
+        "vol": "vol",
+        "cfg": "cfg",
+        "sec": "sec"
+      },
+      "show": {
+        "svc_one": "Afficher le service de {{namespace}}",
+        "svc_other": "Afficher les {{count}} services de {{namespace}}",
+        "vol_one": "Afficher le volume de {{namespace}}",
+        "vol_other": "Afficher les {{count}} volumes de {{namespace}}",
+        "cfg_one": "Afficher la configuration de {{namespace}}",
+        "cfg_other": "Afficher les {{count}} configurations de {{namespace}}",
+        "sec_one": "Afficher le secret de {{namespace}}",
+        "sec_other": "Afficher les {{count}} secrets de {{namespace}}"
+      },
+      "avail": "{{count}} {{avail}}"
+    }
   },
   "nav": {
     "routes": {
