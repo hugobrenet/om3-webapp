@@ -2317,7 +2317,6 @@
       "instance": "Instance",
       "nodes": "The resource on each node",
       "flags": "Flags",
-      "log": "Last message",
       "none": "No node reports this resource.",
       "flag": {
         "disable": "disabled",

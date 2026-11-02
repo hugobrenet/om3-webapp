@@ -2317,7 +2317,6 @@
       "instance": "Instance",
       "nodes": "La ressource sur chaque nœud",
       "flags": "Options",
-      "log": "Dernier message",
       "none": "Aucun nœud ne signale cette ressource.",
       "flag": {
         "disable": "désactivée",

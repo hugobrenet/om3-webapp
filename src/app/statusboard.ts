@@ -338,6 +338,53 @@ const toLevel = (level: string | undefined): Level =>
 
 const LEVEL_TONE: Record<Level, Tone> = { error: "error", warn: "warning", info: "secondary" };
 
+/**
+ * The notes of a resource on a node: what it logged, in its order, then its RPO
+ * breached, which it does not log.
+ */
+function notesOn(rs: ResourceStatus): { level: Level; text: string }[] {
+  const l = (rs.log ?? []).map((e) => ({ level: toLevel(e.level), text: e.message ?? "" }));
+  if (isPast(rs.rpo_breached_at)) {
+    const at = rs.rpo_breached_at as string;
+    l.push({
+      level: "error",
+      text:
+        Date.parse(at) === 0
+          ? "rpo breached: no copy was ever received here, and taking over here would lose all the data"
+          : `rpo breached since ${new Date(at).toISOString().replace(/\.\d+Z$/, "Z")}: the copy here is older than the max delay of the resource allows, and taking over here would lose more data`,
+    });
+  }
+  return l;
+}
+
+/**
+ * The notes of a resource on its nodes (`byNode`, its status on each), as the board
+ * says them: errors first, then warnings, then infos, each in the order met; the
+ * same text at the same level once, with the nodes it is on: "all" when on every
+ * one of several, none when there is one.
+ */
+export function resourceNotes(byNode: readonly (readonly [string, ResourceStatus])[]): RowNote[] {
+  const rank: Record<Level, number> = { error: 0, warn: 1, info: 2 };
+  const groups = new Map<string, { level: Level; text: string; nodes: string[]; at: number }>();
+  for (const [node, rs] of byNode) {
+    for (const n of notesOn(rs)) {
+      const key = `${n.level}\0${n.text}`;
+      const g = groups.get(key) ?? { ...n, nodes: [], at: groups.size };
+      if (!g.nodes.includes(node)) g.nodes.push(node);
+      groups.set(key, g);
+    }
+  }
+  const total = byNode.length;
+  return [...groups.values()]
+    .sort((a, b) => rank[a.level] - rank[b.level] || a.at - b.at)
+    .map((g) => ({
+      marker: "",
+      level: g.level,
+      text: g.text,
+      nodes: total <= 1 ? "" : g.nodes.length === total ? "all" : g.nodes.join(" "),
+    }));
+}
+
 /** The availabilities of a child that has its parent vol in use. */
 const CHILD_UP: ReadonlySet<string> = new Set(["up", "warn", "stdby up"]);
 
@@ -599,16 +646,7 @@ export function buildBoard(digest: Digest): Board {
       const pieces: Piece[] = [statusIcon(rs.status)];
       const f = flags(rid, s, rs);
       if (f.length > 0) pieces.push(span(" "), ...f);
-      const refs: Note[] = [];
-      for (const e of rs.log ?? []) refs.push(noteOf(rid, node, toLevel(e.level), e.message ?? ""));
-      if (isPast(rs.rpo_breached_at)) {
-        const at = rs.rpo_breached_at as string;
-        const text =
-          Date.parse(at) === 0
-            ? "rpo breached: no copy was ever received here, and taking over here would lose all the data"
-            : `rpo breached since ${new Date(at).toISOString().replace(/\.\d+Z$/, "Z")}: the copy here is older than the max delay of the resource allows, and taking over here would lose more data`;
-        refs.push(noteOf(rid, node, "error", text));
-      }
+      const refs = notesOn(rs).map((n) => noteOf(rid, node, n.level, n.text));
       const unique = refs.filter((n, i) => refs.indexOf(n) === i);
       if (unique.length > 0) pieces.push(span(" "), { notes: unique });
       return pieces;
