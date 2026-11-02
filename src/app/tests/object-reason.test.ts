@@ -74,6 +74,24 @@ describe("why an object is not up", () => {
     expect(objectReason("system/svc/dns", events("down"))?.level).toBe("error");
   });
 
+  test("not provisioned, said without the configs of its instances, as the lists read it", () => {
+    const at = "2026-10-28T10:00:00Z";
+    const events: ObjectEvents = {
+      object: { avail: "down", overall: "down", provisioned: "false", topology: "failover" },
+      instances: {
+        n1: { avail: "down", overall: "down", provisioned: "false", resources: { "fs#1": { status: "down" } } },
+        n2: { avail: "down", overall: "down", provisioned: "false", resources: { "fs#1": { status: "down" } } },
+      },
+      monitors: { n1: { state: "idle", updated_at: at }, n2: { state: "idle", updated_at: at } },
+      configs: undefined,
+    };
+    expect(objectReason("usecases/svc/not-provisioned", events)).toMatchObject({
+      level: "error",
+      text: "the instance is not provisioned, or partly",
+      fix: { action: "provision", nodes: [] },
+    });
+  });
+
   test("an object up, partly provisioned: an error", () => {
     const at = "2026-10-28T10:00:00Z";
     const events: ObjectEvents = {

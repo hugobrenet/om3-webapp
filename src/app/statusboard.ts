@@ -259,6 +259,12 @@ function sortedResources(resources: Record<string, ResourceStatus> | undefined) 
 }
 
 const isActor = (s: InstanceStates) => s.config !== undefined && "resources" in s.config;
+/**
+ * An instance of an object that runs, a svc or a vol: by its config, or by its
+ * status, which has resources, a config of a cfg or a sec none. The lists read
+ * no config: by its status alone there.
+ */
+const runs = (s: InstanceStates) => isActor(s) || s.status?.resources !== undefined;
 const isFrozen = (s: InstanceStates) => !isZeroTime(s.status?.frozen_at);
 const isStopped = (s: InstanceStates) => !isZeroTime(s.status?.stopped_at);
 const isUnprovisioned = (s: InstanceStates) =>
@@ -577,7 +583,7 @@ export function buildBoard(digest: Digest): Board {
       }),
     );
   }
-  if (anyNode((s) => isActor(s) && isUnprovisioned(s))) {
+  if (anyNode((s) => runs(s) && isUnprovisioned(s))) {
     rows.push(
       row({
         kind: "provisioned",
@@ -803,7 +809,7 @@ export function buildBoard(digest: Digest): Board {
   const startFix =
     obj.topology === "flex" ? fixOn("start", stopped) : obj.avail !== "up" ? { action: "start" as const, nodes: [] } : undefined;
   if (stopped.length > 0) add("info", "stopped", stopped, "stopped on purpose: the daemon does not start it back", startFix);
-  const unprovisioned = nodesWith((s) => isActor(s) && isUnprovisioned(s));
+  const unprovisioned = nodesWith((s) => runs(s) && isUnprovisioned(s));
   if (unprovisioned.length > 0) add("error", "provisioned", unprovisioned, "the instance is not provisioned, or partly", fixOn("provision", unprovisioned));
 
   // The notes by level, errors first; the same text at the same level shares a
