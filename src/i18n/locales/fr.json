@@ -474,6 +474,26 @@
       "name": "Nom",
       "confirm": "Créer",
       "invalid": "Un nom, sans / ni point initial."
+    },
+    "view": {
+      "loading": "Lecture du fichier",
+      "partial": "les premiers {{size}} affichés",
+      "crlf": "lignes terminées par CR LF : modifiez-le par un téléversement",
+      "download": "Télécharger le fichier",
+      "contentAria": "Contenu du fichier",
+      "edit": "Modifier",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "close": "Fermer",
+      "noTrailingLineFeed": "Pas de saut de ligne final"
+    },
+    "installedFrom": "depuis <store>{{from}}</store> clé <key>{{key}}</key>",
+    "openKey": "Afficher la clé {{key}}",
+    "installed": {
+      "badge": "installé",
+      "refused": "{{name}} est installé depuis {{from}} clé {{key}} : modifiez la clé, la prochaine installation écrit le fichier.",
+      "deleteText": "Il est installé depuis {{from}} clé {{key}} : la prochaine installation l'écrit à nouveau.",
+      "notEdited": "modifiez la clé, la prochaine installation écrit le fichier"
     }
   },
   "console": {

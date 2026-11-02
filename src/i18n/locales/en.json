@@ -474,6 +474,26 @@
       "name": "Name",
       "confirm": "Create",
       "invalid": "A name, without / nor a leading dot."
+    },
+    "view": {
+      "loading": "Reading the file",
+      "partial": "the first {{size}} shown",
+      "crlf": "lines ending in CR LF: edit it by an upload",
+      "download": "Download the file",
+      "contentAria": "File content",
+      "edit": "Edit",
+      "save": "Save",
+      "saving": "Saving…",
+      "close": "Close",
+      "noTrailingLineFeed": "No trailing line feed"
+    },
+    "installedFrom": "from <store>{{from}}</store> key <key>{{key}}</key>",
+    "openKey": "Show the key {{key}}",
+    "installed": {
+      "badge": "installed",
+      "refused": "{{name}} is installed from {{from}} key {{key}}: change the key, the next install writes the file.",
+      "deleteText": "It is installed from {{from}} key {{key}}: the next install writes it again.",
+      "notEdited": "change the key, the next install writes the file"
     }
   },
   "console": {

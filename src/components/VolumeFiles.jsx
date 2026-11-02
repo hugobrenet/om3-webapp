@@ -15,6 +15,8 @@ import {cn} from "../ui/cn";
 import {FolderIcon, LinkIcon, TrashIcon} from "../ui/icons";
 import {BADGE} from "./ObjectCells";
 import {Section} from "./NodePanel";
+import KeysSection from "./KeysSection";
+import {InstalledFrom, VolumeFileDialog} from "./VolumeFileDialog";
 
 /** The kinds holding files of their users. */
 export const FILES_KINDS = ["vol"];
@@ -26,15 +28,18 @@ const AVAILABLE = ["up", "stdby up", "n/a"];
 const CHANGED_AFTER_MS = 0;
 
 /**
- * Where a file comes from, as the node tells it: uploaded here, by whom and when,
- * changed since or not; else not known to be, which the services using the volume
- * may have written.
+ * Where a file comes from, as the node tells it: installed from a key of a datastore,
+ * which the next install writes again; uploaded here, by whom; when, changed since or
+ * not. Else not known to be either, which the services using the volume may have
+ * written.
  */
 export function fileOrigin(file) {
-    if (!file?.uploaded_at) return null;
-    const changed = Date.parse(file.modified_at) - Date.parse(file.uploaded_at) > CHANGED_AFTER_MS;
-    return {by: file.uploaded_by, at: file.uploaded_at, changed};
+    const changedSince = (at) => Date.parse(file.modified_at) - Date.parse(at) > CHANGED_AFTER_MS;
+    if (file?.installed_at) return {kind: "installed", from: file.installed_from, key: file.installed_key, at: file.installed_at, changed: changedSince(file.installed_at)};
+    if (file?.uploaded_at) return {kind: "uploaded", by: file.uploaded_by, at: file.uploaded_at, changed: changedSince(file.uploaded_at)};
+    return null;
 }
+
 
 /** A name of an entry of a directory, as the node takes one: no path, not hidden. */
 export const isEntryName = (name) => name !== "" && !name.startsWith(".") && !/[/\\\0]/.test(name) && name.length <= 255;
@@ -72,6 +77,10 @@ export function VolumeFiles({path}) {
     const [deleteAsked, setDeleteAsked] = useState(null);
     // A file to send whose name is taken: replacing it asked first.
     const [replacing, setReplacing] = useState(null);
+    // A key a file is installed from, shown in place.
+    const [keyShown, setKeyShown] = useState(null);
+    // A file shown in its dialog, by name.
+    const [viewing, setViewing] = useState(null);
     // A directory to create: its name as typed, and why it was refused.
     const [creating, setCreating] = useState(null);
     const upload = useRef(null);
@@ -104,8 +113,16 @@ export function VolumeFiles({path}) {
     const send = async (file, {replace = false} = {}) => {
         setError("");
         setCertificateUrl("");
+        // Installed from a datastore: the next install would write it again, its key is what changes it.
+        const there = files?.find((f) => f.name === file.name);
+        const installed = there && fileOrigin(there)?.kind === "installed" ? fileOrigin(there) : null;
+        if (installed) {
+            setError(t("volumeFiles.installed.refused", {name: file.name, from: installed.from, key: installed.key}));
+            if (input.current) input.current.value = "";
+            return;
+        }
         // Known there already: asked before anything is sent.
-        if (!replace && files?.some((f) => f.name === file.name)) {
+        if (!replace && there) {
             setReplacing(file);
             if (input.current) input.current.value = "";
             return;
@@ -117,7 +134,11 @@ export function VolumeFiles({path}) {
             await transfer.done;
             await refresh();
         } catch (err) {
-            if (isFileExists(err) && !replace) {
+            if (err.installed) {
+                // The listing read again first: it would clear what is said.
+                await refresh();
+                setError(t("volumeFiles.failed", {name: file.name, message: err.message}));
+            } else if (isFileExists(err) && !replace) {
                 // There since the listing, or written meanwhile: asked as well.
                 setReplacing(file);
                 void refresh();
@@ -273,11 +294,23 @@ export function VolumeFiles({path}) {
                                                 {f.name}
                                                 {f.target && <span className="text-ink-muted">→ {f.target}</span>}
                                             </span>
-                                        ) : f.name}
+                                        ) : (
+                                            <button type="button" onClick={() => setViewing(f.name)} className="text-left hover:text-accent hover:underline">
+                                                {f.name}
+                                            </button>
+                                        )}
                                     </Cell>
                                     <Cell className="whitespace-nowrap tabular-nums">{f.type === "file" ? formatBytes(f.size) : ""}</Cell>
-                                    <Cell data-origin={origin ? "uploaded" : "unknown"}>
-                                        {f.type !== "file" ? null : origin ? (
+                                    <Cell data-origin={origin?.kind ?? "unknown"}>
+                                        {f.type !== "file" ? null : origin?.kind === "installed" ? (
+                                            <span className="inline-flex flex-wrap items-center gap-x-1.5">
+                                                <span className={cn(BADGE, "border-line-strong")}>{t("volumeFiles.installed.badge")}</span>
+                                                <span className="text-ink-muted">
+                                                    <InstalledFrom origin={origin} onKey={setKeyShown}/>
+                                                    {origin.changed && ` · ${t("volumeFiles.changedSince")}`}
+                                                </span>
+                                            </span>
+                                        ) : origin ? (
                                             <span className="inline-flex flex-wrap items-center gap-x-1.5">
                                                 <span className={cn(BADGE, "border-accent text-accent")}>{t("volumeFiles.uploaded")}</span>
                                                 <span className="text-ink-muted">
@@ -292,7 +325,7 @@ export function VolumeFiles({path}) {
                                             size="sm"
                                             label={t("volumeFiles.deleteOne", {name: f.name})}
                                             disabled={deleting === f.name}
-                                            onClick={() => setDeleteAsked({name: f.name, type: f.type, uploaded: origin !== null})}
+                                            onClick={() => setDeleteAsked({name: f.name, type: f.type, origin})}
                                         >
                                             <TrashIcon className="h-3.5 w-3.5"/>
                                         </IconButton>
@@ -302,6 +335,36 @@ export function VolumeFiles({path}) {
                         })}
                     </tbody>
                 </Table>
+            )}
+            {keyShown && (
+                <KeysSection
+                    key={`${keyShown.from}:${keyShown.key}`}
+                    decodedObjectName={keyShown.from}
+                    keyOnly={keyShown.key}
+                    onKeyClosed={() => setKeyShown(null)}
+                    openSnackbar={(message) => setError(message)}
+                />
+            )}
+            {viewing !== null && (
+                <VolumeFileDialog
+                    key={`${node}:${dir}:${viewing}`}
+                    path={path}
+                    node={node}
+                    dir={dir}
+                    name={viewing}
+                    origin={fileOrigin(files?.find((f) => f.name === viewing))}
+                    onKey={(origin) => {
+                        setViewing(null);
+                        setKeyShown(origin);
+                    }}
+                    onClose={() => setViewing(null)}
+                    onSaved={() => void refresh()}
+                    onDelete={() => {
+                        const file = files?.find((f) => f.name === viewing);
+                        setViewing(null);
+                        setDeleteAsked({name: viewing, type: "file", origin: fileOrigin(file)});
+                    }}
+                />
             )}
             <Dialog
                 open={deleteAsked !== null}
@@ -318,7 +381,8 @@ export function VolumeFiles({path}) {
             >
                 {deleteAsked && t(deleteAsked.type === "dir" ? "volumeFiles.deleteDirText"
                     : deleteAsked.type === "link" ? "volumeFiles.deleteLinkText"
-                    : deleteAsked.uploaded ? "volumeFiles.deleteText" : "volumeFiles.deleteForeignText")}
+                    : deleteAsked.origin?.kind === "installed" ? "volumeFiles.installed.deleteText"
+                    : deleteAsked.origin ? "volumeFiles.deleteText" : "volumeFiles.deleteForeignText", {from: deleteAsked.origin?.from, key: deleteAsked.origin?.key})}
             </Dialog>
             <Dialog
                 open={replacing !== null}

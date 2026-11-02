@@ -3,7 +3,8 @@ import {render as rtlRender, screen, waitFor, within} from "@testing-library/rea
 import {MemoryRouter, useLocation} from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import {VolumeFiles, fileOrigin} from "../VolumeFiles.jsx";
-import {deleteFile, filesUrl, isFileExists, listFiles, makeDirectory, uploadFile, uploadUrl} from "../../services/volume-files.js";
+import {withEnding} from "../VolumeFileDialog.jsx";
+import {deleteFile, downloadFile, filesUrl, isFileExists, listFiles, makeDirectory, readFileHead, uploadFile, uploadUrl} from "../../services/volume-files.js";
 import useEventStore from "../../hooks/useEventStore.js";
 
 vi.mock("../../services/volume-files.js", async (importOriginal) => ({
@@ -12,6 +13,13 @@ vi.mock("../../services/volume-files.js", async (importOriginal) => ({
     deleteFile: vi.fn(),
     uploadFile: vi.fn(),
     makeDirectory: vi.fn(),
+    readFileHead: vi.fn(),
+    downloadFile: vi.fn(),
+}));
+
+// The key a file is installed from is shown by the keys dialog, tested on its own.
+vi.mock("../KeysSection", () => ({
+    default: ({decodedObjectName, keyOnly}) => <div data-testid="key-shown">{`${keyOnly} of ${decodedObjectName}`}</div>,
 }));
 
 const Where = () => <div data-testid="where">{decodeURIComponent(useLocation().search)}</div>;
@@ -47,7 +55,7 @@ describe("VolumeFiles", () => {
         expect(fileOrigin({name: "a", modified_at: "2026-11-02T10:00:00Z"})).toBeNull();
         // The mark set after the last byte: an upload untouched is no later than it, nanoseconds and offsets as the node writes them.
         expect(fileOrigin({name: "a", modified_at: "2026-11-02T10:00:00.1Z", uploaded_at: "2026-11-02T11:00:00.123456789+01:00", uploaded_by: "bob"}))
-            .toEqual({by: "bob", at: "2026-11-02T11:00:00.123456789+01:00", changed: false});
+            .toEqual({kind: "uploaded", by: "bob", at: "2026-11-02T11:00:00.123456789+01:00", changed: false});
         expect(fileOrigin({name: "a", modified_at: "2026-11-02T10:00:01Z", uploaded_at: "2026-11-02T10:00:00Z"}).changed).toBe(true);
     });
 
@@ -205,6 +213,204 @@ describe("VolumeFiles", () => {
             render(<VolumeFiles path={PATH}/>);
             expect(await screen.findByText("a.img")).toBeInTheDocument();
             expect(screen.getByText("Only the first 1 entries are shown.")).toBeInTheDocument();
+        });
+    });
+
+    describe("a file in its dialog, as a key", () => {
+        const text = (s) => new Blob([s]);
+        beforeEach(() => {
+            listFiles.mockResolvedValue({items: [
+                {name: "haproxy.cfg", type: "file", size: 12, modified_at: "2026-11-02T10:00:00Z"},
+                {name: "logo.png", type: "file", size: 4, modified_at: "2026-11-02T10:00:00Z", uploaded_at: "2026-11-02T10:00:00Z", uploaded_by: "bob"},
+            ], truncated: false});
+            downloadFile.mockResolvedValue();
+            uploadFile.mockImplementation(() => ({done: Promise.resolve(), abort: () => {}}));
+        });
+        // What a file sent holds, read as a browser reads it: jsdom gives a File no text().
+        const written = (file) => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsText(file);
+        });
+        const open = async (name, read) => {
+            readFileHead.mockResolvedValue(read);
+            up({n1: "up"});
+            render(<VolumeFiles path={PATH}/>, {at: "/objects?view=etc"});
+            await userEvent.click(await screen.findByRole("button", {name}));
+            return screen.findByRole("dialog", {name});
+        };
+
+        test("text shown as it is, read from the directory shown; downloaded on its own ticket", async () => {
+            const dialog = await open("haproxy.cfg", {blob: text("global\n  x 1\n"), total: 12, partial: false});
+            expect(await within(dialog).findByDisplayValue(/global/)).toHaveAttribute("readonly");
+            expect(readFileHead).toHaveBeenCalledWith(PATH, "n1", "haproxy.cfg", "etc", 1048576);
+            expect(within(dialog).getByText(/Type: Text/)).toBeInTheDocument();
+            await userEvent.click(within(dialog).getByRole("button", {name: "Download the file"}));
+            expect(downloadFile).toHaveBeenCalledWith(PATH, "n1", "haproxy.cfg", "etc");
+        });
+
+        test("edited in place, written back over it, the list read again", async () => {
+            const dialog = await open("haproxy.cfg", {blob: text("global\n"), total: 7, partial: false});
+            await within(dialog).findByDisplayValue(/global/);
+            await userEvent.click(within(dialog).getByRole("button", {name: "Edit"}));
+            const box = within(dialog).getByRole("textbox", {name: "File content"});
+            expect(box).not.toHaveAttribute("readonly");
+            // Ending with a line feed when read: the box unchecked, the line feed kept.
+            expect(within(dialog).getByRole("checkbox", {name: "No trailing line feed"})).not.toBeChecked();
+            await userEvent.type(box, "defaults");
+            listFiles.mockClear();
+            await userEvent.click(within(dialog).getByRole("button", {name: "Save"}));
+            await waitFor(() => expect(uploadFile).toHaveBeenCalledWith(PATH, "n1", expect.objectContaining({name: "haproxy.cfg"}), undefined, {replace: true, dir: "etc"}));
+            expect(await written(uploadFile.mock.calls[0][2])).toBe("global\ndefaults\n");
+            await waitFor(() => expect(listFiles).toHaveBeenCalled());
+            expect(within(dialog).getByRole("button", {name: "Edit"})).toBeInTheDocument();
+        });
+
+        test("no line feed at its end when read: the box checked, none added; unchecked, one", async () => {
+            const dialog = await open("haproxy.cfg", {blob: text("a = 1"), total: 5, partial: false});
+            await within(dialog).findByDisplayValue("a = 1");
+            await userEvent.click(within(dialog).getByRole("button", {name: "Edit"}));
+            const box = within(dialog).getByRole("checkbox", {name: "No trailing line feed"});
+            expect(box).toBeChecked();
+            // Nothing changed: nothing to save; the box alone changing it, something.
+            expect(within(dialog).getByRole("button", {name: "Save"})).toBeDisabled();
+            await userEvent.click(box);
+            expect(within(dialog).getByRole("button", {name: "Save"})).toBeEnabled();
+            await userEvent.click(within(dialog).getByRole("button", {name: "Save"}));
+            await waitFor(() => expect(uploadFile).toHaveBeenCalled());
+            expect(await written(uploadFile.mock.calls[0][2])).toBe("a = 1\n");
+        });
+
+        test("the end of a text as asked: its line feeds dropped, or one there", () => {
+            expect(withEnding("a\n\n", true)).toBe("a");
+            expect(withEnding("a", true)).toBe("a");
+            expect(withEnding("a", false)).toBe("a\n");
+            expect(withEnding("a\n", false)).toBe("a\n");
+        });
+
+        test("binary shown in hex, not edited", async () => {
+            const dialog = await open("logo.png", {blob: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x00])]), total: 5, partial: false});
+            expect(await within(dialog).findByText(/Type: Binary/)).toBeInTheDocument();
+            expect(within(dialog).getByRole("textbox", {name: "File content"}).value).toMatch(/^00000000 {2}89 50 4e 47 00/);
+            expect(within(dialog).queryByRole("button", {name: "Edit"})).toBeNull();
+        });
+
+        test("read in part, or of CR LF lines: shown, said, not edited", async () => {
+            const dialog = await open("haproxy.cfg", {blob: text("a\n"), total: 5000000, partial: true});
+            expect(await within(dialog).findByText(/the first 1.0 MiB shown/)).toBeInTheDocument();
+            expect(within(dialog).queryByRole("button", {name: "Edit"})).toBeNull();
+        });
+
+        test("CR LF lines: not edited, a text box would change them", async () => {
+            const dialog = await open("haproxy.cfg", {blob: text("a\r\nb\r\n"), total: 6, partial: false});
+            expect(await within(dialog).findByText(/CR LF/)).toBeInTheDocument();
+            expect(within(dialog).queryByRole("button", {name: "Edit"})).toBeNull();
+        });
+
+        test("removed from its dialog as from its row: an uploaded one said so", async () => {
+            const dialog = await open("logo.png", {blob: new Blob([new Uint8Array([0])]), total: 1, partial: false});
+            await within(dialog).findByText(/Type: Binary/);
+            await userEvent.click(within(dialog).getByRole("button", {name: "Delete"}));
+            expect(screen.getByRole("dialog", {name: "Delete logo.png?"})).toHaveTextContent("It was uploaded here.");
+        });
+
+        test("what refuses the read is said, the certificate of the console port included", async () => {
+            readFileHead.mockRejectedValue(Object.assign(new Error("the console port could not be reached"), {certificateUrl: "https://n1:1216/"}));
+            up({n1: "up"});
+            render(<VolumeFiles path={PATH}/>);
+            await userEvent.click(await screen.findByRole("button", {name: "haproxy.cfg"}));
+            const dialog = await screen.findByRole("dialog", {name: "haproxy.cfg"});
+            expect(await within(dialog).findByRole("link", {name: /n1:1216/})).toBeInTheDocument();
+        });
+    });
+
+    describe("a file installed from a datastore", () => {
+        const INSTALLED = {name: "config.yaml", type: "file", size: 10, modified_at: "2026-11-02T10:00:00Z",
+            installed_from: "dev/cfg/oc3", installed_key: "config.yaml", installed_at: "2026-11-02T10:00:00Z"};
+        beforeEach(() => {
+            listFiles.mockResolvedValue({items: [INSTALLED], truncated: false});
+            uploadFile.mockImplementation(() => ({done: Promise.resolve(), abort: () => {}}));
+        });
+
+        test("its origin: installed, the datastore a way to its keys, the key shown in place", async () => {
+            expect(fileOrigin(INSTALLED)).toEqual({kind: "installed", from: "dev/cfg/oc3", key: "config.yaml", at: INSTALLED.installed_at, changed: false});
+            up({n1: "up"});
+            render(<VolumeFiles path={PATH}/>);
+            const row = (await screen.findByRole("button", {name: "config.yaml"})).closest("tr");
+            expect(within(row).getByText("installed")).toBeInTheDocument();
+            await userEvent.click(within(row).getByRole("button", {name: "Show the key config.yaml"}));
+            expect(screen.getByTestId("key-shown")).toHaveTextContent("config.yaml of dev/cfg/oc3");
+            await userEvent.click(within(row).getByRole("button", {name: "dev/cfg/oc3"}));
+            expect(screen.getByTestId("where")).toHaveTextContent("peek=object:dev/cfg/oc3&peektab=keys");
+        });
+
+        test("an upload of its name refused before anything is sent, the key said", async () => {
+            up({n1: "up"});
+            render(<VolumeFiles path={PATH}/>);
+            await screen.findByRole("button", {name: "config.yaml"});
+            await userEvent.upload(screen.getByLabelText("The file to upload"), new File(["x"], "config.yaml"));
+            expect(await screen.findByText(/config.yaml is installed from dev\/cfg\/oc3 key config.yaml: change the key/)).toBeInTheDocument();
+            expect(screen.queryByRole("dialog")).toBeNull();
+            expect(uploadFile).not.toHaveBeenCalled();
+        });
+
+        test("one the node says installed meanwhile: said, no replacing asked", async () => {
+            up({n1: "up"});
+            uploadFile.mockImplementationOnce(() => ({done: Promise.reject(Object.assign(new Error("installed file: new.yaml, not replaced"), {status: 409, installed: true})), abort: () => {}}));
+            render(<VolumeFiles path={PATH}/>);
+            await screen.findByRole("button", {name: "config.yaml"});
+            await userEvent.upload(screen.getByLabelText("The file to upload"), new File(["x"], "new.yaml"));
+            expect(await screen.findByText(/new.yaml was not uploaded: installed file/)).toBeInTheDocument();
+            expect(screen.queryByRole("dialog")).toBeNull();
+        });
+
+        test("in its dialog: shown, not edited, its key a click away; deleted on a warning", async () => {
+            readFileHead.mockResolvedValue({blob: new Blob(["a: 1\n"]), total: 5, partial: false});
+            up({n1: "up"});
+            render(<VolumeFiles path={PATH}/>);
+            await userEvent.click(await screen.findByRole("button", {name: "config.yaml"}));
+            const dialog = await screen.findByRole("dialog", {name: "config.yaml"});
+            await within(dialog).findByDisplayValue("a: 1");
+            expect(within(dialog).queryByRole("button", {name: "Edit"})).toBeNull();
+            expect(dialog.querySelector("[data-installed]")).toHaveTextContent("from dev/cfg/oc3 key config.yaml · change the key");
+            await userEvent.click(within(dialog).getByRole("button", {name: "Delete"}));
+            expect(screen.getByRole("dialog", {name: "Delete config.yaml?"})).toHaveTextContent(/the next install writes it again/);
+        });
+
+        test("the key, from its dialog, in the place of the file", async () => {
+            readFileHead.mockResolvedValue({blob: new Blob(["a: 1\n"]), total: 5, partial: false});
+            up({n1: "up"});
+            render(<VolumeFiles path={PATH}/>);
+            await userEvent.click(await screen.findByRole("button", {name: "config.yaml"}));
+            const dialog = await screen.findByRole("dialog", {name: "config.yaml"});
+            await within(dialog).findByDisplayValue("a: 1");
+            await userEvent.click(within(dialog).getByRole("button", {name: "Show the key config.yaml"}));
+            expect(screen.queryByRole("dialog", {name: "config.yaml"})).toBeNull();
+            expect(screen.getByTestId("key-shown")).toHaveTextContent("config.yaml of dev/cfg/oc3");
+        });
+    });
+
+    describe("a file read", () => {
+        test("its first bytes asked by a range, its whole size from the answer", async () => {
+            const {readFileHead: read} = await vi.importActual("../../services/volume-files.js");
+            global.fetch = vi.fn()
+                .mockResolvedValueOnce(new Response(JSON.stringify({ticket: "t", port: 1216}), {status: 201}))
+                .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3, 4]), {status: 206, headers: {"Content-Range": "bytes 0-3/3000000"}}));
+            const head = await read(PATH, "n1", "a.iso", "isos", 4);
+            expect(global.fetch.mock.calls[0][0]).toBe("/api/node/name/n1/instance/path/ns1/vol/images/file/download?dir=isos&name=a.iso");
+            expect(global.fetch.mock.calls[1][1].headers.Range).toBe("bytes=0-3");
+            expect(head).toMatchObject({total: 3000000, partial: true});
+            expect(head.blob.size).toBe(4);
+        });
+
+        test("a node answering it whole: read up to the limit alone", async () => {
+            const {readFileHead: read} = await vi.importActual("../../services/volume-files.js");
+            global.fetch = vi.fn()
+                .mockResolvedValueOnce(new Response(JSON.stringify({ticket: "t", port: 1216}), {status: 201}))
+                .mockResolvedValueOnce(new Response(new Uint8Array(10), {status: 200, headers: {"Content-Length": "10"}}));
+            const head = await read(PATH, "n1", "a.bin", "", 4);
+            expect(head).toMatchObject({total: 10, partial: true});
+            expect(head.blob.size).toBe(4);
         });
     });
 
