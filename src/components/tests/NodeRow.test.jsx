@@ -167,6 +167,18 @@ describe('NodeRow Component', () => {
         expect(screen.getByText('v1.2.3')).toBeInTheDocument();
     });
 
+    test('a figure of 0 is a 0, not N/A: no memory left, no load, a score of 0', () => {
+        render(<NodeRow {...defaultProps} stats={{score: 0, load_15m: 0, mem_avail: 0, swap_avail: 75}}/>);
+        expect(screen.queryByText('N/A')).not.toBeInTheDocument();
+        expect(screen.getByText('0%')).toBeInTheDocument();
+        expect(screen.getAllByText('0')).toHaveLength(2);
+        // Its bars drawn, empty, in the colour of their state: no memory left is red.
+        const mem = screen.getByRole('progressbar', {name: 'Mem Avail'});
+        expect(mem).toHaveAttribute('aria-valuenow', '0');
+        expect(mem).toHaveAttribute('data-state', 'down');
+        expect(screen.getByRole('progressbar', {name: 'Load (15m)'})).toHaveAttribute('aria-valuenow', '0');
+    });
+
     test('renders N/A for undefined stats', () => {
         render(<NodeRow {...defaultProps} stats={null} status={null}/>);
         const cells = screen.getAllByRole('cell');
