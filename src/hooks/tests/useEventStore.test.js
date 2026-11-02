@@ -804,6 +804,20 @@ describe('useEventStore', () => {
             expect(s.nodeStats).toEqual({});
         });
 
+        test('drops the instances of the node too, as the daemon does, the others kept', () => {
+            useEventStore.setState({
+                nodeStatus: {n1: {agent: 'a'}, n2: {agent: 'b'}},
+                objectInstanceStatus: {'ns/svc/a': {n1: {avail: 'up'}, n2: {avail: 'down'}}},
+                instanceConfig: {'ns/svc/a': {n1: {}, n2: {}}},
+                instanceMonitor: {'n1:ns/svc/a': {state: 'idle'}, 'n2:ns/svc/a': {state: 'idle'}},
+            });
+            useEventStore.getState().removeNode('n1');
+            const s = useEventStore.getState();
+            expect(s.objectInstanceStatus).toEqual({'ns/svc/a': {n2: {avail: 'down'}}});
+            expect(s.instanceConfig).toEqual({'ns/svc/a': {n2: {}}});
+            expect(s.instanceMonitor).toEqual({'n2:ns/svc/a': {state: 'idle'}});
+        });
+
         test('a node not known changes nothing', () => {
             const before = useEventStore.getState();
             useEventStore.getState().removeNode('nope');

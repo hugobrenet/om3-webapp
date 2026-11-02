@@ -1,4 +1,4 @@
-import {fetchDaemonStatus, getResponseErrorMessage, problemOf} from "../api";
+import {apiFetch, getResponseErrorMessage, problemOf} from "../api";
 import {URL_CLUSTER_STATUS} from "../../config/apiPath";
 
 global.fetch = jest.fn();
@@ -9,7 +9,15 @@ const createHeaders = (contentType) => ({
 
 const createHeadersWithoutGet = () => ({});
 
-describe("fetchDaemonStatus", () => {
+// A read of the cluster status, as the webapp made it: the requests of apiFetch,
+// its headers, its errors and its timeout.
+const readStatus = (token, options = {}) => apiFetch(URL_CLUSTER_STATUS, {
+    method: 'GET',
+    headers: {...options.headers, ...(token && {Authorization: `Bearer ${token}`})},
+    ...options,
+});
+
+describe("apiFetch", () => {
     const token = "fake-token";
 
     beforeEach(() => {
@@ -42,7 +50,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => JSON.stringify(mockData),
         });
 
-        const result = await fetchDaemonStatus(token);
+        const result = await readStatus(token);
 
         expect(fetch).toHaveBeenCalledWith(
             URL_CLUSTER_STATUS,
@@ -73,7 +81,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => JSON.stringify(mockErrorBody),
         });
 
-        await expect(fetchDaemonStatus(token)).rejects.toMatchObject({
+        await expect(readStatus(token)).rejects.toMatchObject({
             name: 'ApiError',
             message: "Server error",
             status: 500,
@@ -94,7 +102,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => "",
         });
 
-        await expect(fetchDaemonStatus(token)).rejects.toMatchObject({
+        await expect(readStatus(token)).rejects.toMatchObject({
             name: 'ApiError',
             message: "Not Found",
             status: 404,
@@ -114,7 +122,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => "",
         });
 
-        await expect(fetchDaemonStatus(token)).rejects.toMatchObject({
+        await expect(readStatus(token)).rejects.toMatchObject({
             name: 'ApiError',
             message: "Request failed with status 403",
             status: 403,
@@ -126,7 +134,7 @@ describe("fetchDaemonStatus", () => {
         const networkError = new Error("Network failure");
         fetch.mockRejectedValueOnce(networkError);
 
-        await expect(fetchDaemonStatus(token)).rejects.toMatchObject({
+        await expect(readStatus(token)).rejects.toMatchObject({
             name: 'ApiError',
             message: "Network failure",
             status: null,
@@ -144,7 +152,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => JSON.stringify(mockData),
         });
 
-        const result = await fetchDaemonStatus(null);
+        const result = await readStatus(null);
 
         expect(fetch).toHaveBeenCalledWith(
             URL_CLUSTER_STATUS,
@@ -175,7 +183,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => errorText,
         });
 
-        await expect(fetchDaemonStatus(token)).rejects.toMatchObject({
+        await expect(readStatus(token)).rejects.toMatchObject({
             name: 'ApiError',
             message: errorText,
             status: 400,
@@ -194,7 +202,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => JSON.stringify(mockData),
         });
 
-        const result = await fetchDaemonStatus(token);
+        const result = await readStatus(token);
         expect(result).toEqual(mockData);
     });
 
@@ -208,7 +216,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => "invalid json string",
         });
 
-        await expect(fetchDaemonStatus(token)).resolves.toBeNull();
+        await expect(readStatus(token)).resolves.toBeNull();
     });
 
     test("handles response without json method", async () => {
@@ -220,7 +228,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => JSON.stringify(mockData),
         });
 
-        const result = await fetchDaemonStatus(token);
+        const result = await readStatus(token);
         expect(result).toBeDefined();
     });
 
@@ -233,7 +241,7 @@ describe("fetchDaemonStatus", () => {
             json: async () => mockData,
         });
 
-        const result = await fetchDaemonStatus(token);
+        const result = await readStatus(token);
         expect(result).toEqual(mockData);
     });
 
@@ -249,7 +257,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => JSON.stringify(mockErrorBody),
         });
 
-        await expect(fetchDaemonStatus(token)).rejects.toMatchObject({
+        await expect(readStatus(token)).rejects.toMatchObject({
             name: 'ApiError',
             message: "Custom error message",
             status: 400,
@@ -271,7 +279,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => errorString,
         });
 
-        await expect(fetchDaemonStatus(token)).rejects.toMatchObject({
+        await expect(readStatus(token)).rejects.toMatchObject({
             name: 'ApiError',
             message: "String error message",
             status: 400,
@@ -293,7 +301,7 @@ describe("fetchDaemonStatus", () => {
             },
         });
 
-        await expect(fetchDaemonStatus(token)).rejects.toMatchObject({
+        await expect(readStatus(token)).rejects.toMatchObject({
             name: 'ApiError',
             message: "Server Error",
             status: 500,
@@ -313,7 +321,7 @@ describe("fetchDaemonStatus", () => {
             text: async () => JSON.stringify(mockErrorBody),
         });
 
-        await expect(fetchDaemonStatus(token)).rejects.toMatchObject({
+        await expect(readStatus(token)).rejects.toMatchObject({
             name: 'ApiError',
             message: "Error without message field",
             status: 400,
@@ -352,7 +360,7 @@ describe("fetchDaemonStatus", () => {
         });
 
         const timeoutMs = 5000;
-        const promise = fetchDaemonStatus(token, {timeout: timeoutMs});
+        const promise = readStatus(token, {timeout: timeoutMs});
         jest.advanceTimersByTime(timeoutMs);
         await expect(promise).rejects.toMatchObject({
             name: 'ApiError',
@@ -365,7 +373,7 @@ describe("fetchDaemonStatus", () => {
     // Bodies as a real fetch gives them: read once only.
     const refusedWith = (body, {status = 500, statusText = "Internal Server Error", contentType = "text/plain"} = {}) => {
         fetch.mockResolvedValueOnce(new Response(body, {status, statusText, headers: {"content-type": contentType}}));
-        return fetchDaemonStatus(token);
+        return readStatus(token);
     };
 
     test("a plain text refusal keeps its text", async () => {
@@ -409,7 +417,7 @@ describe("fetchDaemonStatus", () => {
 
     test("a text answered with success is returned", async () => {
         fetch.mockResolvedValueOnce(new Response("pong", {status: 200, headers: {"content-type": "text/plain"}}));
-        await expect(fetchDaemonStatus(token)).resolves.toBe("pong");
+        await expect(readStatus(token)).resolves.toBe("pong");
     });
 
     test("handles response without json and text methods", async () => {
@@ -417,7 +425,7 @@ describe("fetchDaemonStatus", () => {
             ok: true,
             headers: createHeaders("application/json"),
         });
-        const result = await fetchDaemonStatus(token);
+        const result = await readStatus(token);
         expect(result).toBeNull();
     });
 
@@ -430,7 +438,7 @@ describe("fetchDaemonStatus", () => {
             },
         });
 
-        const result = await fetchDaemonStatus(token);
+        const result = await readStatus(token);
         expect(result).toBeNull();
     });
 });

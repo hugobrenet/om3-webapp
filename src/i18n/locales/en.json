@@ -1936,6 +1936,7 @@
     "server": "Server Information",
     "connectedNode": "Connected Node",
     "nodeLoading": "Loading...",
+    "nodeUnknown": "Unknown",
     "webappVersion": "WebApp Version",
     "versionLoading": "vLoading...",
     "versionUnknown": "vUnknown",

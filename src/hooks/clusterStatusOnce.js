@@ -1,4 +1,4 @@
-import {URL_CLUSTER_STATUS} from "../config/apiPath.js";
+import {URL_CLUSTER_STATUS_NODES} from "../config/apiPath.js";
 import useEventStore from "./useEventStore.js";
 import logger from "../utils/logger.js";
 
@@ -17,7 +17,7 @@ export const resetClusterStatus = () => {
 
 const read = async () => {
     const token = localStorage.getItem("authToken");
-    const response = await fetch(URL_CLUSTER_STATUS, {headers: {Authorization: `Bearer ${token}`}});
+    const response = await fetch(URL_CLUSTER_STATUS_NODES, {headers: {Authorization: `Bearer ${token}`}});
     if (!response.ok) return null;
     const status = await response.json();
     pruneDroppedNodes(status);

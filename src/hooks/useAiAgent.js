@@ -3,7 +3,7 @@ import {useAuth} from '../context/AuthProvider.jsx';
 import {getAiAgentConfig} from '../config/ai-agent.js';
 import {createAiAgentClient} from '../services/ai-agent.js';
 
-// The caller supplies the cluster ID and the agent URL from useFetchDaemonStatus,
+// The caller supplies the cluster ID and the agent URL from useClusterConfig,
 // not a user entry. The agent routes by cluster, to its VIP: no node is sent.
 // It takes the OpenID tokens only: another session is not ready.
 const useAiAgent = ({clusterId, agentUrl} = {}) => {

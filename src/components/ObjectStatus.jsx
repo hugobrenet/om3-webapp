@@ -5,10 +5,10 @@ import {CrossLink} from "../app/CrossLink";
 import {StatusMark} from "../ui/components/StatusMark";
 import {toObjectState} from "../ui/components/status";
 import {InstanceLink} from "./RecordLinks";
-import {useMenuState} from "../hooks/useSidebarAlerts";
+import {isFrozen, useMenuState} from "../hooks/useSidebarAlerts";
 import useEventStore from "../hooks/useEventStore.js";
 import {retainEventReception} from "../eventSourceManager.jsx";
-import {URL_CLUSTER_STATUS, URL_OBJECT} from "../config/apiPath.js";
+import {URL_OBJECT} from "../config/apiPath.js";
 import {apiFetch} from "../services/api.jsx";
 import {isActionAllowedForSelection, parseObjectPath} from "../utils/objectUtils.jsx";
 import {buildBoard} from "../app/statusboard";
@@ -51,9 +51,6 @@ const OBJECT_EVENTS = [
     "InstanceConfigUpdated",
     "InstanceConfigDeleted",
 ];
-
-/** The events of the nodes: their freeze. */
-const NODE_EVENTS = ["NodeStatusUpdated"];
 
 /** A burst of events reads the object once. */
 const REFRESH_DELAY_MS = 300;
@@ -115,26 +112,10 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
         const {namespace, kind, name} = parseObjectPath(path);
         const url = `${URL_OBJECT}/${encodeURIComponent(namespace)}/${encodeURIComponent(kind)}/${encodeURIComponent(name)}`;
         try {
-            const [object, cluster] = await Promise.all([
-                apiFetch(url, {headers, cache: "no-cache"}),
-                // Without it, the board misses the frozen nodes and the agent versions only.
-                apiFetch(URL_CLUSTER_STATUS, {headers, cache: "no-cache"}).catch((err) => {
-                    logger.warn("[ObjectStatus] cluster status not read:", err);
-                    return null;
-                }),
-            ]);
-            const nodes = cluster?.cluster?.node ?? {};
-            const frozenNodes = new Set(
-                Object.entries(nodes)
-                    .filter(([, n]) => n?.status?.frozen_at && !n.status.frozen_at.startsWith("0001-01-01"))
-                    .map(([n]) => n)
-            );
-            setDigest({
-                path,
-                object: object?.data ?? {},
-                frozenNodes,
-                isCompat: cluster?.cluster?.status?.is_compat ?? true,
-            });
+            // The object alone, at each of its events: the frozen nodes come from
+            // the stream of the menu, the agent versions read once (see below).
+            const object = await apiFetch(url, {headers, cache: "no-cache"});
+            setDigest({path, object: object?.data ?? {}});
             setError(null);
         } catch (err) {
             logger.error("[ObjectStatus] object not read:", err);
@@ -154,14 +135,8 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
         void load();
         const token = localStorage.getItem("authToken");
         const release = token ? retainEventReception(token, OBJECT_EVENTS, path) : null;
-        // The cluster object's board shows the frozen nodes: their freeze, which brings
-        // no event about the object, reads it again too.
-        const releaseNodes = token && parseObjectPath(path).kind === "ccfg"
-            ? retainEventReception(token, NODE_EVENTS)
-            : null;
         return () => {
             release?.();
-            releaseNodes?.();
             if (timer.current) clearTimeout(timer.current);
         };
     }, [path, load]);
@@ -183,11 +158,6 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
             .map(([, m]) => m));
         return globalExpect === null ? "" : `${globalExpect} ${orchestrationId ?? ""}`;
     });
-    // The frozen nodes, for the cluster object alone (see NODE_EVENTS).
-    const isCluster = parseObjectPath(path).kind === "ccfg";
-    const frozenNodes = useEventStore((s) => (isCluster
-        ? Object.entries(s.nodeStatus ?? {}).map(([node, st]) => `${node}=${st?.frozen_at}`).sort().join(",")
-        : ""));
     const first = useRef(true);
     useEffect(() => {
         if (first.current) {
@@ -195,9 +165,27 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
             return;
         }
         refresh();
-    }, [objectStatus, instances, configs, monitors, frozenNodes, refresh]);
+    }, [objectStatus, instances, configs, monitors, refresh]);
 
-    const board = useMemo(() => (digest === null ? null : buildBoard(digest)), [digest]);
+    // What the board tells of the nodes, live, from the node status the stream of
+    // the menu keeps (NodeStatusUpdated): their freeze, and whether their agents
+    // are compatible, as the daemon tells it, all of the same compat. The menu
+    // reads that stream while it is shown, as with every view of an object: a
+    // board shown without it tells no node frozen and the agents compatible.
+    const nodeStatus = useMenuState((s) => s.nodeStatus);
+    const frozenSet = useMemo(
+        () => new Set(Object.entries(nodeStatus ?? {}).filter(([, status]) => isFrozen(status)).map(([node]) => node)),
+        [nodeStatus]
+    );
+    const isCompat = useMemo(
+        () => new Set(Object.values(nodeStatus ?? {}).map((status) => status?.compat).filter((compat) => compat !== undefined)).size <= 1,
+        [nodeStatus]
+    );
+
+    const board = useMemo(
+        () => (digest === null ? null : buildBoard({...digest, frozenNodes: frozenSet, isCompat})),
+        [digest, frozenSet, isCompat]
+    );
 
     // The title bar of the panel, for what concerns the whole object: its policies, its actions.
     const header = usePanelHeader();

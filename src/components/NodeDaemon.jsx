@@ -1,6 +1,6 @@
 import React, {useEffect, useId, useMemo, useState} from "react";
 import {useTranslation} from "react-i18next";
-import {URL_CLUSTER_STATUS} from "../config/apiPath.js";
+import {URL_CLUSTER_STATUS_NODES} from "../config/apiPath.js";
 import useEventStore from "../hooks/useEventStore.js";
 import {retainEventReception} from "../eventSourceManager";
 import {getResponseErrorMessage} from "../services/api.jsx";
@@ -88,7 +88,7 @@ const byStartDesc = (a, b) => String(b.started_at ?? "").localeCompare(String(a.
 
 export function NodeDaemon({node}) {
     const {t, i18n} = useTranslation();
-    const status = useApiResource(URL_CLUSTER_STATUS);
+    const status = useApiResource(URL_CLUSTER_STATUS_NODES);
     const orchestrations = useApiResource(nodeUrl(node, "daemon/orchestration"));
     const execs = useApiResource(nodeUrl(node, "daemon/exec"));
     const dns = useApiResource(nodeUrl(node, "daemon/dns/dump"));
@@ -151,7 +151,7 @@ export function NodeDaemon({node}) {
                 trackUntil(info, streamReached({node, id: follow.id, action, createdBefore: streamBefore}), {lost});
             } else if (follow.kind === "listener") {
                 trackPoll(info, async () => {
-                    const listener = (await readJson(URL_CLUSTER_STATUS))?.cluster?.node?.[node]?.daemon?.listener;
+                    const listener = (await readJson(URL_CLUSTER_STATUS_NODES))?.cluster?.node?.[node]?.daemon?.listener;
                     if (action === "stop") return listener?.state === "stopped";
                     return listener?.state === "running" && (action === "start"
                         || listener.created_at !== listenerBefore?.created_at || listener.updated_at !== listenerBefore?.updated_at);

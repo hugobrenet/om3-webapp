@@ -10,7 +10,7 @@ import {useOidc} from "../context/OidcAuthContext.tsx";
 import {useAuth, useAuthDispatch, Logout} from "../context/AuthProvider.jsx";
 import {Link, useNavigate} from "react-router-dom";
 import logger from '../utils/logger.js';
-import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus";
+import {useApiNode} from "../hooks/useApiNode";
 import {useDarkMode} from "../context/DarkModeContext";
 import {clearObjectCache} from "../hooks/useEventStore.js";
 import {LANGUAGES, LANGUAGE_NAMES, isLanguage, setLanguage} from "../i18n";
@@ -39,7 +39,8 @@ const WhoAmI = () => {
     const auth = useAuth();
     const authDispatch = useAuthDispatch();
     const navigate = useNavigate();
-    const {daemon, fetchNodes} = useFetchDaemonStatus();
+    // The node answering the API, read once a session.
+    const apiNode = useApiNode();
     const {isDarkMode, toggleDarkMode} = useDarkMode();
     const {t, i18n} = useTranslation();
     const introsEnabled = useIntrosEnabled();
@@ -81,22 +82,6 @@ const WhoAmI = () => {
 
         void fetchVersion();
     }, [releaseCheck]);
-
-    // Fetch daemon status
-    useEffect(() => {
-        const fetchDaemonData = async () => {
-            const token = localStorage.getItem("authToken");
-            if (token) {
-                try {
-                    await fetchNodes(token);
-                } catch (error) {
-                    logger.error("Error fetching daemon status:", error);
-                }
-            }
-        };
-
-        void fetchDaemonData();
-    }, [fetchNodes]);
 
     // Fetch WhoAmI
     useEffect(() => {
@@ -239,7 +224,7 @@ const WhoAmI = () => {
                         {t('user.server')}
                     </h2>
                     <dl className="space-y-2">
-                        <Value label={t('user.connectedNode')}>{daemon?.nodename || t('user.nodeLoading')}</Value>
+                        <Value label={t('user.connectedNode')}>{apiNode === null ? t('user.nodeUnknown') : apiNode || t('user.nodeLoading')}</Value>
                         {/* The version built, always; the latest release, when the user lets GitHub be asked. */}
                         <Value label={t('user.webappVersion')}>{APP_VERSION || t('user.versionUnknown')}</Value>
                         <div>

@@ -24,6 +24,7 @@ const {
 vi.mock('../../config/apiPath.js', () => ({
     URL_NODE: 'http://mock-api',
     URL_CLUSTER_STATUS: '/api/cluster/status',
+    URL_CLUSTER_STATUS_NODES: '/api/cluster/status?selector=cluster',
 }));
 
 vi.mock('../../utils/logger.js', () => ({
@@ -805,7 +806,7 @@ describe('LogsViewer', () => {
                 n2: [entry(4000, 'n2 one')],
             };
             global.fetch = vi.fn((url) => {
-                if (url === '/api/cluster/status') {
+                if (url === '/api/cluster/status?selector=cluster') {
                     return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve({cluster: {config: {nodes: ['n2', 'n1']}}})});
                 }
                 const node = Object.keys(streams).find((n) => url.includes(`/${n}/`));
@@ -871,7 +872,7 @@ describe('LogsViewer', () => {
             render(<LogsViewer nodenames={['n1', 'n2']} type="instance" namespace="prod" kind="svc" instanceName="web" filters={['RID=app#1']}/>);
             await waitFor(() => expect(findLogsContainer()).toHaveTextContent('same instant on n2'));
             // The log streams, beside the cluster status read for the order of the nodes.
-            expect([...new Set(global.fetch.mock.calls.map(([url]) => url))].filter((url) => url !== '/api/cluster/status')).toEqual([
+            expect([...new Set(global.fetch.mock.calls.map(([url]) => url))].filter((url) => url !== '/api/cluster/status?selector=cluster')).toEqual([
                 'http://mock-api/n1/instance/path/prod/svc/web/log?follow=true&filter=RID%3Dapp%231',
                 'http://mock-api/n2/instance/path/prod/svc/web/log?follow=true&filter=RID%3Dapp%231',
             ]);
@@ -899,7 +900,7 @@ describe('LogsViewer', () => {
         const answers = (...bodies) => {
             let read = 0;
             global.fetch = vi.fn((url, options) => {
-                if (url === '/api/cluster/status') {
+                if (url === '/api/cluster/status?selector=cluster') {
                     return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve({cluster: {config: {nodes: ['test-node']}}})});
                 }
                 return unlessAborted(options, () => ({ok: true, status: 200, body: bodies[Math.min(read++, bodies.length - 1)]()}));
@@ -941,7 +942,7 @@ describe('LogsViewer', () => {
         test('connected only while the stream of every node is open', async () => {
             const reads = {n1: 0, n2: 0};
             global.fetch = vi.fn((url, options) => {
-                if (url === '/api/cluster/status') {
+                if (url === '/api/cluster/status?selector=cluster') {
                     return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve({cluster: {config: {nodes: ['n1', 'n2']}}})});
                 }
                 return unlessAborted(options, () => {

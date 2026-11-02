@@ -23,7 +23,7 @@ function daemon({ orchestration = ["running", "succeeded"], exec = ["running", "
   let orchestrationReads = 0;
   let execReads = 0;
   const handler = vi.fn((url: string) => {
-    if (url === "/api/cluster/status") {
+    if (url === "/api/cluster/status?selector=cluster") {
       return json(200, { cluster: { config: { nodes: ["dev3n1", "dev3n2"] }, node: { dev3n1: {}, dev3n2: {} } } });
     }
     if (url.includes(`/daemon/orchestration/id/${ORCH}`)) {

@@ -1,4 +1,3 @@
-import {URL_CLUSTER_STATUS} from "../config/apiPath.js";
 
 export class ApiError extends Error {
     constructor(message, {status = null, statusText = null, body = null} = {}) {
@@ -111,16 +110,3 @@ export async function getResponseErrorMessage(response) {
     }
     return wordsOf(await readBody(response));
 }
-
-export const fetchDaemonStatus = async (token, options = {}) => {
-    const headers = {
-        ...options.headers,
-        ...(token && {Authorization: `Bearer ${token}`})
-    };
-
-    return await apiFetch(URL_CLUSTER_STATUS, {
-        method: 'GET',
-        headers,
-        ...options
-    });
-};

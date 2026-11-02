@@ -665,14 +665,14 @@ describe('NodeDetailPanel', () => {
             const heartbeats = await within(panel()).findByRole('table', {name: 'Heartbeats'});
             const row = () => within(heartbeats).getByRole('row', {name: /hb#1\.rx/});
             expect(within(row()).getByText('Beating')).toBeInTheDocument();
-            const statusReads = requests.filter((r) => r.url === '/api/cluster/status').length;
+            const statusReads = requests.filter((r) => r.url === '/api/cluster/status?selector=cluster').length;
 
             // A DaemonHeartbeatUpdated: the peer of hb#1.rx stops beating.
             const heartbeat = structuredClone(daemon['cluster/status'].cluster.node.dev3n1.daemon.heartbeat);
             heartbeat.streams[0].peers.dev3n2.is_beating = false;
             act(() => useEventStore.setState({heartbeatStatus: {dev3n1: heartbeat}}));
             expect(within(row()).getByText('Stale')).toBeInTheDocument();
-            expect(requests.filter((r) => r.url === '/api/cluster/status')).toHaveLength(statusReads);
+            expect(requests.filter((r) => r.url === '/api/cluster/status?selector=cluster')).toHaveLength(statusReads);
         });
 
         test('a heartbeat stream restarted, confirmed first, by its name without hb#', async () => {

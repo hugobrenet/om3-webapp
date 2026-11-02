@@ -16,7 +16,7 @@ describe('HeartbeatRelays', () => {
         served = () => json({kind: 'RelayStatusList', items: []});
         global.fetch = vi.fn(async (url) => {
             const u = String(url);
-            if (u === '/api/cluster/status') return json({daemon: {nodename: 'dev3n1'}, cluster: {config: {id: 'c1', name: 'dev3', nodes: ['dev3n1']}}});
+            if (u === '/api/cluster/status?selector=cluster') return json({daemon: {nodename: 'dev3n1'}, cluster: {config: {id: 'c1', name: 'dev3', nodes: ['dev3n1']}}});
             if (u === '/api/relay/status') return served();
             return json({detail: 'not found'}, 404);
         });
