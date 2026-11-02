@@ -62,3 +62,17 @@ export const CARDS = [
   "max-md:[&>tbody>tr>td:empty]:hidden",
   "max-md:[&>tbody>tr>[data-label]]:before:w-28 max-md:[&>tbody>tr>[data-label]]:before:shrink-0 max-md:[&>tbody>tr>[data-label]]:before:text-ink-muted max-md:[&>tbody>tr>[data-label]]:before:content-[attr(data-label)]",
 ].join(" ");
+
+/**
+ * The same cards whatever the window (`Table` `cards="always"`). Written out in full, as CARDS: Tailwind does not
+ * see names built at runtime.
+ */
+export const CARDS_ALWAYS = [
+  "block",
+  "[&>thead]:hidden",
+  "[&>tbody]:block",
+  "[&>tbody>tr]:block [&>tbody>tr]:h-auto [&>tbody>tr]:py-1.5",
+  "[&>tbody>tr>*]:flex [&>tbody>tr>*]:flex-wrap [&>tbody>tr>*]:items-center [&>tbody>tr>*]:gap-x-2 [&>tbody>tr>*]:py-0.5 [&>tbody>tr>*]:whitespace-normal [&>tbody>tr>*]:break-words",
+  "[&>tbody>tr>td:empty]:hidden",
+  "[&>tbody>tr>[data-label]]:before:w-28 [&>tbody>tr>[data-label]]:before:shrink-0 [&>tbody>tr>[data-label]]:before:text-ink-muted [&>tbody>tr>[data-label]]:before:content-[attr(data-label)]",
+].join(" ");

@@ -80,19 +80,21 @@ afterEach(() => {
 });
 
 describe("trackAccepted", () => {
-  test("an orchestration is followed to its end, held by the daemon, its runs on each node read", async () => {
+  test("an orchestration is followed to its end, read again until then, its runs on each node read", async () => {
     globalThis.fetch = daemon();
     trackAccepted({ orchestration_id: ORCH, node: "dev3n1" }, { action: "provision", subject: "foo" });
     expect(tracked()[0]).toMatchObject({ action: "provision", subject: "foo", kind: "orchestration", node: "dev3n1", state: "running" });
     await waitFor(() => {
       expect(tracked()[0]?.state).toBe("succeeded");
-    });
+    }, { timeout: 3000 });
     expect(tracked()[0]?.steps.map((s) => [s.node, s.title, s.state])).toEqual([
       ["dev3n1", "provision leader", "succeeded"],
       ["dev3n2", "provision non leader", "succeeded"],
     ]);
     const urls = vi.mocked(globalThis.fetch).mock.calls.map(([url]) => String(url));
-    expect(urls).toContain(`/api/node/name/dev3n1/daemon/orchestration/id/${ORCH}?wait=30s`);
+    // Not held by the daemon: a held read per action would queue a batch behind its own waits.
+    expect(urls).toContain(`/api/node/name/dev3n1/daemon/orchestration/id/${ORCH}`);
+    expect(urls.some((url) => url.includes("wait="))).toBe(false);
   });
 
   test("a wait run out (408) is read again; a refusal says why", async () => {
@@ -117,7 +119,7 @@ describe("trackAccepted", () => {
     trackAccepted({ exec_id: EXEC, session_id: "s" }, { action: "start", subject: "foo on dev3n2", node: "dev3n2" });
     await waitFor(() => {
       expect(tracked()[0]?.state).toBe("failed");
-    });
+    }, { timeout: 3000 });
     expect(tracked()[0]).toMatchObject({ kind: "exec", node: "dev3n2", error: "fs#1: mount failed" });
     expect(tracked()[0]?.steps[0]).toMatchObject({ node: "dev3n2", exitCode: 1 });
   });
@@ -164,7 +166,7 @@ describe("trackAccepted", () => {
     expect(tracked()[0]).toMatchObject({ kind: "orchestration", state: "running" });
     await waitFor(() => {
       expect(tracked()[0]?.state).toBe("succeeded");
-    });
+    }, { timeout: 3000 });
   });
 
   test("an answer naming nothing to follow is not followed", () => {
@@ -213,7 +215,7 @@ describe("ActionTray", () => {
     expect(within(tray).getByText("2 running")).toBeInTheDocument();
     await waitFor(() => {
       expect(within(tray).getByText("2 ended")).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
     const runs = within(tray).getByRole("list", { name: "The runs of Provision on the nodes" });
     expect(within(runs).getByText("provision leader")).toBeInTheDocument();
     expect(within(runs).getByText("provision non leader")).toBeInTheDocument();
@@ -225,7 +227,7 @@ describe("ActionTray", () => {
 
 describe("ActionTray, the logs of each action", () => {
   test("an orchestration's logs and an exec's, in a modal, by their id; none for an action refused", () => {
-    // Held by the daemon: never ends while the test looks.
+    // Never answered: never ends while the test looks.
     globalThis.fetch = vi.fn(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch;
     render(<ActionTray />);
     act(() => {
@@ -256,7 +258,7 @@ describe("ActionTray, an orchestration running nothing yet", () => {
   });
 
   test("says where the monitor of each node stands, the delays it keeps", () => {
-    // Held by the daemon: never ends while the test looks.
+    // Never answered: never ends while the test looks.
     globalThis.fetch = vi.fn(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch;
     useEventStore.setState({
       instanceMonitor: { "dev3n1:foo": { state: "ready" }, "dev3n2:foo": { state: "idle" }, "dev3n1:bar": { state: "starting" } },

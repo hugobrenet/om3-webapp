@@ -437,7 +437,7 @@
     "title": "Files",
     "upload": "Upload a file",
     "choose": "The file to upload",
-    "hint": "What a guest of this namespace is installed from: a resource using this volume as volume#2 names a file as volume#2:/noble.qcow2 in its image or cdrom. The size of the volume bounds what it holds.",
+    "hint": "The files of this volume on the node shown: what the services using it write, and what is uploaded here. An uploaded file can be the image or installer of a guest, which a resource using this volume as volume#2 names as volume#2:/isos/debian.iso in its image or cdrom. The size of the volume bounds what it holds.",
     "none": "This volume holds no file.",
     "node": "Node",
     "name": "Name",
@@ -448,7 +448,53 @@
     "cancel": "Cancel",
     "sending": "Sending {{name}}",
     "failed": "{{name}} was not uploaded: {{message}}",
-    "notAvailable": "This volume is not up on any node: start it to reach its files."
+    "notAvailable": "This volume is not up on any node: start it to reach its files.",
+    "origin": "Origin",
+    "uploaded": "uploaded",
+    "uploadedByAt": "by {{by}}, {{at}}",
+    "uploadedAt": "{{at}}",
+    "changedSince": "changed since",
+    "notUploaded": "not uploaded here",
+    "replace": {
+      "title": "Replace {{name}}?",
+      "text": "The volume holds a file {{name}} already. Uploading this one replaces it, whoever wrote it: a service using this volume may need it.",
+      "confirm": "Replace it"
+    },
+    "deleteOne": "Delete {{name}}",
+    "deleteText": "It was uploaded here.",
+    "deleteForeignText": "It was not uploaded here: a service using this volume may have written it, and may need it.",
+    "where": "Directory",
+    "emptyDir": "This directory is empty.",
+    "truncated": "Only the first {{count}} entries are shown.",
+    "deleteDirText": "Only an empty directory is deleted: what it holds is not.",
+    "deleteLinkText": "The link alone is deleted, not what it points to.",
+    "mkdir": {
+      "open": "New directory",
+      "title": "New directory in {{dir}}",
+      "name": "Name",
+      "confirm": "Create",
+      "invalid": "A name, without / nor a leading dot."
+    },
+    "view": {
+      "loading": "Reading the file",
+      "partial": "the first {{size}} shown",
+      "crlf": "lines ending in CR LF: edit it by an upload",
+      "download": "Download the file",
+      "contentAria": "File content",
+      "edit": "Edit",
+      "save": "Save",
+      "saving": "Saving…",
+      "close": "Close",
+      "noTrailingLineFeed": "No trailing line feed"
+    },
+    "installedFrom": "from <store>{{from}}</store> key <key>{{key}}</key>",
+    "openKey": "Show the key {{key}}",
+    "installed": {
+      "badge": "installed",
+      "refused": "{{name}} is installed from {{from}} key {{key}}: change the key, the next install writes the file.",
+      "deleteText": "It is installed from {{from}} key {{key}}: the next install writes it again.",
+      "notEdited": "change the key, the next install writes the file"
+    }
   },
   "console": {
     "display": {
@@ -1035,14 +1081,12 @@
   "namespaces": {
     "columns": {
       "namespace": "Name",
-      "services": "Services",
-      "volumes": "Volumes",
-      "sec": "Secrets",
-      "cfg": "Configs",
+      "objects": "Objects",
       "pools": "Pools",
       "nets": "Networks",
       "cpu": "CPU",
-      "memory": "Memory"
+      "memory": "Memory",
+      "claims": "Claims"
     },
     "empty": "No namespaces available",
     "tableLabel": "Namespaces",
@@ -1060,17 +1104,25 @@
       "claimed": "{{name}}: {{used}} of {{total}} claimed ({{percent}})",
       "unclaimed": "{{name}}: {{used}} of {{total}}, no claim ({{percent}})",
       "error": "Pool and network usage could not be read: {{message}}",
-      "percentOf": "{{percent}} of {{total}}",
       "free": "Free",
       "used": "Used",
       "total": "Total",
       "cap": "Cap",
       "noClaim": "no claim",
       "share": "Share",
-      "barLabel": "{{title}}: {{parts}}"
-    },
-    "memory": {
-      "used": "{{used}} used"
+      "barLabel": "{{title}}: {{parts}}",
+      "ofCap": "of {{cap}}",
+      "cpuOf": "CPU used by {{namespace}}, of its cap",
+      "memoryOf": "Memory used by {{namespace}}, of its cap",
+      "addresses_one": "{{value}} address",
+      "addresses_other": "{{value}} addresses",
+      "in": {
+        "pools_one": "{{value}} in {{count}} pool",
+        "pools_other": "{{value}} in {{count}} pools",
+        "nets_one": "{{value}} in {{count}} network",
+        "nets_other": "{{value}} in {{count}} networks"
+      },
+      "hottest": "{{value}}, hottest claim:"
     },
     "panel": {
       "tabs": {
@@ -1227,7 +1279,26 @@
       "selectAll": "Select all the {{list}}"
     },
     "count_one": "{{count}} namespace",
-    "count_other": "{{count}} namespaces"
+    "count_other": "{{count}} namespaces",
+    "kinds": {
+      "short": {
+        "svc": "svc",
+        "vol": "vol",
+        "cfg": "cfg",
+        "sec": "sec"
+      },
+      "show": {
+        "svc_one": "Show the {{count}} service of {{namespace}}",
+        "svc_other": "Show the {{count}} services of {{namespace}}",
+        "vol_one": "Show the {{count}} volume of {{namespace}}",
+        "vol_other": "Show the {{count}} volumes of {{namespace}}",
+        "cfg_one": "Show the {{count}} configuration of {{namespace}}",
+        "cfg_other": "Show the {{count}} configurations of {{namespace}}",
+        "sec_one": "Show the {{count}} secret of {{namespace}}",
+        "sec_other": "Show the {{count}} secrets of {{namespace}}"
+      },
+      "avail": "{{count}} {{avail}}"
+    }
   },
   "nav": {
     "routes": {
@@ -1758,7 +1829,10 @@
       "keys": "Keys",
       "keysSize": "Size",
       "keysSizeHint": "The size of the keys as stored in the configuration, their encoding included",
-      "up": "Up"
+      "up": "Up",
+      "size": "Size",
+      "used": "Used",
+      "usedOf": "Space used by {{name}}"
     },
     "filters": {
       "show": "Show filters",
@@ -3298,7 +3372,17 @@
     "freeAddresses_other": "{{free}} addresses free",
     "virtualType": "the engine the node has",
     "orExactly": "or:",
-    "provisionGrant": "{{grant}}, or unmanaged provisioning"
+    "provisionGrant": "{{grant}}, or unmanaged provisioning",
+    "addSection": {
+      "open": "Add a section",
+      "single": "Sections",
+      "several": "Sections of several, by a name",
+      "name": "Name of the {{section}}",
+      "type": "Type",
+      "add": "Add [{{section}}]",
+      "badName": "A word: letters, digits, dot, dash or underscore.",
+      "taken": "[{{section}}] is there already."
+    }
   },
   "driverSupport": {
     "lacking_one": "Not usable on {{nodes}}: its driver is not among the capabilities of the node.",

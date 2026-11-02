@@ -437,7 +437,7 @@
     "title": "Fichiers",
     "upload": "Envoyer un fichier",
     "choose": "Le fichier à envoyer",
-    "hint": "Ce depuis quoi un invité de cet espace de noms s'installe : une ressource utilisant ce volume comme volume#2 désigne un fichier par volume#2:/noble.qcow2 dans son image ou son cdrom. La taille du volume borne ce qu'il contient.",
+    "hint": "Les fichiers de ce volume sur le nœud affiché : ce qu'écrivent les services qui l'utilisent, et ce qui est téléversé ici. Un fichier téléversé peut être l'image ou l'installeur d'un invité, qu'une ressource utilisant ce volume comme volume#2 désigne par volume#2:/isos/debian.iso dans son image ou son cdrom. La taille du volume borne ce qu'il contient.",
     "none": "Ce volume ne contient aucun fichier.",
     "node": "Nœud",
     "name": "Nom",
@@ -448,7 +448,53 @@
     "cancel": "Annuler",
     "sending": "Envoi de {{name}}",
     "failed": "{{name}} n'a pas été envoyé : {{message}}",
-    "notAvailable": "Ce volume n'est démarré sur aucun nœud : démarrez-le pour accéder à ses fichiers."
+    "notAvailable": "Ce volume n'est démarré sur aucun nœud : démarrez-le pour accéder à ses fichiers.",
+    "origin": "Origine",
+    "uploaded": "téléversé",
+    "uploadedByAt": "par {{by}}, {{at}}",
+    "uploadedAt": "{{at}}",
+    "changedSince": "modifié depuis",
+    "notUploaded": "pas téléversé ici",
+    "replace": {
+      "title": "Remplacer {{name}} ?",
+      "text": "Le volume contient déjà un fichier {{name}}. Téléverser celui-ci le remplace, quel qu'en soit l'auteur : un service utilisant ce volume peut en avoir besoin.",
+      "confirm": "Le remplacer"
+    },
+    "deleteOne": "Supprimer {{name}}",
+    "deleteText": "Il a été téléversé ici.",
+    "deleteForeignText": "Il n'a pas été téléversé ici : un service utilisant ce volume peut l'avoir écrit, et en avoir besoin.",
+    "where": "Répertoire",
+    "emptyDir": "Ce répertoire est vide.",
+    "truncated": "Seules les {{count}} premières entrées sont affichées.",
+    "deleteDirText": "Seul un répertoire vide est supprimé : ce qu'il contient ne l'est pas.",
+    "deleteLinkText": "Seul le lien est supprimé, pas ce vers quoi il pointe.",
+    "mkdir": {
+      "open": "Nouveau répertoire",
+      "title": "Nouveau répertoire dans {{dir}}",
+      "name": "Nom",
+      "confirm": "Créer",
+      "invalid": "Un nom, sans / ni point initial."
+    },
+    "view": {
+      "loading": "Lecture du fichier",
+      "partial": "les premiers {{size}} affichés",
+      "crlf": "lignes terminées par CR LF : modifiez-le par un téléversement",
+      "download": "Télécharger le fichier",
+      "contentAria": "Contenu du fichier",
+      "edit": "Modifier",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "close": "Fermer",
+      "noTrailingLineFeed": "Pas de saut de ligne final"
+    },
+    "installedFrom": "depuis <store>{{from}}</store> clé <key>{{key}}</key>",
+    "openKey": "Afficher la clé {{key}}",
+    "installed": {
+      "badge": "installé",
+      "refused": "{{name}} est installé depuis {{from}} clé {{key}} : modifiez la clé, la prochaine installation écrit le fichier.",
+      "deleteText": "Il est installé depuis {{from}} clé {{key}} : la prochaine installation l'écrit à nouveau.",
+      "notEdited": "modifiez la clé, la prochaine installation écrit le fichier"
+    }
   },
   "console": {
     "display": {
@@ -1035,14 +1081,12 @@
   "namespaces": {
     "columns": {
       "namespace": "Nom",
-      "services": "Services",
-      "volumes": "Volumes",
-      "sec": "Secrets",
-      "cfg": "Configs",
+      "objects": "Objets",
       "pools": "Pools",
       "nets": "Réseaux",
       "cpu": "CPU",
-      "memory": "Mémoire"
+      "memory": "Mémoire",
+      "claims": "Réclamations"
     },
     "empty": "Aucun namespace disponible",
     "tableLabel": "Namespaces",
@@ -1060,17 +1104,25 @@
       "claimed": "{{name}} : {{used}} sur {{total}} réclamé ({{percent}})",
       "unclaimed": "{{name}} : {{used}} sur {{total}}, sans réclamation ({{percent}})",
       "error": "L'usage des pools et des réseaux n'a pas pu être lu : {{message}}",
-      "percentOf": "{{percent}} de {{total}}",
       "free": "Libre",
       "used": "Utilisé",
       "total": "Total",
       "cap": "Plafond",
       "noClaim": "aucune réclamation",
       "share": "Part",
-      "barLabel": "{{title}} : {{parts}}"
-    },
-    "memory": {
-      "used": "{{used}} utilisé"
+      "barLabel": "{{title}} : {{parts}}",
+      "ofCap": "sur {{cap}}",
+      "cpuOf": "CPU utilisé par {{namespace}}, de sa limite",
+      "memoryOf": "Mémoire utilisée par {{namespace}}, de sa limite",
+      "addresses_one": "{{value}} adresse",
+      "addresses_other": "{{value}} adresses",
+      "in": {
+        "pools_one": "{{value}} dans {{count}} pool",
+        "pools_other": "{{value}} dans {{count}} pools",
+        "nets_one": "{{value}} dans {{count}} réseau",
+        "nets_other": "{{value}} dans {{count}} réseaux"
+      },
+      "hottest": "{{value}}, réclamation la plus chargée :"
     },
     "panel": {
       "tabs": {
@@ -1227,7 +1279,26 @@
       "selectAll": "Sélectionner tous les objets de type {{list}}"
     },
     "count_one": "{{count}} namespace",
-    "count_other": "{{count}} namespaces"
+    "count_other": "{{count}} namespaces",
+    "kinds": {
+      "short": {
+        "svc": "svc",
+        "vol": "vol",
+        "cfg": "cfg",
+        "sec": "sec"
+      },
+      "show": {
+        "svc_one": "Afficher le service de {{namespace}}",
+        "svc_other": "Afficher les {{count}} services de {{namespace}}",
+        "vol_one": "Afficher le volume de {{namespace}}",
+        "vol_other": "Afficher les {{count}} volumes de {{namespace}}",
+        "cfg_one": "Afficher la configuration de {{namespace}}",
+        "cfg_other": "Afficher les {{count}} configurations de {{namespace}}",
+        "sec_one": "Afficher le secret de {{namespace}}",
+        "sec_other": "Afficher les {{count}} secrets de {{namespace}}"
+      },
+      "avail": "{{count}} {{avail}}"
+    }
   },
   "nav": {
     "routes": {
@@ -1758,7 +1829,10 @@
       "keys": "Clés",
       "keysSize": "Taille",
       "keysSizeHint": "La taille des clés telles que stockées dans la configuration, encodage compris",
-      "up": "Démarrées"
+      "up": "Démarrées",
+      "size": "Taille",
+      "used": "Utilisé",
+      "usedOf": "Espace utilisé par {{name}}"
     },
     "filters": {
       "show": "Afficher les filtres",
@@ -3298,7 +3372,17 @@
     "freeAddresses_other": "{{free}} adresses libres",
     "virtualType": "le moteur du nœud",
     "orExactly": "ou :",
-    "provisionGrant": "{{grant}}, ou provisionnement non géré"
+    "provisionGrant": "{{grant}}, ou provisionnement non géré",
+    "addSection": {
+      "open": "Ajouter une section",
+      "single": "Sections",
+      "several": "Sections multiples, par un nom",
+      "name": "Nom du {{section}}",
+      "type": "Type",
+      "add": "Ajouter [{{section}}]",
+      "badName": "Un mot : lettres, chiffres, point, tiret ou souligné.",
+      "taken": "[{{section}}] existe déjà."
+    }
   },
   "driverSupport": {
     "lacking_one": "Non utilisable sur {{nodes}} : son pilote n'est pas parmi les capacités du nœud.",

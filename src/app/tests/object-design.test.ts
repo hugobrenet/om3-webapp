@@ -30,6 +30,7 @@ import {
   withRequired,
   type DesignKeyword,
   type DesignSection,
+  clusterSectionChoices,
 } from "../object-design";
 
 const KEYWORDS: DesignKeyword[] = [
@@ -348,3 +349,29 @@ describe("object design", () => {
     expect(missingValues([withRequired(KEYWORDS, fs([{ key: "mnt", value: "/srv" }]))], KEYWORDS)).toEqual([{ section: "fs#1", key: "dev" }]);
   });
 });
+
+describe("clusterSectionChoices", () => {
+  const keywords = [
+    { section: "cluster", option: "name" },
+    { section: "ai", option: "agent_url" },
+    { section: "pool", option: "type", candidates: ["drbd", "directory"] },
+    { section: "hb", option: "type" },
+    { section: "arbitrator", option: "timeout" },
+    { section: "DEFAULT", option: "nodes" },
+    { section: "", option: "comment" },
+  ];
+
+  test("the sections of their own not there, then the kinds of the sections of several, their types listed", () => {
+    expect(clusterSectionChoices(keywords, [{ name: "DEFAULT", entries: [] }, { name: "cluster", group: "cluster", entries: [] }])).toEqual([
+      { section: "ai", indexed: false, typed: false, types: [] },
+      { section: "arbitrator", indexed: true, typed: false, types: [] },
+      { section: "hb", indexed: true, typed: true, types: [] },
+      { section: "pool", indexed: true, typed: true, types: ["directory", "drbd"] },
+    ]);
+  });
+
+  test("a section of several offered with some there: one more, by another name", () => {
+    expect(clusterSectionChoices(keywords, [{ name: "pool#ceph", group: "pool", entries: [] }]).map((c) => c.section)).toContain("pool");
+  });
+});
+

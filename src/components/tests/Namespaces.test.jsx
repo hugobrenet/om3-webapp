@@ -2,7 +2,8 @@ import React from 'react';
 import {render, screen, fireEvent, waitFor, act, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
-import Namespaces from '../Namespaces';
+import Namespaces, {pooled} from '../Namespaces';
+import {useFitLevel} from '../../ui/lib/fit-level';
 import useEventStore from '../../hooks/useEventStore';
 import {PG_POLL_MS, resetPgUsage} from '../../hooks/usePgUsage';
 import i18n from '../../i18n';
@@ -12,6 +13,9 @@ const {mockNavigate, mockRetain, mockRelease} = vi.hoisted(() => ({
     mockRetain: vi.fn(),
     mockRelease: vi.fn(),
 }));
+
+// The layout the room chooses, said by each test: jsdom lays nothing out.
+vi.mock('../../ui/lib/fit-level', () => ({useFitLevel: vi.fn(() => 0)}));
 
 vi.mock('react-router-dom', async (importOriginal) => ({
     ...(await importOriginal()),
@@ -139,98 +143,176 @@ const cell = (name, column) => {
     const headers = within(table()).getAllByRole('columnheader').map((h) => h.textContent.replace(/[▲▼]/g, '').trim());
     return within(row(name)).getAllByRole('cell')[headers.indexOf(column)];
 };
+/** The networks figure of a usage, as a cell says it. */
+const pooledOf = (usage) => pooled({
+    t: i18n.t.bind(i18n), usage, kind: 'nets', locale: 'en',
+    format: (n) => i18n.t('namespaces.usage.addresses', {count: n, value: String(n)}), plain: String, title: 'Networks',
+});
 const loaded = () => waitFor(() => expect(within(cell('prod', 'Pools')).getByRole('img')).toBeInTheDocument());
 describe('Namespaces', () => {
-    test('the columns: name, services, volumes, secrets, configs, pools, networks, cpu, memory', async () => {
+    test('the columns: name, objects, pools, networks, cpu, memory', async () => {
         renderNamespaces();
         expect(within(table()).getAllByRole('columnheader').map((h) => h.textContent.replace(/[▲▼]/g, '').trim()))
-            .toEqual(['Name', 'Services', 'Volumes', 'Secrets', 'Configs', 'Pools', 'Networks', 'CPU', 'Memory']);
+            .toEqual(['Name', 'Objects', 'Pools', 'Networks', 'CPU', 'Memory']);
         expect(names()).toEqual(['dev', 'prod', 'root']);
         await loaded();
     });
 
-    test('the services and volumes by availability, a pill in its tint each; secrets and configs in grey', async () => {
+    test('the objects: a chip a kind, its count, its name, a pie of the availabilities of the services and volumes', async () => {
         renderNamespaces();
-        const services = within(cell('prod', 'Services')).getAllByRole('button');
-        expect(services.map((b) => [b.textContent, b.dataset.tone])).toEqual([['2', 'up'], ['1', 'down']]);
-        expect(services[0]).toHaveClass('border-state-up', 'text-state-up');
-        expect(services[0]).toHaveAccessibleName('Show the 2 up services of prod');
-        expect(within(cell('prod', 'Volumes')).getAllByRole('button').map((b) => [b.textContent, b.dataset.tone]))
-            .toEqual([['1', 'up'], ['1', 'warn']]);
-        const secrets = within(cell('prod', 'Secrets')).getByRole('button');
-        expect([secrets.textContent, secrets.dataset.tone]).toEqual(['1', 'neutral']);
-        expect(secrets).toHaveClass('border-line', 'text-ink-muted');
-        expect(within(cell('prod', 'Configs')).getByRole('button')).toHaveTextContent('2');
+        const kinds = [...cell('prod', 'Objects').querySelectorAll('[data-kind]')];
+        expect(kinds.map((k) => k.textContent)).toEqual(['3svc', '2vol', '2cfg', '1sec']);
+        expect(kinds[0]).toHaveAccessibleName('Show the 3 services of prod: 2 up, 1 down');
+        expect(kinds[3]).toHaveAccessibleName('Show the 1 secret of prod');
+        // The pie: a slice an availability, as large as its share, in its tint; none for a secret.
+        const slices = [...kinds[0].querySelectorAll('[data-avail]')];
+        expect(slices.map((s) => s.dataset.avail)).toEqual(['up', 'down']);
+        const round = 2 * Math.PI * 25;
+        expect(Number(slices[0].getAttribute('stroke-dasharray').split(' ')[0])).toBeCloseTo((round * 2) / 3);
+        expect(Number(slices[1].getAttribute('stroke-dashoffset'))).toBeCloseTo(-(round * 2) / 3);
+        expect(slices[1]).toHaveClass('stroke-state-down');
+        expect(kinds[3].querySelector('svg')).toBeNull();
         // The cluster object is no service, no volume, no secret, no configuration.
-        expect(within(cell('root', 'Services')).getByRole('button')).toHaveAccessibleName('Show the 1 warn service of root');
-        expect(cell('root', 'Configs')).toHaveTextContent('–');
+        expect([...cell('root', 'Objects').querySelectorAll('[data-kind]')].map((k) => k.textContent)).toEqual(['1svc']);
+        // A slot a kind, kept empty when none, every chip as wide: the kinds of the rows in columns.
+        expect([...cell('root', 'Objects').querySelectorAll('[data-empty-kind]')].map((k) => k.dataset.emptyKind)).toEqual(['vol', 'cfg', 'sec']);
+        expect(kinds.every((k) => k.classList.contains('w-[9.5ch]'))).toBe(true);
         await loaded();
     });
 
-    test('a count opens the tab of its kind, filtered by the namespace', async () => {
+    test('a chip opens the tab of its kind, filtered by the namespace; not the row', async () => {
         renderNamespaces();
-        fireEvent.click(within(cell('prod', 'Services')).getByRole('button', {name: /down/}));
-        expect(mockNavigate).toHaveBeenLastCalledWith('/objects?namespace=prod&globalState=down');
-        fireEvent.click(within(cell('prod', 'Volumes')).getByRole('button', {name: /warn/}));
-        expect(mockNavigate).toHaveBeenLastCalledWith('/objects?namespace=prod&list=volumes&globalState=warn');
-        fireEvent.click(within(cell('prod', 'Secrets')).getByRole('button'));
+        const chart = cell('prod', 'Objects');
+        fireEvent.click(within(chart).getByRole('button', {name: /^Show the 3 services of prod/}));
+        expect(mockNavigate).toHaveBeenLastCalledWith('/objects?namespace=prod');
+        fireEvent.click(within(chart).getByRole('button', {name: /^Show the 2 volumes of prod/}));
+        expect(mockNavigate).toHaveBeenLastCalledWith('/objects?namespace=prod&list=volumes');
+        fireEvent.click(within(chart).getByRole('button', {name: 'Show the 1 secret of prod'}));
         expect(mockNavigate).toHaveBeenLastCalledWith('/objects?namespace=prod&list=secrets');
-        fireEvent.click(within(cell('prod', 'Configs')).getByRole('button'));
+        fireEvent.click(within(chart).getByRole('button', {name: 'Show the 2 configurations of prod'}));
         expect(mockNavigate).toHaveBeenLastCalledWith('/objects?namespace=prod&list=configs');
+        expect(screen.queryByRole('dialog', {name: 'prod'})).not.toBeInTheDocument();
         await loaded();
     });
 
-    test('the pools: free, used and total out of the claim, else the pool size, a segment per pool', async () => {
+    test('the pools: what is held in all and in how many on top; under it, the claim nearest to filling, in its heat', async () => {
         renderNamespaces();
         await loaded();
-        // default: 10 GiB of a 20 GiB claim; shm, claimed of by nothing: 1 GiB of its 4 GiB.
-        // The bar alone in the cell.
-        expect(cell('prod', 'Pools').textContent).toBe('');
-        const bar = within(cell('prod', 'Pools')).getByRole('img');
+        // default: 10 GiB of a 20 GiB claim; shm, claimed by nothing: 1 GiB of its 4 GiB, no cap to fill.
+        const pools = cell('prod', 'Pools');
+        expect(pools.querySelector('[data-usage] > span').textContent).toBe('11 GiB in 2 pools, hottest claim:');
+        expect(pools).toHaveTextContent(/^11 GiB in 2 pools, hottest claim:\s*default\s*50%\s*of 20 GiB$/);
+        const bar = within(pools).getByRole('img');
+        // Every pool said to the screen readers, the bar drawing the hottest claim alone, in its heat.
         expect(bar).toHaveAccessibleName('Pools: default: 10 GiB of 20 GiB claimed (50%), shm: 1 GiB of 4 GiB, no claim (25%)');
-        expect([...bar.querySelectorAll('[data-segment]')].map((s) => [s.dataset.segment, s.style.width]))
-            .toEqual([['default', `${(10 / 24) * 100}%`], ['shm', `${(1 / 24) * 100}%`]]);
+        const segments = [...bar.querySelectorAll('[data-segment]')];
+        expect(segments.map((s) => [s.dataset.segment, s.style.width])).toEqual([['default', '50%']]);
+        expect(segments[0]).toHaveClass('bg-state-up');
         expect(cell('dev', 'Pools')).toHaveTextContent('–');
     });
 
-    test('every line one height, the bars beside their share rather than under it', async () => {
-        renderNamespaces();
-        await loaded();
-        expect(bodyRows().every((r) => r.classList.contains('h-9'))).toBe(true);
-        const bar = within(cell('prod', 'Pools')).getByRole('img');
-        expect(bar.parentElement).toHaveClass('items-center');
-        expect(bar.parentElement).not.toHaveClass('flex-col');
+    test('in how many: those it holds something of, not those it claims and holds nothing of', () => {
+        const usage = {used: 2, total: 30, free: 28, segments: [
+            {name: 'a', used: 2, total: 10, claimed: true},
+            {name: 'b', used: 0, total: 10, claimed: true},
+            {name: 'c', used: 0, total: 10, claimed: true},
+        ]};
+        expect(pooledOf(usage).value).toBe('2 addresses in 1 network');
+        expect(pooledOf({...usage, used: 0, segments: usage.segments.map((s) => ({...s, used: 0}))}).value).toBe('0 addresses');
     });
 
-    test('the networks: the addresses held, each once, out of the claim', async () => {
+    test('the heat of the cpu and the memory: warn past half the cap, down past 80%, the bar and its part alike', async () => {
         renderNamespaces();
         await loaded();
-        expect(cell('prod', 'Networks').textContent).toBe('');
+        const memory = cell('prod', 'Memory');
+        // 1 GiB of 4: cool, the part in plain ink.
+        await waitFor(() => expect(within(memory).getByRole('img').querySelector('[data-segment]')).toHaveClass('bg-state-up'));
+        expect(within(memory).getByText('25%')).not.toHaveClass('text-state-warn', 'text-state-down');
+        // The hottest claim of the pools in its heat too: a claim alone in the bar.
+        expect(within(cell('prod', 'Pools')).getByRole('img').querySelector('[data-segment]').className).not.toMatch(/bg-series-/);
+    });
+
+    test('every line one height, two lines high: the figures on top, the bars under them', async () => {
+        renderNamespaces();
+        await loaded();
+        expect(bodyRows().every((r) => r.classList.contains('h-12'))).toBe(true);
+        const bar = within(cell('prod', 'Pools')).getByRole('img');
+        expect(bar.closest('[data-usage]')).toHaveClass('flex-col');
+    });
+
+    test('the networks: the addresses held, each once, on top, their share of the claim under it', async () => {
+        renderNamespaces();
+        await loaded();
+        // In addresses, as the other columns say their unit, said once: the cap and the bar's words in plain numbers.
+        expect(cell('prod', 'Networks')).toHaveTextContent(/^2 addresses in 1 network, hottest claim:\s*default\s*20%\s*of 10$/);
         expect(within(cell('prod', 'Networks')).getByRole('img')).toHaveAccessibleName('Networks: default: 2 of 10 claimed (20%)');
         expect(cell('dev', 'Networks')).toHaveTextContent('–');
     });
 
-    test('the cpu used of the claimed cap and the memory free, used and capped, no sparkline in the list', async () => {
+    test('the cpu and the memory used on top, their part of the cap under it; none measured, a dash; no sparkline', async () => {
         vi.useFakeTimers({shouldAdvanceTime: true});
         renderNamespaces();
         await loaded();
         // The memory on the first reading; a cpu rate needs a second one.
-        await waitFor(() => expect(cell('prod', 'Memory')).toHaveTextContent('25% of 4 GiB'));
-        expect(cell('prod', 'CPU')).toHaveTextContent('– of 8 cpu');
+        await waitFor(() => expect(cell('prod', 'Memory')).toHaveTextContent(/^1 GiB\s*25%\s*of 4 GiB$/));
+        expect(within(cell('prod', 'Memory')).getByRole('img', {name: 'Memory used by prod, of its cap'})).toBeInTheDocument();
+        // A single segment, in its heat rather than a series tint: 25%, cool.
+        expect(within(cell('prod', 'Memory')).getByRole('img').querySelector('[data-segment]')).toHaveClass('bg-state-up');
+        // Not measured yet: a dash, not a share of nothing.
+        expect(cell('prod', 'CPU')).toHaveTextContent(/^–\s*–\s*of 8 cpu$/);
         // The rate shows on the second reading, a couple of seconds after the first.
         await act(async () => {
             await vi.advanceTimersByTimeAsync(PG_POLL_MS);
         });
-        // About half a cpu of 8.
-        // In cpu, mcpu or µcpu, three significant digits at most (formatCpu), of the 8 cpu cap.
-        await waitFor(() => expect(cell('prod', 'CPU')).toHaveTextContent(/^\d+(\.\d+)? [mµ]?cpu of 8 cpu$/));
-        // The trends are in the panel of the namespace, not in its line.
-        expect(within(cell('prod', 'Memory')).queryByRole('img')).not.toBeInTheDocument();
-        expect(within(cell('prod', 'CPU')).queryByRole('img')).not.toBeInTheDocument();
+        // About half a cpu of 8, in cpu, mcpu or µcpu, three significant digits at most (formatCpu).
+        await waitFor(() => expect(cell('prod', 'CPU')).toHaveTextContent(/^\d+(\.\d+)? [mµ]?cpu\s*(<1|\d+)%\s*of 8 cpu$/));
         // No claim: the memory used alone, no cap; dev's cgroup reports none: a dash, not a zero.
-        expect(cell('dev', 'Memory')).toHaveTextContent('– used');
+        expect(cell('dev', 'Memory')).toHaveTextContent(/^–$/);
+        expect(within(cell('dev', 'Memory')).queryByRole('img')).toBeNull();
         // No cpu cap: the cpu it uses now, however little, not a share of nothing.
         expect(cell('dev', 'CPU')).toHaveTextContent(/^\d+(\.\d+)? [mµ]?cpu$/);
+    });
+
+    describe('narrower, the claims in one column', () => {
+        const claimsLoaded = () => waitFor(() => expect(within(cell('prod', 'Claims')).getAllByRole('img').length).toBeGreaterThan(0));
+        afterEach(() => {
+            vi.mocked(useFitLevel).mockReturnValue(0);
+        });
+
+        test('name, objects, claims: the kinds side by side, a line a claim, its figures lined up', async () => {
+            vi.mocked(useFitLevel).mockReturnValue(1);
+            renderNamespaces();
+            await claimsLoaded();
+            expect(within(table()).getAllByRole('columnheader').map((h) => h.textContent.replace(/[▲▼]/g, '').trim()))
+                .toEqual(['Name', 'Objects', 'Claims']);
+            // Claims sorts by nothing: no button in its title.
+            expect(within(screen.getByRole('columnheader', {name: 'Claims'})).queryByRole('button')).toBeNull();
+            expect(cell('prod', 'Objects').querySelector('[data-kinds]').dataset.kinds).toBe('');
+            const claims = cell('prod', 'Claims');
+            expect([...claims.querySelectorAll('[data-figure]')].map((f) => f.textContent)).toEqual(['Pools', 'Networks', 'CPU', 'Memory']);
+            expect(claims).toHaveTextContent(/Pools\s*11 GiB in 2 pools\s*50% of 20 GiB · default/);
+            expect(claims).toHaveTextContent(/Networks\s*2 addresses in 1 network\s*20% of 10 · default/);
+            expect(within(claims).getByRole('img', {name: /^Pools: default/})).toBeInTheDocument();
+            expect(table()).not.toHaveAttribute('data-cards');
+        });
+
+        test('narrower still, the kinds stacked, those held alone', async () => {
+            vi.mocked(useFitLevel).mockReturnValue(2);
+            renderNamespaces();
+            await claimsLoaded();
+            const kinds = cell('prod', 'Objects').querySelector('[data-kinds]');
+            expect(kinds.dataset.kinds).toBe('stacked');
+            expect(kinds.querySelectorAll('[data-empty-kind]')).toHaveLength(0);
+            expect(cell('root', 'Objects').querySelectorAll('[data-kind]')).toHaveLength(1);
+        });
+
+        test('narrowest, cards: the cells of the full table, each under the title of its column', async () => {
+            vi.mocked(useFitLevel).mockReturnValue(3);
+            renderNamespaces();
+            await loaded();
+            expect(table()).toHaveAttribute('data-cards');
+            expect(within(row('prod')).getAllByRole('cell').map((c) => c.dataset.label)).toEqual(['Name', 'Objects', 'Pools', 'Networks', 'CPU', 'Memory']);
+        });
     });
 
     test('a row opens the panel of its namespace, on its usage, without leaving the list', async () => {
@@ -260,9 +342,9 @@ describe('Namespaces', () => {
     test('sorted by a column, a figure from the largest, ties in the order of the names', async () => {
         renderNamespaces();
         await loaded();
-        fireEvent.click(screen.getByRole('button', {name: 'Services'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Objects'}));
         expect(names()).toEqual(['prod', 'dev', 'root']);
-        fireEvent.click(screen.getByRole('button', {name: 'Services'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Objects'}));
         expect(names()).toEqual(['dev', 'root', 'prod']);
         // A name reads from A.
         fireEvent.click(screen.getByRole('button', {name: 'Name'}));

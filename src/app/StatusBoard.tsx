@@ -326,6 +326,14 @@ function Pieces({ text, kind, inert = false, notes = [] }: { text: Text; kind: B
   );
 }
 
+/**
+ * The state of an instance as the instance line of the board draws it: its icon,
+ * then its marks (`instanceState`); `inert` in a button, the click being the button's.
+ */
+export function InstanceState({ state, inert = false }: { state: Text; inert?: boolean }) {
+  return <Pieces text={state} kind="instance" inert={inert} />;
+}
+
 /** The tint of a status said in full: the availability states in their colour, n/a muted. */
 const STATUS_INK: Record<string, string> = {
   up: "text-state-up",

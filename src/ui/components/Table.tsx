@@ -8,7 +8,7 @@ import type {
 } from "react";
 import { useLayoutEffect, useRef } from "react";
 import { cn } from "../cn";
-import { CARDS, labelCells, useTableCards } from "./table-cards";
+import { CARDS, CARDS_ALWAYS, labelCells, useTableCards } from "./table-cards";
 
 /**
  * The list table of oc3 (`CollectorList`): a raised panel with a line border,
@@ -24,7 +24,9 @@ import { CARDS, labelCells, useTableCards } from "./table-cards";
  *
  * `cards` stacks its rows as cards in a narrow window, each value after the title
  * of its column (`table-cards`); by default, as its place says: on in a record panel.
- * A table whose layout carries meaning, as a status board, keeps its columns.
+ * "always" stacks them whatever the window: for a view choosing its layout by its
+ * room (`useFitLevel`), its last one cards. A table whose layout carries
+ * meaning, as a status board, keeps its columns.
  */
 export function Table({
   sticky = false,
@@ -40,12 +42,13 @@ export function Table({
   ref?: Ref<HTMLDivElement>;
   sticky?: boolean;
   tableClassName?: string;
-  cards?: boolean;
+  cards?: boolean | "always";
   children: ReactNode;
 }) {
   const cardsInPlace = useTableCards();
-  const cards = cardsProp ?? cardsInPlace;
+  const mode = cardsProp ?? cardsInPlace;
   const table = useRef<HTMLTableElement>(null);
+  const cards = mode !== false;
   // The cells named after their columns, as the rows come and go.
   useLayoutEffect(() => {
     const element = table.current;
@@ -79,7 +82,7 @@ export function Table({
         className={cn(
           "w-full border-collapse text-data",
           sticky && "[&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-surface-raised",
-          cards && CARDS,
+          cards && (mode === "always" ? CARDS_ALWAYS : CARDS),
           tableClassName,
         )}
       >

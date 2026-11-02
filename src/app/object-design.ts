@@ -314,6 +314,41 @@ export const takesResources = (kind: string) => (KIND_GROUPS[kind] ?? []).length
 /** Whether a section of an object of `kind` is one of its resources: not the heartbeats nor the node of the cluster's. */
 export const isResource = (kind: string, section: { group?: string }) => !!section.group && (KIND_GROUPS[kind] ?? []).includes(section.group);
 
+/**
+ * The sections of the cluster configuration a design may hold several of, each by a
+ * name (`pool#ceph`, `hb#1`): those choosing a driver by a type, and the arbitrators,
+ * the hooks and the stonith of a node, as om reads them.
+ */
+const INDEXED_CLUSTER_SECTIONS = ["array", "arbitrator", "hb", "hook", "network", "pool", "stonith", "store", "switch"];
+
+export interface ClusterSectionChoice {
+  /** The section, `ai`; for those of several, the kind of them, `pool`. */
+  section: string;
+  indexed: boolean;
+  /** Whether it chooses its driver by a type; `types`, those the keyword `type` lists, if any. */
+  typed: boolean;
+  types: string[];
+}
+
+/**
+ * The sections a design of the cluster configuration may add, from the keywords of
+ * the cluster: each section once, those there already left out; the kinds of the
+ * sections of several, with the types they choose among; by name.
+ */
+export function clusterSectionChoices(keywords: DesignKeyword[], sections: DesignSection[]): ClusterSectionChoice[] {
+  const there = new Set(sections.map((s) => s.name));
+  const names = [...new Set(keywords.map((k) => k.section))].filter((n) => n && n !== "DEFAULT" && !FREE_SECTIONS.includes(n));
+  return names
+    .map((section) => ({
+      section,
+      indexed: INDEXED_CLUSTER_SECTIONS.includes(section),
+      typed: keywords.some((k) => k.section === section && k.option === "type"),
+      types: [...new Set(keywords.filter((k) => k.section === section && k.option === "type").flatMap((k) => k.candidates ?? []))].sort(),
+    }))
+    .filter((c) => c.indexed || !there.has(c.section))
+    .sort((a, b) => Number(a.indexed) - Number(b.indexed) || a.section.localeCompare(b.section));
+}
+
 /** Whether only root writes the objects of `kind`, every keyword of theirs root's: the cluster configuration. */
 export const rootOnlyKind = (kind: string) => kind === "ccfg";
 
@@ -508,6 +543,8 @@ export function popularKeywords(keywords: DesignKeyword[], section: DesignSectio
     const keyword = offered.find((k) => k.option === name);
     if (keyword && !picked.includes(keyword)) picked.push(keyword);
   }
+  // None of them known to be set most, a section of a few keywords (ai, its agent_url): all of them at hand.
+  if (picked.length === 0 && offered.length <= max) return offered;
   return picked.slice(0, max);
 }
 

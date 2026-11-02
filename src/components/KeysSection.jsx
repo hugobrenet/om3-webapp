@@ -18,6 +18,7 @@ import {KEY_KINDS} from "../constants/actions";
 import {trackRefused, trackWrite} from "../app/action-tracker";
 import {refusalReason} from "./objectActions";
 import {hasPemCertificate} from "../utils/x509";
+import {parseBlobContent} from "../utils/blob-content";
 import CertificateDetails from "./CertificateDetails";
 import {SecCertificate} from "./SecCertificate";
 import {Trans, useTranslation} from "react-i18next";
@@ -44,43 +45,6 @@ const formatResponseError = async (response, defaultMessage) => {
     const serverError = await getResponseErrorMessage(response);
     return `${defaultMessage}${serverError ? ` - ${serverError}` : ''}`;
 };
-
-const parseBlobContent = async (blob) => {
-    const arrayBuffer = await blob.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    let isText = true;
-    let textContent = "";
-    try {
-        textContent = new TextDecoder('utf-8', {fatal: true}).decode(uint8Array);
-        for (let i = 0; i < textContent.length; i++) {
-            const code = textContent.charCodeAt(i);
-            if (code < 32 && code !== 9 && code !== 10 && code !== 13) {
-                isText = false;
-                break;
-            }
-        }
-    } catch (e) {
-        isText = false;
-    }
-
-    if (isText && textContent.length > 0) {
-        return {type: "text", content: textContent};
-    } else {
-        const hexLines = [];
-        for (let i = 0; i < uint8Array.length; i += 16) {
-            const chunk = uint8Array.slice(i, i + 16);
-            const hex = Array.from(chunk)
-                .map(b => b.toString(16).padStart(2, '0'))
-                .join(' ');
-            const ascii = Array.from(chunk)
-                .map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.')
-                .join('');
-            hexLines.push(`${i.toString(16).padStart(8, '0')}  ${hex.padEnd(48, ' ')}  ${ascii}`);
-        }
-        return {type: "binary", content: hexLines.join('\n')};
-    }
-};
-
 
 /**
  * The largest key, in the unit it is a round number of: om3 sizes are decimal

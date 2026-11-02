@@ -824,6 +824,68 @@ describe('ConfigSection Component', () => {
     describe('the designer', () => {
         const patches = () => global.fetch.mock.calls.filter(([, options]) => options?.method === 'PATCH').map(([url]) => decodeURIComponent(url));
 
+        test('the cluster configuration: a section added, one of its own a click, one of several by a name and a type', async () => {
+            const CLUSTER_KEYWORDS = [
+                {option: 'name', section: 'cluster', text: 'The cluster name'},
+                {option: 'agent_url', section: 'ai', text: 'The url of the AI agent'},
+                {option: 'type', section: 'pool', text: 'The pool type', candidates: ['drbd', 'directory']},
+                {option: 'vg', section: 'pool', types: ['drbd'], text: 'The volume group'},
+                {option: 'type', section: 'hb', text: 'The heartbeat type'},
+                {option: 'timeout', section: 'arbitrator', text: 'The arbitrator timeout'},
+                {option: 'nodes', section: 'DEFAULT', text: 'The nodes'},
+            ];
+            global.fetch.mockImplementation((url, options) => {
+                if (url.includes('/config/file')) {
+                    return Promise.resolve({ok: true, status: 200, text: () => Promise.resolve('[cluster]\nname = c1\n')});
+                }
+                if (url.includes('/config/keywords')) {
+                    const params = new URL(url, 'http://x').searchParams;
+                    const section = params.get('section');
+                    const driver = params.get('driver');
+                    const items = section ? CLUSTER_KEYWORDS.filter((k) => k.section === section.split('#')[0])
+                        : driver && driver !== 'DEFAULT' ? CLUSTER_KEYWORDS.filter((k) => k.section === driver.split('.')[0])
+                            : driver === 'DEFAULT' ? CLUSTER_KEYWORDS.filter((k) => k.section === 'DEFAULT') : CLUSTER_KEYWORDS;
+                    return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve({items})});
+                }
+                return defaultFetchMock(url, options);
+            });
+            // jsdom scrolls nothing: the panel's call recorded.
+            const scrolled = vi.fn();
+            Element.prototype.scrollIntoView = scrolled;
+            renderConfig({decodedObjectName: 'cluster'});
+            const dialog = await openDesigner(user);
+            const nav = within(dialog).getByRole('navigation', {name: 'Sections'});
+            await act(() => user.click(within(nav).getByRole('button', {name: 'Add a section'})));
+            // Of its own: those not there yet, cluster there already.
+            const single = await within(dialog).findByRole('group', {name: 'Sections'});
+            // Brought where the eye is: its first choice focused, the panel scrolled into view.
+            await waitFor(() => expect(within(single).getByRole('button', {name: '[ai]'})).toHaveFocus());
+            expect(scrolled).toHaveBeenCalledWith({block: 'nearest', behavior: 'smooth'});
+            expect(within(single).getAllByRole('button').map((b) => b.textContent)).toEqual(['[ai]']);
+            const several = within(dialog).getByRole('group', {name: 'Sections of several, by a name'});
+            expect(within(several).getAllByRole('button').map((b) => b.textContent)).toEqual(['[arbitrator#…]', '[hb#…]', '[pool#…]']);
+            await act(() => user.click(within(single).getByRole('button', {name: '[ai]'})));
+            await waitFor(() => expect(within(nav).getByRole('button', {name: /^ai/})).toHaveAttribute('aria-current', 'true'));
+            // Its keywords there to set: the url of the agent.
+            await waitFor(() => expect(within(dialog).getByRole('button', {name: 'Add agent_url'})).toBeInTheDocument());
+            // One of several: a name, a type among those the keyword lists; a name there already refused.
+            await act(() => user.click(within(nav).getByRole('button', {name: 'Add a section'})));
+            const pool = await within(dialog).findByRole('button', {name: '[pool#…]'});
+            await act(() => user.click(pool));
+            const name = within(dialog).getByRole('textbox', {name: 'Name of the pool'});
+            await act(() => user.type(name, 'bad name'));
+            expect(within(dialog).getByText(/A word: letters, digits/)).toBeInTheDocument();
+            await act(() => user.clear(name));
+            await act(() => user.type(name, 'ceph'));
+            const type = within(dialog).getByRole('combobox', {name: 'Type'});
+            expect([...type.options].map((o) => o.value)).toEqual(['directory', 'drbd']);
+            await act(() => user.selectOptions(type, 'drbd'));
+            await act(() => user.click(within(dialog).getByRole('button', {name: 'Add [pool#ceph]'})));
+            await waitFor(() => expect(within(nav).getByRole('button', {name: /^pool#ceph/})).toHaveAttribute('aria-current', 'true'));
+            expect(global.fetch.mock.calls.some(([url]) => url.includes('driver=pool.drbd'))).toBe(true);
+            delete Element.prototype.scrollIntoView;
+        });
+
         test('seeded with the file as stored, secrets in clear: a value changed, set alone', async () => {
             renderConfig();
             const dialog = await openDesigner(user);
