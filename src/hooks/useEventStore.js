@@ -1,5 +1,5 @@
 import {create} from "zustand";
-import {persist, createJSONStorage} from "zustand/middleware";
+import {persist} from "zustand/middleware";
 import logger from '../utils/logger.js';
 
 const parseObjectPath = (objName) => {
@@ -28,6 +28,14 @@ const shallowEqual = (obj1, obj2) => {
 
 const PERSIST_DEBOUNCE_MS = 800;
 
+/**
+ * The storage of the store in localStorage, written a while after its last change.
+ * It keeps the state it is given, not its JSON: the whole of the objects, their
+ * instances, monitors and configs, some megabytes on a large cluster, turned into
+ * text once, when written, rather than at each change, as many a second as the
+ * events come. The state of the store is never changed in place, only replaced:
+ * the one kept is the one written.
+ */
 const createDebouncedLocalStorage = (delayMs = PERSIST_DEBOUNCE_MS) => {
     let pendingKey = null;
     let pendingValue = null;
@@ -40,7 +48,7 @@ const createDebouncedLocalStorage = (delayMs = PERSIST_DEBOUNCE_MS) => {
         }
         if (pendingKey !== null) {
             try {
-                window.localStorage.setItem(pendingKey, pendingValue);
+                window.localStorage.setItem(pendingKey, JSON.stringify(pendingValue));
             } catch (e) {
                 logger.warn('Failed to persist event store to localStorage:', e);
             }
@@ -59,7 +67,14 @@ const createDebouncedLocalStorage = (delayMs = PERSIST_DEBOUNCE_MS) => {
     return {
         getItem: (name) => {
             if (pendingKey === name) return pendingValue;
-            return window.localStorage.getItem(name);
+            try {
+                const text = window.localStorage.getItem(name);
+                return text === null ? null : JSON.parse(text);
+            } catch (e) {
+                // Unreadable, or not JSON: the store starts empty, the stream fills it.
+                logger.warn('Failed to read the event store from localStorage:', e);
+                return null;
+            }
         },
         setItem: (name, value) => {
             pendingKey = name;
@@ -74,7 +89,11 @@ const createDebouncedLocalStorage = (delayMs = PERSIST_DEBOUNCE_MS) => {
             }
             pendingKey = null;
             pendingValue = null;
-            window.localStorage.removeItem(name);
+            try {
+                window.localStorage.removeItem(name);
+            } catch (e) {
+                logger.warn('Failed to clear the event store in localStorage:', e);
+            }
         },
     };
 };
@@ -410,7 +429,7 @@ const useEventStore = create(
         }),
         {
             name: 'om3-event-storage',
-            storage: createJSONStorage(() => createDebouncedLocalStorage()),
+            storage: createDebouncedLocalStorage(),
             partialize: (state) => ({
                 objectStatus: state.objectStatus,
                 objectInstanceStatus: state.objectInstanceStatus,

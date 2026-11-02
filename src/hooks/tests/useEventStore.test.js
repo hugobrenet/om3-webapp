@@ -996,6 +996,31 @@ describe('useEventStore', () => {
             expect(parsed.state.objectStatus).toEqual({obj1: {status: 'up'}});
         });
 
+        test('the state turned into JSON once, when written, not at each change', () => {
+            const stringify = vi.spyOn(JSON, 'stringify');
+            const ofStore = () => stringify.mock.calls.filter(([value]) => value?.state?.objectStatus !== undefined).length;
+            for (let i = 0; i < 20; i++) {
+                act(() => {
+                    useEventStore.getState().setObjectStatuses({[`obj${i}`]: {status: 'up'}});
+                });
+            }
+            expect(ofStore()).toBe(0);
+            vi.advanceTimersByTime(800);
+            expect(ofStore()).toBe(1);
+            expect(JSON.parse(Storage.prototype.setItem.mock.calls[0][1]).state.objectStatus).toEqual({obj19: {status: 'up'}});
+        });
+
+        test('a store kept unreadable starts empty', () => {
+            // Nothing pending from the tests before: read from localStorage.
+            act(() => {
+                useEventStore.persist.clearStorage();
+            });
+            Storage.prototype.getItem.mockReturnValue('{not json');
+            const storage = useEventStore.persist.getOptions().storage;
+            expect(storage.getItem('om3-event-storage')).toBeNull();
+            expect(logger.warn).toHaveBeenCalled();
+        });
+
         test('flush clears pending and does not call setItem if no pending', () => {
             act(() => {
                 useEventStore.getState().setObjectStatuses({obj1: {status: 'up'}});
