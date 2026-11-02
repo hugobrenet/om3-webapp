@@ -60,7 +60,9 @@ describe("VolumeFiles", () => {
 
     test("what refuses an upload is said", async () => {
         up({n1: "up"});
-        uploadFile.mockReturnValue({done: Promise.reject(new Error("ns1/vol/images is full: grow the volume")), abort: () => {}});
+        // Rejected as the upload starts, when the component awaits it: made earlier,
+        // the rejection would go unhandled until then.
+        uploadFile.mockImplementation(() => ({done: Promise.reject(new Error("ns1/vol/images is full: grow the volume")), abort: () => {}}));
         render(<VolumeFiles path={PATH}/>);
         await screen.findByText("noble.qcow2");
         await userEvent.upload(screen.getByLabelText("The file to upload"), new File(["x"], "big.iso"));
@@ -70,7 +72,7 @@ describe("VolumeFiles", () => {
     test("a console port not reached tells where to accept its certificate", async () => {
         up({n1: "up"});
         const error = Object.assign(new Error("the console port could not be reached"), {certificateUrl: "https://n1:1216/"});
-        uploadFile.mockReturnValue({done: Promise.reject(error), abort: () => {}});
+        uploadFile.mockImplementation(() => ({done: Promise.reject(error), abort: () => {}}));
         render(<VolumeFiles path={PATH}/>);
         await screen.findByText("noble.qcow2");
         await userEvent.upload(screen.getByLabelText("The file to upload"), new File(["x"], "a.iso"));
