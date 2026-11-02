@@ -5,6 +5,7 @@ import useSidebarAlerts, {
     useMenuState,
     applySidebarEvent,
     objectsAlert,
+    volMonitors,
     heartbeatAlert,
     nodesAlert,
     SIDEBAR_EVENTS_URL,
@@ -55,6 +56,13 @@ describe('objectsAlert', () => {
             .toEqual({level: 'warn', text: '2 objects in warn'});
     });
 
+    test('a vol down raises red under a child up, nothing when its children are down too', () => {
+        const objects = {'ns1/vol/v': {avail: 'down', overall: 'down'}};
+        const monitorsOf = (child) => (path) => volMonitors({'ns1/vol/v': {n1: {'ns1/svc/s': child}, n2: {'ns1/svc/s': child}}}, path);
+        expect(objectsAlert(objects, monitorsOf('up'))).toEqual({level: 'down', text: '1 object down'});
+        expect(objectsAlert(objects, monitorsOf('down'))).toBeNull();
+    });
+
     test('a down object that is no actor, a cfg say, raises nothing red', () => {
         expect(objectsAlert({'ns1/cfg/c': {avail: 'down'}, cluster: {avail: 'down'}, 'ns1/': {avail: 'down'}})).toBeNull();
     });
@@ -62,18 +70,26 @@ describe('objectsAlert', () => {
 
 describe('applySidebarEvent', () => {
     test('applies object, node and heartbeat events, and object deletions', () => {
-        const state = {objects: {}, nodeStatus: {}, heartbeatStatus: {}};
+        const state = {objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}};
         applySidebarEvent(state, 'ObjectStatusUpdated', {path: 'a', object_status: {avail: 'up'}});
         applySidebarEvent(state, 'ObjectStatusUpdated', {labels: {path: 'b'}, object_status: {avail: 'down'}});
         applySidebarEvent(state, 'NodeStatusUpdated', {node: 'n1', node_status: {frozen_at: 'x'}});
         applySidebarEvent(state, 'DaemonHeartbeatUpdated', {labels: {node: 'n1'}, heartbeat: {streams: []}});
         applySidebarEvent(state, 'ObjectDeleted', {path: 'b'});
         applySidebarEvent(state, 'Unknown', {path: 'c'});
+        // The children of the vols only, by node.
+        applySidebarEvent(state, 'InstanceMonitorUpdated', {path: 'ns/vol/v', node: 'n1', instance_monitor: {children: {'ns/svc/s': 'down'}}});
+        applySidebarEvent(state, 'InstanceMonitorUpdated', {path: 'ns/vol/v', node: 'n2', instance_monitor: {}});
+        applySidebarEvent(state, 'InstanceMonitorUpdated', {path: 'ns/svc/s', node: 'n1', instance_monitor: {children: {}}});
+        applySidebarEvent(state, 'InstanceMonitorDeleted', {path: 'ns/vol/v', node: 'n2'});
         expect(state).toEqual({
             objects: {a: {avail: 'up'}},
             nodeStatus: {n1: {frozen_at: 'x'}},
             heartbeatStatus: {n1: {streams: []}},
+            volChildren: {'ns/vol/v': {n1: {'ns/svc/s': 'down'}}},
         });
+        applySidebarEvent(state, 'ObjectDeleted', {path: 'ns/vol/v'});
+        expect(state.volChildren).toEqual({});
     });
 });
 

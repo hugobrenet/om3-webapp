@@ -27,6 +27,7 @@ export const NAMESPACE_LISTS = ["services", "volumes", "configs", "secrets"];
 const ACTOR_LISTS = ["services", "volumes"];
 
 const selectObjectStatus = (state) => state.objectStatus;
+const selectInstanceMonitor = (state) => state.instanceMonitor;
 
 /** The objects of a namespace by list, in the order of their names; its configuration left out. */
 export function useNamespaceObjects(namespace) {
@@ -49,9 +50,14 @@ export function useNamespaceObjects(namespace) {
 export function useNamespaceObjectTabs(namespace) {
     const {t, i18n} = useTranslation();
     const {lists, status} = useNamespaceObjects(namespace);
+    const instanceMonitor = useEventStore(selectInstanceMonitor);
     return useMemo(() => NAMESPACE_LISTS.map((list) => {
+        // The instance monitors of a vol, for its children: one nothing uses, down, no alert.
+        const monitorsOf = (path) => parseObjectPath(path).kind !== "vol" ? [] : Object.entries(instanceMonitor ?? {})
+            .filter(([key]) => key.endsWith(`:${path}`))
+            .map(([, monitor]) => monitor);
         const alert = ACTOR_LISTS.includes(list)
-            ? objectsAlert(Object.fromEntries(lists[list].map((path) => [path, status[path]])))
+            ? objectsAlert(Object.fromEntries(lists[list].map((path) => [path, status[path]])), monitorsOf)
             : null;
         return {
             key: list,
@@ -65,7 +71,7 @@ export function useNamespaceObjectTabs(namespace) {
         };
         // The alerts are text: computed again when the language changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [lists, status, t, i18n.language]);
+    }), [lists, status, instanceMonitor, t, i18n.language]);
 }
 
 const stopPropagation = (e) => e.stopPropagation();

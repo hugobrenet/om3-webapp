@@ -5,7 +5,7 @@ import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus.jsx";
 import useAiAgent from "../hooks/useAiAgent.js";
 import useAiToolDocs from "../hooks/useAiToolDocs.js";
 import useAiChat from "../hooks/useAiChat.js";
-import {isFrozen, objectAttention} from "../hooks/useSidebarAlerts.js";
+import {isFrozen, objectAttention, volMonitors} from "../hooks/useSidebarAlerts.js";
 import AiMarkdown from "./AiMarkdown.jsx";
 import AiPromptTips from "./AiPromptTips.jsx";
 import AiToolsDialog from "./AiToolsDialog.jsx";
@@ -118,11 +118,12 @@ export function starterQuestions(status, t) {
     const nodes = status?.nodeStatus || {};
     const paths = Object.keys(objects).sort();
     const questions = [];
+    const attention = (path) => objectAttention(path, objects[path], volMonitors(status?.volChildren, path));
     const object =
-        paths.find((path) => objectAttention(path, objects[path]) === "down") ??
-        paths.find((path) => objectAttention(path, objects[path]) === "warn");
+        paths.find((path) => attention(path) === "down") ??
+        paths.find((path) => attention(path) === "warn");
     if (object !== undefined) {
-        const state = objectAttention(object, objects[object]);
+        const state = attention(object);
         questions.push(untrustedT(t, "ai.starters.object", {path: object, state}));
     }
     const frozen = Object.keys(nodes).sort().find((node) => isFrozen(nodes[node]));

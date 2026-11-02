@@ -30,8 +30,9 @@ import {useGrants} from "../hooks/useGrants";
 import {canWriteClaims} from "../app/namespace-claims";
 import {MoreRows, useRowsOnDemand} from "../ui/components/RowsOnDemand";
 import {ALL_LIST, OBJECT_LISTS, OBJECTS_TABS, listOfKind} from "../utils/objectLists";
-import {AlertTriangleIcon, BoltIcon, GearIcon, InfoIcon, PlusIcon} from "../ui/icons";
+import {AlertTriangleIcon, BoltIcon, CheckIcon, GearIcon, InfoIcon, PlusIcon} from "../ui/icons";
 import {cachedReason, needsReason} from "../app/object-reason";
+import {childrenDown} from "../app/statusboard";
 import {menuColumns, menuFilter} from "../app/action-menu";
 import {Term} from "../app/Term";
 import {SymbolLegend} from "../app/StatusBoard";
@@ -94,6 +95,12 @@ const NodeStatus = React.memo(({objectName, node}) => {
     const stoppedAt = useEventStore((s) => s.objectInstanceStatus?.[objectName]?.[node]?.stopped_at);
     const rpoBreachedAt = useEventStore((s) => s.objectInstanceStatus?.[objectName]?.[node]?.rpo_breached_at);
     const objectAvail = useEventStore((s) => s.objectStatus?.[objectName]?.avail);
+    // A vol down that nothing uses, its children down too: its downs gray.
+    const isChildrenDown = useEventStore((s) => childrenDown(
+        objectName,
+        s.objectStatus?.[objectName]?.avail,
+        Object.keys(s.objectInstanceStatus?.[objectName] ?? {}).map((n) => s.instanceMonitor?.[`${n}:${objectName}`]),
+    ));
     // A node of the object that tells nothing of its instance, gone or not heard
     // from: a "?" in its place, as om mon draws it.
     const expected = useEventStore((s) => Boolean(
@@ -116,7 +123,7 @@ const NodeStatus = React.memo(({objectName, node}) => {
 
     const marks = (
         <span className="inline-flex items-center gap-1.5" data-node={node}>
-            <StatusMark state={markState(nodeData.avail)} label={nodeData.avail} muted={isQuietDown(nodeData.avail, objectAvail)}/>
+            <StatusMark state={markState(nodeData.avail)} label={nodeData.avail} muted={isQuietDown(nodeData.avail, objectAvail, isChildrenDown)}/>
             {isStopped && <StoppedMark/>}
             {/* A breached RPO takes the place of the frozen mark, as in the other views. */}
             {isLagging ? <RpoBreachedMark/> : <FrozenMark frozen={nodeData.frozen === "frozen"}/>}
@@ -405,7 +412,15 @@ function ObjectReason({objectName}) {
     const {t} = useTranslation();
     const reason = useEventStore(useMemo(() => selectReason(objectName), [objectName]));
     const askFix = useContext(NoteFixContext);
-    if (reason === null) return null;
+    // Nothing to say: said optimal, for the rows to be as high as those with a reason.
+    if (reason === null) {
+        return (
+            <span data-reason="optimal" className="flex items-center gap-1 text-[0.75rem] font-normal text-ink-muted">
+                <CheckIcon aria-hidden="true" className="h-3 w-3 shrink-0"/>
+                <span className="truncate">{t("objects.reason.optimal")}</span>
+            </span>
+        );
+    }
     const fix = reason.fix !== undefined && askFix !== null && noteFixAction(objectName, reason.fix) !== undefined
         ? reason.fix
         : null;

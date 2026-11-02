@@ -1,9 +1,9 @@
 /*
  * Why an object is not up, in a line, for the lists: the first warning or error its
  * status board says (`statusboard.ts`), read from what the event stream holds of it,
- * no request of its own; none, its instances stopped on purpose, then its resources
- * down, then what else it says (frozen). An object up, or of no status (a
- * configuration, a secret), no reason.
+ * no request of its own; none, its instances stopped on purpose, then a vol's
+ * children down, then its resources down, then what else it says (frozen). An object
+ * up and provisioned, or of no status (a configuration, a secret), no reason.
  */
 import { buildBoard, type InstanceStates, type NoteFix, type ObjectData } from "./statusboard";
 
@@ -27,10 +27,12 @@ export interface ObjectEvents {
   configs: Record<string, Record<string, unknown> | undefined> | undefined;
 }
 
-/** An object worth a reason: its availability down or warn, or its overall warn. */
+/** An object worth a reason: its availability down or warn, its overall warn, or not provisioned, or partly. */
 export const needsReason = (object: Record<string, unknown> | undefined): boolean => {
   const avail = object?.avail;
-  return avail === "down" || avail === "warn" || object?.overall === "warn";
+  const provisioned = object?.provisioned;
+  return avail === "down" || avail === "warn" || object?.overall === "warn" ||
+    provisioned === "false" || provisioned === false || provisioned === "mixed";
 };
 
 /** The notes of the object whose text says not what they are about: said with it. */
@@ -64,11 +66,13 @@ export function objectReason(path: string, events: ObjectEvents): Reason | null 
   const board = buildBoard({ path, object: { ...(events.object as ObjectData), instances } });
   const down = resourcesDown(events.instances);
   const subjectOf = (g: (typeof board.notes)[number]) => g.heads[0]?.subject ?? "";
-  // A warning or an error first; infos only, the instances stopped on purpose, which
-  // say why it is down, then its resources down, before the others (frozen…).
+  // A warning or an error first; infos only, the instances stopped on purpose, or a
+  // vol's children down, which say why it is down, then its resources down, before
+  // the others (frozen…).
   const pick =
     board.notes.find((g) => g.level !== "info") ??
     board.notes.find((g) => subjectOf(g) === "stopped") ??
+    board.notes.find((g) => subjectOf(g) === "children") ??
     (down.length > 0 ? undefined : board.notes[0]);
   if (pick !== undefined) {
     const head = pick.heads[0];

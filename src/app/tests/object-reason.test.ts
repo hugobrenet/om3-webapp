@@ -47,6 +47,44 @@ describe("why an object is not up", () => {
     expect(objectReason("root/svc/many", many)?.text).toBe("a#1, b#1, c#1… down");
   });
 
+  test("a vol down: an error under a child up, an info when its children are down too", () => {
+    const at = "2026-10-28T10:00:00Z";
+    const events = (child: string): ObjectEvents => ({
+      object: { avail: "down", overall: "down", topology: "flex", flex: { min: 0, max: 2, target: 0 } },
+      instances: {
+        n1: { avail: "down", overall: "down", provisioned: "true", resources: { "fs#0": { status: "down" } } },
+        n2: { avail: "down", overall: "down", provisioned: "true", resources: { "fs#0": { status: "down" } } },
+      },
+      monitors: {
+        n1: { state: "idle", updated_at: at, children: { "system/svc/dns": child } },
+        n2: { state: "idle", updated_at: at, children: { "system/svc/dns": child } },
+      },
+      configs: undefined,
+    });
+    expect(objectReason("system/vol/dns", events("up"))).toEqual({ level: "error", text: "fs#0 down", more: 0 });
+    expect(objectReason("system/vol/dns", events("down"))).toEqual({ level: "info", text: "children are down", more: 0 });
+    // Not a vol: its resources down, whatever its children.
+    expect(objectReason("system/svc/dns", events("down"))?.level).toBe("error");
+  });
+
+  test("an object up, partly provisioned: an error", () => {
+    const at = "2026-10-28T10:00:00Z";
+    const events: ObjectEvents = {
+      object: { avail: "up", overall: "up", provisioned: "mixed", topology: "failover" },
+      instances: {
+        n1: { avail: "up", overall: "up", provisioned: "true" },
+        n2: { avail: "down", overall: "down", provisioned: "false" },
+      },
+      monitors: { n1: { state: "idle", updated_at: at }, n2: { state: "idle", updated_at: at } },
+      configs: { n1: { resources: {} }, n2: { resources: {} } },
+    };
+    expect(objectReason("root/svc/foo003", events)).toMatchObject({
+      level: "error",
+      text: "the instance is not provisioned, or partly",
+      fix: { action: "provision", nodes: ["n2"] },
+    });
+  });
+
   test("infos only: stopped on purpose first, then the resources down, then a freeze, said so", () => {
     const at = "2026-10-28T10:00:00Z";
     const events = (resources: Record<string, unknown>, stopped: boolean): ObjectEvents => ({

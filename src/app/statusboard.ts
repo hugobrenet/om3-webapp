@@ -171,6 +171,8 @@ export interface InstanceMonitor {
   orchestration_id?: string;
   updated_at?: string;
   resources?: Record<string, { restart?: { remaining?: number } }>;
+  /** The availability of each child of the object, by path (or path@node). */
+  children?: Record<string, string>;
 }
 
 export interface InstanceStates {
@@ -336,6 +338,29 @@ const toLevel = (level: string | undefined): Level =>
 
 const LEVEL_TONE: Record<Level, Tone> = { error: "error", warn: "warning", info: "secondary" };
 
+/** The availabilities of a child that has its parent vol in use. */
+const CHILD_UP: ReadonlySet<string> = new Set(["up", "warn", "stdby up"]);
+
+/** The kind of an object path: ns/kind/name, kind/name in the root namespace, a svc by its name alone. */
+function kindOf(path: string): string {
+  const parts = path.split("/");
+  return parts.length >= 3 ? (parts[1] as string) : parts.length === 2 ? (parts[0] as string) : "svc";
+}
+
+/**
+ * A vol down whose children, as its instance monitors report them, are all down
+ * too: nothing uses it, its down is no issue. A vol down under a child up is one.
+ */
+export function childrenDown(
+  path: string,
+  avail: string | undefined,
+  monitors: readonly (InstanceMonitor | undefined)[],
+): boolean {
+  if (kindOf(path) !== "vol" || avail !== "down") return false;
+  const children = monitors.flatMap((m) => Object.values(m?.children ?? {}));
+  return children.length > 0 && !children.some((st) => CHILD_UP.has(st));
+}
+
 export function buildBoard(digest: Digest): Board {
   const obj = digest.object;
   /** The object is an actor, a service or a volume: it has a status of its own. */
@@ -364,11 +389,12 @@ export function buildBoard(digest: Digest): Board {
         : 0;
   const excess = allowed <= 0 || up <= allowed ? 0 : up - allowed;
   const hasExpectedInstances = actor && up >= Math.max(1, expected);
+  const isChildrenDown = childrenDown(digest.path, obj.avail, nodes.map((n) => stateOf(n).monitor));
 
-  /** A status as the om mon icon says it; a down is gray where no instance is missing. */
+  /** A status as the om mon icon says it; a down is gray where no instance is missing, or nothing uses it. */
   const statusIcon = (st: string | undefined): Span => {
     const status = { status: st === undefined || st === "" ? "undef" : st };
-    const issue = (icon: string) => span(icon, hasExpectedInstances ? "secondary" : "error", status);
+    const issue = (icon: string) => span(icon, hasExpectedInstances || isChildrenDown ? "secondary" : "error", status);
     switch (st) {
       case "up":
         return span("O", "optimal", status);
@@ -646,6 +672,7 @@ export function buildBoard(digest: Digest): Board {
     action,
     nodes: about.length === nodes.length && nodes.length > 1 ? [] : about,
   });
+  if (isChildrenDown) add("info", "children", [], "children are down");
   if (excess > 0) {
     add(
       "error",
