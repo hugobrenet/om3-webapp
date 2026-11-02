@@ -92,6 +92,8 @@ describe('eventSourceManager', () => {
                 if (JSON.stringify(mockStore.objectInstanceStatus) !== JSON.stringify(v)) mockStore.objectInstanceStatus = v;
             }),
             removeInstanceFromObject: vi.fn(),
+            removeInstanceStatus: vi.fn(),
+            removeInstanceMonitor: vi.fn(),
             removeNode: vi.fn(),
             removePendingDelete: vi.fn(),
             removeObjects: vi.fn(),
@@ -162,7 +164,7 @@ describe('eventSourceManager', () => {
         test('should create an EventSource and attach event listeners', () => {
             const es = createES();
             expect(EventSourcePolyfill).toHaveBeenCalled();
-            expect(es.addEventListener).toHaveBeenCalledTimes(11);
+            expect(es.addEventListener).toHaveBeenCalledTimes(13);
         });
 
         test('should close existing EventSource before creating a new one', () => {
@@ -637,6 +639,39 @@ describe('eventSourceManager', () => {
             vi.runAllTimers();
             expect(mockStore.removeInstanceFromObject).toHaveBeenCalledWith('obj1', 'node1');
             expect(mockStore.removePendingDelete).toHaveBeenCalledWith('obj1', 'node1');
+        });
+
+        test('an instance status or monitor the daemon deleted leaves the store', () => {
+            const es = createES();
+            fire(getHandler(es, 'InstanceStatusDeleted'), {path: 'obj1', node: 'node1'});
+            fire(getHandler(es, 'InstanceMonitorDeleted'), {labels: {path: 'obj1', node: 'node2'}});
+            fire(getHandler(es, 'InstanceStatusDeleted'), {path: 'obj1'});
+            vi.runAllTimers();
+            expect(mockStore.removeInstanceStatus.mock.calls).toEqual([['obj1', 'node1']]);
+            expect(mockStore.removeInstanceMonitor.mock.calls).toEqual([['obj1', 'node2']]);
+            expect(console.warn).toHaveBeenCalledWith('⚠️ InstanceStatusDeleted event missing path or node:', expect.any(Object));
+        });
+
+        test('in a batch, the last of an update and a deletion of an instance holds', () => {
+            const es = createES();
+            const updated = getHandler(es, 'InstanceStatusUpdated');
+            const deleted = getHandler(es, 'InstanceStatusDeleted');
+            // Updated, then deleted: not brought back by the flush.
+            fire(updated, {path: 'obj1', node: 'node1', instance_status: {avail: 'up'}});
+            fire(deleted, {path: 'obj1', node: 'node1'});
+            // Deleted, then updated: back, its deletion not applied.
+            fire(deleted, {path: 'obj2', node: 'node1'});
+            fire(updated, {path: 'obj2', node: 'node1', instance_status: {avail: 'up'}});
+            vi.runAllTimers();
+            expect(mockStore.removeInstanceStatus.mock.calls).toEqual([['obj1', 'node1']]);
+            expect(mockStore.objectInstanceStatus.obj1?.node1).toBeUndefined();
+            expect(mockStore.objectInstanceStatus.obj2?.node1).toEqual({avail: 'up'});
+        });
+
+        test('a deletion is claimed with what it deletes', () => {
+            expect(eventSourceManager.withDeletions(['InstanceMonitorUpdated', 'NodeStatusUpdated', 'InstanceConfigUpdated'])).toEqual([
+                'InstanceMonitorUpdated', 'InstanceMonitorDeleted', 'InstanceConfigDeleted', 'NodeStatusUpdated', 'InstanceConfigUpdated',
+            ]);
         });
 
         test('a node dropped by the cluster (NodeMonitorDeleted) leaves the store', () => {
@@ -1572,8 +1607,9 @@ describe('eventSourceManager', () => {
                 {filters: ['ObjectStatusUpdated', 'InstanceStatusUpdated'], objectName: null},
                 {filters: ['InstanceStatusUpdated', 'Bogus'], objectName: null},
             ]);
-            expect(query).toBe('cache=true&filter=InstanceStatusUpdated&filter=ObjectStatusUpdated');
-            expect(types).toEqual(['ObjectStatusUpdated', 'InstanceStatusUpdated']);
+            // With the deletions of what they update: no view keeps what the daemon deleted.
+            expect(query).toBe('cache=true&filter=InstanceConfigDeleted&filter=InstanceStatusDeleted&filter=InstanceStatusUpdated&filter=ObjectDeleted&filter=ObjectStatusUpdated');
+            expect(types).toEqual(['ObjectStatusUpdated', 'ObjectDeleted', 'InstanceStatusUpdated', 'InstanceStatusDeleted', 'InstanceConfigDeleted']);
         });
 
         test('a claim on an object asks for the events of that object only', () => {
@@ -1588,7 +1624,7 @@ describe('eventSourceManager', () => {
         test('a panel over a list widens the stream, and closing it narrows it back', async () => {
             const releaseList = eventSourceManager.retainEventReception('tok', ['ObjectStatusUpdated']);
             await settle();
-            expect(openedUrls()).toEqual([`${URL_NODE_EVENT}?cache=true&filter=ObjectStatusUpdated`]);
+            expect(openedUrls()).toEqual([`${URL_NODE_EVENT}?cache=true&filter=ObjectDeleted&filter=ObjectStatusUpdated`]);
 
             const releasePanel = eventSourceManager.retainEventReception('tok', ['InstanceConfigUpdated'], 'ns1/svc/web');
             await settle();
@@ -1599,7 +1635,7 @@ describe('eventSourceManager', () => {
             releasePanel();
             await settle();
             expect(openedUrls()).toHaveLength(3);
-            expect(openedUrls()[2]).toBe(`${URL_NODE_EVENT}?cache=true&filter=ObjectStatusUpdated`);
+            expect(openedUrls()[2]).toBe(`${URL_NODE_EVENT}?cache=true&filter=ObjectDeleted&filter=ObjectStatusUpdated`);
 
             releaseList();
             await settle();

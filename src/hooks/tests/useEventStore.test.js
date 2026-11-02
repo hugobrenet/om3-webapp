@@ -826,6 +826,27 @@ describe('useEventStore', () => {
         });
     });
 
+    describe('removeInstanceStatus and removeInstanceMonitor', () => {
+        test('drop the status or the monitor of one instance, the others kept', () => {
+            useEventStore.setState({
+                objectInstanceStatus: {'ns/svc/s': {n1: {avail: 'up'}, n2: {avail: 'down'}}},
+                instanceMonitor: {'n1:ns/svc/s': {state: 'idle'}, 'n2:ns/svc/s': {state: 'idle'}},
+            });
+            useEventStore.getState().removeInstanceStatus('ns/svc/s', 'n2');
+            useEventStore.getState().removeInstanceMonitor('ns/svc/s', 'n2');
+            const s = useEventStore.getState();
+            expect(s.objectInstanceStatus).toEqual({'ns/svc/s': {n1: {avail: 'up'}}});
+            expect(s.instanceMonitor).toEqual({'n1:ns/svc/s': {state: 'idle'}});
+        });
+
+        test('one not known changes nothing', () => {
+            const before = useEventStore.getState();
+            useEventStore.getState().removeInstanceStatus('ns/svc/none', 'n1');
+            useEventStore.getState().removeInstanceMonitor('ns/svc/none', 'n1');
+            expect(useEventStore.getState()).toBe(before);
+        });
+    });
+
     describe('forgetNodesOutOf', () => {
         test('a node gone out of the cluster: what it reported goes, its replayed statuses are not taken', () => {
             useEventStore.setState({

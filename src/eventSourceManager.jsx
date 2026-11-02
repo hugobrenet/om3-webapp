@@ -19,8 +19,25 @@ export const EVENT_TYPES = {
     INSTANCE_MONITOR_UPDATED: 'InstanceMonitorUpdated',
     INSTANCE_CONFIG_UPDATED: 'InstanceConfigUpdated',
     INSTANCE_CONFIG_DELETED: 'InstanceConfigDeleted',
+    INSTANCE_STATUS_DELETED: 'InstanceStatusDeleted',
+    INSTANCE_MONITOR_DELETED: 'InstanceMonitorDeleted',
     NODE_MONITOR_DELETED: 'NodeMonitorDeleted',
 };
+
+/**
+ * The deletion of what each event updates: claimed with it, whoever claims the
+ * update, for no view to keep what the daemon deleted, as an instance of a node
+ * taken out of the object, kept in the store and in localStorage after.
+ */
+const DELETIONS = {
+    [EVENT_TYPES.OBJECT_STATUS_UPDATED]: [EVENT_TYPES.OBJECT_DELETED],
+    [EVENT_TYPES.INSTANCE_STATUS_UPDATED]: [EVENT_TYPES.INSTANCE_STATUS_DELETED, EVENT_TYPES.INSTANCE_CONFIG_DELETED],
+    [EVENT_TYPES.INSTANCE_MONITOR_UPDATED]: [EVENT_TYPES.INSTANCE_MONITOR_DELETED, EVENT_TYPES.INSTANCE_CONFIG_DELETED],
+    [EVENT_TYPES.INSTANCE_CONFIG_UPDATED]: [EVENT_TYPES.INSTANCE_CONFIG_DELETED],
+};
+
+/** The event types with the deletions of what they update, once each, in their order. */
+export const withDeletions = (filters) => [...new Set(filters.flatMap((f) => [f, ...(DELETIONS[f] ?? [])]))];
 
 // Event Source connection event types (these are NOT API events)
 export const CONNECTION_EVENTS = {
@@ -42,6 +59,8 @@ const OBJECT_SPECIFIC_FILTERS = [
     EVENT_TYPES.INSTANCE_MONITOR_UPDATED,
     EVENT_TYPES.INSTANCE_CONFIG_UPDATED,
     EVENT_TYPES.INSTANCE_CONFIG_DELETED,
+    EVENT_TYPES.INSTANCE_STATUS_DELETED,
+    EVENT_TYPES.INSTANCE_MONITOR_DELETED,
 ];
 
 // Global state
@@ -118,6 +137,8 @@ let buffers = {
     instanceConfig: {},
     configUpdated: new Set(),
     instanceConfigDeleted: [],
+    instanceStatusDeleted: [],
+    instanceMonitorDeleted: [],
     nodeDeleted: [],
 };
 
@@ -153,6 +174,7 @@ const createQueryString = (filters = DEFAULT_FILTERS, objectName = null, useCach
         logger.warn('No valid API event filters provided, using default filters');
         validFilters.push(...DEFAULT_FILTERS);
     }
+    validFilters.splice(0, validFilters.length, ...withDeletions(validFilters));
 
     let queryFilters;
     if (objectName) {
@@ -189,6 +211,8 @@ const getAndClearBuffers = () => {
         instanceConfig: buffers.instanceConfig,
         configUpdated: buffers.configUpdated,
         instanceConfigDeleted: buffers.instanceConfigDeleted,
+        instanceStatusDeleted: buffers.instanceStatusDeleted,
+        instanceMonitorDeleted: buffers.instanceMonitorDeleted,
         nodeDeleted: buffers.nodeDeleted,
     };
 
@@ -203,6 +227,8 @@ const getAndClearBuffers = () => {
         instanceConfig: {},
         configUpdated: new Set(),
         instanceConfigDeleted: [],
+        instanceStatusDeleted: [],
+        instanceMonitorDeleted: [],
         nodeDeleted: [],
     };
 
@@ -340,6 +366,14 @@ const flushBuffers = () => {
                 store.removePendingDelete(path, node);
             }
         }
+        // An instance status or monitor the daemon deleted, its node out of the object
+        // or dropped: gone, after the updates flushed with them (an update coming after
+        // its deletion in the batch cancelled it, see updateBuffer).
+        if (buffersToFlush.instanceStatusDeleted.length > 0 || buffersToFlush.instanceMonitorDeleted.length > 0) {
+            const store = useEventStore.getState();
+            for (const {path, node} of buffersToFlush.instanceStatusDeleted) store.removeInstanceStatus(path, node);
+            for (const {path, node} of buffersToFlush.instanceMonitorDeleted) store.removeInstanceMonitor(path, node);
+        }
         // A node dropped by the cluster: its status, monitor and stats go, after
         // the updates flushed with them.
         if (buffersToFlush.nodeDeleted.length > 0) {
@@ -435,6 +469,8 @@ const clearBuffers = () => {
         instanceConfig: {},
         configUpdated: new Set(),
         instanceConfigDeleted: [],
+        instanceStatusDeleted: [],
+        instanceMonitorDeleted: [],
         nodeDeleted: [],
     };
     if (flushTimeoutId) {
@@ -532,6 +568,31 @@ const updateBuffer = (bufferName, key, value) => {
         return;
     }
 
+    // The deletion of an instance status or monitor: the update of it buffered
+    // before in the batch goes, for the flush not to bring it back.
+    if (bufferName === 'instanceStatusDeleted' || bufferName === 'instanceMonitorDeleted') {
+        const {path, node} = value;
+        if (bufferName === 'instanceStatusDeleted') {
+            if (buffers.instanceStatus[path]) delete buffers.instanceStatus[path][node];
+        } else {
+            delete buffers.instanceMonitor[`${node}:${path}`];
+        }
+        buffers[bufferName].push(value);
+        debugLog(`📝 Buffer[${bufferName}]:`, value);
+        scheduleFlush();
+        return;
+    }
+    // An update after a deletion in the batch: the instance is back, its deletion
+    // is not applied.
+    const notDeleted = (list, path, node) => list.filter((d) => d.path !== path || d.node !== node);
+    if (bufferName === 'instanceStatus') {
+        const [path, node] = key.split(':');
+        buffers.instanceStatusDeleted = notDeleted(buffers.instanceStatusDeleted, path, node);
+    } else if (bufferName === 'instanceMonitor') {
+        const i = key.indexOf(':');
+        buffers.instanceMonitorDeleted = notDeleted(buffers.instanceMonitorDeleted, key.slice(i + 1), key.slice(0, i));
+    }
+
     if (bufferName === 'objectStatus') {
         const existing = buffers.objectStatus[key];
         buffers.objectStatus[key] = existing ? {...existing, ...value} : value;
@@ -625,7 +686,8 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
     };
 
     // Add event handlers for all API events in the filters
-    const validApiFilters = filters.filter(f => Object.values(EVENT_TYPES).includes(f));
+    // With the deletions of what they update, as the query asks them (createQueryString, claimsQuery).
+    const validApiFilters = withDeletions(filters.filter(f => Object.values(EVENT_TYPES).includes(f)));
     validApiFilters.forEach(eventType => {
         addEventListener(currentEventSource, eventType, (data) => {
             // Process each event type
@@ -724,6 +786,18 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
                         updateBuffer('configUpdated', null, JSON.stringify({name: configName, node: data.node}));
                     } else {
                         logger.warn('⚠️ InstanceConfigUpdated event missing name or node:', data);
+                    }
+                    break;
+                }
+                case EVENT_TYPES.INSTANCE_STATUS_DELETED:
+                case EVENT_TYPES.INSTANCE_MONITOR_DELETED: {
+                    const deletedPath = data.path || data.labels?.path;
+                    const deletedNode = data.node || data.labels?.node;
+                    if (deletedPath && deletedNode) {
+                        const buffer = eventType === EVENT_TYPES.INSTANCE_STATUS_DELETED ? 'instanceStatusDeleted' : 'instanceMonitorDeleted';
+                        updateBuffer(buffer, null, {path: deletedPath, node: deletedNode});
+                    } else {
+                        logger.warn(`⚠️ ${eventType} event missing path or node:`, data);
                     }
                     break;
                 }
@@ -1074,7 +1148,7 @@ let claimSequence = 0;
 let claimedQuery = null;
 let claimsQueued = false;
 
-const validTypes = (filters) => filters.filter(f => Object.values(EVENT_TYPES).includes(f));
+const validTypes = (filters) => withDeletions(filters.filter(f => Object.values(EVENT_TYPES).includes(f)));
 
 /** The query string and the event types of the union of the claims. */
 export const claimsQuery = (claims) => {

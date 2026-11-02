@@ -225,6 +225,26 @@ const useEventStore = create(
                     };
                 }),
 
+            // The status of an instance the daemon deleted (InstanceStatusDeleted).
+            removeInstanceStatus: (objectPath, node) =>
+                set((state) => {
+                    const byNode = state.objectInstanceStatus?.[objectPath];
+                    if (!byNode || !(node in byNode)) return state;
+                    const next = {...byNode};
+                    delete next[node];
+                    return {objectInstanceStatus: {...state.objectInstanceStatus, [objectPath]: next}};
+                }),
+
+            // The monitor of an instance the daemon deleted (InstanceMonitorDeleted).
+            removeInstanceMonitor: (objectPath, node) =>
+                set((state) => {
+                    const key = `${node}:${objectPath}`;
+                    if (!state.instanceMonitor || !(key in state.instanceMonitor)) return state;
+                    const next = {...state.instanceMonitor};
+                    delete next[key];
+                    return {instanceMonitor: next};
+                }),
+
             setObjectStatuses: (objectStatus) =>
                 set((state) => {
                     const isEqual = shallowEqual(state.objectStatus, objectStatus);
