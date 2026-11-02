@@ -18,6 +18,11 @@ globalThis.jest.setTimeout = (ms) => {
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
 
+// jsdom draws no canvas, and says so on stderr at each getContext: answered
+// null, as a browser answers a context it does not offer, the terminal of a
+// console (xterm) takes its way without canvas, silently.
+HTMLCanvasElement.prototype.getContext = () => null;
+
 const originalError = console.error;
 const originalWarn = console.warn;
 
