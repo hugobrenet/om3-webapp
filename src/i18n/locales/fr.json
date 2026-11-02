@@ -437,7 +437,7 @@
     "title": "Fichiers",
     "upload": "Envoyer un fichier",
     "choose": "Le fichier à envoyer",
-    "hint": "Ce depuis quoi un invité de cet espace de noms s'installe : une ressource utilisant ce volume comme volume#2 désigne un fichier par volume#2:/noble.qcow2 dans son image ou son cdrom. La taille du volume borne ce qu'il contient.",
+    "hint": "Les fichiers de ce volume sur le nœud affiché : ce qu'écrivent les services qui l'utilisent, et ce qui est téléversé ici. Un fichier téléversé peut être l'image ou l'installeur d'un invité, qu'une ressource utilisant ce volume comme volume#2 désigne par volume#2:/isos/debian.iso dans son image ou son cdrom. La taille du volume borne ce qu'il contient.",
     "none": "Ce volume ne contient aucun fichier.",
     "node": "Nœud",
     "name": "Nom",
@@ -448,7 +448,33 @@
     "cancel": "Annuler",
     "sending": "Envoi de {{name}}",
     "failed": "{{name}} n'a pas été envoyé : {{message}}",
-    "notAvailable": "Ce volume n'est démarré sur aucun nœud : démarrez-le pour accéder à ses fichiers."
+    "notAvailable": "Ce volume n'est démarré sur aucun nœud : démarrez-le pour accéder à ses fichiers.",
+    "origin": "Origine",
+    "uploaded": "téléversé",
+    "uploadedByAt": "par {{by}}, {{at}}",
+    "uploadedAt": "{{at}}",
+    "changedSince": "modifié depuis",
+    "notUploaded": "pas téléversé ici",
+    "replace": {
+      "title": "Remplacer {{name}} ?",
+      "text": "Le volume contient déjà un fichier {{name}}. Téléverser celui-ci le remplace, quel qu'en soit l'auteur : un service utilisant ce volume peut en avoir besoin.",
+      "confirm": "Le remplacer"
+    },
+    "deleteOne": "Supprimer {{name}}",
+    "deleteText": "Il a été téléversé ici.",
+    "deleteForeignText": "Il n'a pas été téléversé ici : un service utilisant ce volume peut l'avoir écrit, et en avoir besoin.",
+    "where": "Répertoire",
+    "emptyDir": "Ce répertoire est vide.",
+    "truncated": "Seules les {{count}} premières entrées sont affichées.",
+    "deleteDirText": "Seul un répertoire vide est supprimé : ce qu'il contient ne l'est pas.",
+    "deleteLinkText": "Seul le lien est supprimé, pas ce vers quoi il pointe.",
+    "mkdir": {
+      "open": "Nouveau répertoire",
+      "title": "Nouveau répertoire dans {{dir}}",
+      "name": "Nom",
+      "confirm": "Créer",
+      "invalid": "Un nom, sans / ni point initial."
+    }
   },
   "console": {
     "display": {

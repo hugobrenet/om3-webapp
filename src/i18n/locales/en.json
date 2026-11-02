@@ -437,7 +437,7 @@
     "title": "Files",
     "upload": "Upload a file",
     "choose": "The file to upload",
-    "hint": "What a guest of this namespace is installed from: a resource using this volume as volume#2 names a file as volume#2:/noble.qcow2 in its image or cdrom. The size of the volume bounds what it holds.",
+    "hint": "The files of this volume on the node shown: what the services using it write, and what is uploaded here. An uploaded file can be the image or installer of a guest, which a resource using this volume as volume#2 names as volume#2:/isos/debian.iso in its image or cdrom. The size of the volume bounds what it holds.",
     "none": "This volume holds no file.",
     "node": "Node",
     "name": "Name",
@@ -448,7 +448,33 @@
     "cancel": "Cancel",
     "sending": "Sending {{name}}",
     "failed": "{{name}} was not uploaded: {{message}}",
-    "notAvailable": "This volume is not up on any node: start it to reach its files."
+    "notAvailable": "This volume is not up on any node: start it to reach its files.",
+    "origin": "Origin",
+    "uploaded": "uploaded",
+    "uploadedByAt": "by {{by}}, {{at}}",
+    "uploadedAt": "{{at}}",
+    "changedSince": "changed since",
+    "notUploaded": "not uploaded here",
+    "replace": {
+      "title": "Replace {{name}}?",
+      "text": "The volume holds a file {{name}} already. Uploading this one replaces it, whoever wrote it: a service using this volume may need it.",
+      "confirm": "Replace it"
+    },
+    "deleteOne": "Delete {{name}}",
+    "deleteText": "It was uploaded here.",
+    "deleteForeignText": "It was not uploaded here: a service using this volume may have written it, and may need it.",
+    "where": "Directory",
+    "emptyDir": "This directory is empty.",
+    "truncated": "Only the first {{count}} entries are shown.",
+    "deleteDirText": "Only an empty directory is deleted: what it holds is not.",
+    "deleteLinkText": "The link alone is deleted, not what it points to.",
+    "mkdir": {
+      "open": "New directory",
+      "title": "New directory in {{dir}}",
+      "name": "Name",
+      "confirm": "Create",
+      "invalid": "A name, without / nor a leading dot."
+    }
   },
   "console": {
     "display": {
