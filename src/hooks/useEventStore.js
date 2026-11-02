@@ -79,6 +79,41 @@ const createDebouncedLocalStorage = (delayMs = PERSIST_DEBOUNCE_MS) => {
     };
 };
 
+/**
+ * The instances, instance configurations and instance monitors of `state`
+ * without those of the nodes `isGone` tells; null when none is theirs.
+ */
+function instancesWithout(state, isGone) {
+    const keep = (byNode) => {
+        const gone = Object.keys(byNode ?? {}).filter(isGone);
+        if (gone.length === 0) return byNode;
+        const next = {...byNode};
+        for (const node of gone) delete next[node];
+        return next;
+    };
+    const pruneByPath = (map) => {
+        let changed = false;
+        const next = {};
+        for (const [path, byNode] of Object.entries(map ?? {})) {
+            next[path] = keep(byNode);
+            if (next[path] !== byNode) changed = true;
+        }
+        return changed ? next : map;
+    };
+    const objectInstanceStatus = pruneByPath(state.objectInstanceStatus);
+    const instanceConfig = pruneByPath(state.instanceConfig);
+    // The monitors are keyed "node:path".
+    const goneMonitors = Object.keys(state.instanceMonitor ?? {}).filter((key) => isGone(key.slice(0, key.indexOf(":"))));
+    let instanceMonitor = state.instanceMonitor;
+    if (goneMonitors.length > 0) {
+        instanceMonitor = {...state.instanceMonitor};
+        for (const key of goneMonitors) delete instanceMonitor[key];
+    }
+    if (objectInstanceStatus === state.objectInstanceStatus && instanceConfig === state.instanceConfig
+        && instanceMonitor === state.instanceMonitor) return null;
+    return {objectInstanceStatus, instanceConfig, instanceMonitor};
+}
+
 const useEventStore = create(
     persist(
         (set, get) => ({
@@ -225,35 +260,8 @@ const useEventStore = create(
                 set((state) => {
                     if (!Array.isArray(liveNodes) || liveNodes.length === 0) return state;
                     const live = new Set(liveNodes);
-                    const keep = (byNode) => {
-                        const gone = Object.keys(byNode ?? {}).filter((node) => !live.has(node));
-                        if (gone.length === 0) return byNode;
-                        const next = {...byNode};
-                        for (const node of gone) delete next[node];
-                        return next;
-                    };
-                    const pruneByPath = (map) => {
-                        let changed = false;
-                        const next = {};
-                        for (const [path, byNode] of Object.entries(map ?? {})) {
-                            next[path] = keep(byNode);
-                            if (next[path] !== byNode) changed = true;
-                        }
-                        return changed ? next : map;
-                    };
-                    const objectInstanceStatus = pruneByPath(state.objectInstanceStatus);
-                    const instanceConfig = pruneByPath(state.instanceConfig);
-                    // The monitors are keyed "node:path".
-                    const monitorKeys = Object.keys(state.instanceMonitor ?? {});
-                    const goneMonitors = monitorKeys.filter((key) => !live.has(key.slice(0, key.indexOf(":"))));
-                    let instanceMonitor = state.instanceMonitor;
-                    if (goneMonitors.length > 0) {
-                        instanceMonitor = {...state.instanceMonitor};
-                        for (const key of goneMonitors) delete instanceMonitor[key];
-                    }
-                    if (objectInstanceStatus === state.objectInstanceStatus && instanceConfig === state.instanceConfig
-                        && instanceMonitor === state.instanceMonitor) return state;
-                    return {objectInstanceStatus, instanceConfig, instanceMonitor};
+                    const pruned = instancesWithout(state, (node) => !live.has(node));
+                    return pruned === null ? state : pruned;
                 }),
 
             // A node the cluster dropped: what it reported goes, until it rejoins.
@@ -268,8 +276,12 @@ const useEventStore = create(
                     const nodeStatus = without(state.nodeStatus);
                     const nodeMonitor = without(state.nodeMonitor);
                     const nodeStats = without(state.nodeStats);
-                    if (nodeStatus === state.nodeStatus && nodeMonitor === state.nodeMonitor && nodeStats === state.nodeStats) return state;
-                    return {nodeStatus, nodeMonitor, nodeStats};
+                    // Its instances too: the daemon dropped them with the node, and
+                    // their columns show a "?" until it rejoins.
+                    const instances = instancesWithout(state, (gone) => gone === node);
+                    if (nodeStatus === state.nodeStatus && nodeMonitor === state.nodeMonitor && nodeStats === state.nodeStats
+                        && instances === null) return state;
+                    return {nodeStatus, nodeMonitor, nodeStats, ...instances};
                 }),
 
             setNodeStatuses: (nodeStatus) =>

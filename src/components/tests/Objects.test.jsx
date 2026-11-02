@@ -52,9 +52,6 @@ vi.mock('../../hooks/useGrants', () => ({
     useGrants: () => mockGrants.value,
     useIsRoot: () => Object.prototype.hasOwnProperty.call(mockGrants.value, 'root'),
 }));
-vi.mock('../../hooks/useFetchDaemonStatus', () => ({
-    default: vi.fn(() => ({daemon: {cluster: {object: {}}}})),
-}));
 
 const {mockRetainEventReception, mockReleaseEventReception} = vi.hoisted(() => ({
     mockRetainEventReception: vi.fn(),
@@ -87,7 +84,6 @@ vi.mock('../../ui/lib/media', async (importOriginal) => {
 
 import useEventStore from '../../hooks/useEventStore';
 import {clearKeyStats} from '../../hooks/useKeyStats';
-import useFetchDaemonStatus from '../../hooks/useFetchDaemonStatus';
 import {useMediaQuery} from '../../ui/lib/media';
 import {useLocation} from 'react-router-dom';
 import {useActionTracker} from '../../app/action-tracker';
@@ -155,14 +151,13 @@ const TWO_KINDS = {
     },
 };
 
-const setup = (customState = {}, locationSearch = '', mediaQuery = true, {daemon} = {}) => {
+const setup = (customState = {}, locationSearch = '', mediaQuery = true) => {
     const state = {...defaultState, ...customState};
 
     const useEventStoreMock = useEventStore;
     useEventStoreMock.mockImplementation((sel) => sel(state));
     useEventStoreMock.getState.mockReturnValue(state);
 
-    vi.mocked(useFetchDaemonStatus).mockReturnValue({daemon: daemon || {cluster: {object: {}}}});
     vi.mocked(useLocation).mockReturnValue({search: locationSearch, pathname: '/objects'});
 
     const mockedUseMediaQuery = vi.mocked(useMediaQuery);
@@ -2164,25 +2159,11 @@ describe('Objects Component', () => {
         expect(screen.queryByRole('columnheader', {name: /node1/})).not.toBeInTheDocument();
     });
 
-    test('daemon fallback when store empty', async () => {
+    test('no objects at all renders empty state', async () => {
         setup(
             {objectStatus: {}, objectInstanceStatus: {}},
             '',
-            {isWideScreen: true, isMobile: false},
-            {daemon: {cluster: {object: {'daemon/svc/obj1': {avail: 'up', frozen: 'unfrozen'}}}}}
-        );
-        await waitFor(() =>
-            expect(screen.getByRole('row', {name: /daemon\/svc\/obj1/})).toBeInTheDocument()
-        );
-    });
-
-
-    test('daemon fallback with no objects at all renders empty state', async () => {
-        setup(
-            {objectStatus: {}, objectInstanceStatus: {}},
-            '',
-            {isWideScreen: true, isMobile: false},
-            {daemon: {cluster: {object: {}}}}
+            {isWideScreen: true, isMobile: false}
         );
         await waitForLoad();
         await waitFor(() => expect(screen.getByText(/No objects found/)).toBeInTheDocument());

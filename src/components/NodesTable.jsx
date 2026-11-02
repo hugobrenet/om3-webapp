@@ -1,6 +1,6 @@
 import React, {useEffect, useLayoutEffect, useRef, useState, useMemo} from "react";
 import {useSearchParams} from "react-router-dom";
-import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus.jsx";
+import {useApiNode} from "../hooks/useApiNode";
 import {retainEventReception} from "../eventSourceManager";
 import useEventStore from "../hooks/useEventStore.js";
 import {useClusterNodeOrder} from "../hooks/useClusterNodeOrder";
@@ -67,7 +67,8 @@ const DANGER_ICON = "flex h-4 w-4 items-center justify-center text-state-down [&
 
 const NodesTable = () => {
     const {t} = useTranslation();
-    const {daemon, fetchNodes} = useFetchDaemonStatus();
+    // The node answering the API, read once a session: its agent is the reference.
+    const apiNode = useApiNode();
     const nodeStatus = useEventStore((state) => state.nodeStatus);
     const nodeStats = useEventStore((state) => state.nodeStats);
     const nodeMonitor = useEventStore((state) => state.nodeMonitor);
@@ -148,18 +149,14 @@ const NodesTable = () => {
         const token = localStorage.getItem("authToken");
         let release = null;
         if (token) {
-            // Start event reception immediately
+            // The stream replays the state of the nodes, then their changes.
             release = retainEventReception(token, nodeEventTypes);
-            // Fetch daemon status in parallel
-            fetchNodes(token).catch(error => {
-                logger.error("Failed to fetch nodes:", error);
-            });
         }
 
         return () => {
             release?.();
         };
-    }, [fetchNodes, nodeEventTypes]);
+    }, [nodeEventTypes]);
 
     // The feedback message hides itself after a while, as the snackbar did.
     useEffect(() => {
@@ -350,8 +347,8 @@ const NodesTable = () => {
     const columns = nodeColumns(layout);
     // The version most nodes run: a node running another marked, once its column is dropped.
     const version = useMemo(
-        () => commonVersion(Object.values(nodeStatus).map((s) => s?.agent), nodeStatus[daemon?.nodename]?.agent),
-        [nodeStatus, daemon?.nodename],
+        () => commonVersion(Object.values(nodeStatus).map((s) => s?.agent), nodeStatus[apiNode]?.agent),
+        [nodeStatus, apiNode],
     );
 
     // A node added, and the actions on the nodes selected: over the table, or at the head of the rail.
@@ -387,7 +384,7 @@ const NodesTable = () => {
                         items={nodeMenuItems({
                             t,
                             nodes: selectedNodes,
-                            apiNode: daemon?.nodename,
+                            apiNode,
                             renderIcon: ({icon, color}) => <span aria-hidden="true" className={color === "red" ? DANGER_ICON : ICON}>{icon}</span>,
                             onSelect: handleAction,
                         })}
@@ -469,7 +466,7 @@ const NodesTable = () => {
                                 monitor={nodeMonitor[nodename]}
                                 info={nodeInfo[nodename]}
                                 isSelected={selectedNodes.includes(nodename)}
-                                daemonNodename={daemon.nodename}
+                                daemonNodename={apiNode}
                                 onSelect={handleSelectNode}
                                 onOpen={handleOpenNode}
                                 isOpen={panel.sel === nodename}

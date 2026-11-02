@@ -14,7 +14,7 @@ const {
     mockAuthDispatch,
     mockUseAuth,
     mockUseOidc,
-    mockUseFetchDaemonStatus,
+    mockUseApiNode,
     mockToggleDarkMode,
     mockLogger,
     mockLocalStorage,
@@ -23,7 +23,7 @@ const {
     mockAuthDispatch: vi.fn(),
     mockUseAuth: vi.fn(),
     mockUseOidc: vi.fn(),
-    mockUseFetchDaemonStatus: vi.fn(),
+    mockUseApiNode: vi.fn(),
     mockToggleDarkMode: vi.fn(),
     mockLogger: {error: vi.fn(), info: vi.fn()},
     mockLocalStorage: {
@@ -55,8 +55,9 @@ vi.mock('../../context/OidcAuthContext.tsx', () => ({
     useOidc: mockUseOidc,
 }));
 
-vi.mock('../../hooks/useFetchDaemonStatus', () => ({
-    default: mockUseFetchDaemonStatus,
+// The node answering the API, read once a session.
+vi.mock('../../hooks/useApiNode', () => ({
+    useApiNode: mockUseApiNode,
 }));
 
 vi.mock('../../utils/logger.js', () => ({
@@ -82,7 +83,6 @@ describe('WhoAmI', () => {
     const mockToken = 'mock-token';
     const mockSignoutRedirect = vi.fn();
     const mockRemoveUser = vi.fn();
-    const mockFetchNodes = vi.fn();
 
     const defaultUserInfo = {
         auth: 'user',
@@ -92,7 +92,7 @@ describe('WhoAmI', () => {
         name: 'testuser',
     };
 
-    const defaultDaemon = {nodename: 'test-node'};
+    const defaultApiNode = 'test-node';
 
     const setupMocks = (overrides = {}) => {
         vi.clearAllMocks();
@@ -121,10 +121,7 @@ describe('WhoAmI', () => {
             },
         });
 
-        mockUseFetchDaemonStatus.mockReturnValue({
-            daemon: overrides.daemon ?? defaultDaemon,
-            fetchNodes: mockFetchNodes,
-        });
+        mockUseApiNode.mockReturnValue('apiNode' in overrides ? overrides.apiNode : defaultApiNode);
 
         global.fetch.mockImplementation((url) => {
             if (url.includes('github')) {
@@ -360,39 +357,24 @@ describe('WhoAmI', () => {
         );
     });
 
-    describe('daemon fetch', () => {
-        test('calls fetchNodes when authToken exists', async () => {
+    describe('node answering the API', () => {
+        test('reads it once a session, with no cluster status of its own', async () => {
             setupMocks();
             renderComponent();
-            await waitFor(() => {
-                expect(mockFetchNodes).toHaveBeenCalledWith(mockToken);
-            });
+            await waitFor(() => expect(screen.getAllByText('test-node').length).toBeGreaterThan(0));
+            expect(global.fetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/cluster/status'), expect.anything());
         });
 
-        test('does not call fetchNodes when no authToken', async () => {
-            setupMocks({authToken: null});
+        test('says it unknown when it could not be read', async () => {
+            setupMocks({apiNode: null});
             renderComponent();
             await waitFor(() => {
-                const headings = screen.getAllByText('Account');
-                expect(headings.length).toBeGreaterThan(0);
-            });
-            expect(mockFetchNodes).not.toHaveBeenCalled();
-        });
-
-        test('logs error when fetchNodes fails', async () => {
-            mockFetchNodes.mockRejectedValue(new Error('daemon error'));
-            setupMocks();
-            renderComponent();
-            await waitFor(() => {
-                expect(mockLogger.error).toHaveBeenCalledWith(
-                    'Error fetching daemon status:',
-                    expect.any(Error)
-                );
+                expect(screen.getByText('Unknown')).toBeInTheDocument();
             });
         });
 
-        test('displays "Loading..." when nodename is missing', async () => {
-            setupMocks({daemon: {}});
+        test('displays "Loading..." while it is not read', async () => {
+            setupMocks({apiNode: undefined});
             renderComponent();
             await waitFor(() => {
                 expect(screen.getByText('Loading...')).toBeInTheDocument();

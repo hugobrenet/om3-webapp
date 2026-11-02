@@ -30,7 +30,6 @@ vi.mock('../../hooks/useEventStore', async (importOriginal) => {
     useEventStore.getState = () => state;
     return {...actual, __esModule: true, default: useEventStore, getState: useEventStore.getState};
 });
-vi.mock('../../hooks/useFetchDaemonStatus', () => ({default: () => ({daemon: {cluster: {object: {}}}})}));
 vi.mock('../../eventSourceManager', () => ({
     retainEventReception: () => () => {},
     forceFlush: vi.fn(),

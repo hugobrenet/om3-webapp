@@ -828,7 +828,7 @@ describe('KeysSection', () => {
         resetMaxKeySize();
         mockFetch({
             keys: [],
-            methods: {GET: (url) => (url === '/api/cluster/status' ? Promise.resolve({
+            methods: {GET: (url) => (url === '/api/cluster/status?selector=cluster' ? Promise.resolve({
                 ok: true,
                 json: () => Promise.resolve({daemon: {nodename: 'n1'}, cluster: {node: {n1: {config: {max_key_size: 2048}}}}}),
             }) : undefined)},
@@ -849,7 +849,7 @@ describe('KeysSection', () => {
         resetMaxKeySize();
         mockFetch({
             keys: [],
-            methods: {GET: (url) => (url === '/api/cluster/status' ? Promise.resolve({
+            methods: {GET: (url) => (url === '/api/cluster/status?selector=cluster' ? Promise.resolve({
                 ok: true,
                 json: () => Promise.resolve({daemon: {nodename: 'n1'}, cluster: {node: {n1: {config: {max_key_size: 1000000}}}}}),
             }) : undefined)},

@@ -14,7 +14,6 @@ const tray = () => useActionTracker.getState().tracked.map((e) => [e.action, e.s
 
 // ── Hoisted mock variables ────────────────────────────────────────────────
 const {
-    mockUseFetchDaemonStatus,
     mockUseEventStore,
     mockRetainEventReception,
     mockReleaseEventReception,
@@ -23,7 +22,6 @@ const {
     mockNavigate,
     mockLogger,
 } = vi.hoisted(() => ({
-    mockUseFetchDaemonStatus: vi.fn(),
     mockUseEventStore: vi.fn(),
     mockRetainEventReception: vi.fn(),
     mockReleaseEventReception: vi.fn(),
@@ -114,8 +112,9 @@ vi.mock('../../components/LogsViewer.jsx', () => ({
     ),
 }));
 
-vi.mock('../../hooks/useFetchDaemonStatus.jsx', () => ({
-    default: mockUseFetchDaemonStatus,
+// The node answering the API, read once a session.
+vi.mock('../../hooks/useApiNode', () => ({
+    useApiNode: () => 'node-1',
 }));
 
 vi.mock('../../hooks/useEventStore.js', () => ({
@@ -161,12 +160,6 @@ describe('NodesTable', () => {
     beforeEach(() => {
         // The panel lives in the URL: no test inherits the one the test before opened.
         window.history.replaceState({}, '', '/nodes');
-        const fetchNodesMock = vi.fn().mockResolvedValue(undefined);
-        mockUseFetchDaemonStatus.mockReturnValue({
-            daemon: {nodename: 'node-1'},
-            fetchNodes: fetchNodesMock,
-        });
-
         mockUseEventStore.mockImplementation((selector) =>
             selector(createDefaultStore())
         );
@@ -835,21 +828,6 @@ describe('NodesTable', () => {
             fireEvent.click(screen.getByRole('button', {name: 'Close panel'}));
             expect(screen.queryByRole('dialog', {name: /^Node /})).not.toBeInTheDocument();
             expect(window.location.search).toBe('');
-        });
-    });
-
-    describe('fetch nodes failure', () => {
-        test('logs error when fetchNodes rejects', async () => {
-            const error = new Error('Network error');
-            const fetchNodesMock = vi.fn().mockRejectedValue(error);
-            mockUseFetchDaemonStatus.mockReturnValue({
-                daemon: {nodename: 'node-1'},
-                fetchNodes: fetchNodesMock,
-            });
-            renderWithRouter(<NodesTable/>);
-            await waitFor(() => {
-                expect(mockLogger.error).toHaveBeenCalledWith('Failed to fetch nodes:', error);
-            });
         });
     });
 

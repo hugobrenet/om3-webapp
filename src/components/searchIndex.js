@@ -1,5 +1,5 @@
 import useEventStore from "../hooks/useEventStore.js";
-import {URL_CLUSTER_STATUS, URL_NETWORK, URL_OBJECT} from "../config/apiPath.js";
+import {URL_CLUSTER_STATUS_NODES, URL_NETWORK, URL_OBJECT} from "../config/apiPath.js";
 import {apiFetch} from "../services/api.jsx";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 
@@ -14,7 +14,7 @@ export async function loadSearchIndex() {
     const get = (url) => apiFetch(url, {headers, cache: "no-cache"});
     const [paths, cluster, networks] = await Promise.allSettled([
         get(`${URL_OBJECT}?path=${encodeURIComponent("**")}`),
-        get(URL_CLUSTER_STATUS),
+        get(URL_CLUSTER_STATUS_NODES),
         get(URL_NETWORK),
     ]);
     const entries = [];

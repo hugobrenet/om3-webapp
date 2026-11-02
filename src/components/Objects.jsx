@@ -1,7 +1,6 @@
 import React, {createContext, useContext, useEffect, useState, useMemo, useCallback, useRef, useDeferredValue} from "react";
 import {useLocation, useNavigate} from "react-router-dom";
 import useEventStore from "../hooks/useEventStore.js";
-import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus";
 import {retainEventReception} from "../eventSourceManager";
 import {usePanelSearch, usePeek} from "../app/panel-search";
 import {instanceId} from "../app/peek";
@@ -592,7 +591,6 @@ const Objects = () => {
     // holds, from All, is kept for it but filters nothing here.
     const hasKindFilter = list === ALL_LIST;
 
-    const {daemon} = useFetchDaemonStatus();
     const objectStatus = useEventStore(selectObjectStatus);
     const objectInstanceStatus = useEventStore(selectObjectInstanceStatus);
     const [selectedObjects, setSelectedObjects] = useState([]);
@@ -625,10 +623,7 @@ const Objects = () => {
     const deferredSelectedKinds = useDeferredValue(selectedKinds);
 
 
-    const objects = useMemo(
-        () => (Object.keys(objectStatus).length ? objectStatus : daemon?.cluster?.object || {}),
-        [objectStatus, daemon]
-    );
+    const objects = objectStatus;
 
     const allObjectNames = useMemo(
         () => Object.keys(objects).filter((key) => key && typeof objects[key] === "object"),

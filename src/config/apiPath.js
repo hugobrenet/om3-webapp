@@ -5,6 +5,10 @@ export const URL_TOKEN = '/api/auth/token';
 export const URL_REFRESH = '/api/auth/refresh';
 export const URL_CLUSTER = '/api/cluster';
 export const URL_CLUSTER_STATUS = '/api/cluster/status';
+// The cluster status without its objects: the cluster, its nodes and the daemon
+// answering, which every reader of the status reads. Its size grows with the
+// nodes, where the whole status grows with the objects on each node.
+export const URL_CLUSTER_STATUS_NODES = `${URL_CLUSTER_STATUS}?selector=cluster`;
 export const URL_POOL = '/api/pool';
 export const URL_RESOURCE = '/api/resource';
 // The resources of every service and volume, the objects holding some. Not unfiltered nor

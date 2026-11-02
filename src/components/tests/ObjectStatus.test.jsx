@@ -41,9 +41,17 @@ const cluster = (frozen) => ({
     },
 });
 
-/** Answers the object with `object`, the cluster status with `clusterStatus`. */
-const answer = (object, clusterStatus = cluster(false)) => mockApiFetch.mockImplementation((url) =>
-    Promise.resolve(url.includes('/cluster/status') ? clusterStatus : {data: object}));
+/**
+ * Answers the object with `object`, the cluster status with `clusterStatus`, whose
+ * node status the stream of the menu also gives: the frozen nodes come from it.
+ */
+const answer = (object, clusterStatus = cluster(false)) => {
+    useMenuState.setState({
+        nodeStatus: Object.fromEntries(Object.entries(clusterStatus.cluster.node).map(([node, value]) => [node, value.status])),
+    });
+    return mockApiFetch.mockImplementation((url) =>
+        Promise.resolve(url.includes('/cluster/status') ? clusterStatus : {data: object}));
+};
 
 describe('ObjectStatus', () => {
     beforeEach(() => {
@@ -54,6 +62,7 @@ describe('ObjectStatus', () => {
 
     afterEach(() => {
         localStorage.clear();
+        useMenuState.setState({nodeStatus: {}});
     });
 
     test('reads the object and shows its status board, its stream claimed while shown', async () => {
@@ -405,7 +414,16 @@ describe('ObjectStatus', () => {
         expect(within(screen.getByRole('rowheader', {name: /volume#1$/})).queryByRole('button')).toBeNull();
     });
 
-    test('marks the frozen nodes the cluster status names', async () => {
+    test('says the agents incompatible when the nodes the menu stream names differ in compat', async () => {
+        answer(dns);
+        useMenuState.setState({nodeStatus: {dev3n1: {compat: 12}, dev3n2: {compat: 13}}});
+        render(<ObjectStatus path="system/svc/dns"/>);
+        expect(await screen.findByText('the nodes run incompatible agent versions')).toBeInTheDocument();
+        act(() => useMenuState.setState({nodeStatus: {dev3n1: {compat: 13}, dev3n2: {compat: 13}}}));
+        await waitFor(() => expect(screen.queryByText('the nodes run incompatible agent versions')).toBeNull());
+    });
+
+    test('marks the frozen nodes the stream of the menu names', async () => {
         answer(dns, cluster(true));
         render(<ObjectStatus path="system/svc/dns"/>);
         expect(await screen.findByRole('columnheader', {name: /dev3n1.*frozen/})).toBeInTheDocument();
@@ -423,6 +441,9 @@ describe('ObjectStatus', () => {
             useEventStore.setState((s) => ({objectStatus: {...s.objectStatus, 'system/svc/dns': {avail: 'up'}}}));
         });
         await waitFor(() => expect(screen.getByText('Avail').closest('dt').nextSibling).toHaveTextContent('up'));
+        // The nodes come from the stream of the menu: no cluster status is read,
+        // as the object shows nor at its events.
+        expect(mockApiFetch.mock.calls.filter(([url]) => url.includes('/cluster/status'))).toEqual([]);
     });
 
     test('says why the status could not be read', async () => {
@@ -855,15 +876,15 @@ describe('ObjectStatus', () => {
                 expect(screen.queryByText(/requested/)).not.toBeInTheDocument();
             });
 
-            test('the board follows the freeze of the nodes', async () => {
+            test('the board follows the freeze of the nodes, live, without reading the object again', async () => {
                 answer(dns, cluster(false));
                 render(<ObjectStatus path="cluster"/>);
                 await screen.findByRole('table');
-                expect(mockRetain).toHaveBeenCalledWith('tok', ['NodeStatusUpdated']);
+                expect(screen.queryByRole('columnheader', {name: /dev3n1.*frozen/})).toBeNull();
                 const reads = mockApiFetch.mock.calls.length;
-                act(() => useEventStore.setState({nodeStatus: {dev3n1: {frozen_at: '2026-10-14T08:00:00Z'}}}));
-                await waitFor(() => expect(mockApiFetch.mock.calls.length).toBeGreaterThan(reads));
-                act(() => useEventStore.setState({nodeStatus: {}}));
+                act(() => useMenuState.setState({nodeStatus: {dev3n1: {frozen_at: '2026-10-14T08:00:00Z'}}}));
+                expect(await screen.findByRole('columnheader', {name: /dev3n1.*frozen/})).toBeInTheDocument();
+                expect(mockApiFetch.mock.calls.length).toBe(reads);
             });
 
             test('a node frozen, the cluster unfreezes, and freezes the others', async () => {

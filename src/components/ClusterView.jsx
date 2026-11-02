@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useState} from "react";
 import {Link} from "react-router-dom";
 import {useTranslation} from "react-i18next";
-import {URL_CLUSTER_STATUS, URL_RESOURCES, URL_STORE} from "../config/apiPath.js";
+import {URL_CLUSTER_STATUS_NODES, URL_RESOURCES, URL_STORE} from "../config/apiPath.js";
 import {servedSlots, slotCounts} from "../app/heartbeat-relays";
 
 /** What the node answering holds as a relay: the slots of the clusters writing to it. */
@@ -271,7 +271,7 @@ function useClusterFacts() {
     const [facts, setFacts] = useState(null);
     useEffect(() => {
         let live = true;
-        const load = () => read(`${URL_CLUSTER_STATUS}?selector=cluster`).then(
+        const load = () => read(URL_CLUSTER_STATUS_NODES).then(
             (status) => live && setFacts(clusterFacts(status)),
             () => {},
         );
