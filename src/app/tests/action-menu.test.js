@@ -44,12 +44,12 @@ describe("explained action menus", () => {
         const out = explainedItems(t, "resource", [
             {key: "sync update", label: "Sync update"},
             {key: "start", label: "Start"},
-            {key: "console", label: "Console", description: "mine", danger: true},
+            {key: "restart", label: "Restart", description: "mine", danger: true},
             {key: "unprovision", label: "Unprovision"},
         ]);
         expect(out.map((e) => [e.key, e.heading])).toEqual([
             ["start", "Operator"],
-            ["console", undefined],
+            ["restart", undefined],
             ["sync update", "Operator · sync"],
             ["unprovision", "Admin"],
         ]);

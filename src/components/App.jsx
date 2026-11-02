@@ -91,6 +91,7 @@ const InstanceRedirect = () => {
     return <Navigate to={`/objects?${new URLSearchParams({sel: decodeURIComponent(objectName)})}`} replace/>;
 };
 const AiChat = lazy(() => import("./AiChat"));
+const SessionPage = lazy(() => import("./SessionPage"));
 
 // Loading component for Suspense fallback
 const Loading = () => {
@@ -341,11 +342,16 @@ const OidcInitializer = ({children, authInfo}) => {
     return children;
 };
 
-const ProtectedRoute = ({children}) => {
+// `once`: asked as the page opens alone. What runs in it lasts past the token it opened with.
+const ProtectedRoute = ({once = false, children}) => {
     const location = useLocation();
     const {t} = useTranslation();
+    const passed = useRef(false);
     // Read again as the session changes: a token renewed shows the page, one refused leaves it.
     useAuth();
+    if (once && passed.current) {
+        return children;
+    }
     const token = localStorage.getItem("authToken");
     const authChoice = localStorage.getItem('authChoice');
 
@@ -360,6 +366,7 @@ const ProtectedRoute = ({children}) => {
             rememberReturn(location.pathname + location.search);
             return <Navigate to="/auth-choice" replace/>;
         }
+        passed.current = true;
         return children;
     }
 
@@ -382,11 +389,14 @@ const ProtectedRoute = ({children}) => {
         return <Navigate to="/auth-choice" replace/>;
     }
 
+    passed.current = true;
     return children;
 };
 
 // The token page stands alone too: it is opened on a node to enroll, maybe with no session.
 const AUTH_PATHS = ['/auth', '/login', '/silent-renew', '/token'];
+// A session in a tab of its own: nothing of the webapp around it.
+const BARE_PATHS = ['/session/'];
 
 const App = () => {
     logger.info("App init");
@@ -396,7 +406,8 @@ const App = () => {
     const authInfo = useAuthInfo();
     const [sidebarOpen, toggleSidebar, {compact: compactMenu, fold: foldSidebar}] = useSidebarOpen();
     // The sign-in screens have no view to navigate to: no menu there.
-    const showSidebar = !AUTH_PATHS.some((path) => location.pathname.startsWith(path));
+    const bare = BARE_PATHS.some((path) => location.pathname.startsWith(path));
+    const showSidebar = !bare && !AUTH_PATHS.some((path) => location.pathname.startsWith(path));
     // The alerts of the menu, read once: on its entries, and on its button while folded.
     // The assistant asks its first questions from the same state.
     const sidebarState = useSidebarState({enabled: showSidebar});
@@ -452,18 +463,20 @@ const App = () => {
             <OidcProvider>
                 <OidcInitializer authInfo={authInfo}>
                     <div id="app-root-container" style={appContainerStyle}>
-                        <NavBar
-                            sidebarOpen={sidebarOpen}
-                            onToggleSidebar={toggleSidebar}
-                            menuAlert={sidebarOpen ? null : menuAlert(sidebarAlerts)}
-                            showSidebarToggle={showSidebar}
-                        />
+                        {!bare && (
+                            <NavBar
+                                sidebarOpen={sidebarOpen}
+                                onToggleSidebar={toggleSidebar}
+                                menuAlert={sidebarOpen ? null : menuAlert(sidebarAlerts)}
+                                showSidebarToggle={showSidebar}
+                            />
+                        )}
                         <div style={{display: 'flex', flex: 1, minHeight: 0}}>
                             {/* Short of room, the menu folds once an entry is chosen. */}
                             {showSidebar && <Sidebar open={sidebarOpen} alerts={sidebarAlerts} onNavigate={compactMenu ? foldSidebar : undefined}/>}
                             <main id="app-scroll-container" ref={mainRef} style={mainStyle}>
                                 {/* What the page is about, for someone new to OpenSVC. */}
-                                <PageIntro/>
+                                {!bare && <PageIntro/>}
                                 <Suspense fallback={<Loading/>}>
                                     <Routes>
                                         <Route path="/" element={<Navigate to="/cluster" replace/>}/>
@@ -488,6 +501,7 @@ const App = () => {
                                         <Route path="/about" element={<About/>}/>
                                         <Route path="/token" element={<TokenPage/>}/>
                                         <Route path="/ai" element={<ProtectedRoute><AiChat status={sidebarState}/></ProtectedRoute>}/>
+                                        <Route path="/session/:kind" element={<ProtectedRoute once><SessionPage/></ProtectedRoute>}/>
                                         <Route path="/silent-renew" element={<SilentRenew/>}/>
                                         <Route path="/auth-callback" element={<OidcCallback/>}/>
                                         <Route path="/auth-choice" element={<AuthChoice authInfo={authInfo}/>}/>

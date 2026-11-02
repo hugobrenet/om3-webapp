@@ -1,8 +1,11 @@
-import React, {useEffect, useMemo, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {getResponseErrorMessage} from "../services/api.jsx";
 import {Dialog} from "../ui/components/Dialog";
 import {Spinner} from "../ui/components/Spinner";
+import {CrossLink} from "../app/CrossLink";
+import {KEY_SOURCE, datastorePath, isKeyName} from "../app/key-source";
+import KeysSection from "./KeysSection";
 
 /*
  * A configuration file as stored, each keyword it sets documented on demand: its
@@ -41,28 +44,84 @@ export const clearKeywordsCache = () => docCache.clear();
 const SECTION = /^\s*\[([^\]]+)\]\s*$/;
 // A key at the start of its line, not a comment nor the continuation of a value.
 const KEY = /^([^\s#;=[][^=]*?)\s*=/;
+// As `om <path> config show` tells them (core/rawconfig): a scope, `{a.reference}`.
+const SCOPE = /(@[\w.-_]+)/;
+const REFERENCE = /({[\w#.-_:]+})/;
+const COMMENT = /^\s*[#;]/;
 /** The sections of free keys, no keyword of them: the data of a secret or a configuration, the env and labels. */
 const FREE_SECTIONS = new Set(["data", "env", "labels"]);
 
 /**
- * The lines of the file, each key line with its section, its key without the
- * scope (`nodes@n1` is `nodes`), and where the key as written stands in the line;
- * a key of a section of free keys, none.
+ * The lines of the file, a section with `heading`, a comment with `comment`; a key
+ * line with where the key as written stands in the line, and with its section and
+ * its key without the scope (`nodes@n1` is `nodes`), a key of a section of free keys
+ * having none of those two. `prose`, a value said to be read, not one om takes: of a
+ * section of free keys, or of a comment.
  */
 export function parseConfig(text) {
     let section = "DEFAULT";
+    let prose = false;
     return text.split("\n").map((line) => {
         const s = line.match(SECTION);
         if (s) {
             section = s[1].trim();
-            return {line};
+            prose = false;
+            return {line, heading: true};
         }
+        if (COMMENT.test(line)) return {line, comment: true};
         const k = line.match(KEY);
-        if (!k || FREE_SECTIONS.has(section)) return {line};
+        if (!k) return {line, prose};
         const written = k[1].trim();
         const start = line.indexOf(written);
-        return {line, section, key: written.split("@")[0], start, end: start + written.length};
+        const end = start + written.length;
+        const key = written.split("@")[0];
+        prose = FREE_SECTIONS.has(section) || key === "comment";
+        if (FREE_SECTIONS.has(section)) return {line, start, end, prose};
+        return {line, section, key, start, end, prose};
     });
+}
+
+/** A text split on a pattern capturing what `paint` draws, each piece matched painted. */
+const painted = (text, pattern, paint) => text.split(pattern)
+    .map((piece, index) => (index % 2 === 1 ? <React.Fragment key={index}>{paint(piece)}</React.Fragment> : piece));
+
+/** A key as written, its scope said apart. */
+const keyName = (text) => painted(text, SCOPE, (scope) => <span data-config-token="scope" className="text-state-down">{scope}</span>);
+
+/** A text, its references said apart. */
+const references = (text) => painted(text, REFERENCE, (ref) => <span data-config-token="reference" className="text-state-up">{ref}</span>);
+
+/**
+ * A value, its references said apart; with `self`, the object the file configures,
+ * its `from <datastore> key <name>` a way there: the datastore its keys, the name the
+ * content of the key, by `onKey`, the file staying on display. What is not resolved
+ * here, a pattern say, stays as written.
+ */
+function value(text, self, onKey) {
+    const source = self === undefined ? null : text.match(KEY_SOURCE);
+    if (source === null) return references(text);
+    const [whole, lead, from, gap1, store, gap2, key, gap3, name] = source;
+    const path = datastorePath(store, self);
+    const at = source.index + whole.length;
+    return (
+        <>
+            {references(text.slice(0, source.index))}
+            {lead}{from}{gap1}
+            {path ? <CrossLink kind="object" id={path} tab="keys">{store}</CrossLink> : references(store)}
+            {gap2}{key}{gap3}
+            {path && isKeyName(name) ? (
+                <button
+                    type="button"
+                    onClick={() => onKey({path, name})}
+                    data-key-link=""
+                    className="cursor-pointer rounded-sm text-accent underline decoration-dotted underline-offset-2 focus-visible:outline-2 focus-visible:outline-(--focus-ring)"
+                >
+                    {name}
+                </button>
+            ) : references(name)}
+            {references(text.slice(at))}
+        </>
+    );
 }
 
 /**
@@ -151,22 +210,32 @@ function KeywordDocDialog({keywordsUrl, section, option, name, onClose}) {
 }
 
 /**
- * The file, the name of each key a button opening the documentation of its
- * keyword, read from `keywordsUrl` for that keyword alone. `lineNumbers` numbers
- * the lines, as a file to confirm is read by them.
+ * The file, coloured as `om <path> config show` does: the sections, the keys, their
+ * scopes, the references in the values; the comments left plain. The name of each
+ * key a button opening the documentation of its keyword, read from `keywordsUrl` for
+ * that keyword alone. `lineNumbers` numbers the lines, as a file to confirm is read
+ * by them. `path`, the object it configures, for what a relative datastore is
+ * relative to: its `from <datastore> key <name>` then lead to the datastore and
+ * show the key, what cannot be read told to `openSnackbar`.
  */
-export function ConfigText({text, keywordsUrl, label, lineNumbers = false}) {
+export function ConfigText({text, keywordsUrl, label, lineNumbers = false, path, openSnackbar}) {
     const {t} = useTranslation();
     const lines = useMemo(() => parseConfig(text), [text]);
     const [open, setOpen] = useState(null);
+    const [keyShown, setKeyShown] = useState(null);
+    const closeKey = useCallback(() => setKeyShown(null), []);
     const opened = open === null ? null : lines[open];
     const nameOf = (l) => `${l.section === "DEFAULT" ? "" : `${l.section}.`}${l.key}`;
 
     return (
         <div className="overflow-x-auto rounded-(--radius-control) border border-line bg-surface-sunken p-2">
-            <div role="group" aria-label={label} className="font-mono text-data whitespace-pre-wrap text-ink">
+            <div role="group" aria-label={label} className="font-mono text-data whitespace-pre-wrap text-ink [&_[data-cross-link]]:text-accent [&_[data-cross-link]]:underline [&_[data-cross-link]]:decoration-dotted">
                 {lines.map((l, index) => {
-                    const content = l.key && keywordsUrl ? (
+                    const self = l.prose ? undefined : path;
+                    const name = l.start === undefined ? null : <span data-config-token="key" className="text-ink-muted">{keyName(l.line.slice(l.start, l.end))}</span>;
+                    const content = l.heading ? <span data-config-token="section" className="text-code-keyword">{l.line}</span>
+                        : l.comment ? l.line
+                        : l.key && keywordsUrl ? (
                         <>
                             {l.line.slice(0, l.start)}
                             <button
@@ -175,11 +244,17 @@ export function ConfigText({text, keywordsUrl, label, lineNumbers = false}) {
                                 onClick={() => setOpen(index)}
                                 className="cursor-pointer rounded-sm underline decoration-line-strong decoration-dotted underline-offset-2 hover:text-accent hover:decoration-accent focus-visible:outline-2 focus-visible:outline-accent"
                             >
-                                {l.line.slice(l.start, l.end)}
+                                {name}
                             </button>
-                            {l.line.slice(l.end)}
+                            {value(l.line.slice(l.end), self, setKeyShown)}
                         </>
-                    ) : l.line;
+                    ) : name ? (
+                        <>
+                            {l.line.slice(0, l.start)}
+                            {name}
+                            {value(l.line.slice(l.end), self, setKeyShown)}
+                        </>
+                    ) : value(l.line, self, setKeyShown);
                     return lineNumbers ? (
                         <div key={index} data-line={index} className="flex min-h-[1lh] items-start gap-2 hover:bg-surface">
                             <span aria-hidden="true" data-testid="config-line-number" className="w-8 shrink-0 text-right text-ink-muted tabular-nums select-none">
@@ -192,6 +267,15 @@ export function ConfigText({text, keywordsUrl, label, lineNumbers = false}) {
                     );
                 })}
             </div>
+            {keyShown && (
+                <KeysSection
+                    key={`${keyShown.path}:${keyShown.name}`}
+                    decodedObjectName={keyShown.path}
+                    keyOnly={keyShown.name}
+                    onKeyClosed={closeKey}
+                    openSnackbar={openSnackbar}
+                />
+            )}
             {opened && (
                 <KeywordDocDialog
                     keywordsUrl={keywordsUrl}

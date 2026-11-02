@@ -25,12 +25,11 @@ export function resourceTargets(lines) {
 
 /**
  * The actions every selected resource takes, by its driver, in the order of the
- * actions; a console, of one resource alone.
+ * actions.
  */
 export function commonResourceActions(lines) {
     if (lines.length === 0) return [];
     const [first, ...others] = lines.map((l) => resourceActions(l.rid, l.type));
     return first
-        .filter((action) => others.every((actions) => actions.some((a) => a.name === action.name)))
-        .filter((action) => action.name !== "console" || lines.length === 1);
+        .filter((action) => others.every((actions) => actions.some((a) => a.name === action.name)));
 }

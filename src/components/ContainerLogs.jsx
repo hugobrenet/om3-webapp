@@ -22,9 +22,6 @@ const STABLE_MS = 10000;
 // no container to read: docker "No such container: x", podman "no container with name or ID".
 const NO_CONTAINER = /no such container|no container with (name|id)/i;
 
-/** A resource is a container by its type (`container.docker`…), else by its section. */
-export const isContainerResource = (rid, type) => (type ? type.startsWith("container") : rid.startsWith("container#"));
-
 /**
  * What a container writes, on one node, as `om <path> container logs` reads it: the
  * lines of its process, its own text, followed. The daemon serves them to root only

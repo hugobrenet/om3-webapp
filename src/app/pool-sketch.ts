@@ -2,9 +2,9 @@
  * The sketch of a pool (`sketch-layout.ts`): what it is in a band over the nodes of the
  * cluster, its head, its capabilities and where it takes its volumes from; a box for
  * each node saying what the pool is there, its head and its use as the node reports
- * them; the volumes it made under the boxes, by the nodes of their consumers. A volume
- * a service uses on several nodes, of a drbd or shared pool say, is drawn once, a pill
- * across the nodes; one no service uses, a pill dashed all along.
+ * them; the volumes it made under the boxes, by the nodes holding them, a copy on each
+ * for a drbd pool. A volume on several nodes is drawn once, a pill across them; one no
+ * service uses, a pill dashed all along.
  */
 import { type SketchFact, type SketchInput, type SketchLayout, layoutSketch } from "./sketch-layout";
 
@@ -21,11 +21,12 @@ export interface SketchPool {
   node?: string;
 }
 
-/** A volume as the pool volume list gives it: its consumers `path@node`. */
+/** A volume as the pool volume list gives it: its consumers `path@node`, the nodes holding it. */
 export interface SketchVolume {
   path: string;
   size?: number;
   children?: string[];
+  nodes?: string[];
 }
 
 export interface PoolSketchInput {
@@ -62,11 +63,17 @@ export function poolNodeFacts(pool: SketchPool, view: SketchPool | undefined, fo
   return facts;
 }
 
-/** The nodes of the consumers of a volume, from their `path@node`. */
-export const volumeNodes = (volume: SketchVolume) =>
-  [...new Set((volume.children ?? []).map((child) => child.split("@")[1]).filter(Boolean))];
+/**
+ * The nodes a volume is drawn on: those holding it, and those its consumers run on, which
+ * are all a daemon not telling the former gives. One no service uses is drawn on none.
+ */
+export const volumeNodes = (volume: SketchVolume) => {
+  const children = volume.children ?? [];
+  if (children.length === 0) return [];
+  return [...new Set([...(volume.nodes ?? []), ...children.map((child) => child.split("@")[1]).filter(Boolean)])];
+};
 
-/** The input of the layout of the sketch of a pool: a volume an item a node of its consumers, its size its detail. */
+/** The input of the layout of the sketch of a pool: a volume an item on each node holding it, its size its detail. */
 export function poolSketchInput(input: PoolSketchInput, format: (bytes: number) => string): SketchInput {
   const { pool, perNode, values, nodes, volumes } = input;
   return {

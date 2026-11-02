@@ -5,7 +5,6 @@ import {RefreshIcon} from "../ui/icons";
 import {INSTANCE_ACTIONS, OBJECT_ACTIONS, RESOURCE_ACTIONS} from "../constants/actions";
 import {CrossLink} from "../app/CrossLink";
 import ActionDialogManager from "./ActionDialogManager";
-import ConsoleTerminal from "./ConsoleTerminal.jsx";
 import {CLEAR_ACTION, postAction} from "./objectActions";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 import useEventStore from "../hooks/useEventStore.js";
@@ -33,14 +32,8 @@ const SUPPORTED_ACTIONS = [...new Set([...OBJECT_ACTIONS, ...INSTANCE_ACTIONS, .
 export function useActionRunner(path) {
     const [pending, setPending] = useState(null);
     const [running, setRunning] = useState(false);
-    const [consoleTarget, setConsoleTarget] = useState(null);
 
     const ask = useCallback((action, {targets, subject, onDone, variant, names}) => {
-        if (action === "console") {
-            const {namespace, kind, name} = parseObjectPath(targets[0].path ?? path);
-            setConsoleTarget({node: targets[0].node, namespace, kind, name, rid: targets[0].rid});
-            return;
-        }
         setPending({action, targets, subject, onDone, variant, names});
     }, [path]);
 
@@ -69,7 +62,6 @@ export function useActionRunner(path) {
                 nodes={scope ?? []}
                 onClose={() => setPending(null)}
             />
-            <ConsoleTerminal open={consoleTarget !== null} target={consoleTarget} onClose={() => setConsoleTarget(null)}/>
         </>
     );
     return {ask, running, dialogs};

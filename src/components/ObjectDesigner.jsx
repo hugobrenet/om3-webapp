@@ -24,6 +24,8 @@ import {
     NEEDS_GROUPS,
     poolTypes,
     popularKeywords,
+    listWords,
+    guestDiskChoices,
     parseDriver,
     requiredKeywords,
     sectionKeywords,
@@ -137,8 +139,8 @@ const readPools = async (namespace, isRoot) => {
     }
 };
 
-/** The ip drivers whose address om draws from a network of the cluster, `network` naming it. */
-const NETWORK_DRIVERS = ["ip.netns", "ip.cni"];
+/** The drivers whose address om draws from a network of the cluster, `network` naming it. */
+const NETWORK_DRIVERS = ["ip.netns", "ip.cni", "container.kvm"];
 
 /** The first line of a text, for a list. */
 const firstLine = (text) => (text ?? "").trim().split("\n")[0];
@@ -189,14 +191,18 @@ function ValueInput({keyword, value, onChange, label, suggestions = [], picks = 
     }
     const example = !keyword?.default && !keyword?.defaultText && value === "" ? keyword?.example ?? "" : "";
     // The picks matching the text; all of them while it is one of them, or empty.
-    const typed = value.trim().toLowerCase();
-    const shown = typed === "" || picks.some((p) => p.value.toLowerCase() === typed)
-        ? picks
-        : picks.filter((p) => p.value.toLowerCase().includes(typed));
+    // A list takes several: a pick adds a word, the one typed, and the others are done.
+    const isList = keyword?.converter === "list";
+    const words = isList ? listWords(value) : {done: [], typed: value.trim()};
+    const typed = words.typed.toLowerCase();
+    const left = picks.filter((p) => !words.done.includes(p.value));
+    const shown = typed === "" || left.some((p) => p.value.toLowerCase() === typed)
+        ? left
+        : left.filter((p) => p.value.toLowerCase().includes(typed));
     const current = Math.min(active, shown.length - 1);
     const open = picking && shown.length > 0;
     const take = (pick) => {
-        onChange(pick.value);
+        onChange(isList ? [...words.done, pick.value].join(" ") : pick.value);
         setPicking(false);
     };
     return (
@@ -792,6 +798,7 @@ export function ObjectDesigner({kind, namespace = "", sections, onChange, keywor
                                             picks={
                                                 entry.key === "pool" && NEEDS_GROUPS.includes(section.group) ? poolChoices
                                                     : entry.key === "network" && NETWORK_DRIVERS.includes(`${section.group}.${section.type}`) ? networkChoices
+                                                    : entry.key === "disk" && `${section.group}.${section.type}` === "container.kvm" ? guestDiskChoices(sections)
                                                         : []
                                             }
                                             />

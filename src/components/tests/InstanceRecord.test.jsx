@@ -20,6 +20,12 @@ vi.mock('../ContainerLogs', async (importOriginal) => ({
     ),
 }));
 // The configuration tab is tested on its own: here, the object and the section it shows.
+// The sessions are tested on their own: here, the tabs holding them.
+vi.mock('../ConsoleTerminal.jsx', () => ({
+    default: () => <div data-testid="session"/>,
+    CONSOLE_STATUS: {connecting: 'connecting', open: 'open', ended: 'ended', failed: 'failed'},
+}));
+vi.mock('../ConsoleDisplay.jsx', () => ({default: () => <div data-testid="session"/>}));
 vi.mock('../ObjectConfig', () => ({
     default: ({path, section}) => <div data-testid="config">{`${path} [${section}]`}</div>,
 }));
@@ -291,7 +297,7 @@ describe('InstanceStatus', () => {
         fireEvent.click(screen.getByRole('checkbox', {name: 'Select fs#1'}));
         fireEvent.click(screen.getByRole('button', {name: 'Actions on 2 resources'}));
         const menu = screen.getByRole('menu', {name: 'Actions on 2 resources'});
-        // No task among them: nothing to run; more than one: no console.
+        // No task among them: nothing to run.
         expect(within(menu).queryByRole('menuitem', {name: 'Run'})).toBeNull();
         fireEvent.click(within(menu).getByRole('menuitem', {name: 'Stop'}));
         fireEvent.click(within(screen.getByRole('alertdialog', {name: 'stop app#1, fs#1 of prod/svc/web on n1'})).getByRole('button', {name: 'Confirm'}));
@@ -405,12 +411,11 @@ describe('ResourceStatus', () => {
         const {unmount} = render(<MemoryRouter><ResourceDetailPanel id="prod/svc/web:app#1" tab="status" onTabChange={vi.fn()} onClose={vi.fn()}/></MemoryRouter>);
         fireEvent.click(screen.getByRole('button', {name: 'Resource actions'}));
         const menu = screen.getByRole('menu', {name: 'Resource actions'});
-        // An app: started and stopped, its devices reserved, provisioned; no run, no sync, no console.
+        // An app: started and stopped, its devices reserved, provisioned; no run, no sync.
         expect(within(menu).getByRole('menuitem', {name: 'Stop'})).toBeInTheDocument();
         expect(within(menu).getByRole('menuitem', {name: 'Prstart'})).toBeInTheDocument();
         expect(within(menu).queryByRole('menuitem', {name: 'Run'})).toBeNull();
         expect(within(menu).queryByRole('menuitem', {name: /^Sync/})).toBeNull();
-        expect(within(menu).queryByRole('menuitem', {name: 'Console'})).toBeNull();
         fireEvent.click(within(menu).getByRole('menuitem', {name: 'Restart'}));
         const holding = Object.entries(useEventStore.getState().objectInstanceStatus['prod/svc/web'])
             .filter(([, status]) => status?.resources?.['app#1']).map(([node]) => node).sort();
@@ -458,6 +463,63 @@ describe('ResourceStatus', () => {
         expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent))
             .toEqual(['Status', 'Info', 'Logs', 'Container logs', 'Configuration']);
         expect(screen.getByTestId('container-logs')).toHaveTextContent('prod/svc/web container#1 on n1+n2, up on n2');
+    });
+
+    describe('its sessions', () => {
+        const kvm = {'prod/svc/web': {
+            n1: {avail: 'down', resources: {'container#1': {status: 'down', type: 'container.kvm'}}},
+            n2: {avail: 'up', resources: {'container#1': {status: 'stdby up', type: 'container.kvm'}}},
+        }};
+        const open = async (tab, onClose = vi.fn()) => {
+            useEventStore.setState({objectInstanceStatus: kvm});
+            global.fetch = vi.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve({grant: {root: null}})}));
+            const view = render(<MemoryRouter><ResourceDetailPanel id="prod/svc/web:container#1" tab={tab} onTabChange={vi.fn()} onClose={onClose}/></MemoryRouter>);
+            await screen.findByRole('tab', {name: 'Console'});
+            return {onClose, view};
+        };
+        beforeEach(() => {
+            localStorage.setItem('authToken', 'kvm-root');
+        });
+
+        test('a tab each, for who may: the console, the screen of a guest', async () => {
+            await open('console');
+            const panel = screen.getByRole('dialog', {name: 'container#1 of prod/svc/web'});
+            expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent))
+                .toEqual(['Status', 'Info', 'Logs', 'Container logs', 'Console', 'Display', 'Configuration']);
+            // Running on a standby node counts: that node at first.
+            expect(within(panel).getByRole('combobox', {name: 'Node of the session'})).toHaveValue('n2');
+        });
+
+        test('closing the panel on a session open is asked first, on none at once', async () => {
+            const {onClose} = await open('console');
+            fireEvent.click(screen.getByRole('button', {name: 'Connect'}));
+            fireEvent.keyDown(document.body, {key: 'Escape'});
+            expect(onClose).not.toHaveBeenCalled();
+            const dialog = screen.getByRole('dialog', {name: 'End the session?'});
+            fireEvent.click(within(dialog).getByRole('button', {name: 'Cancel'}));
+            expect(screen.queryByRole('dialog', {name: 'End the session?'})).not.toBeInTheDocument();
+            expect(onClose).not.toHaveBeenCalled();
+            fireEvent.keyDown(document.body, {key: 'Escape'});
+            fireEvent.click(screen.getByRole('button', {name: 'End the session'}));
+            expect(onClose).toHaveBeenCalledTimes(1);
+        });
+
+        test('nothing open, closing asks nothing', async () => {
+            const {onClose} = await open('console');
+            fireEvent.keyDown(document.body, {key: 'Escape'});
+            expect(onClose).toHaveBeenCalledTimes(1);
+        });
+
+        test('not for a guest, whatever the tab asked', async () => {
+            useEventStore.setState({objectInstanceStatus: kvm});
+            localStorage.setItem('authToken', 'kvm-guest');
+            global.fetch = vi.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve({grant: {guest: ['prod']}})}));
+            render(<MemoryRouter><ResourceDetailPanel id="prod/svc/web:container#1" tab="console" onTabChange={vi.fn()} onClose={vi.fn()}/></MemoryRouter>);
+            await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+            await act(async () => {});
+            expect(screen.queryByRole('tab', {name: 'Console'})).not.toBeInTheDocument();
+            expect(screen.queryByRole('button', {name: 'Connect'})).not.toBeInTheDocument();
+        });
     });
 
     test('a resource not a container: no container logs', () => {

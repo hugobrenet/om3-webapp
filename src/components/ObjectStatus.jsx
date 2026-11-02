@@ -25,7 +25,6 @@ import {cn} from "../ui/cn";
 import {PolicyTag} from "../ui/components/PolicyTag";
 import {BADGE} from "./ObjectCells";
 import ActionDialogManager from "./ActionDialogManager";
-import ConsoleTerminal from "./ConsoleTerminal.jsx";
 import {CLEAR_ACTION, noteFixAction, postAction, resourceActions, syncVariant} from "./objectActions";
 import {DatastoreLinks, RefreshStatusButton, datastoresOf, volumesOf} from "./InstanceActions";
 import logger from "../utils/logger.js";
@@ -207,7 +206,6 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
     // comes of them, accepted or refused, the actions tray says (postAction).
     const [pending, setPending] = useState(null);
     const [running, setRunning] = useState(false);
-    const [consoleTarget, setConsoleTarget] = useState(null);
     // The instances and the resources picked on the board, to act on together: the
     // nodes of the instances, and the resources as `node/rid`, one per node.
     const [pickedNodes, setPickedNodes] = useState([]);
@@ -217,15 +215,9 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
     /**
      * Asks for the action, confirmed first. `targets` are what it runs on: none for
      * the object, else one entry per node, with the resources it runs on there, if
-     * any, as a selector (`rid=a,b`); `subject` says it in words. A console opens a
-     * terminal on its resource at once: no action to confirm.
+     * any, as a selector (`rid=a,b`); `subject` says it in words.
      */
     const ask = useCallback((action, {targets = [], subject, fromSelection = false} = {}) => {
-        if (action === "console") {
-            const {namespace, kind, name} = parseObjectPath(path);
-            setConsoleTarget({node: targets[0].node, namespace, kind, name, rid: targets[0].rid});
-            return;
-        }
         // The actions on the cluster object are the cluster's, on all its nodes (actionUrl).
         const object = parseObjectPath(path).kind === "ccfg" ? t("statusBoard.subjects.cluster") : path;
         setPending({action, targets, subject: subject ?? object, fromSelection});
@@ -447,8 +439,7 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
             });
         const typeOf = (r) => (r.typ ? `${r.name.split("#")[0]}.${r.typ}` : undefined);
         return RESOURCE_ACTIONS
-            .filter((a) => (a.name === "console" ? cellsPicked.length === 1 : true)
-                && rows.every((r) => resourceActions(r.name, typeOf(r)).some((b) => b.name === a.name)))
+            .filter((a) => rows.every((r) => resourceActions(r.name, typeOf(r)).some((b) => b.name === a.name)))
             .map((a) => {
                 const variant = syncVariant(a.name, rows.map(typeOf).filter(Boolean));
                 return {
@@ -526,7 +517,6 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
                 nodes={allNodes}
                 onClose={() => setPending(null)}
             />
-            <ConsoleTerminal open={consoleTarget !== null} target={consoleTarget} onClose={() => setConsoleTarget(null)}/>
         </div>
     );
 };

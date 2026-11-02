@@ -1,6 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from "react";
 import {Alert} from "../ui/components/Alert";
-import {Dialog} from "../ui/components/Dialog";
 import {Terminal} from "@xterm/xterm";
 import {FitAddon} from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -64,20 +63,18 @@ export const CONSOLE_STATUS = {
 /**
  * A terminal attached to a console session of a container resource.
  *
- * The session is opened when the dialog opens, and ended when it closes: a
- * session lasts as long as its client connection.
+ * The session is opened when it mounts, and ended when it unmounts: a session
+ * lasts as long as its client connection. `onStatus` is told where it stands.
  *
  * @param {{
- *   open: boolean,
  *   target: null | {node: string, namespace: string, kind: string, name: string, rid?: string},
- *   onClose: () => void,
+ *   onStatus?: (status: string) => void,
  * }} props
  */
-const ConsoleTerminal = ({open, target, onClose}) => {
+const ConsoleTerminal = ({target, onStatus}) => {
     const {t} = useTranslation();
-    // The element the terminal is drawn in is kept in a state, not in a ref:
-    // the dialog mounts its content after it opened, and the session starts
-    // when there is something to draw the terminal in.
+    // The element the terminal is drawn in is kept in a state, not in a ref: the
+    // session starts when there is something to draw the terminal in.
     const [container, setContainer] = useState(/** @type {HTMLDivElement | null} */ (null));
     const fitRef = useRef(/** @type {any} */ (null));
     const [status, setStatus] = useState(CONSOLE_STATUS.connecting);
@@ -99,7 +96,11 @@ const ConsoleTerminal = ({open, target, onClose}) => {
     }, []);
 
     useEffect(() => {
-        if (!open || !container || !node || !name) {
+        onStatus?.(status);
+    }, [status, onStatus]);
+
+    useEffect(() => {
+        if (!container || !node || !name) {
             return undefined;
         }
         let cancelled = false;
@@ -123,7 +124,15 @@ const ConsoleTerminal = ({open, target, onClose}) => {
 
         const dataListener = term.onData((data) => session?.send(data));
         const resizeListener = term.onResize(({cols, rows}) => session?.resize(cols, rows));
-        window.addEventListener("resize", fit);
+        // The room changes with the panel, the full screen, a tab shown again; hidden, it has none.
+        const roomObserver = typeof ResizeObserver === "function"
+            ? new ResizeObserver(() => {
+                if (container.clientHeight > 0) {
+                    fit();
+                }
+            })
+            : null;
+        roomObserver?.observe(container);
         // The theme (light, dark, high contrast) is a class of the root element:
         // the terminal takes the new colours when it changes.
         const themeObserver = typeof MutationObserver === "function"
@@ -181,7 +190,7 @@ const ConsoleTerminal = ({open, target, onClose}) => {
 
         return () => {
             cancelled = true;
-            window.removeEventListener("resize", fit);
+            roomObserver?.disconnect();
             themeObserver?.disconnect();
             dataListener?.dispose();
             resizeListener?.dispose();
@@ -189,20 +198,10 @@ const ConsoleTerminal = ({open, target, onClose}) => {
             term.dispose();
             fitRef.current = null;
         };
-    }, [open, container, node, namespace, kind, name, rid, fit]);
+    }, [container, node, namespace, kind, name, rid, fit]);
 
     return (
-        <Dialog
-            open={open}
-            onClose={onClose}
-            size="xl"
-            title={
-                rid && node ? t("console.titleRidNode", {rid, node})
-                    : rid ? t("console.titleRid", {rid})
-                        : node ? t("console.titleNode", {node})
-                            : t("console.title")
-            }
-        >
+        <div className="flex h-full min-h-0 flex-col gap-2">
             {status === CONSOLE_STATUS.connecting && (
                 <p className="text-ink-muted">{t("console.opening")}</p>
             )}
@@ -233,9 +232,9 @@ const ConsoleTerminal = ({open, target, onClose}) => {
             <div
                 ref={setContainer}
                 data-testid="console-terminal"
-                className="h-[60vh] overflow-hidden rounded-(--radius-control) border border-line bg-surface-sunken p-1"
+                className="min-h-0 flex-1 overflow-hidden rounded-(--radius-control) border border-line bg-surface-sunken p-1"
             />
-        </Dialog>
+        </div>
     );
 };
 

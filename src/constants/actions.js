@@ -28,7 +28,6 @@ import {
     StopIcon,
     SunIcon,
     SwapIcon,
-    TerminalIcon,
     ToggleOffIcon,
     ToggleOnIcon,
     TrashIcon,
@@ -148,8 +147,7 @@ const groupsBut = (...names) => (type) => !names.includes(groupOf(type));
  * `on(type)` the resources taking one, by their driver type, "sync.rsync", "disk.md".
  * A task runs, and neither starts nor stops; a sync resource replicates, nor starts
  * nor stops either; the replication of some disks (md, hp3par, xp8) is driven by the
- * sync actions too; the disks and what holds them reserve their devices; a container
- * has a console. The groups, the endpoints and the costs those of the instance actions.
+ * sync actions too; the disks and what holds them reserve their devices. The groups, the endpoints and the costs those of the instance actions.
  */
 export const RESOURCE_ACTIONS = [
     {name: "start", group: "operator", icon: icon(PlayIcon), endpoint: "start", on: groupsBut("task", "sync")},
@@ -158,7 +156,6 @@ export const RESOURCE_ACTIONS = [
     {name: "unstop", group: "operator", icon: icon(ToggleOnIcon), endpoint: "unstop", on: groupsBut("task", "sync")},
     {name: "restart", group: "operator", icon: icon(RefreshIcon), endpoint: "restart", impacts: ["downTime"], on: groupsBut("task", "sync")},
     {name: "start standby", group: "operator", icon: icon(PauseIcon), endpoint: "startstandby", on: groupsBut("task", "sync")},
-    {name: "console", group: "operator", icon: icon(TerminalIcon), on: groups("container")},
 
     {name: "prstart", group: "operatorDisk", icon: icon(StepForwardIcon), endpoint: "prstart", on: groups("disk", "fs", "app", "container")},
     {name: "prstop", group: "operatorDisk", icon: icon(StepBackwardIcon), endpoint: "prstop", on: groups("disk", "fs", "app", "container")},

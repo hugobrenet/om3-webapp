@@ -68,7 +68,7 @@ export function actionUrl({path, action, node, rid}) {
 }
 
 /** The instance actions asking for no configuration in particular: they change nothing of it. */
-const UNSTAMPED = [CLEAR_ACTION.name, "status", "info", "console"];
+const UNSTAMPED = [CLEAR_ACTION.name, "status", "info"];
 
 /** What an action runs on, for its options: the object, instances, resources of instances. */
 export const actionScope = ({node, rid}) => (rid !== undefined ? "resource" : node !== undefined ? "instance" : "object");
@@ -97,7 +97,7 @@ export function actionRequest({path, action, node, rid, options}) {
 }
 
 /** Actions with nothing to follow: a refresh of the status, a clear of a failed monitor. */
-const UNTRACKED = ["status", CLEAR_ACTION.name, "console"];
+const UNTRACKED = ["status", CLEAR_ACTION.name];
 
 /** What an action acts on, in words, for the actions tray. */
 export function actionSubject({path, node, rid}) {

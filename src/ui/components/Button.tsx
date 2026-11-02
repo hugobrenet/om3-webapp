@@ -26,6 +26,15 @@ const SIZES = { sm: "h-7 px-2", md: "h-8 px-3" } as const;
 
 export type ButtonVariant = keyof typeof VARIANTS;
 
+/** The look of a button, for a link that goes somewhere but stands among buttons. */
+export const buttonClass = (variant: ButtonVariant = "secondary", size: keyof typeof SIZES = "md", className?: string) =>
+  cn(
+    "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-(--radius-control) font-medium whitespace-nowrap disabled:pointer-events-none disabled:opacity-60",
+    SIZES[size],
+    VARIANTS[variant],
+    className,
+  );
+
 export const Button = forwardRef<
   HTMLButtonElement,
   ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -39,12 +48,7 @@ export const Button = forwardRef<
     <button
       ref={ref}
       type={type}
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-(--radius-control) font-medium whitespace-nowrap disabled:pointer-events-none disabled:opacity-60",
-        SIZES[size],
-        VARIANTS[variant],
-        className,
-      )}
+      className={buttonClass(variant, size, className)}
       {...props}
     >
       {icon}

@@ -15,15 +15,16 @@ const WS_OPEN = 1;
  * Ask the api for the ticket a console session of the resource is opened
  * with. The ticket opens one session, and expires in seconds.
  *
- * @param {{node: string, namespace: string, kind: string, name: string, rid?: string, token: string}} target
+ * @param {{node: string, namespace: string, kind: string, name: string, rid?: string, graphics?: boolean, token: string}} target
  * @returns {Promise<{ticket: string, port: number, url?: string, expired_at?: string}>}
  */
-export async function requestConsoleTicket({node, namespace, kind, name, rid, token}) {
+export async function requestConsoleTicket({node, namespace, kind, name, rid, graphics, token}) {
     const enc = encodeURIComponent;
     let url = `${URL_NODE}/${enc(node)}/instance/path/${enc(namespace)}/${enc(kind)}/${enc(name)}/console`;
-    if (rid) {
-        url += `?rid=${enc(rid)}`;
-    }
+    const query = new URLSearchParams();
+    if (rid) query.set("rid", rid);
+    if (graphics) query.set("graphics", "true");
+    if (query.size > 0) url += `?${query}`;
     const response = await fetch(url, {
         method: "POST",
         headers: {Authorization: `Bearer ${token}`},

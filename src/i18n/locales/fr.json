@@ -271,7 +271,6 @@
       "pgUpdate": "Mettre à jour le groupe de placement",
       "info": "Infos",
       "status": "Statut",
-      "console": "Console",
       "clear": "Effacer",
       "drain": "Drainer",
       "scsiScan": "Scan SCSI",
@@ -434,11 +433,29 @@
       "noChange": "Aucun changement"
     }
   },
+  "volumeFiles": {
+    "title": "Fichiers",
+    "upload": "Envoyer un fichier",
+    "choose": "Le fichier à envoyer",
+    "hint": "Ce depuis quoi un invité de cet espace de noms s'installe : une ressource utilisant ce volume comme volume#2 désigne un fichier par volume#2:/noble.qcow2 dans son image ou son cdrom. La taille du volume borne ce qu'il contient.",
+    "none": "Ce volume ne contient aucun fichier.",
+    "node": "Nœud",
+    "name": "Nom",
+    "size": "Taille",
+    "delete": "Supprimer",
+    "deleting": "Suppression…",
+    "deleteQuestion": "Supprimer {{name}} ?",
+    "cancel": "Annuler",
+    "sending": "Envoi de {{name}}",
+    "failed": "{{name}} n'a pas été envoyé : {{message}}",
+    "notAvailable": "Ce volume n'est démarré sur aucun nœud : démarrez-le pour accéder à ses fichiers."
+  },
   "console": {
-    "title": "Console",
-    "titleRid": "Console {{rid}}",
-    "titleNode": "Console sur {{node}}",
-    "titleRidNode": "Console {{rid}} sur {{node}}",
+    "display": {
+      "ended": "La session d'écran est terminée.",
+      "ctrlAltDel": "Envoyer Ctrl+Alt+Suppr",
+      "idle": "Connecter ouvre l'écran de l'invité sur {{node}}."
+    },
     "opening": "Ouverture de la console...",
     "ended": "Session terminée (code de sortie {{code}}).",
     "certificateHint": "Si le certificat du port de la console n'est pas reconnu par ce navigateur, ouvrez <certLink>{{url}}</certLink> pour l'accepter, puis rouvrez la console.",
@@ -448,7 +465,23 @@
       "unreachable": "La console est injoignable.",
       "lost": "La connexion à la console a été perdue.",
       "openFailed": "Échec de l'ouverture de la console : {{message}}"
-    }
+    },
+    "node": "Nœud de la session",
+    "connect": "Connecter",
+    "disconnect": "Déconnecter",
+    "idle": "Connecter ouvre un shell sur {{node}}.",
+    "notRunning": "Ne tourne pas sur {{node}}.",
+    "open": {
+      "console": "Ouvrir la console de {{rid}}",
+      "display": "Ouvrir l'écran de {{rid}}"
+    },
+    "close": {
+      "title": "Terminer la session ?",
+      "text": "Fermer ce panneau termine la session qui y est ouverte.",
+      "confirm": "Terminer la session"
+    },
+    "newTab": "Ouvrir dans un onglet",
+    "tabTitle": "{{rid}} @ {{node}} · {{path}}"
   },
   "events": {
     "title": "Journal des événements",
@@ -1932,6 +1965,7 @@
       "status": "État",
       "usage": "Usage",
       "capacity": "Capacité",
+      "files": "Fichiers",
       "events": "Événements",
       "logs": "Journaux",
       "resources": "Ressources",
@@ -1942,7 +1976,9 @@
       "containerLogs": "Journaux du conteneur",
       "locks": "Verrous",
       "snapshots": "Instantanés",
-      "restore": "Restauration"
+      "restore": "Restauration",
+      "console": "Console",
+      "display": "Écran"
     },
     "crossLink": "Afficher la fiche ici ({{kind}})",
     "kinds": {
@@ -2548,7 +2584,6 @@
       "stop": "Arrêter les ressources choisies.",
       "restart": "Redémarrer les ressources choisies.",
       "run": "Exécuter les tâches choisies maintenant, hors de leur planification.",
-      "console": "Ouvrir une console dans le conteneur.",
       "startStandby": "Démarrer les ressources choisies destinées à rester actives sur un nœud de secours.",
       "prstart": "Préempter la réservation d'écriture exclusive des périphériques des ressources choisies.",
       "prstop": "Libérer la réservation d'écriture des périphériques des ressources choisies.",

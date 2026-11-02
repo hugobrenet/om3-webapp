@@ -748,6 +748,8 @@ const ConfigSection = ({
                         {!configLoading && !configError && configData !== null && shownText !== null && (
                             <ConfigText
                                 text={shownText}
+                                path={decodedObjectName}
+                                openSnackbar={openSnackbar}
                                 label={t("config.view.fileLabel")}
                                 keywordsUrl={`${URL_OBJECT}/${keywordsPath}/config/keywords`}
                             />

@@ -1,7 +1,8 @@
 import React from 'react';
 import {render, screen, fireEvent, waitFor, act} from '@testing-library/react';
 import {vi} from 'vitest';
-import {ContainerLogs, isContainerResource} from '../ContainerLogs';
+import {ContainerLogs} from '../ContainerLogs';
+import {isContainerResource} from '../../app/resource-sessions';
 
 /** A followed body: its chunks, then open; `ends`, closed after them. */
 const body = (chunks, {ends = false} = {}) => ({

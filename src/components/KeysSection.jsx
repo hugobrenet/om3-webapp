@@ -363,7 +363,12 @@ const SelectAll = ({all, some, onChange, label}) => {
  * (InstanceConfigUpdated): the keys are read again, a key added in the file, or by
  * om, listed without reopening the panel, kept mounted under its other tabs.
  */
-const KeysSection = ({decodedObjectName, openSnackbar, refreshKey}) => {
+/**
+ * The keys of a datastore, in a section. With `keyOnly`, the content of that key
+ * alone, as a dialog over whatever is on display, with all a key offers from its
+ * dialog; `onKeyClosed` once nothing of it is left open.
+ */
+const KeysSection = ({decodedObjectName, openSnackbar, refreshKey, keyOnly, onKeyClosed}) => {
     const {t} = useTranslation();
     const {kind} = parseObjectPath(decodedObjectName);
     // A usr key, a password or a private key, is masked as a sec one.
@@ -653,6 +658,7 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey}) => {
             setRevealSecret(true);
         } else {
             setViewDialogOpen(false);
+            if (keyOnly) onKeyClosed?.();
         }
         setKeyViewLoading(false);
     };
@@ -665,6 +671,21 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey}) => {
         setViewDialogOpen(false);
         setRevealSecret(false);
     };
+
+    useEffect(() => {
+        if (showKeys && keyOnly) void handleViewKey(keyOnly);
+        // The key alone says what to open.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showKeys, keyOnly]);
+
+    // A key alone: its dialog gives way to Edit or Remove, and all gone, it ends.
+    const anyDialog = viewDialogOpen || deleteDialogOpen || updateDialogOpen || rename !== null;
+    const dialogShown = useRef(false);
+    useEffect(() => {
+        if (!keyOnly) return;
+        if (anyDialog) dialogShown.current = true;
+        else if (dialogShown.current) onKeyClosed?.();
+    }, [keyOnly, anyDialog, onKeyClosed]);
 
     const openUpdateDialog = async (keyName) => {
         const request = ++updateRequest.current;
@@ -696,12 +717,12 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey}) => {
     };
 
     useEffect(() => {
-        if (getAuthToken()) {
+        if (!keyOnly && getAuthToken()) {
             fetchKeys().catch((error) => {
                 logger.error("Error in fetchKeys:", error);
             });
         }
-    }, [decodedObjectName, fetchKeys, refreshKey]);
+    }, [decodedObjectName, fetchKeys, refreshKey, keyOnly]);
 
     if (!showKeys) return null;
 
@@ -717,118 +738,8 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey}) => {
     const pickedKeys = picked.filter((name) => safeKeys.some((key) => key.name === name));
     const togglePicked = (name) => setPicked((l) => (l.includes(name) ? l.filter((n) => n !== name) : [...l, name]));
 
-    return (
-        <section
-            aria-labelledby={titleId}
-            className="rounded-(--radius-panel) border border-line bg-surface-raised"
-        >
-            <div className="flex items-center gap-2 border-b border-line px-3 py-2">
-                <KeyIcon className="text-ink-muted"/>
-                <h2 id={titleId} className="font-semibold">
-                    {t("keys.title", {total: safeKeys.length})}
-                </h2>
-                {/* Nothing checked, the help says how; the keys checked, their removal. */}
-                <div className="ml-auto flex items-center">
-                    {!keysLoading && !hasKeysError && safeKeys.length > 0 && (pickedKeys.length > 0 ? (
-                        <Button
-                            size="sm"
-                            variant="delete"
-                            icon={<TrashIcon/>}
-                            disabled={actionLoading}
-                            onClick={() => {
-                                setKeysToDelete(pickedKeys);
-                                setDeleteDialogOpen(true);
-                            }}
-                        >
-                            {t("keys.removeSelected", {count: pickedKeys.length})}
-                        </Button>
-                    ) : (
-                        <p className="text-data text-ink-muted">{t("keys.selectionHelp")}</p>
-                    ))}
-                </div>
-                {kind === "sec" && (
-                    <SecCertificate
-                        path={decodedObjectName}
-                        keyNames={safeKeys.map((key) => key.name)}
-                        disabled={actionLoading || keysLoading}
-                        onWritten={fetchKeys}
-                    />
-                )}
-                <IconButton
-                    label={t("keys.add")}
-                    text={t("common.add")}
-                    solid
-                    onClick={() => {
-                        setKeyFormError(null);
-                        setCreateDialogOpen(true);
-                    }}
-                    disabled={actionLoading}
-                >
-                    <PlusIcon/>
-                </IconButton>
-            </div>
-
-            {(keysLoading || hasKeysError || safeKeys.length === 0) && (
-                <div className="space-y-2 p-3">
-                    {keysLoading && <Spinner label={t("keys.loading")}/>}
-                    {hasKeysError && <Alert>{String(keysError)}</Alert>}
-                    {!keysLoading && !hasKeysError && safeKeys.length === 0 && (
-                        <p className="text-ink-muted">{t("keys.empty")}</p>
-                    )}
-                </div>
-            )}
-            {!keysLoading && !hasKeysError && safeKeys.length > 0 && (
-                <Table aria-label={t("keys.tableAria")} className="rounded-none border-0">
-                    <thead>
-                    <HeaderRow>
-                        <HeaderCell className="w-8">
-                            <SelectAll
-                                all={pickedKeys.length === safeKeys.length}
-                                some={pickedKeys.length > 0 && pickedKeys.length < safeKeys.length}
-                                onChange={(checked) => setPicked(checked ? safeKeys.map((key) => key.name) : [])}
-                                label={t("keys.selectAll")}
-                            />
-                        </HeaderCell>
-                        <SortHeaderCell
-                            label={t("common.name")}
-                            active={sort.by === "name"}
-                            direction={sort.direction}
-                            onSort={() => sortBy("name")}
-                        />
-                        <SortHeaderCell
-                            label={t("keys.size")}
-                            active={sort.by === "size"}
-                            direction={sort.direction}
-                            onSort={() => sortBy("size")}
-                        />
-                    </HeaderRow>
-                    </thead>
-                    <tbody>
-                    {sortedKeys.map((key) => (
-                        // The line shows the content of its key; its tools edit and delete it.
-                        <Row
-                            key={key.name}
-                            onActivate={actionLoading ? undefined : () => handleViewKey(key.name)}
-                            selected={pickedKeys.includes(key.name)}
-                        >
-                            <Cell className="w-8">
-                                <Checkbox
-                                    checked={pickedKeys.includes(key.name)}
-                                    onChange={() => togglePicked(key.name)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    aria-label={t("keys.selectKey", {key: key.name})}
-                                />
-                            </Cell>
-                            <th scope="row" className="px-2 py-1 text-left font-normal">
-                                {key.name}
-                            </th>
-                            <Cell numeric className="whitespace-nowrap">{t("keys.bytes", {size: key.size})}</Cell>
-                        </Row>
-                    ))}
-                    </tbody>
-                </Table>
-            )}
-
+    const dialogs = (
+        <>
             <Dialog
                 open={viewDialogOpen}
                 onClose={closeViewDialog}
@@ -1049,6 +960,124 @@ const KeysSection = ({decodedObjectName, openSnackbar, refreshKey}) => {
                     setDeleteDialogOpen(true);
                 }}
             />
+        </>
+    );
+
+    if (keyOnly) return dialogs;
+
+    return (
+        <section
+            aria-labelledby={titleId}
+            className="rounded-(--radius-panel) border border-line bg-surface-raised"
+        >
+            <div className="flex items-center gap-2 border-b border-line px-3 py-2">
+                <KeyIcon className="text-ink-muted"/>
+                <h2 id={titleId} className="font-semibold">
+                    {t("keys.title", {total: safeKeys.length})}
+                </h2>
+                {/* Nothing checked, the help says how; the keys checked, their removal. */}
+                <div className="ml-auto flex items-center">
+                    {!keysLoading && !hasKeysError && safeKeys.length > 0 && (pickedKeys.length > 0 ? (
+                        <Button
+                            size="sm"
+                            variant="delete"
+                            icon={<TrashIcon/>}
+                            disabled={actionLoading}
+                            onClick={() => {
+                                setKeysToDelete(pickedKeys);
+                                setDeleteDialogOpen(true);
+                            }}
+                        >
+                            {t("keys.removeSelected", {count: pickedKeys.length})}
+                        </Button>
+                    ) : (
+                        <p className="text-data text-ink-muted">{t("keys.selectionHelp")}</p>
+                    ))}
+                </div>
+                {kind === "sec" && (
+                    <SecCertificate
+                        path={decodedObjectName}
+                        keyNames={safeKeys.map((key) => key.name)}
+                        disabled={actionLoading || keysLoading}
+                        onWritten={fetchKeys}
+                    />
+                )}
+                <IconButton
+                    label={t("keys.add")}
+                    text={t("common.add")}
+                    solid
+                    onClick={() => {
+                        setKeyFormError(null);
+                        setCreateDialogOpen(true);
+                    }}
+                    disabled={actionLoading}
+                >
+                    <PlusIcon/>
+                </IconButton>
+            </div>
+
+            {(keysLoading || hasKeysError || safeKeys.length === 0) && (
+                <div className="space-y-2 p-3">
+                    {keysLoading && <Spinner label={t("keys.loading")}/>}
+                    {hasKeysError && <Alert>{String(keysError)}</Alert>}
+                    {!keysLoading && !hasKeysError && safeKeys.length === 0 && (
+                        <p className="text-ink-muted">{t("keys.empty")}</p>
+                    )}
+                </div>
+            )}
+            {!keysLoading && !hasKeysError && safeKeys.length > 0 && (
+                <Table aria-label={t("keys.tableAria")} className="rounded-none border-0">
+                    <thead>
+                    <HeaderRow>
+                        <HeaderCell className="w-8">
+                            <SelectAll
+                                all={pickedKeys.length === safeKeys.length}
+                                some={pickedKeys.length > 0 && pickedKeys.length < safeKeys.length}
+                                onChange={(checked) => setPicked(checked ? safeKeys.map((key) => key.name) : [])}
+                                label={t("keys.selectAll")}
+                            />
+                        </HeaderCell>
+                        <SortHeaderCell
+                            label={t("common.name")}
+                            active={sort.by === "name"}
+                            direction={sort.direction}
+                            onSort={() => sortBy("name")}
+                        />
+                        <SortHeaderCell
+                            label={t("keys.size")}
+                            active={sort.by === "size"}
+                            direction={sort.direction}
+                            onSort={() => sortBy("size")}
+                        />
+                    </HeaderRow>
+                    </thead>
+                    <tbody>
+                    {sortedKeys.map((key) => (
+                        // The line shows the content of its key; its tools edit and delete it.
+                        <Row
+                            key={key.name}
+                            onActivate={actionLoading ? undefined : () => handleViewKey(key.name)}
+                            selected={pickedKeys.includes(key.name)}
+                        >
+                            <Cell className="w-8">
+                                <Checkbox
+                                    checked={pickedKeys.includes(key.name)}
+                                    onChange={() => togglePicked(key.name)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    aria-label={t("keys.selectKey", {key: key.name})}
+                                />
+                            </Cell>
+                            <th scope="row" className="px-2 py-1 text-left font-normal">
+                                {key.name}
+                            </th>
+                            <Cell numeric className="whitespace-nowrap">{t("keys.bytes", {size: key.size})}</Cell>
+                        </Row>
+                    ))}
+                    </tbody>
+                </Table>
+            )}
+
+            {dialogs}
         </section>
     );
 };

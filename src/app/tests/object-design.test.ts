@@ -21,6 +21,8 @@ import {
   nextSectionName,
   offeredKeywords,
   popularKeywords,
+  listWords,
+  guestDiskChoices,
   parseDriver,
   requiredKeywords,
   withRequired,
@@ -160,6 +162,30 @@ describe("object design", () => {
     expect(popularKeywords(keywords, section).map((k) => k.option)).toEqual(["size", "zone", "tags"]);
     expect(popularKeywords(keywords, section, false, 1).map((k) => k.option)).toEqual(["size"]);
     expect(popularKeywords(KEYWORDS, designStart()[0]).map((k) => k.option)).toEqual(["nodes", "orchestrate"]);
+  });
+
+  test("the popular keywords of a guest: what it runs on, not what a container of its group takes", () => {
+    const keywords: DesignKeyword[] = ["image", "command", "vcpus", "memory", "disk", "network", "cloud_init"].map((option) => ({ section: "container", option }));
+    const kvm: DesignSection = { name: "container#1", group: "container", type: "kvm", entries: [] };
+    expect(popularKeywords(keywords, kvm).map((k) => k.option)).toEqual(["vcpus", "memory", "disk", "network", "image", "cloud_init"]);
+    const docker: DesignSection = { name: "container#2", group: "container", type: "docker", entries: [] };
+    expect(popularKeywords(keywords, docker)[0].option).toBe("image");
+  });
+
+  test("the words of a list value: the last one is the one being typed", () => {
+    expect(listWords("")).toEqual({ done: [], typed: "" });
+    expect(listWords("back")).toEqual({ done: [], typed: "back" });
+    expect(listWords("backend3 ")).toEqual({ done: ["backend3"], typed: "" });
+    expect(listWords("backend3  back")).toEqual({ done: ["backend3"], typed: "back" });
+  });
+
+  test("the disks a guest may take: the disk and volume resources of the design", () => {
+    expect(guestDiskChoices([
+      { name: "DEFAULT", entries: [] },
+      { name: "disk#1", group: "disk", type: "lv", entries: [] },
+      { name: "volume#1", group: "volume", entries: [] },
+      { name: "fs#1", group: "fs", type: "flag", entries: [] },
+    ])).toEqual([{ value: "disk#1", info: ["disk.lv"] }, { value: "volume#1", info: ["volume"] }]);
   });
 
   test("a volume: a driver alone, its type a need offered like any keyword, its size required by its provisioning flag", () => {

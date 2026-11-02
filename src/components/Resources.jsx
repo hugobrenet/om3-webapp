@@ -26,7 +26,7 @@ import {resourceId} from "../app/peek";
 import {facetCounts, matches, toggled} from "../app/facets";
 import {useMediaQuery} from "../ui/lib/media";
 import {FilterRail, FilterToolbar} from "./FilterRail";
-import {InstanceLink} from "./RecordLinks";
+import {InstanceLink, ResourceSessionLinks} from "./RecordLinks";
 import {BADGE} from "./ObjectCells";
 import {rangeSelect, withShift} from "../app/range-select";
 
@@ -429,6 +429,7 @@ const Resources = () => {
                                 <Cell className="whitespace-nowrap">
                                     <span className="inline-flex items-center gap-1.5">
                                         <CrossLink kind="resource" id={resourceId(l.object, l.rid, l.hostNode)}>{l.rid}</CrossLink>
+                                        <ResourceSessionLinks path={l.object} rid={l.rid} node={l.hostNode} type={l.type}/>
                                         {/* No room for its column, the type a badge by the resource (resourceLayout). */}
                                         {!layout.typeColumn && l.type && <span className={BADGE}>{l.type}</span>}
                                     </span>
