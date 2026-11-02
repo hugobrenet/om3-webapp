@@ -10,13 +10,10 @@ import {useTranslation} from "react-i18next";
 import {useObjectBulkActions} from "./useObjectBulkActions";
 import CreateObjectDialog from "./CreateObjectDialog";
 import {useObjectData} from "../hooks/useObjectData";
-import {useNodeData} from "../hooks/useNodeData";
 import {useClusterNodeOrder} from "../hooks/useClusterNodeOrder";
 import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow, toggleCheckbox, LIST_RAIL_QUERY} from "../ui/components/Table";
-import {NotProvisionedMark as PMark, StoppedMark, RpoBreachedMark} from "../ui/components/StateMarks";
+import {NotProvisionedMark as PMark} from "../ui/components/StateMarks";
 import {StatusMark} from "../ui/components/StatusMark";
-import {isQuietDown} from "../ui/components/status";
-import {FrozenMark} from "../ui/components/FrozenMark";
 import {MenuButton} from "../ui/components/MenuButton";
 import {Button, IconButton} from "../ui/components/Button";
 import {cn} from "../ui/cn";
@@ -24,7 +21,7 @@ import {Checkbox} from "../ui/components/Field";
 import {useMediaQuery} from "../ui/lib/media";
 import {objectFacets} from "../app/object-facets";
 import {FilterRail, FilterToolbar} from "./FilterRail";
-import {BADGE, KeyCells, NotProvisionedMark, OrchestrateBadge, PropertyCells, SideText, StatusMarks, markState, volumeUsage} from "./ObjectCells";
+import {BADGE, KeyCells, NotProvisionedMark, OrchestrateBadge, PropertyCells, SideText, StatusMarks, volumeUsage} from "./ObjectCells";
 import {useGrants} from "../hooks/useGrants";
 import {canWriteClaims} from "../app/namespace-claims";
 import {MoreRows, useRowsOnDemand} from "../ui/components/RowsOnDemand";
@@ -32,10 +29,10 @@ import {VolumeSizesContext, useVolumeSizes} from "../hooks/useVolumeSizes";
 import {ALL_LIST, OBJECT_LISTS, OBJECTS_TABS, listOfKind} from "../utils/objectLists";
 import {AlertTriangleIcon, BoltIcon, CheckIcon, GearIcon, InfoIcon, PlusIcon} from "../ui/icons";
 import {cachedReason, needsReason} from "../app/object-reason";
-import {childrenDown} from "../app/statusboard";
+import {instanceState, instanceStateContext} from "../app/statusboard";
 import {menuColumns, menuFilter} from "../app/action-menu";
 import {Term} from "../app/Term";
-import {SymbolLegend} from "../app/StatusBoard";
+import {InstanceState, SymbolLegend} from "../app/StatusBoard";
 import {Dialog} from "../ui/components/Dialog";
 import ActionDialogManager from "./ActionDialogManager";
 import {CLEAR_ACTION, noteFixAction, postAction} from "./objectActions";
@@ -48,8 +45,6 @@ const MOBILE_QUERY = "(max-width:899.95px)";
 const WIDE_QUERY = "(min-width:1200px)";
 
 /** The zero timestamp of the API reads as "not set". */
-const ZERO_TIME = "0001-01-01T00:00:00Z";
-const hasTimestamp = (value) => !!value && value !== ZERO_TIME;
 
 const capitalize = (value) => value.charAt(0).toUpperCase() + value.slice(1);
 
@@ -90,25 +85,29 @@ const ACTOR_KINDS = ["svc", "vol"];
 
 const NodeStatus = React.memo(({objectName, node}) => {
     const {t} = useTranslation();
-    const nodeData = useNodeData(objectName, node);
-    // Stopped and RPO breached come straight from the instance status: one string each.
-    const stoppedAt = useEventStore((s) => s.objectInstanceStatus?.[objectName]?.[node]?.stopped_at);
-    const rpoBreachedAt = useEventStore((s) => s.objectInstanceStatus?.[objectName]?.[node]?.rpo_breached_at);
-    const objectAvail = useEventStore((s) => s.objectStatus?.[objectName]?.avail);
-    // A vol down that nothing uses, its children down too: its downs gray.
-    const isChildrenDown = useEventStore((s) => childrenDown(
+    // The instance as the status board reads it: its status, its monitor, its configuration.
+    const status = useEventStore((s) => s.objectInstanceStatus?.[objectName]?.[node]);
+    const monitor = useEventStore((s) => s.instanceMonitor?.[`${node}:${objectName}`]);
+    const config = useEventStore((s) => s.instanceConfig?.[objectName]?.[node]);
+    // How the object reads its instances: a down no issue, the leader mark in red.
+    const quiet = useEventStore((s) => instanceStateContext(
         objectName,
-        s.objectStatus?.[objectName]?.avail,
+        s.objectStatus?.[objectName] ?? {},
         Object.keys(s.objectInstanceStatus?.[objectName] ?? {}).map((n) => s.instanceMonitor?.[`${n}:${objectName}`]),
-    ));
+    ).quiet);
+    const placementNonOptimal = useEventStore((s) => s.objectStatus?.[objectName]?.placement_state === "non-optimal");
     // A node of the object that tells nothing of its instance, gone or not heard
     // from: a "?" in its place, as om mon draws it.
     const expected = useEventStore((s) => Boolean(
         s.objectStatus?.[objectName]?.scope?.includes(node) || s.instanceConfig?.[objectName]?.[node]
     ));
     const peek = usePeek();
-    const hasData = Boolean(nodeData?.avail);
-    if (!hasData) {
+    // Its state as the instance line of the status board says it, the same glyphs and marks.
+    const state = useMemo(
+        () => (status?.avail ? instanceState({status, monitor, config}, {quiet, placementNonOptimal}) : null),
+        [status, monitor, config, quiet, placementNonOptimal],
+    );
+    if (state === null) {
         if (!expected) return null;
         return (
             <span data-node={node} className="inline-flex w-4 justify-center font-semibold text-state-down">
@@ -117,18 +116,12 @@ const NodeStatus = React.memo(({objectName, node}) => {
             </span>
         );
     }
-    const isNodeNotProvisioned = nodeData.provisioned === "false" || nodeData.provisioned === false;
-    const isStopped = hasTimestamp(stoppedAt);
-    const isLagging = hasTimestamp(rpoBreachedAt);
-
+    const isActor = ACTOR_KINDS.includes(parseObjectName(objectName).kind);
+    const monitorState = monitor?.state && monitor.state !== "idle" ? monitor.state : null;
     const marks = (
         <span className="inline-flex items-center gap-1.5" data-node={node}>
-            <StatusMark state={markState(nodeData.avail)} label={nodeData.avail} muted={isQuietDown(nodeData.avail, objectAvail, isChildrenDown)}/>
-            {isStopped && <StoppedMark/>}
-            {/* A breached RPO takes the place of the frozen mark, as in the other views. */}
-            {isLagging ? <RpoBreachedMark/> : <FrozenMark frozen={nodeData.frozen === "frozen"}/>}
-            {isNodeNotProvisioned && <NotProvisionedMark/>}
-            {nodeData.state && <SideText>{nodeData.state}</SideText>}
+            <InstanceState state={state} inert={isActor}/>
+            {monitorState && <SideText>{monitorState}</SideText>}
         </span>
     );
     // The instance of a service or a volume opens its own panel, not the object's.

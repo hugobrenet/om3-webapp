@@ -484,6 +484,80 @@ export function childrenDown(
   return children === "down" || children === "none";
 }
 
+/**
+ * What the state of an instance reads by, as om mon draws it: `quiet`, a down being no
+ * issue, the object running the instances it expects, or a vol down nothing uses;
+ * `placementNonOptimal`, the leader mark in red.
+ */
+export interface InstanceStateContext {
+  quiet: boolean;
+  placementNonOptimal: boolean;
+}
+
+/** The context of the state of the instances of an object, from its status and its instance monitors. */
+export function instanceStateContext(
+  path: string,
+  obj: ObjectData,
+  monitors: readonly (InstanceMonitor | undefined)[],
+): InstanceStateContext {
+  const actor = obj.avail !== undefined;
+  const expected = !actor ? 0 : obj.flex !== undefined ? (obj.flex.target ?? 0) : 1;
+  const hasExpectedInstances = actor && (obj.up_instances_count ?? 0) >= Math.max(1, expected);
+  return {
+    quiet: hasExpectedInstances || childrenDown(path, obj.avail, monitors),
+    placementNonOptimal: obj.placement_state === "non-optimal",
+  };
+}
+
+/** A status as the om mon icon says it; a down gray where it is no issue (`quiet`). */
+export function statusSpanOf(st: string | undefined, context: InstanceStateContext): Span {
+  const status = { status: st === undefined || st === "" ? "undef" : st };
+  const issue = (icon: string) => span(icon, context.quiet ? "secondary" : "error", status);
+  switch (st) {
+    case "up":
+      return span("O", "optimal", status);
+    case "down":
+      return issue("X");
+    case "stdby up":
+      return issue("o");
+    case "stdby down":
+      return span("x", "error", status);
+    case "warn":
+      return span("!", "warning", status);
+    case "n/a":
+      return span("/", "secondary", status);
+    case "undef":
+    case undefined:
+    case "":
+      return span("?", "error", status);
+    default:
+      return span(st, undefined, status);
+  }
+}
+
+/** The marks om mon puts after the icon of an instance, in its order. */
+export function instanceMarksOf(s: InstanceStates, context: InstanceStateContext): Span[] {
+  const marks: Span[] = [];
+  const mark = (text: string, tone: Tone) => marks.push(span(text, tone, { mark: text }));
+  if (s.status?.overall === "warn") mark("!", "warning");
+  const running =
+    (s.status?.running?.length ?? 0) > 0 || Object.values(s.status?.encap ?? {}).some((e) => (e.running?.length ?? 0) > 0);
+  if (running) mark("R", "frozen");
+  if (isPast(s.status?.rpo_breached_at)) mark("L", "error");
+  if (s.config?.drp) mark("#", "secondary");
+  if (s.monitor?.is_ha_leader) mark("^", context.placementNonOptimal ? "error" : "secondary");
+  if (isFrozen(s)) mark("*", "frozen");
+  if (isStopped(s)) mark("=", "secondary");
+  if (isUnprovisioned(s)) mark("P", "error");
+  return marks;
+}
+
+/** The state of an instance, as the instance line of the status board says it: its icon, then its marks. */
+export const instanceState = (s: InstanceStates, context: InstanceStateContext): Span[] => [
+  statusSpanOf(s.status?.avail, context),
+  ...instanceMarksOf(s, context),
+];
+
 export function buildBoard(digest: Digest): Board {
   const obj = digest.object;
   /** The object is an actor, a service or a volume: it has a status of its own. */
@@ -515,49 +589,13 @@ export function buildBoard(digest: Digest): Board {
   const children = volChildren(digest.path, obj.avail, nodes.map((n) => stateOf(n).monitor));
   const isChildrenDown = children === "down" || children === "none";
 
-  /** A status as the om mon icon says it; a down is gray where no instance is missing, or nothing uses it. */
-  const statusIcon = (st: string | undefined): Span => {
-    const status = { status: st === undefined || st === "" ? "undef" : st };
-    const issue = (icon: string) => span(icon, hasExpectedInstances || isChildrenDown ? "secondary" : "error", status);
-    switch (st) {
-      case "up":
-        return span("O", "optimal", status);
-      case "down":
-        return issue("X");
-      case "stdby up":
-        return issue("o");
-      case "stdby down":
-        return span("x", "error", status);
-      case "warn":
-        return span("!", "warning", status);
-      case "n/a":
-        return span("/", "secondary", status);
-      case "undef":
-      case undefined:
-      case "":
-        return span("?", "error", status);
-      default:
-        return span(st, undefined, status);
-    }
+  // How the state of an instance reads, as om mon draws it.
+  const stateContext: InstanceStateContext = {
+    quiet: hasExpectedInstances || isChildrenDown,
+    placementNonOptimal: obj.placement_state === "non-optimal",
   };
-
-  /** The marks om mon puts after the icon of an instance, in its order. */
-  const instanceMarks = (s: InstanceStates): Span[] => {
-    const marks: Span[] = [];
-    const mark = (text: string, tone: Tone) => marks.push(span(text, tone, { mark: text }));
-    if (s.status?.overall === "warn") mark("!", "warning");
-    const running =
-      (s.status?.running?.length ?? 0) > 0 ||
-      Object.values(s.status?.encap ?? {}).some((e) => (e.running?.length ?? 0) > 0);
-    if (running) mark("R", "frozen");
-    if (isPast(s.status?.rpo_breached_at)) mark("L", "error");
-    if (s.config?.drp) mark("#", "secondary");
-    if (s.monitor?.is_ha_leader) mark("^", obj.placement_state === "non-optimal" ? "error" : "secondary");
-    if (isFrozen(s)) mark("*", "frozen");
-    if (isStopped(s)) mark("=", "secondary");
-    if (isUnprovisioned(s)) mark("P", "error");
-    return marks;
-  };
+  const statusIcon = (st: string | undefined): Span => statusSpanOf(st, stateContext);
+  const instanceMarks = (s: InstanceStates): Span[] => instanceMarksOf(s, stateContext);
 
   type PieceRow = Omit<BoardRow, "cells" | "desc" | "cellNotes" | "rowNotes"> & { cells: Piece[][]; desc: Text };
   const rows: PieceRow[] = [];

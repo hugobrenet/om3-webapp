@@ -102,7 +102,7 @@ let originalGetItem;
 
 const defaultState = {
     objectStatus: {
-        'test-ns/svc/test1': {avail: 'up', frozen: 'unfrozen', provisioned: 'true'},
+        'test-ns/svc/test1': {avail: 'up', frozen: 'unfrozen', provisioned: 'true', up_instances_count: 1},
         'test-ns/svc/test2': {avail: 'down', frozen: 'frozen', provisioned: 'true'},
         'root/svc/test3': {avail: 'warn', frozen: 'unfrozen', provisioned: 'true'},
         'test-ns/svc/test4': {avail: 'n/a', frozen: 'unfrozen', provisioned: 'true'},
@@ -602,13 +602,13 @@ describe('Objects Component', () => {
         expect(within(node1).getByRole('button', {name: 'Open the instance of test-ns/svc/test1 on node1'})).toBeInTheDocument();
         expect(node1.querySelector('[data-state]')).toHaveAttribute('data-state', 'up');
         expect(within(node1).getByText('running')).toHaveClass('text-ink-muted', 'whitespace-nowrap');
-        expect(within(node1).queryByText('frozen')).not.toBeInTheDocument();
+        expect(within(node1).queryByRole('img', {name: 'frozen'})).not.toBeInTheDocument();
         const node2 = nodeCell(row1, 1);
         expect(node2.querySelector('[data-state]')).toHaveAttribute('data-state', 'down');
         // Its object up, the instance down is no issue: gray, not red.
         expect(node2.querySelector('[data-state]')).toHaveClass('text-ink-muted');
         expect(node2.querySelector('[data-state]')).not.toHaveClass('text-state-down');
-        expect(within(node2).getByText('frozen')).toBeInTheDocument();
+        expect(within(node2).getByRole('img', {name: 'frozen'})).toBeInTheDocument();
         // An idle instance shows no monitor state.
         expect(within(node2).queryByText('idle')).not.toBeInTheDocument();
 
@@ -620,7 +620,7 @@ describe('Objects Component', () => {
         const unprovisioned = objectRow('test-ns/svc/unprovisioned(?!-bool)');
         const unprovisionedNode = nodeCell(unprovisioned, 0);
         expect(unprovisionedNode.querySelector('[data-state]')).toHaveAttribute('data-state', 'na');
-        expect(within(unprovisionedNode).getByRole('img', {name: 'Not provisioned'})).toHaveClass('text-state-down');
+        expect(within(unprovisionedNode).getByRole('img', {name: 'not provisioned'})).toHaveClass('text-state-down');
 
         // The per-node columns a table of their own past a gap: a tile a row, rounded at its ends, no frame.
         expect(screen.getByRole('columnheader', {name: /node1/})).toHaveClass('before:rounded-l-(--radius-control)', 'text-ink-muted');
@@ -664,6 +664,28 @@ describe('Objects Component', () => {
         setup({}, '?list=configs', {isWideScreen: true, isMobile: false});
         await waitForLoad();
         expect(screen.queryByRole('button', {name: 'Symbols'})).not.toBeInTheDocument();
+    });
+
+    test('per-node cells say an instance in warn and one partly provisioned, as om mon does', async () => {
+        setup({
+            objectStatus: {...defaultState.objectStatus, 'test-ns/svc/hdoc': {avail: 'down', overall: 'warn', frozen: 'unfrozen', provisioned: 'mixed'}},
+            objectInstanceStatus: {
+                ...defaultState.objectInstanceStatus,
+                'test-ns/svc/hdoc': {
+                    // Standby up, its overall in warn: the degraded mark, as the object's.
+                    node1: {avail: 'stdby up', overall: 'warn', frozen_at: '0001-01-01T00:00:00Z', provisioned: 'true'},
+                    // Some of its resources provisioned only: the P, said partly.
+                    node2: {avail: 'stdby down', overall: 'stdby down', frozen_at: '0001-01-01T00:00:00Z', provisioned: 'mixed'},
+                },
+            },
+        }, '', {isWideScreen: true, isMobile: false});
+        await waitForLoad();
+        const row = objectRow('test-ns/svc/hdoc');
+        // As the instance line of its status board: the same glyphs, the same marks.
+        expect(within(nodeCell(row, 0)).getByRole('img', {name: 'some resources in warn'})).toBeInTheDocument();
+        expect(within(nodeCell(row, 0)).queryByRole('img', {name: 'not provisioned'})).toBeNull();
+        expect(within(nodeCell(row, 1)).getByRole('img', {name: 'not provisioned'})).toBeInTheDocument();
+        expect(within(nodeCell(row, 1)).queryByRole('img', {name: 'some resources in warn'})).toBeNull();
     });
 
     test('selection and select all', async () => {
@@ -1618,9 +1640,10 @@ describe('Objects Component', () => {
             return nodeCell(objectRow('test-ns/svc/test1'), 0);
         };
 
-        const stoppedMark = (cell) => within(cell).queryByRole('img', {name: 'Stopped'});
+        // The marks of the instance line of the status board, named as it names them.
+        const stoppedMark = (cell) => within(cell).queryByRole('img', {name: 'stopped on purpose'});
         const rpoMark = (cell) => within(cell).queryByRole('img', {name: 'RPO breached'});
-        const frozenMark = (cell) => within(cell).queryByText('frozen');
+        const frozenMark = (cell) => within(cell).queryByRole('img', {name: 'frozen'});
         const availState = (cell) => cell.querySelector('[data-state]')?.getAttribute('data-state');
 
         test('shows the stopped indicator when stopped_at is set', async () => {
@@ -1692,14 +1715,14 @@ describe('Objects Component', () => {
             expect(rpoMark(cell)).not.toBeInTheDocument();
         });
 
-        test('RPO-breached takes precedence over frozen when both are set', async () => {
+        test('RPO-breached and frozen both said, as om mon and the status board say them', async () => {
             const cell = await setupNode({
                 avail: 'up',
                 frozen_at: '2025-05-16T10:00:00Z',
                 rpo_breached_at: '2025-05-16T10:00:00Z',
             });
             expect(rpoMark(cell)).toBeInTheDocument();
-            expect(frozenMark(cell)).not.toBeInTheDocument();
+            expect(frozenMark(cell)).toBeInTheDocument();
         });
 
         test('frozen is shown when only frozen_at is set', async () => {
