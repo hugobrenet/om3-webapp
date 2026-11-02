@@ -10,10 +10,9 @@ const {
     mockUseNavigate,
     mockUseLocation,
     mockAuthDispatch,
-    mockFetchNodes,
     mockUseAuth,
     mockUseOidc,
-    mockUseFetchDaemonStatus,
+    mockUseClusterConfig,
     mockUseOnlineStatus,
     mockUseEventStore,
 } = vi.hoisted(() => {
@@ -21,10 +20,9 @@ const {
     const mockUseNavigate = vi.fn(() => mockNavigate);
     const mockUseLocation = vi.fn(() => ({pathname: '/cluster'}));
     const mockAuthDispatch = vi.fn();
-    const mockFetchNodes = vi.fn();
     const mockUseAuth = vi.fn();
     const mockUseOidc = vi.fn();
-    const mockUseFetchDaemonStatus = vi.fn();
+    const mockUseClusterConfig = vi.fn();
     const mockUseOnlineStatus = vi.fn();
     const mockUseEventStore = vi.fn();
 
@@ -33,10 +31,9 @@ const {
         mockUseNavigate,
         mockUseLocation,
         mockAuthDispatch,
-        mockFetchNodes,
         mockUseAuth,
         mockUseOidc,
-        mockUseFetchDaemonStatus,
+        mockUseClusterConfig,
         mockUseOnlineStatus,
         mockUseEventStore,
     };
@@ -62,9 +59,10 @@ vi.mock('../../context/AuthProvider.jsx', () => ({
     Logout: 'LOGOUT',
 }));
 
-vi.mock('../../hooks/useFetchDaemonStatus', () => ({
+// The configuration of the cluster, as the event stream of the menu keeps it.
+vi.mock('../../hooks/useClusterConfig.js', () => ({
     __esModule: true,
-    default: mockUseFetchDaemonStatus,
+    default: mockUseClusterConfig,
 }));
 
 vi.mock('../../hooks/useEventStore.js', () => ({
@@ -89,11 +87,9 @@ function setupMocks(overrides = {}) {
         pathname = '/cluster',
         authChoice = 'local',
         authToken = 'test-token',
-        clusterName = null,
+        clusterName = '',
         agentUrl = '',
-        loading = false,
-        daemon = null,
-        fetchNodes = mockFetchNodes,
+        loaded = true,
         online = true,
         eventStoreData = {objectStatus: {}, objectInstanceStatus: {}, instanceMonitor: {}},
         skipAuthMock = false,
@@ -106,13 +102,7 @@ function setupMocks(overrides = {}) {
     mockUseOidc.mockReturnValue({
         userManager: {signoutRedirect: vi.fn(), removeUser: vi.fn()},
     });
-    mockUseFetchDaemonStatus.mockReturnValue({
-        clusterName,
-        agentUrl,
-        fetchNodes,
-        loading,
-        daemon,
-    });
+    mockUseClusterConfig.mockReturnValue({clusterId: loaded ? 'cluster-id' : '', clusterName, agentUrl, loaded});
     mockUseOnlineStatus.mockReturnValue(online);
     mockUseEventStore.mockImplementation((selector) => selector(eventStoreData));
     localStorage.clear();
@@ -171,7 +161,7 @@ describe('NavBar', () => {
     });
 
     test('does not show breadcrumbs on /login', () => {
-        setupMocks({pathname: '/login', authToken: null, fetchNodes: undefined});
+        setupMocks({pathname: '/login', authToken: null});
         renderNavBar();
         expect(screen.queryByRole('link', {name: /navigate to/i})).not.toBeInTheDocument();
     });
@@ -187,7 +177,7 @@ describe('NavBar', () => {
             ['/namespaces/cluster/objects', ['Cluster', 'namespaces', 'objects']],
         ];
         test.each(cases)('path %s shows breadcrumbs %s', (pathname, expectedParts) => {
-            setupMocks({pathname, authToken: null, fetchNodes: undefined});
+            setupMocks({pathname, authToken: null});
             renderNavBar();
             expectedParts.forEach((part) => {
                 expect(screen.getByRole('link', {name: new RegExp(`navigate to ${part}`, 'i')})).toBeInTheDocument();
@@ -199,7 +189,7 @@ describe('NavBar', () => {
 
         test('renders node as plain text (not link) for /nodes/.../objects path', () => {
             const pathname = '/nodes/node1/objects/myobj';
-            setupMocks({pathname, authToken: null, fetchNodes: undefined});
+            setupMocks({pathname, authToken: null});
             renderNavBar();
             expect(screen.getByRole('link', {name: /navigate to cluster/i})).toBeInTheDocument();
             expect(screen.getByRole('link', {name: /navigate to objects/i})).toBeInTheDocument();
@@ -210,67 +200,24 @@ describe('NavBar', () => {
         });
     });
 
-    // ---------- fetchNodes behavior ----------
-    describe('fetchNodes', () => {
-        test('calls fetchNodes when token is present and clusterName is null', async () => {
-            setupMocks({clusterName: null, fetchNodes: mockFetchNodes});
+    // ---------- name of the cluster ----------
+    describe('name of the cluster', () => {
+        test('reads it from the configuration of the cluster, without reading the cluster status', () => {
+            setupMocks({clusterName: 'My Cluster'});
             renderNavBar();
-            await waitFor(() => expect(mockFetchNodes).toHaveBeenCalledWith('test-token'));
+            expect(screen.getByRole('link', {name: /navigate to my cluster/i})).toBeInTheDocument();
         });
 
-        test('does not call fetchNodes when token is absent', async () => {
-            setupMocks({authToken: null, fetchNodes: mockFetchNodes});
+        test('says Loading while the configuration of the cluster is not read, in a session', () => {
+            setupMocks({loaded: false});
+            renderNavBar();
+            expect(screen.getByRole('link', {name: /navigate to loading/i})).toBeInTheDocument();
+        });
+
+        test('says Cluster out of a session', () => {
+            setupMocks({authToken: null, loaded: false});
             renderNavBar();
             expect(screen.getByRole('link', {name: /navigate to cluster/i})).toBeInTheDocument();
-            expect(mockFetchNodes).not.toHaveBeenCalled();
-        });
-
-        test('retries when token appears later', async () => {
-            let calls = 0;
-            mockUseAuth.mockImplementation(() => ({
-                authChoice: 'local',
-                get authToken() {
-                    calls++;
-                    return calls === 1 ? null : 'delayed-token';
-                },
-            }));
-            setupMocks({clusterName: null, fetchNodes: mockFetchNodes, skipAuthMock: true});
-            vi.useFakeTimers();
-            renderNavBar();
-            vi.advanceTimersByTime(1000);
-            await waitFor(() => expect(mockFetchNodes).toHaveBeenCalledWith('delayed-token'));
-            vi.useRealTimers();
-        });
-
-        test('stops retrying after max attempts', async () => {
-            setupMocks({authToken: null, fetchNodes: mockFetchNodes});
-            vi.useFakeTimers();
-            renderNavBar();
-            vi.advanceTimersByTime(3000);
-            await waitFor(() => expect(mockFetchNodes).not.toHaveBeenCalled());
-            vi.useRealTimers();
-        });
-
-        test('handles fetchNodes errors', async () => {
-            const errorFn = vi.fn().mockRejectedValue(new Error('fail'));
-            setupMocks({fetchNodes: errorFn});
-            renderNavBar();
-            await waitFor(() => expect(errorFn).toHaveBeenCalled());
-        });
-
-        test('ignores fetchNodes if it is not a function', async () => {
-            setupMocks({fetchNodes: null});
-            renderNavBar();
-            expect(screen.getByRole('link', {name: /view user information/i})).toBeInTheDocument();
-        });
-
-        test('shows cluster name after fetchNodes resolves', async () => {
-            const fetchNodesMock = vi.fn().mockResolvedValue();
-            setupMocks({fetchNodes: fetchNodesMock, clusterName: 'My Cluster', loading: false});
-            renderNavBar();
-            await waitFor(() => {
-                expect(screen.getByRole('link', {name: /navigate to my cluster/i})).toBeInTheDocument();
-            });
         });
     });
 

@@ -19,8 +19,8 @@ export const SIDEBAR_FLUSH_MS = 300;
 
 /**
  * Events of the sidebar stream. With `cache=true` the daemon first replays the
- * last event of each object, node and heartbeat, which gives the current state,
- * then sends the changes as they happen.
+ * last event of each object, node and heartbeat, and the configuration of the
+ * cluster, which gives the current state, then sends the changes as they happen.
  */
 const SIDEBAR_EVENTS = [
     "ObjectStatusUpdated",
@@ -30,6 +30,7 @@ const SIDEBAR_EVENTS = [
     // For the children of the vols only: a vol down nothing uses is no alert.
     "InstanceMonitorUpdated",
     "InstanceMonitorDeleted",
+    "ClusterConfigUpdated",
 ];
 
 export const SIDEBAR_EVENTS_URL =
@@ -40,7 +41,7 @@ const ZERO_TIME = "0001-01-01T00:00:00Z";
 /** Whether a node status says the node is frozen. */
 export const isFrozen = (status) => !!status?.frozen_at && status.frozen_at !== ZERO_TIME;
 
-const emptyState = () => ({objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}});
+const emptyState = () => ({objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null});
 
 /** Applies one event of the sidebar stream to the state maps, in place. */
 export function applySidebarEvent(state, type, data) {
@@ -74,6 +75,11 @@ export function applySidebarEvent(state, type, data) {
         case "DaemonHeartbeatUpdated":
             if (node && data.heartbeat) state.heartbeatStatus[node] = data.heartbeat;
             break;
+        case "ClusterConfigUpdated":
+            // Its ID, its name and the AI agent it names: some hundred bytes,
+            // where the whole cluster status grows with the cluster.
+            if (data?.cluster_config && typeof data.cluster_config === "object") state.clusterConfig = data.cluster_config;
+            break;
         default:
             break;
     }
@@ -106,6 +112,7 @@ function useSidebarEventState(enabled) {
                 nodeStatus: {...working.nodeStatus},
                 heartbeatStatus: {...working.heartbeatStatus},
                 volChildren: {...working.volChildren},
+                clusterConfig: working.clusterConfig,
             };
             setState(snapshot);
         };
@@ -208,11 +215,12 @@ function useUsageLists(enabled) {
 
 /**
  * The state the menu keeps live, shared with the overview of the cluster: the
- * objects, the nodes and their heartbeats, from its event stream; the pools and the
- * networks, polled. `ready`, a first state read.
+ * objects, the nodes and their heartbeats, and the configuration of the cluster,
+ * from its event stream; the pools and the networks, polled. `ready`, a first
+ * state read.
  */
 export const useMenuState = create(() => ({
-    objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, pools: [], networks: [], ready: false,
+    objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null, pools: [], networks: [], ready: false,
 }));
 
 /** The kind of an object path, as om3 writes it: "ns/kind/name", "kind/name", a bare svc name, "ns/". */
@@ -299,15 +307,16 @@ const ofKind = (objects, kind) =>
  * pools and the networks.
  */
 export function useSidebarState({enabled = true} = {}) {
-    const {objects, nodeStatus, heartbeatStatus, volChildren} = useSidebarEventState(enabled);
+    const {objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig} = useSidebarEventState(enabled);
     const {pools, networks} = useUsageLists(enabled);
-    // Shared with the overview of the cluster: one stream, one poll, for both.
+    // Shared with the overview of the cluster, the header and the assistant: one
+    // stream, one poll, for all.
     useEffect(() => {
-        useMenuState.setState({objects, nodeStatus, heartbeatStatus, volChildren, pools, networks, ready: true});
-    }, [objects, nodeStatus, heartbeatStatus, volChildren, pools, networks]);
+        useMenuState.setState({objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, pools, networks, ready: true});
+    }, [objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, pools, networks]);
     return useMemo(
-        () => ({objects, nodeStatus, heartbeatStatus, volChildren, pools, networks}),
-        [objects, nodeStatus, heartbeatStatus, volChildren, pools, networks]
+        () => ({objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, pools, networks}),
+        [objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, pools, networks]
     );
 }
 

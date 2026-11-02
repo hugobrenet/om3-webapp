@@ -5,8 +5,8 @@ import AiChat from '../AiChat.jsx';
 
 const mocks = vi.hoisted(() => ({auth: null, client: null}));
 vi.mock('../../context/AuthProvider.jsx', () => ({useAuth: () => mocks.auth}));
-vi.mock('../../hooks/useFetchDaemonStatus.jsx', () => ({
-    default: () => ({clusterId: 'cluster-id', clusterName: 'Lab cluster', fetchNodes: vi.fn(), loading: false, error: ''}),
+vi.mock('../../hooks/useClusterConfig.js', () => ({
+    default: () => ({clusterId: 'cluster-id', clusterName: 'Lab cluster', agentUrl: 'https://agent.example.com:8090', loaded: true}),
 }));
 vi.mock('../../hooks/useAiAgent.js', () => ({
     default: () => ({client: mocks.client, enabled: true, openid: true, ready: true, configurationError: null}),

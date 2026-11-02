@@ -8,10 +8,9 @@ import {loadSearchIndex} from "./searchIndex";
 import {StateGlyph} from "../ui/components/StateGlyph";
 import {ProductTag} from "../ui/components/ProductTag";
 import {useAuth} from "../context/AuthProvider.jsx";
-import {useEffect, useState, useCallback} from "react";
-import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus";
+import {useEffect, useState} from "react";
+import useClusterConfig from "../hooks/useClusterConfig.js";
 import useOnlineStatus from "../hooks/useOnlineStatus";
-import logger from '../utils/logger.js';
 import {getAiAgentConfig} from "../config/ai-agent.js";
 
 // Header icon buttons: outlined, as every button that neither creates nor deletes; muted ink, darker on hover.
@@ -31,65 +30,17 @@ const crumb = (part, index, path) => ({
 const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false, menuAlert = null}) => {
     const auth = useAuth();
     const location = useLocation();
-    const {clusterName, agentUrl, fetchNodes, loading} = useFetchDaemonStatus();
+    // The name of the cluster and its agent, from the event stream of the menu:
+    // no cluster status is read.
+    const {clusterName, agentUrl, loaded} = useClusterConfig();
+    const storedClusterName = clusterName || null;
+    const loading = Boolean(auth?.authToken || localStorage.getItem("authToken")) && !loaded;
     const [breadcrumb, setBreadcrumb] = useState([]);
-    const [storedClusterName, setStoredClusterName] = useState(null);
     const online = useOnlineStatus();
     const {t} = useTranslation();
     // The assistant, for a cluster whose configuration names an agent, to an
     // OpenID session: the agent takes no other.
     const aiEnabled = getAiAgentConfig(agentUrl).enabled && auth?.authChoice === 'openid';
-
-    const getPathBreadcrumbs = useCallback(() => {
-        const pathParts = location.pathname.split("/").filter(Boolean);
-        const breadcrumbItems = [];
-        if (pathParts[0] !== "login" && pathParts.length > 1) {
-            if (pathParts[0] === "network" && pathParts.length === 2) {
-                breadcrumbItems.push(crumb("network", 0, "/network"));
-                breadcrumbItems.push({name: pathParts[1], path: `/network/${pathParts[1]}`});
-            } else if (pathParts[0] === "objects" && pathParts.length === 2) {
-                breadcrumbItems.push({name: "Objects", path: "/objects", key: "nav.routes.objects"});
-                breadcrumbItems.push({name: pathParts[1], path: `/objects/${pathParts[1]}`});
-            } else {
-                pathParts.forEach((part, index) => {
-                    const fullPath = "/" + pathParts.slice(0, index + 1).join("/");
-                    if (part !== "cluster") {
-                        breadcrumbItems.push(crumb(part, index, fullPath));
-                    }
-                });
-            }
-        }
-        return breadcrumbItems;
-    }, [location.pathname]);
-
-    // Fetch nodes when token is available
-    useEffect(() => {
-        const fetchClusterData = async () => {
-            const token = auth?.authToken || localStorage.getItem("authToken");
-            if (!token) {
-                setBreadcrumb([
-                    {name: "Cluster", path: "/", key: "nav.breadcrumb.cluster"},
-                    ...getPathBreadcrumbs(),
-                ]);
-                return;
-            }
-
-            if (fetchNodes && typeof fetchNodes === 'function') {
-                try {
-                    await fetchNodes(token);
-                    if (!storedClusterName && clusterName) {
-                        setStoredClusterName(clusterName);
-                    }
-                } catch (error) {
-                    logger.error("Error while calling fetchNodes:", error);
-                }
-            }
-        };
-
-        if (!storedClusterName) {
-            fetchClusterData();
-        }
-    }, [auth, fetchNodes, getPathBreadcrumbs, storedClusterName, clusterName]);
 
     // The tab names the cluster and the product, as the header does.
     useEffect(() => {

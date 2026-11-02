@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {useAuth} from "../context/AuthProvider.jsx";
-import useFetchDaemonStatus from "../hooks/useFetchDaemonStatus.jsx";
+import useClusterConfig from "../hooks/useClusterConfig.js";
 import useAiAgent from "../hooks/useAiAgent.js";
 import useAiToolDocs from "../hooks/useAiToolDocs.js";
 import useAiChat from "../hooks/useAiChat.js";
@@ -605,8 +605,9 @@ function ConfirmationCard({confirmation, doc, busy, previewing, queued, onApprov
 const AiChat = ({status}) => {
     const {t} = useTranslation();
     const auth = useAuth();
-    // The cluster status names the cluster and the agent of its configuration.
-    const {clusterId, agentUrl, clusterName, loading, error: statusError, fetchNodes} = useFetchDaemonStatus();
+    // The configuration of the cluster, from the event stream of the menu,
+    // names the cluster and its agent: no cluster status is read.
+    const {clusterId, agentUrl, clusterName} = useClusterConfig();
     const {enabled, openid, ready, configurationError, client} = useAiAgent({clusterId, agentUrl});
     // A conversation belongs to an identity on a cluster: changing either resets the view.
     const scope = JSON.stringify([auth.authChoice, auth.user, clusterId]);
@@ -656,11 +657,6 @@ const AiChat = ({status}) => {
     );
     const starters =
         chat.historyReady && !busy && !waiting && !chat.messages.length ? starterQuestions(status, t) : [];
-
-    // The agent URL is read with the cluster status: it is fetched first.
-    useEffect(() => {
-        if (auth.accessToken) void fetchNodes(auth.accessToken);
-    }, [auth.authChoice, auth.accessToken, fetchNodes]);
 
     // Another conversation on display, or another identity or cluster: the
     // message box starts from the message queued, given back, or empty. The
@@ -793,18 +789,7 @@ const AiChat = ({status}) => {
             {auth.accessToken && openid && clusterId && !enabled && (
                 <Alert tone="info">{configurationError || t("ai.notConfigured")}</Alert>
             )}
-            {auth.accessToken && openid && !clusterId && (
-                <Alert
-                    tone={statusError ? "error" : "info"}
-                    action={
-                        <Button size="sm" disabled={loading} onClick={() => fetchNodes(auth.accessToken)}>
-                            {t("ai.refreshStatus")}
-                        </Button>
-                    }
-                >
-                    {statusError || (loading ? t("ai.loadingCluster") : t("ai.waitingCluster"))}
-                </Alert>
-            )}
+            {auth.accessToken && openid && !clusterId && <Alert tone="info">{t("ai.loadingCluster")}</Alert>}
 
             {ready && (
                 <div

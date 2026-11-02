@@ -91,6 +91,15 @@ describe('applySidebarEvent', () => {
         applySidebarEvent(state, 'ObjectDeleted', {path: 'ns/vol/v'});
         expect(state.volChildren).toEqual({});
     });
+
+    test('keeps the configuration of the cluster, and only a configuration', () => {
+        const state = {objects: {}, nodeStatus: {}, heartbeatStatus: {}, clusterConfig: null};
+        applySidebarEvent(state, 'ClusterConfigUpdated', {node: 'n1', cluster_config: 'not a configuration'});
+        expect(state.clusterConfig).toBeNull();
+        const config = {id: 'cluster-id', name: 'dev5', ai: {agent_url: 'https://agent.example.com:8090'}};
+        applySidebarEvent(state, 'ClusterConfigUpdated', {node: 'n1', cluster_config: config});
+        expect(state.clusterConfig).toEqual(config);
+    });
 });
 
 describe('heartbeatAlert', () => {
@@ -169,7 +178,7 @@ describe('useSidebarAlerts', () => {
         expect(sources).toHaveLength(1);
         expect(sources[0].url).toBe(SIDEBAR_EVENTS_URL);
         expect(sources[0].url).toContain('cache=true');
-        for (const filter of ['ObjectStatusUpdated', 'ObjectDeleted', 'NodeStatusUpdated', 'DaemonHeartbeatUpdated']) {
+        for (const filter of ['ObjectStatusUpdated', 'ObjectDeleted', 'NodeStatusUpdated', 'DaemonHeartbeatUpdated', 'ClusterConfigUpdated']) {
             expect(sources[0].url).toContain(`filter=${filter}`);
         }
         expect(sources[0].options.headers.Authorization).toBe('Bearer tok');
@@ -205,6 +214,21 @@ describe('useSidebarAlerts', () => {
         });
         await flush();
         expect(result.current['objects-any'].alert).toBeNull();
+    });
+
+    test('shares the configuration of the cluster its stream replays, live', async () => {
+        renderHook(() => useSidebarAlerts());
+        expect(useMenuState.getState().clusterConfig).toBeNull();
+        act(() => {
+            sources[0].emit('ClusterConfigUpdated', {cluster_config: {id: 'cluster-id', name: 'dev5', ai: {agent_url: 'https://a.example.com'}}});
+        });
+        await flush();
+        expect(useMenuState.getState().clusterConfig).toMatchObject({id: 'cluster-id', name: 'dev5', ai: {agent_url: 'https://a.example.com'}});
+        act(() => {
+            sources[0].emit('ClusterConfigUpdated', {cluster_config: {id: 'cluster-id', name: 'dev5', ai: {}}});
+        });
+        await flush();
+        expect(useMenuState.getState().clusterConfig.ai).toEqual({});
     });
 
     test('ignores an event whose data is not JSON', async () => {
