@@ -16,6 +16,8 @@ const SERIES = [
 export interface Segment {
   name: string;
   value: number;
+  /** Its own tint, in place of the series one: a heat, say, for a bar of a single segment. */
+  tint?: string;
 }
 
 /**
@@ -47,7 +49,7 @@ export function SegmentedBar({
           <span
             key={segment.name}
             data-segment={segment.name}
-            className={`h-full ${SERIES[index % SERIES.length]}`}
+            className={`h-full ${segment.tint ?? SERIES[index % SERIES.length]}`}
             style={{ width: `${Math.min(100, (segment.value / total) * 100)}%` }}
           />
         ))}

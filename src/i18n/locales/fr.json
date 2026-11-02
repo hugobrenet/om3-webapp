@@ -1115,7 +1115,14 @@
       "cpuOf": "CPU utilisé par {{namespace}}, de sa limite",
       "memoryOf": "Mémoire utilisée par {{namespace}}, de sa limite",
       "addresses_one": "{{value}} adresse",
-      "addresses_other": "{{value}} adresses"
+      "addresses_other": "{{value}} adresses",
+      "in": {
+        "pools_one": "{{value}} dans {{count}} pool",
+        "pools_other": "{{value}} dans {{count}} pools",
+        "nets_one": "{{value}} dans {{count}} réseau",
+        "nets_other": "{{value}} dans {{count}} réseaux"
+      },
+      "hottest": "{{value}}, réclamation la plus chargée :"
     },
     "panel": {
       "tabs": {

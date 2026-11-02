@@ -8,6 +8,7 @@ import {computeLimit, formatCpu, kindCounts, networkUsage, poolUsage} from "../a
 import {Table, HeaderRow, HeaderCell, SortHeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
 import {useFitLevel} from "../ui/lib/fit-level";
 import {SegmentedBar} from "../ui/components/SegmentedBar";
+import {usageState} from "../ui/components/UsageBar";
 import {formatBytes} from "../ui/lib/format";
 import {usePanelSearch} from "../app/panel-search";
 import {NamespaceDetailPanel} from "./RecordPanels";
@@ -127,12 +128,18 @@ function KindChart({namespace, counts, onShow, stacked = false}) {
     );
 }
 
+/** The tint of a heat, the bar and its part: written out in full, Tailwind does not see names built at runtime. */
+const HEAT_BAR = {up: "bg-state-up", warn: "bg-state-warn", down: "bg-state-down"};
+const HEAT_TEXT = {up: undefined, warn: "text-state-warn", down: "text-state-down"};
+/** The heat of a part of a cap, as the other usage bars say it (usageState). */
+const heatOf = (share) => usageState(share * 100);
+
 /**
  * A figure of a namespace over a cap: what it uses on top, and under it, a cap there,
  * its part of the cap in a bar of a segment a pool or a network, and the cap. A part
  * past 80% said in red.
  */
-function StackedUsage({value, segments, used, cap, format, capFormat = format, label, locale, measured = true}) {
+function StackedUsage({value, segments, used, cap, format, capFormat = format, capName, label, locale, measured = true}) {
     const {t} = useTranslation();
     const share = cap > 0 ? used / cap : undefined;
     return (
@@ -140,8 +147,9 @@ function StackedUsage({value, segments, used, cap, format, capFormat = format, l
             <span className="tabular-nums">{value}</span>
             {share !== undefined && (
                 <span className="flex items-center gap-1.5 text-data text-ink-muted tabular-nums">
+                    {capName && <span className="text-ink">{capName}</span>}
                     <SegmentedBar segments={segments} total={cap} label={label} width="w-24"/>
-                    <span className={measured && share > 0.8 ? "text-state-down" : undefined}>{measured ? percentOf(used, cap, locale) : "–"}</span>
+                    <span className={measured ? HEAT_TEXT[heatOf(share)] : undefined}>{measured ? percentOf(used, cap, locale) : "–"}</span>
                     <span>{t("namespaces.usage.ofCap", {cap: capFormat(cap)})}</span>
                 </span>
             )}
@@ -150,25 +158,46 @@ function StackedUsage({value, segments, used, cap, format, capFormat = format, l
 }
 
 /**
- * What a namespace holds of the pools or networks: the amount on top, its share of
- * what it may hold under it: the amount in `format`, with its unit; the cap, and the
- * parts said to the screen readers, in `plain`, a unit that never changes said once.
+ * What a namespace holds of the pools or the networks, as a cell says it: what it holds
+ * in all, in `format`, and in how many; the claim it is the nearest to filling, of
+ * the pools or networks it claims, a pool held unclaimed having no cap; every part
+ * said to the screen readers, in `plain`, a unit that never changes said once.
  */
-function UsageCell({usage, format, plain = format, title, locale}) {
-    const {t} = useTranslation();
-    if (usage.segments.length === 0) return <span className="text-ink-muted">–</span>;
+export function pooled({t, usage, kind, format, plain, title, locale}) {
+    const hottest = usage.segments
+        .filter((s) => s.claimed && s.total > 0)
+        .reduce((most, s) => (most === null || s.used / s.total > most.used / most.total ? s : most), null);
     const parts = usage.segments.map((s) => t(s.claimed ? "namespaces.usage.claimed" : "namespaces.usage.unclaimed", {
         name: s.name, used: plain(s.used), total: plain(s.total), percent: percentOf(s.used, s.total, locale),
     }));
+    // In how many it holds something: a claim on one it holds nothing of is no place it is in.
+    const held = usage.segments.filter((s) => s.used > 0).length;
+    return {
+        value: held > 0 ? t(`namespaces.usage.in.${kind}`, {count: held, value: format(usage.used)}) : format(usage.used),
+        hottest,
+        label: t("namespaces.usage.barLabel", {title, parts: parts.join(", ")}),
+    };
+}
+
+/**
+ * What a namespace holds of the pools or networks: what it holds in all and in how
+ * many on top; under it, the claim it is the nearest to filling, its name, its part
+ * in a bar of its heat, and the claim. Claiming none, the top line alone.
+ */
+function UsageCell({usage, kind, format, plain = format, title, locale}) {
+    const {t} = useTranslation();
+    if (usage.segments.length === 0) return <span className="text-ink-muted">–</span>;
+    const {value, hottest, label} = pooled({t, usage, kind, format, plain, title, locale});
     return (
         <StackedUsage
-            value={format(usage.used)}
-            segments={usage.segments.map((s) => ({name: s.name, value: s.used}))}
-            used={usage.used}
-            cap={usage.total}
+            value={hottest ? t("namespaces.usage.hottest", {value}) : value}
+            segments={hottest ? [{name: hottest.name, value: hottest.used, tint: HEAT_BAR[heatOf(hottest.used / hottest.total)]}] : []}
+            used={hottest?.used ?? 0}
+            cap={hottest?.total}
             format={format}
             capFormat={plain}
-            label={t("namespaces.usage.barLabel", {title, parts: parts.join(", ")})}
+            capName={hottest?.name}
+            label={label}
             locale={locale}
         />
     );
@@ -180,7 +209,8 @@ function CapCell({used, cap, format, label, locale}) {
     return (
         <StackedUsage
             value={used === undefined ? "–" : format(used)}
-            segments={[{name: "used", value: used ?? 0}]}
+            // A single segment: its heat, not a series tint telling it from others.
+            segments={[{name: "used", value: used ?? 0, tint: cap > 0 && used !== undefined ? HEAT_BAR[heatOf(used / cap)] : undefined}]}
             used={used ?? 0}
             cap={cap}
             format={format}
@@ -198,7 +228,7 @@ function CapCell({used, cap, format, label, locale}) {
  */
 function ClaimsCell({figures}) {
     return (
-        <span className="grid grid-cols-[8ch_11ch_6rem_max-content] items-center gap-x-2 gap-y-0.5 whitespace-nowrap" data-claims="">
+        <span className="grid grid-cols-[8ch_26ch_6rem_max-content] items-center gap-x-2 gap-y-0.5 whitespace-nowrap" data-claims="">
             {figures.map((f) => (
                 <React.Fragment key={f.key}>
                     <span className="text-ink-muted" data-figure={f.key}>{f.title}</span>
@@ -209,8 +239,9 @@ function ClaimsCell({figures}) {
                     <span className="text-data text-ink-muted tabular-nums">
                         {f.cap !== undefined && (
                             <>
-                                <span className={f.share > 0.8 ? "text-state-down" : undefined}>{f.percent}</span>
+                                <span className={f.percent === "–" ? undefined : HEAT_TEXT[heatOf(f.share)]}>{f.percent}</span>
                                 {" "}{f.ofCap}
+                                {f.capName && <span className="text-ink"> · {f.capName}</span>}
                             </>
                         )}
                     </span>
@@ -240,10 +271,11 @@ const NamespaceRow = React.memo(({namespace, counts, pools, networks, cpu, memor
         <Row onActivate={() => onOpen(namespace)} selected={isOpen} className="h-12" data-namespace={namespace}>
             <Cell className="font-medium">{namespace}</Cell>
             <Cell><KindChart namespace={namespace} counts={counts} onShow={onShow}/></Cell>
-            <Cell><UsageCell usage={pools} format={(n) => size(n, locale)} title={t("namespaces.columns.pools")} locale={locale}/></Cell>
+            <Cell><UsageCell usage={pools} kind="pools" format={(n) => size(n, locale)} title={t("namespaces.columns.pools")} locale={locale}/></Cell>
             <Cell>
                 <UsageCell
                     usage={networks}
+                    kind="nets"
                     format={(n) => t("namespaces.usage.addresses", {count: n, value: n.toLocaleString(locale)})}
                     plain={(n) => n.toLocaleString(locale)}
                     title={t("namespaces.columns.nets")}
@@ -279,23 +311,23 @@ const COMPACT_COLUMNS = ["namespace", "objects", "claims"];
 function claimFigures({t, namespace, pools, networks, cpu, memory, locale}) {
     const bytes = (n) => size(n, locale);
     const plain = (n) => n.toLocaleString(locale);
+    // What it holds in all and in how many, the claim it is the nearest to filling in the bar.
     const ofUsage = (key, usage, format, capFormat, title) => {
         if (usage.segments.length === 0) return {key, title, value: "–"};
-        const parts = usage.segments.map((s) => t(s.claimed ? "namespaces.usage.claimed" : "namespaces.usage.unclaimed", {
-            name: s.name, used: capFormat(s.used), total: capFormat(s.total), percent: percentOf(s.used, s.total, locale),
-        }));
+        const {value, hottest, label} = pooled({t, usage, kind: key, format, plain: capFormat, title, locale});
+        if (!hottest) return {key, title, value};
+        const share = hottest.used / hottest.total;
         return {
-            key, title, value: format(usage.used),
-            segments: usage.segments.map((s) => ({name: s.name, value: s.used})), cap: usage.total,
-            share: usage.total > 0 ? usage.used / usage.total : 0, percent: percentOf(usage.used, usage.total, locale),
-            ofCap: t("namespaces.usage.ofCap", {cap: capFormat(usage.total)}),
-            label: t("namespaces.usage.barLabel", {title, parts: parts.join(", ")}),
+            key, title, value, label, capName: hottest.name,
+            segments: [{name: hottest.name, value: hottest.used, tint: HEAT_BAR[heatOf(share)]}], cap: hottest.total,
+            share, percent: percentOf(hottest.used, hottest.total, locale),
+            ofCap: t("namespaces.usage.ofCap", {cap: capFormat(hottest.total)}),
         };
     };
     const ofCap = (key, {used, cap}, format, title, label) => ({
         key, title, value: used === undefined ? "–" : format(used),
         ...(cap === undefined ? {} : {
-            segments: [{name: "used", value: used ?? 0}], cap,
+            segments: [{name: "used", value: used ?? 0, tint: used === undefined ? undefined : HEAT_BAR[heatOf(used / cap)]}], cap,
             share: used === undefined ? 0 : used / cap, percent: used === undefined ? "–" : percentOf(used, cap, locale),
             ofCap: t("namespaces.usage.ofCap", {cap: format(cap)}), label,
         }),

@@ -2,7 +2,7 @@ import React from 'react';
 import {render, screen, fireEvent, waitFor, act, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
-import Namespaces from '../Namespaces';
+import Namespaces, {pooled} from '../Namespaces';
 import {useFitLevel} from '../../ui/lib/fit-level';
 import useEventStore from '../../hooks/useEventStore';
 import {PG_POLL_MS, resetPgUsage} from '../../hooks/usePgUsage';
@@ -143,6 +143,11 @@ const cell = (name, column) => {
     const headers = within(table()).getAllByRole('columnheader').map((h) => h.textContent.replace(/[▲▼]/g, '').trim());
     return within(row(name)).getAllByRole('cell')[headers.indexOf(column)];
 };
+/** The networks figure of a usage, as a cell says it. */
+const pooledOf = (usage) => pooled({
+    t: i18n.t.bind(i18n), usage, kind: 'nets', locale: 'en',
+    format: (n) => i18n.t('namespaces.usage.addresses', {count: n, value: String(n)}), plain: String, title: 'Networks',
+});
 const loaded = () => waitFor(() => expect(within(cell('prod', 'Pools')).getByRole('img')).toBeInTheDocument());
 describe('Namespaces', () => {
     test('the columns: name, objects, pools, networks, cpu, memory', async () => {
@@ -190,18 +195,41 @@ describe('Namespaces', () => {
         await loaded();
     });
 
-    test('the pools: what is held on top, its share of the claim, else the pool size, under it, a segment per pool', async () => {
+    test('the pools: what is held in all and in how many on top; under it, the claim nearest to filling, in its heat', async () => {
         renderNamespaces();
         await loaded();
-        // default: 10 GiB of a 20 GiB claim; shm, claimed of by nothing: 1 GiB of its 4 GiB.
+        // default: 10 GiB of a 20 GiB claim; shm, claimed by nothing: 1 GiB of its 4 GiB, no cap to fill.
         const pools = cell('prod', 'Pools');
-        expect(pools.querySelector('[data-usage] > span').textContent).toBe('11 GiB');
-        expect(pools).toHaveTextContent(/^11 GiB\s*46%\s*of 24 GiB$/);
+        expect(pools.querySelector('[data-usage] > span').textContent).toBe('11 GiB in 2 pools, hottest claim:');
+        expect(pools).toHaveTextContent(/^11 GiB in 2 pools, hottest claim:\s*default\s*50%\s*of 20 GiB$/);
         const bar = within(pools).getByRole('img');
+        // Every pool said to the screen readers, the bar drawing the hottest claim alone, in its heat.
         expect(bar).toHaveAccessibleName('Pools: default: 10 GiB of 20 GiB claimed (50%), shm: 1 GiB of 4 GiB, no claim (25%)');
-        expect([...bar.querySelectorAll('[data-segment]')].map((s) => [s.dataset.segment, s.style.width]))
-            .toEqual([['default', `${(10 / 24) * 100}%`], ['shm', `${(1 / 24) * 100}%`]]);
+        const segments = [...bar.querySelectorAll('[data-segment]')];
+        expect(segments.map((s) => [s.dataset.segment, s.style.width])).toEqual([['default', '50%']]);
+        expect(segments[0]).toHaveClass('bg-state-up');
         expect(cell('dev', 'Pools')).toHaveTextContent('–');
+    });
+
+    test('in how many: those it holds something of, not those it claims and holds nothing of', () => {
+        const usage = {used: 2, total: 30, free: 28, segments: [
+            {name: 'a', used: 2, total: 10, claimed: true},
+            {name: 'b', used: 0, total: 10, claimed: true},
+            {name: 'c', used: 0, total: 10, claimed: true},
+        ]};
+        expect(pooledOf(usage).value).toBe('2 addresses in 1 network');
+        expect(pooledOf({...usage, used: 0, segments: usage.segments.map((s) => ({...s, used: 0}))}).value).toBe('0 addresses');
+    });
+
+    test('the heat of the cpu and the memory: warn past half the cap, down past 80%, the bar and its part alike', async () => {
+        renderNamespaces();
+        await loaded();
+        const memory = cell('prod', 'Memory');
+        // 1 GiB of 4: cool, the part in plain ink.
+        await waitFor(() => expect(within(memory).getByRole('img').querySelector('[data-segment]')).toHaveClass('bg-state-up'));
+        expect(within(memory).getByText('25%')).not.toHaveClass('text-state-warn', 'text-state-down');
+        // The hottest claim of the pools in its heat too: a claim alone in the bar.
+        expect(within(cell('prod', 'Pools')).getByRole('img').querySelector('[data-segment]').className).not.toMatch(/bg-series-/);
     });
 
     test('every line one height, two lines high: the figures on top, the bars under them', async () => {
@@ -216,7 +244,7 @@ describe('Namespaces', () => {
         renderNamespaces();
         await loaded();
         // In addresses, as the other columns say their unit, said once: the cap and the bar's words in plain numbers.
-        expect(cell('prod', 'Networks')).toHaveTextContent(/^2 addresses\s*20%\s*of 10$/);
+        expect(cell('prod', 'Networks')).toHaveTextContent(/^2 addresses in 1 network, hottest claim:\s*default\s*20%\s*of 10$/);
         expect(within(cell('prod', 'Networks')).getByRole('img')).toHaveAccessibleName('Networks: default: 2 of 10 claimed (20%)');
         expect(cell('dev', 'Networks')).toHaveTextContent('–');
     });
@@ -228,6 +256,8 @@ describe('Namespaces', () => {
         // The memory on the first reading; a cpu rate needs a second one.
         await waitFor(() => expect(cell('prod', 'Memory')).toHaveTextContent(/^1 GiB\s*25%\s*of 4 GiB$/));
         expect(within(cell('prod', 'Memory')).getByRole('img', {name: 'Memory used by prod, of its cap'})).toBeInTheDocument();
+        // A single segment, in its heat rather than a series tint: 25%, cool.
+        expect(within(cell('prod', 'Memory')).getByRole('img').querySelector('[data-segment]')).toHaveClass('bg-state-up');
         // Not measured yet: a dash, not a share of nothing.
         expect(cell('prod', 'CPU')).toHaveTextContent(/^–\s*–\s*of 8 cpu$/);
         // The rate shows on the second reading, a couple of seconds after the first.
@@ -260,8 +290,8 @@ describe('Namespaces', () => {
             expect(cell('prod', 'Objects').querySelector('[data-kinds]').dataset.kinds).toBe('');
             const claims = cell('prod', 'Claims');
             expect([...claims.querySelectorAll('[data-figure]')].map((f) => f.textContent)).toEqual(['Pools', 'Networks', 'CPU', 'Memory']);
-            expect(claims).toHaveTextContent(/Pools\s*11 GiB\s*46% of 24 GiB/);
-            expect(claims).toHaveTextContent(/Networks\s*2 addresses\s*20% of 10/);
+            expect(claims).toHaveTextContent(/Pools\s*11 GiB in 2 pools\s*50% of 20 GiB · default/);
+            expect(claims).toHaveTextContent(/Networks\s*2 addresses in 1 network\s*20% of 10 · default/);
             expect(within(claims).getByRole('img', {name: /^Pools: default/})).toBeInTheDocument();
             expect(table()).not.toHaveAttribute('data-cards');
         });
