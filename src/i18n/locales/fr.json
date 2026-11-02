@@ -1784,7 +1784,10 @@
       "keys": "Clés",
       "keysSize": "Taille",
       "keysSizeHint": "La taille des clés telles que stockées dans la configuration, encodage compris",
-      "up": "Démarrées"
+      "up": "Démarrées",
+      "size": "Taille",
+      "used": "Utilisé",
+      "usedOf": "Espace utilisé par {{name}}"
     },
     "filters": {
       "show": "Afficher les filtres",

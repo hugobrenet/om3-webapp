@@ -151,7 +151,7 @@ const TWO_KINDS = {
     },
 };
 
-const setup = (customState = {}, locationSearch = '', mediaQuery = true) => {
+const setup = (customState = {}, locationSearch = '', mediaQuery = true, {fetch} = {}) => {
     const state = {...defaultState, ...customState};
 
     const useEventStoreMock = useEventStore;
@@ -182,7 +182,7 @@ const setup = (customState = {}, locationSearch = '', mediaQuery = true) => {
         mockedUseMediaQuery.mockImplementation((query) => (typeof query === 'string' && query.includes('1536px') ? false : mediaQuery));
     }
 
-    global.fetch = vi.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve({})}));
+    global.fetch = fetch ?? vi.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve({})}));
 
     mockForceFlush.mockClear();
     mockNavigate.mockClear();
@@ -435,6 +435,48 @@ describe('Objects Component', () => {
             },
             objectInstanceStatus: {},
         };
+
+        test('the volumes: never orchestrated, their topology, their size and what they use, sorted by them', async () => {
+            const vols = {
+                objectStatus: {
+                    'test-ns/vol/big': {avail: 'up', frozen: 'unfrozen', provisioned: 'true', orchestrate: '', topology: 'failover'},
+                    'test-ns/vol/small': {avail: 'up', frozen: 'unfrozen', provisioned: 'true', orchestrate: '', topology: 'flex', flex: {min: 0, max: 3, target: 3}},
+                    'test-ns/vol/unknown': {avail: 'up', frozen: 'unfrozen', provisioned: 'true', orchestrate: '', topology: 'failover'},
+                    'test-ns/vol/empty': {avail: 'up', frozen: 'unfrozen', provisioned: 'true', orchestrate: '', topology: 'failover'},
+                },
+                objectInstanceStatus: {
+                    'test-ns/vol/big': {n1: {avail: 'up', usage: {used: 1073741824, size: 4294967296, measured_at: '2026-11-02T10:00:00.1+01:00'}}},
+                    // Of several nodes, the one using the most.
+                    'test-ns/vol/small': {n1: {avail: 'up', usage: {used: 1024, size: 104857600}}, n2: {avail: 'up', usage: {used: 52428800, size: 104857600}}},
+                    'test-ns/vol/unknown': {n1: {avail: 'down'}},
+                    'test-ns/vol/empty': {n1: {avail: 'up', usage: {used: 0, size: 1048576}}},
+                },
+            };
+            const fetch = vi.fn((url) => Promise.resolve({ok: true, json: () => Promise.resolve(String(url).endsWith('/api/pool/volume')
+                ? {items: [{path: 'test-ns/vol/big', size: 4294967296}, {path: 'test-ns/vol/small', size: 104857600}]}
+                : {})}));
+            setup(vols, '?list=volumes', {isWideScreen: true, isMobile: false}, {fetch});
+            await waitForLoad();
+            expect(screen.queryByRole('columnheader', {name: /^Orchestrate/})).not.toBeInTheDocument();
+            expect(screen.getByRole('columnheader', {name: /^Topology/})).toBeInTheDocument();
+            const header = screen.getByRole('columnheader', {name: /^Size/});
+            await waitFor(() => expect(within(objectRow('test-ns/vol/big')).getAllByRole('cell').map((c) => c.textContent)).toContain('4 GiB'));
+            expect(within(objectRow('test-ns/vol/small')).getAllByRole('cell').map((c) => c.textContent)).toContain('100 MiB');
+            fireEvent.click(within(header).getByRole('button'));
+            await waitFor(() => expect(objectNamesInOrder().filter((n) => n.includes('/vol/'))).toEqual(['test-ns/vol/small', 'test-ns/vol/big', 'test-ns/vol/empty', 'test-ns/vol/unknown']));
+            // What each uses, its part of what it holds; none measured, nothing.
+            expect(screen.getByRole('progressbar', {name: 'Space used by test-ns/vol/big'})).toHaveAttribute('aria-valuenow', '25');
+            expect(screen.getByRole('progressbar', {name: 'Space used by test-ns/vol/small'})).toHaveAttribute('aria-valuenow', '50');
+            expect(screen.queryByRole('progressbar', {name: 'Space used by test-ns/vol/unknown'})).toBeNull();
+            // None used: said, the amount in its slot as the others, the bars lined up.
+            const empty = screen.getByRole('progressbar', {name: 'Space used by test-ns/vol/empty'}).closest('td');
+            expect(empty).toHaveTextContent(/^0 B/);
+            expect(empty.querySelector('.w-\\[9ch\\]')).not.toBeNull();
+            fireEvent.click(within(screen.getByRole('columnheader', {name: /^Used/})).getByRole('button'));
+            await waitFor(() => expect(objectNamesInOrder().filter((n) => n.includes('/vol/'))).toEqual(['test-ns/vol/empty', 'test-ns/vol/small', 'test-ns/vol/big', 'test-ns/vol/unknown']));
+            fireEvent.click(within(screen.getByRole('columnheader', {name: /^Used/})).getByRole('button'));
+            await waitFor(() => expect(objectNamesInOrder().filter((n) => n.includes('/vol/'))).toEqual(['test-ns/vol/big', 'test-ns/vol/small', 'test-ns/vol/empty', 'test-ns/vol/unknown']));
+        });
 
         test('show orchestrate and topology', async () => {
             setup(propertyState, '', {isWideScreen: true, isMobile: false});

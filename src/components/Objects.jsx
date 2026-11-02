@@ -24,10 +24,11 @@ import {Checkbox} from "../ui/components/Field";
 import {useMediaQuery} from "../ui/lib/media";
 import {objectFacets} from "../app/object-facets";
 import {FilterRail, FilterToolbar} from "./FilterRail";
-import {BADGE, KeyCells, NotProvisionedMark, OrchestrateBadge, PropertyCells, SideText, StatusMarks, markState} from "./ObjectCells";
+import {BADGE, KeyCells, NotProvisionedMark, OrchestrateBadge, PropertyCells, SideText, StatusMarks, markState, volumeUsage} from "./ObjectCells";
 import {useGrants} from "../hooks/useGrants";
 import {canWriteClaims} from "../app/namespace-claims";
 import {MoreRows, useRowsOnDemand} from "../ui/components/RowsOnDemand";
+import {VolumeSizesContext, useVolumeSizes} from "../hooks/useVolumeSizes";
 import {ALL_LIST, OBJECT_LISTS, OBJECTS_TABS, listOfKind} from "../utils/objectLists";
 import {AlertTriangleIcon, BoltIcon, CheckIcon, GearIcon, InfoIcon, PlusIcon} from "../ui/icons";
 import {cachedReason, needsReason} from "../app/object-reason";
@@ -158,6 +159,20 @@ export const PROPERTY_COLUMNS = [
 ];
 
 /**
+ * The columns of the volumes: never orchestrated, no orchestrate; their topology, a
+ * flex volume there being one, the size each was made with, as the pools tell it, and
+ * what it uses, as its instances measure it.
+ */
+const VOLUME_PROPERTY_COLUMNS = [
+    PROPERTY_COLUMNS[1],
+    {key: "size", labelKey: "objects.columns.size", numeric: true, value: (_status, sizes, name) => sizes?.get(name)},
+    {key: "used", labelKey: "objects.columns.used", numeric: true, value: (_status, _sizes, _name, instances) => volumeUsage(instances)?.used},
+];
+
+/** The property columns of a list: narrow, the instances up; the volumes, their own. */
+const propertyColumnsOf = (list, narrow) => (narrow ? NARROW_PROPERTY_COLUMNS : list === "volumes" ? VOLUME_PROPERTY_COLUMNS : PROPERTY_COLUMNS);
+
+/**
  * The property columns of a narrow list: the orchestrate and the topology a badge by
  * the path there, the instances up out of the target in their place.
  */
@@ -170,14 +185,14 @@ const AVAIL_RANK = {down: 0, warn: 1, up: 2, "n/a": 3};
 const availRank = (avail) => AVAIL_RANK[avail] ?? 4;
 
 /** The value of an object a column sorts by, undefined when it has none: an instance's by `node:<name>`. */
-function sortValue(column, name, status, instances) {
+function sortValue(column, name, status, instances, sizes) {
     if (column.startsWith("node:")) {
         const instance = instances?.[name]?.[column.slice(5)];
         return instance === undefined ? undefined : availRank(instance.avail);
     }
     if (column === "status") return status?.[name] === undefined ? undefined : availRank(status[name].avail);
-    const property = [...PROPERTY_COLUMNS, ...NARROW_PROPERTY_COLUMNS].find((c) => c.key === column);
-    const value = property?.value(status?.[name]);
+    const property = [...PROPERTY_COLUMNS, ...VOLUME_PROPERTY_COLUMNS, ...NARROW_PROPERTY_COLUMNS].find((c) => c.key === column);
+    const value = property?.value(status?.[name], sizes, name, instances?.[name]);
     return value === "" || value === null ? undefined : value;
 }
 
@@ -186,9 +201,9 @@ function sortValue(column, name, status, instances) {
  * "desc": a property, the status or an instance's on a node, the worst first
  * ascending. An object without a value last, either way; the same value, 0.
  */
-function compareValues(a, b, column, direction, status, instances) {
-    const va = sortValue(column, a, status, instances);
-    const vb = sortValue(column, b, status, instances);
+function compareValues(a, b, column, direction, status, instances, sizes) {
+    const va = sortValue(column, a, status, instances, sizes);
+    const vb = sortValue(column, b, status, instances, sizes);
     if (va === undefined || vb === undefined) return va === vb ? 0 : va === undefined ? 1 : -1;
     const order = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).localeCompare(String(vb));
     return direction === "asc" ? order : -order;
@@ -202,7 +217,7 @@ function compareValues(a, b, column, direction, status, instances) {
  * without a value last; then by name. The root namespace's short paths ("cluster",
  * "svc/x") kept together under it.
  */
-export function orderObjects(names, column, direction, status, instances) {
+export function orderObjects(names, column, direction, status, instances, sizes) {
     const byNamespace = new Map();
     for (const name of [...names].sort((a, b) => a.localeCompare(b))) {
         const ns = extractNamespace(name);
@@ -211,12 +226,12 @@ export function orderObjects(names, column, direction, status, instances) {
     }
     if (column !== "object") {
         // Sorted by path already: the order of the column, a path breaking a tie (a stable sort).
-        for (const members of byNamespace.values()) members.sort((a, b) => compareValues(a, b, column, direction, status, instances));
+        for (const members of byNamespace.values()) members.sort((a, b) => compareValues(a, b, column, direction, status, instances, sizes));
     }
     const namespaces = [...byNamespace.keys()].sort((x, y) => {
         if (column === "object") return direction === "asc" ? x.localeCompare(y) : y.localeCompare(x);
         // Its objects sorted, the first of each namespace the one the column puts first.
-        return compareValues(byNamespace.get(x)[0], byNamespace.get(y)[0], column, direction, status, instances)
+        return compareValues(byNamespace.get(x)[0], byNamespace.get(y)[0], column, direction, status, instances, sizes)
             || x.localeCompare(y);
     });
     return namespaces.flatMap((ns) => byNamespace.get(ns));
@@ -464,6 +479,7 @@ const TableRowComponent = React.memo(({
                                           isWideScreen,
                                           isNarrow = false,
                                           namesOnly = false,
+                                          columns,
                                       }) => {
     const {t} = useTranslation();
     const objectData = useObjectData(objectName);
@@ -507,7 +523,7 @@ const TableRowComponent = React.memo(({
                     )}
             </Cell>
             {namesOnly && <KeyCells objectName={objectName}/>}
-            {!namesOnly && <PropertyCells objectName={objectName} narrow={isNarrow}/>}
+            {!namesOnly && <PropertyCells objectName={objectName} narrow={isNarrow} columns={columns}/>}
             {!namesOnly && (
                 <Cell className="whitespace-nowrap">
                     <StatusMarks
@@ -536,6 +552,7 @@ const TableRowComponent = React.memo(({
         prevProps.isOpen === nextProps.isOpen &&
         prevProps.isWideScreen === nextProps.isWideScreen &&
         prevProps.isNarrow === nextProps.isNarrow &&
+        prevProps.columns === nextProps.columns &&
         prevProps.namesOnly === nextProps.namesOnly &&
         prevProps.allNodes.length === nextProps.allNodes.length &&
         prevProps.allNodes.every((node, i) => node === nextProps.allNodes[i])
@@ -614,6 +631,9 @@ const Objects = () => {
     const [searchQuery, setSearchQuery] = useState(rawSearchQuery);
     const isWideScreen = useMediaQuery(WIDE_QUERY);
     const isMobile = useMediaQuery(MOBILE_QUERY);
+    // The volumes their sizes, as the pools tell them, read while shown in their column.
+    const volumeSizes = useVolumeSizes(list === "volumes" && !isMobile);
+    const propertyColumnKeys = useMemo(() => propertyColumnsOf(list, isMobile).map((c) => c.key), [list, isMobile]);
     const hasRail = useMediaQuery(LIST_RAIL_QUERY);
 
 
@@ -737,7 +757,7 @@ const Objects = () => {
     // first. A column gone, the window narrowed or another tab, by name again.
     const [sort, setSort] = useState({column: "object", direction: "asc"});
     const sortColumns = useMemo(() => ["object", ...(namesOnly ? [] : [
-        ...(isMobile ? NARROW_PROPERTY_COLUMNS : PROPERTY_COLUMNS).map((c) => c.key),
+        ...propertyColumnsOf(list, isMobile).map((c) => c.key),
         "status",
         ...(isWideScreen ? allNodes.map((node) => `node:${node}`) : []),
     ])], [namesOnly, isMobile, isWideScreen, allNodes]);
@@ -750,8 +770,8 @@ const Objects = () => {
     // Namespace by namespace, a line opening each (NamespaceRow): the namespaces in
     // the order of the column sorted on, the objects of each by path (orderObjects).
     const sortedObjectNames = useMemo(
-        () => orderObjects(filteredObjectNames, sortColumn, sortDirection, objects, objectInstanceStatus),
-        [filteredObjectNames, sortColumn, sortDirection, objects, objectInstanceStatus],
+        () => orderObjects(filteredObjectNames, sortColumn, sortDirection, objects, objectInstanceStatus, volumeSizes),
+        [filteredObjectNames, sortColumn, sortDirection, objects, objectInstanceStatus, volumeSizes],
     );
 
     // The objects of each namespace the filters keep: what its line selects.
@@ -1063,13 +1083,14 @@ const Objects = () => {
     );
 
     // Narrow, the orchestrate is a badge by the path: no column for it.
-    const propertyColumns = isMobile ? NARROW_PROPERTY_COLUMNS : PROPERTY_COLUMNS;
+    const propertyColumns = propertyColumnsOf(list, isMobile);
     // The nodes past a gap of their own: a column more.
     const nodeColumns = !namesOnly && isWideScreen ? allNodes.length : 0;
     const columnCount = namesOnly ? 4 : 3 + propertyColumns.length + (nodeColumns > 0 ? nodeColumns + 1 : 0);
 
     return (
         <NoteFixContext.Provider value={noteFix.ask}>
+        <VolumeSizesContext.Provider value={volumeSizes}>
             <div className="flex h-full gap-6 p-4">
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
                     {/* Wide, the actions and the pager at the head of the rail: their rows to the table. */}
@@ -1182,6 +1203,7 @@ const Objects = () => {
                                             isWideScreen={isWideScreen}
                                             isNarrow={isMobile}
                                             namesOnly={namesOnly}
+                                            columns={propertyColumnKeys}
                                         />}
                                     </React.Fragment>
                                 );
@@ -1233,6 +1255,7 @@ const Objects = () => {
                     onClose={() => selectObject(undefined)}
                 />
             </div>
+        </VolumeSizesContext.Provider>
         </NoteFixContext.Provider>
     );
 };

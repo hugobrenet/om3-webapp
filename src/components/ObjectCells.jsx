@@ -7,8 +7,10 @@ import {Cell} from "../ui/components/Table";
 import {NotProvisionedMark as PMark} from "../ui/components/StateMarks";
 import {FrozenMark} from "../ui/components/FrozenMark";
 import {formatBytes} from "../ui/lib/format";
+import {UsageBar} from "../ui/components/UsageBar";
 import {AlertTriangleIcon} from "../ui/icons";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
+import {useVolumeSize} from "../hooks/useVolumeSizes";
 
 /*
  * The cells of an object row, shared by the objects table and the object lists of
@@ -142,7 +144,41 @@ export const UpCell = ({objectName}) => {
  * The property cells of an object row. `narrow`, the orchestrate and the topology in
  * the badge by the path: the instances up out of the target alone in their place.
  */
-export const PropertyCells = ({objectName, narrow = false}) => {
+/** The size a volume was made with; unknown, nothing. */
+const SizeCell = ({objectName}) => {
+    const {i18n} = useTranslation();
+    const size = useVolumeSize(objectName);
+    return <Cell numeric className="whitespace-nowrap">{size === undefined ? "" : formatBytes(size, i18n.language)}</Cell>;
+};
+
+/**
+ * What a volume uses, as its instances measure it (`usage` of their status): of the
+ * node using the most, a volume of several nodes holding a copy on each. None
+ * measured, absent: not up, no filesystem, or not measured yet.
+ */
+export const volumeUsage = (instances) => Object.values(instances ?? {})
+    .map((instance) => instance?.usage)
+    .filter((usage) => Number.isFinite(usage?.used))
+    .reduce((most, usage) => (most === undefined || usage.used > most.used ? usage : most), undefined);
+
+/** The space a volume uses, and its part of what it can hold. */
+const UsedCell = ({objectName}) => {
+    const {t, i18n} = useTranslation();
+    const used = useEventStore((s) => volumeUsage(s.objectInstanceStatus?.[objectName])?.used);
+    const size = useEventStore((s) => volumeUsage(s.objectInstanceStatus?.[objectName])?.size);
+    if (used === undefined) return <Cell numeric/>;
+    return (
+        <Cell numeric className="whitespace-nowrap">
+            {/* The amount right-aligned in a slot of its own, the bars of the rows lined up after it; none used, 0. */}
+            <span className="inline-flex items-center gap-2">
+                <span className="inline-block w-[9ch] text-right tabular-nums">{used > 0 ? formatBytes(used, i18n.language) : "0 B"}</span>
+                {size > 0 && <UsageBar value={(used / size) * 100} label={t("objects.columns.usedOf", {name: objectName})}/>}
+            </span>
+        </Cell>
+    );
+};
+
+export const PropertyCells = ({objectName, narrow = false, columns = ["orchestrate", "topology"]}) => {
     const status = (s) => s.objectStatus?.[objectName];
     const orchestrate = useEventStore((s) => status(s)?.orchestrate);
     const topology = useEventStore((s) => status(s)?.topology);
@@ -154,13 +190,17 @@ export const PropertyCells = ({objectName, narrow = false}) => {
     if (narrow) return <UpCell objectName={objectName}/>;
     return (
         <>
-            <Cell className="whitespace-nowrap">{orchestrate}</Cell>
-            <Cell className="whitespace-nowrap">
-                <span className="inline-flex items-center gap-1.5">
-                    {topology}
-                    {isFlex && <FlexBadge min={flexMin} max={flexMax} target={flexTarget}/>}
-                </span>
-            </Cell>
+            {columns.map((column) => column === "orchestrate" ? <Cell key={column} className="whitespace-nowrap">{orchestrate}</Cell>
+                : column === "size" ? <SizeCell key={column} objectName={objectName}/>
+                : column === "used" ? <UsedCell key={column} objectName={objectName}/>
+                : (
+                    <Cell key={column} className="whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5">
+                            {topology}
+                            {isFlex && <FlexBadge min={flexMin} max={flexMax} target={flexTarget}/>}
+                        </span>
+                    </Cell>
+                ))}
         </>
     );
 };

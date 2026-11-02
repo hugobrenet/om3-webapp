@@ -1784,7 +1784,10 @@
       "keys": "Keys",
       "keysSize": "Size",
       "keysSizeHint": "The size of the keys as stored in the configuration, their encoding included",
-      "up": "Up"
+      "up": "Up",
+      "size": "Size",
+      "used": "Used",
+      "usedOf": "Space used by {{name}}"
     },
     "filters": {
       "show": "Show filters",
