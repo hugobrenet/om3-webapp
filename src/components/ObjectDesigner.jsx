@@ -32,10 +32,11 @@ import {
     withRequired,
     isUnmanaged,
     withUnmanaged,
+    clusterSectionChoices,
 } from "../app/object-design";
 import {Dialog} from "../ui/components/Dialog";
 import {Button, IconButton} from "../ui/components/Button";
-import {Checkbox, Input, Select, Textarea} from "../ui/components/Field";
+import {Checkbox, Field, Input, Select, Textarea} from "../ui/components/Field";
 import {Spinner} from "../ui/components/Spinner";
 import {CloseIcon, InfoIcon, PlusIcon, SearchIcon} from "../ui/icons";
 import {KeywordFacts} from "./ConfigText";
@@ -398,9 +399,142 @@ function KeywordPicker({keywords, onAdd, grantsTold = true}) {
  * the node of the api has (its capabilities); unread, the driver typed (`fs.flag`),
  * checked by reading its keywords.
  */
+/**
+ * An add panel brought where the eye is, once its choices are there: opened from a +
+ * at the end of a long list of sections, it shows at the top of the other column, out
+ * of sight. Scrolled into view, its first choice focused, the click seen to do something.
+ */
+function useShownOnOpen(ref, ready) {
+    useEffect(() => {
+        const panel = ref.current;
+        if (!ready || !panel) return;
+        panel.scrollIntoView?.({block: "nearest", behavior: "smooth"});
+        panel.querySelector("button")?.focus({preventScroll: true});
+    }, [ref, ready]);
+}
+
+/** The name of a section of several: a word, no space nor "#". */
+const SECTION_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/**
+ * A section added to the cluster configuration, from the keywords of the cluster: a
+ * section of its own (ai, collector…) a click, those there already left out; one of
+ * several (pool#…, hb#…) by a name, and a type for those choosing their driver by one.
+ * `onAdd` given the section and its keywords.
+ */
+function AddClusterSection({keywordsUrl, sections, onAdd, onCancel}) {
+    const {t} = useTranslation();
+    const [choices, setChoices] = useState(null);
+    const panel = useRef(null);
+    useShownOnOpen(panel, choices !== null);
+    const [picked, setPicked] = useState(null);
+    const [name, setName] = useState("");
+    const [type, setType] = useState("");
+    const [error, setError] = useState(null);
+    useEffect(() => {
+        let live = true;
+        readJson(keywordsUrl).then(
+            (d) => live && setChoices(clusterSectionChoices(d?.items ?? [], sections)),
+            (err) => live && (setError(err.message), setChoices([])),
+        );
+        return () => {
+            live = false;
+        };
+    }, [keywordsUrl, sections]);
+    const add = async (choice, sectionName, sectionType = "") => {
+        setError(null);
+        try {
+            const driver = `${choice.section}.${sectionType}`;
+            const items = sectionType
+                ? await driverKeywords(keywordsUrl, driver)
+                : await readJson(`${keywordsUrl}?section=${encodeURIComponent(sectionName)}`).then((d) => d?.items ?? []);
+            onAdd({name: sectionName, group: choice.section, type: sectionType, entries: []}, items);
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+    if (choices === null) return <Spinner label={t("objectDesigner.reading")}/>;
+    const single = choices.filter((c) => !c.indexed);
+    const several = choices.filter((c) => c.indexed);
+    const full = picked ? `${picked.section}#${name.trim()}` : "";
+    const nameError = picked && name.trim() !== ""
+        ? (!SECTION_NAME.test(name.trim()) ? t("objectDesigner.addSection.badName") : sections.some((s) => s.name === full) ? t("objectDesigner.addSection.taken", {section: full}) : null)
+        : null;
+    const card = "flex min-w-0 flex-col items-start rounded-(--radius-control) border border-line bg-surface-raised px-2 py-1 text-left font-mono hover:border-line-strong aria-pressed:border-accent aria-pressed:bg-accent-soft";
+    return (
+        <div ref={panel} className="space-y-3" data-add-section="">
+            {error && <p role="alert" className="text-state-down">{error}</p>}
+            {single.length > 0 && (
+                <div role="group" aria-label={t("objectDesigner.addSection.single")} className="space-y-1">
+                    <h4 className="text-data text-ink-muted">{t("objectDesigner.addSection.single")}</h4>
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-1.5 p-0.5">
+                        {single.map((c) => (
+                            <button key={c.section} type="button" data-section={c.section} className={card} onClick={() => add(c, c.section)}>
+                                [{c.section}]
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {several.length > 0 && (
+                <div role="group" aria-label={t("objectDesigner.addSection.several")} className="space-y-1">
+                    <h4 className="text-data text-ink-muted">{t("objectDesigner.addSection.several")}</h4>
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-1.5 p-0.5">
+                        {several.map((c) => (
+                            <button
+                                key={c.section}
+                                type="button"
+                                data-section={c.section}
+                                aria-pressed={picked?.section === c.section}
+                                className={card}
+                                onClick={() => {
+                                    setPicked(c);
+                                    setType(c.types[0] ?? "");
+                                }}
+                            >
+                                [{c.section}#…]
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+            {picked && (
+                <form
+                    className="flex flex-wrap items-end gap-2"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        if (name.trim() && !nameError && (!picked.typed || type.trim())) void add(picked, full, picked.typed ? type.trim() : "");
+                    }}
+                >
+                    <Field label={t("objectDesigner.addSection.name", {section: picked.section})} error={nameError}>
+                        {(control) => <Input {...control} autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} className="w-48 font-mono"/>}
+                    </Field>
+                    {picked.typed && (
+                        <Field label={t("objectDesigner.addSection.type")}>
+                            {(control) => (picked.types.length > 0 ? (
+                                <Select {...control} value={type} onChange={(e) => setType(e.target.value)} className="h-8 w-40">
+                                    {picked.types.map((ty) => <option key={ty} value={ty}>{ty}</option>)}
+                                </Select>
+                            ) : (
+                                <Input {...control} autoComplete="off" value={type} onChange={(e) => setType(e.target.value)} className="w-40 font-mono"/>
+                            ))}
+                        </Field>
+                    )}
+                    <Button type="submit" variant="create" disabled={!name.trim() || !!nameError || (picked.typed && !type.trim())}>
+                        {t("objectDesigner.addSection.add", {section: full || `${picked.section}#…`})}
+                    </Button>
+                </form>
+            )}
+            <Button onClick={onCancel}>{t("common.cancel")}</Button>
+        </div>
+    );
+}
+
 function AddResource({kind, keywordsUrl, onAdd, onCancel, hideRoot = false}) {
     const {t} = useTranslation();
     const [drivers, setDrivers] = useState(null);
+    const panel = useRef(null);
+    useShownOnOpen(panel, drivers !== null);
     const [group, setGroup] = useState("");
     const [typed, setTyped] = useState("");
     const [error, setError] = useState(null);
@@ -433,7 +567,7 @@ function AddResource({kind, keywordsUrl, onAdd, onCancel, hideRoot = false}) {
     };
     if (drivers === null) return <Spinner label={t("objectDesigner.reading")}/>;
     return (
-        <div className="space-y-2" data-add-resource="">
+        <div ref={panel} className="space-y-2" data-add-resource="">
             {drivers.length > 0 ? (
                 <>
                     {/* The groups, a card each with its part in the app; a type then, a click adding it. */}
@@ -678,6 +812,14 @@ export function ObjectDesigner({kind, namespace = "", sections, onChange, keywor
         setAdding(false);
         setPicking(false);
     };
+    // A section of the cluster configuration: its keywords read with it, as a resource's.
+    const addClusterSection = (section, items) => {
+        setKeywords((k) => ({...k, [`${section.group}.${section.type}`]: items}));
+        onChange([...sections, withRequired(items, section)]);
+        setSelected(section.name);
+        setAdding(false);
+        setPicking(false);
+    };
     const removeSection = (name) => {
         onChange(sections.filter((s) => s.name !== name));
         if (selected === name) setSelected("DEFAULT");
@@ -724,7 +866,7 @@ export function ObjectDesigner({kind, namespace = "", sections, onChange, keywor
                             );
                         })}
                     </ul>
-                    {takesResources(kind) && (
+                    {(takesResources(kind) || rootOnlyKind(kind)) && (
                         <button
                             type="button"
                             aria-pressed={adding}
@@ -735,7 +877,7 @@ export function ObjectDesigner({kind, namespace = "", sections, onChange, keywor
                             className="flex w-full items-center justify-center gap-1.5 rounded-(--radius-control) border border-dashed border-line px-2 py-1 text-ink-muted hover:border-accent hover:text-accent aria-pressed:border-accent aria-pressed:text-accent"
                         >
                             <PlusIcon className="h-3.5 w-3.5"/>
-                            {t("objectDesigner.addResource")}
+                            {rootOnlyKind(kind) ? t("objectDesigner.addSection.open") : t("objectDesigner.addResource")}
                         </button>
                     )}
                 </nav>
@@ -744,7 +886,9 @@ export function ObjectDesigner({kind, namespace = "", sections, onChange, keywor
                 {adding ? (
                     <section aria-labelledby={`${ids}-adding`} className="min-w-0 space-y-2">
                         <h3 id={`${ids}-adding`} className="sr-only">{t("objectDesigner.addResource")}</h3>
-                        <AddResource kind={kind} keywordsUrl={keywordsUrl} onAdd={addResource} onCancel={() => setAdding(false)} hideRoot={hideRoot}/>
+                        {rootOnlyKind(kind)
+                            ? <AddClusterSection keywordsUrl={keywordsUrl} sections={sections} onAdd={addClusterSection} onCancel={() => setAdding(false)}/>
+                            : <AddResource kind={kind} keywordsUrl={keywordsUrl} onAdd={addResource} onCancel={() => setAdding(false)} hideRoot={hideRoot}/>}
                     </section>
                 ) : (
                     <section aria-labelledby={`${ids}-section`} className="min-w-0 space-y-2">

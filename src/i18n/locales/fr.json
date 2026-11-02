@@ -3372,7 +3372,17 @@
     "freeAddresses_other": "{{free}} adresses libres",
     "virtualType": "le moteur du nœud",
     "orExactly": "ou :",
-    "provisionGrant": "{{grant}}, ou provisionnement non géré"
+    "provisionGrant": "{{grant}}, ou provisionnement non géré",
+    "addSection": {
+      "open": "Ajouter une section",
+      "single": "Sections",
+      "several": "Sections multiples, par un nom",
+      "name": "Nom du {{section}}",
+      "type": "Type",
+      "add": "Ajouter [{{section}}]",
+      "badName": "Un mot : lettres, chiffres, point, tiret ou souligné.",
+      "taken": "[{{section}}] existe déjà."
+    }
   },
   "driverSupport": {
     "lacking_one": "Non utilisable sur {{nodes}} : son pilote n'est pas parmi les capacités du nœud.",

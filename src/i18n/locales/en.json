@@ -3372,7 +3372,17 @@
     "freeAddresses_other": "{{free}} addresses free",
     "virtualType": "the engine the node has",
     "orExactly": "or:",
-    "provisionGrant": "{{grant}}, or unmanaged provisioning"
+    "provisionGrant": "{{grant}}, or unmanaged provisioning",
+    "addSection": {
+      "open": "Add a section",
+      "single": "Sections",
+      "several": "Sections of several, by a name",
+      "name": "Name of the {{section}}",
+      "type": "Type",
+      "add": "Add [{{section}}]",
+      "badName": "A word: letters, digits, dot, dash or underscore.",
+      "taken": "[{{section}}] is there already."
+    }
   },
   "driverSupport": {
     "lacking_one": "Not usable on {{nodes}}: its driver is not among the capabilities of the node.",
