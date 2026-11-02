@@ -154,6 +154,43 @@ export interface InstanceStatus {
   running?: { rid?: string }[];
 }
 
+/** The resource ids a mix lists, the others counted. */
+const MIX_LISTED = 6;
+
+/**
+ * Why an instance whose resources logged nothing is in warn: the states of its
+ * resources, which add up to warn when mixed (core/status: up with down, a standby
+ * up with a standby down). A sync resource says whether the data is replicated,
+ * not whether the instance runs: up, it adds nothing; down, it is a warn of its own,
+ * the data not replicated.
+ */
+export function mixedStates(st: InstanceStatus | undefined): string {
+  const by: Record<"up" | "down" | "warn" | "unsynced", string[]> = { up: [], down: [], warn: [], unsynced: [] };
+  const all: [string, ResourceStatus][] = [
+    ...Object.entries(st?.resources ?? {}),
+    ...Object.values(st?.encap ?? {}).flatMap((e) => Object.entries(e.resources ?? {})),
+  ];
+  // By their bytes, as om sorts them (sort.Strings): the same order as the cli.
+  for (const [rid, r] of all.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    const sync = rid.split("#")[0] === "sync";
+    const state = r.status ?? "";
+    if (sync) {
+      if (state === "down") by.unsynced.push(rid);
+    } else if (state === "up" || state === "stdby up") by.up.push(rid);
+    else if (state === "down" || state === "stdby down") by.down.push(rid);
+    else if (state === "warn") by.warn.push(rid);
+  }
+  const list = (rids: string[]) =>
+    rids.length > MIX_LISTED ? `${rids.slice(0, MIX_LISTED).join(" ")} +${rids.length - MIX_LISTED}` : rids.join(" ");
+  const parts = [
+    by.up.length > 0 && `${list(by.up)} up`,
+    by.down.length > 0 && `${list(by.down)} down`,
+    by.warn.length > 0 && `${list(by.warn)} warn`,
+    by.unsynced.length > 0 && `${list(by.unsynced)} down, the data not replicated`,
+  ].filter(Boolean);
+  return parts.length > 0 ? `mixed resource states: ${parts.join(", ")}` : "mixed resource states";
+}
+
 export interface InstanceConfig {
   topology?: string;
   orchestrate?: string;
@@ -785,8 +822,13 @@ export function buildBoard(digest: Digest): Board {
   }
   const hasResourceIssue = [...noteByKey.values()].some((n) => n.level !== "info");
   if (actor && obj.overall === "warn" && !hasResourceIssue) {
-    const l = nodesWith((s) => s.status?.overall === "warn");
-    if (l.length > 0) add("warn", "overall", l, "resources are in warn");
+    // The mix that makes it warn, said node by node, the nodes of a same mix together.
+    const byText = new Map<string, string[]>();
+    for (const node of nodesWith((s) => s.status?.overall === "warn")) {
+      const text = mixedStates(stateOf(node).status);
+      byText.set(text, [...(byText.get(text) ?? []), node]);
+    }
+    for (const [text, about] of byText) add("warn", "overall", about, text);
   }
   if (digest.isCompat === false) add("error", "agents", [], "the nodes run incompatible agent versions");
   const noMonitor = nodesWith((s) => isZeroTime(s.monitor?.updated_at));

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { buildBoard, marker, resourceNotes, splitLabels, words, type Board, type ObjectData, type Text } from "../statusboard";
+import { buildBoard, marker, mixedStates, resourceNotes, splitLabels, words, type Board, type ObjectData, type Text } from "../statusboard";
 import { selectionEdges } from "../StatusBoard";
 import dns from "./fixtures/system-svc-dns.json";
 import foo001 from "./fixtures/root-svc-foo001.json";
@@ -233,6 +233,48 @@ describe("status board", () => {
     ]);
     expect(board.notes.find((g) => g.heads[0]?.subject === "placement")?.text).toBe(
       "non-optimal: the placement policy prefers n1",
+    );
+  });
+
+  test("an overall warn no resource explains: the mix of states making it, node by node", () => {
+    const instance = (resources: Record<string, { status: string }>) => ({
+      config: { resources: {} },
+      monitor: { state: "idle", updated_at: "2026-10-12T10:00:00Z" },
+      status: { avail: "warn", overall: "warn", provisioned: "true", resources },
+    });
+    const object: ObjectData = {
+      avail: "warn",
+      overall: "warn",
+      provisioned: "true",
+      topology: "flex",
+      orchestrate: "ha",
+      scope: ["n1", "n2", "n3"],
+      instances: {
+        n1: instance({ "ip#0": { status: "down" }, "fs#1": { status: "up" }, "container#0": { status: "up" } }),
+        n2: instance({ "ip#0": { status: "down" }, "fs#1": { status: "up" }, "container#0": { status: "up" } }),
+        n3: instance({ "app#1": { status: "stdby up" }, "app#2": { status: "stdby down" }, "sync#1": { status: "down" }, "sync#2": { status: "up" } }),
+      },
+    };
+    const board = buildBoard({ path: "ns1/svc/web", object });
+    const overall = board.notes.filter((g) => g.heads[0]?.subject === "overall").map((g) => [g.heads[0]?.nodes, g.text]);
+    expect(overall).toEqual([
+      ["n1 n2", "mixed resource states: container#0 fs#1 up, ip#0 down"],
+      ["n3", "mixed resource states: app#1 up, app#2 down, sync#1 down, the data not replicated"],
+    ]);
+  });
+
+  test("a mix listed short, its resources past a few counted; none known, the mix alone", () => {
+    const many = Object.fromEntries([...Array(8).keys()].map((i) => [`fs#${i}`, { status: "up" }]));
+    expect(mixedStates({ resources: { ...many, "ip#0": { status: "down" } } })).toBe(
+      "mixed resource states: fs#0 fs#1 fs#2 fs#3 fs#4 fs#5 +2 up, ip#0 down",
+    );
+    expect(mixedStates({ resources: { "container#1": { status: "up" } }, encap: { "container#1": { resources: { "app#1": { status: "down" } } } } })).toBe(
+      "mixed resource states: container#1 up, app#1 down",
+    );
+    expect(mixedStates(undefined)).toBe("mixed resource states");
+    // By their bytes, as the cli: "#" (0x23) before the digits and the letters, upper case before lower.
+    expect(mixedStates({ resources: { fsa: { status: "up" }, "fs#1": { status: "up" }, fs1: { status: "up" }, FS: { status: "up" }, "ip#0": { status: "down" } } })).toBe(
+      "mixed resource states: FS fs#1 fs1 fsa up, ip#0 down",
     );
   });
 
