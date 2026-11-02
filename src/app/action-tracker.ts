@@ -77,8 +77,14 @@ interface OrchestrationItem {
   error?: string;
 }
 
-/** How long a request is held by the daemon until what it follows ends. */
-const WAIT = "30s";
+/**
+ * How often an action is read again until it ends. A read the daemon held until the
+ * end (`wait`) would keep a connection of the browser per action: over HTTP/1.1,
+ * six a host, the event streams holding two, a batch of actions queues behind its
+ * own waits, and an action ended long ago stays running in the tray. Read without
+ * holding, a read queued is late by a moment, not by the wait.
+ */
+export const END_EVERY_MS = 1000;
 /** How often the runs of an orchestration are read while it runs. */
 const STEPS_EVERY_MS = 2000;
 /** Read errors in a row before the outcome is given up as unknown. */
@@ -136,8 +142,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const daemonUrl = (node: string, rest: string) => `${URL_NODE}/${encodeURIComponent(node)}/daemon/${rest}`;
 
 /**
- * Reads what `url` says until it ends: held by the daemon (`wait`), read again on
- * a 408 (the wait ran out first). Resolves to the item ended, or to the reason it
+ * Reads what `url` says until it ends, every `END_EVERY_MS`, no read held by the
+ * daemon (END_EVERY_MS says why). Resolves to the item ended, or to the reason it
  * could not be known.
  */
 async function waitEnd<T extends { state: string }>(url: string, id: string): Promise<T | { lost: string }> {
@@ -145,7 +151,8 @@ async function waitEnd<T extends { state: string }>(url: string, id: string): Pr
   for (;;) {
     if (!isLive(id)) return { lost: "" };
     try {
-      const response = await fetch(`${url}?wait=${WAIT}`, { headers: headers() });
+      const response = await fetch(url, { headers: headers() });
+      // A daemon holding it all the same (a wait run out): read again.
       if (response.status === 408) continue;
       // Ended long ago and dropped: how it went is no longer known.
       if (response.status === 410) return { lost: "gone" };
@@ -153,6 +160,7 @@ async function waitEnd<T extends { state: string }>(url: string, id: string): Pr
       const item = (await response.json()) as T;
       if (item.state !== "running") return item;
       errors = 0;
+      await sleep(END_EVERY_MS);
     } catch (err) {
       errors += 1;
       if (errors >= MAX_ERRORS) return { lost: err instanceof Error ? err.message : String(err) };
