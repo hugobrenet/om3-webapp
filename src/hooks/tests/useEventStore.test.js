@@ -14,6 +14,7 @@ describe('useEventStore', () => {
     beforeEach(() => {
         act(() => {
             useEventStore.setState({
+                clusterNodes: null,
                 nodeStatus: {},
                 nodeMonitor: {},
                 nodeStats: {},
@@ -822,6 +823,39 @@ describe('useEventStore', () => {
             const before = useEventStore.getState();
             useEventStore.getState().removeNode('nope');
             expect(useEventStore.getState()).toBe(before);
+        });
+    });
+
+    describe('forgetNodesOutOf', () => {
+        test('a node gone out of the cluster: what it reported goes, its replayed statuses are not taken', () => {
+            useEventStore.setState({
+                nodeStatus: {n1: {agent: 'a'}, gone: {agent: 'b'}},
+                nodeMonitor: {gone: {state: 'idle'}},
+                nodeStats: {gone: {score: 1}},
+                heartbeatStatus: {n1: {}, gone: {}},
+                objectInstanceStatus: {'ns/svc/s': {n1: {avail: 'up'}, gone: {avail: 'down'}}},
+            });
+            useEventStore.getState().forgetNodesOutOf(['n1']);
+            let s = useEventStore.getState();
+            expect(s.nodeStatus).toEqual({n1: {agent: 'a'}});
+            expect(s.nodeMonitor).toEqual({});
+            expect(s.nodeStats).toEqual({});
+            expect(s.heartbeatStatus).toEqual({n1: {}});
+            expect(s.objectInstanceStatus).toEqual({'ns/svc/s': {n1: {avail: 'up'}}});
+            // The daemon replays the last status of the node gone: not taken.
+            useEventStore.getState().setNodeStatuses({...s.nodeStatus, gone: {agent: 'b'}});
+            useEventStore.getState().setNodeStats({gone: {score: 1}});
+            s = useEventStore.getState();
+            expect(s.nodeStatus).toEqual({n1: {agent: 'a'}});
+            expect(s.nodeStats).toEqual({});
+        });
+
+        test('no nodes known: nothing forgotten', () => {
+            useEventStore.setState({nodeStatus: {n1: {}}});
+            useEventStore.getState().forgetNodesOutOf([]);
+            useEventStore.getState().forgetNodesOutOf(undefined);
+            expect(useEventStore.getState().nodeStatus).toEqual({n1: {}});
+            expect(useEventStore.getState().clusterNodes).toBeNull();
         });
     });
 

@@ -114,6 +114,16 @@ function instancesWithout(state, isGone) {
     return {objectInstanceStatus, instanceConfig, instanceMonitor};
 }
 
+/** The entries of a map by node, of these nodes only; all of them when not known. */
+const ofNodes = (byNode, nodes) => {
+    if (!Array.isArray(nodes) || !byNode) return byNode;
+    const gone = Object.keys(byNode).filter((node) => !nodes.includes(node));
+    if (gone.length === 0) return byNode;
+    const next = {...byNode};
+    for (const node of gone) delete next[node];
+    return next;
+};
+
 const useEventStore = create(
     persist(
         (set, get) => ({
@@ -284,17 +294,49 @@ const useEventStore = create(
                     return {nodeStatus, nodeMonitor, nodeStats, ...instances};
                 }),
 
+            // The nodes of the cluster configuration, once read: the status the daemon
+            // replays of a node gone out of the cluster is not taken.
+            clusterNodes: null,
+
+            /**
+             * The nodes of the cluster are these (`cluster.nodes`): what the views keep
+             * of the others goes, and their statuses are no longer taken.
+             */
+            forgetNodesOutOf: (nodes) => {
+                if (!Array.isArray(nodes) || nodes.length === 0) return;
+                set((state) => ({
+                    clusterNodes: nodes,
+                    nodeStatus: ofNodes(state.nodeStatus, nodes),
+                    nodeMonitor: ofNodes(state.nodeMonitor, nodes),
+                    nodeStats: ofNodes(state.nodeStats, nodes),
+                    heartbeatStatus: ofNodes(state.heartbeatStatus, nodes),
+                }));
+                get().pruneInstancesOfNodes(nodes);
+            },
+
             setNodeStatuses: (nodeStatus) =>
-                set((state) => shallowEqual(state.nodeStatus, nodeStatus) ? state : {nodeStatus}),
+                set((state) => {
+                    const next = ofNodes(nodeStatus, state.clusterNodes);
+                    return shallowEqual(state.nodeStatus, next) ? state : {nodeStatus: next};
+                }),
 
             setNodeMonitors: (nodeMonitor) =>
-                set((state) => shallowEqual(state.nodeMonitor, nodeMonitor) ? state : {nodeMonitor}),
+                set((state) => {
+                    const next = ofNodes(nodeMonitor, state.clusterNodes);
+                    return shallowEqual(state.nodeMonitor, next) ? state : {nodeMonitor: next};
+                }),
 
             setNodeStats: (nodeStats) =>
-                set((state) => shallowEqual(state.nodeStats, nodeStats) ? state : {nodeStats}),
+                set((state) => {
+                    const next = ofNodes(nodeStats, state.clusterNodes);
+                    return shallowEqual(state.nodeStats, next) ? state : {nodeStats: next};
+                }),
 
             setHeartbeatStatuses: (heartbeatStatus) =>
-                set((state) => shallowEqual(state.heartbeatStatus, heartbeatStatus) ? state : {heartbeatStatus}),
+                set((state) => {
+                    const next = ofNodes(heartbeatStatus, state.clusterNodes);
+                    return shallowEqual(state.heartbeatStatus, next) ? state : {heartbeatStatus: next};
+                }),
 
             setInstanceMonitors: (instanceMonitor) =>
                 set((state) => shallowEqual(state.instanceMonitor, instanceMonitor) ? state : {instanceMonitor}),

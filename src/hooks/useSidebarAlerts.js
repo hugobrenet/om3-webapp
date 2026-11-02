@@ -7,6 +7,7 @@ import i18n from "../i18n";
 import {URL_NETWORK, URL_NODE_EVENT, URL_POOL} from "../config/apiPath.js";
 import logger from "../utils/logger.js";
 import {childrenDown} from "../app/statusboard";
+import useEventStore from "./useEventStore.js";
 
 /** Pools and networks have no events: their usage is polled at this period. */
 export const SIDEBAR_USAGE_REFRESH_MS = 15000;
@@ -30,6 +31,8 @@ const SIDEBAR_EVENTS = [
     // For the children of the vols only: a vol down nothing uses is no alert.
     "InstanceMonitorUpdated",
     "InstanceMonitorDeleted",
+    // The cluster configuration: its name, id, nodes and ai.agent_url, the nodes
+    // gone out of the cluster dropped.
     "ClusterConfigUpdated",
 ];
 
@@ -42,6 +45,21 @@ const ZERO_TIME = "0001-01-01T00:00:00Z";
 export const isFrozen = (status) => !!status?.frozen_at && status.frozen_at !== ZERO_TIME;
 
 const emptyState = () => ({objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null});
+
+/**
+ * The entries of a map by node, of the nodes of the cluster configuration only: the
+ * daemon replays the last status of a node gone out of the cluster as if it were
+ * there. All of them while the configuration is not read.
+ */
+export function ofClusterNodes(byNode, clusterConfig) {
+    const nodes = clusterConfig?.nodes;
+    if (!Array.isArray(nodes)) return byNode;
+    const gone = Object.keys(byNode ?? {}).filter((node) => !nodes.includes(node));
+    if (gone.length === 0) return byNode;
+    const next = {...byNode};
+    for (const node of gone) delete next[node];
+    return next;
+}
 
 /** Applies one event of the sidebar stream to the state maps, in place. */
 export function applySidebarEvent(state, type, data) {
@@ -109,8 +127,8 @@ function useSidebarEventState(enabled) {
             flushTimer = null;
             const snapshot = {
                 objects: {...working.objects},
-                nodeStatus: {...working.nodeStatus},
-                heartbeatStatus: {...working.heartbeatStatus},
+                nodeStatus: {...ofClusterNodes(working.nodeStatus, working.clusterConfig)},
+                heartbeatStatus: {...ofClusterNodes(working.heartbeatStatus, working.clusterConfig)},
                 volChildren: {...working.volChildren},
                 clusterConfig: working.clusterConfig,
             };
@@ -220,7 +238,8 @@ function useUsageLists(enabled) {
  * state read.
  */
 export const useMenuState = create(() => ({
-    objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null, pools: [], networks: [], ready: false,
+    objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null,
+    pools: [], networks: [], ready: false,
 }));
 
 /** The kind of an object path, as om3 writes it: "ns/kind/name", "kind/name", a bare svc name, "ns/". */
@@ -314,6 +333,12 @@ export function useSidebarState({enabled = true} = {}) {
     useEffect(() => {
         useMenuState.setState({objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, pools, networks, ready: true});
     }, [objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, pools, networks]);
+    // The nodes gone out of the cluster: what the views keep of them goes.
+    useEffect(() => {
+        if (Array.isArray(clusterConfig?.nodes) && clusterConfig.nodes.length > 0) {
+            useEventStore.getState().forgetNodesOutOf(clusterConfig.nodes);
+        }
+    }, [clusterConfig]);
     return useMemo(
         () => ({objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, pools, networks}),
         [objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, pools, networks]

@@ -21,7 +21,8 @@ const {
 }));
 
 // ── Mocks ──────────────────────────────────────────────────────────────
-vi.mock('../../config/apiPath.js', () => ({
+vi.mock('../../config/apiPath.js', async (importOriginal) => ({
+    ...(await importOriginal()),
     URL_NODE: 'http://mock-api',
     URL_CLUSTER_STATUS: '/api/cluster/status',
     URL_CLUSTER_STATUS_NODES: '/api/cluster/status?selector=cluster',

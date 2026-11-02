@@ -137,6 +137,26 @@ describe("status board", () => {
     const unused = buildBoard({ path: "system/vol/dns", object: vol("down") });
     expect(icons(unused)).toEqual(["secondary", "secondary"]);
     expect(unused.notes).toContainEqual(expect.objectContaining({ level: "info", text: "children are down" }));
+    // No children, or none of them an object (undef): gray, said so.
+    const childless = (children?: Record<string, string>): ObjectData => {
+      const o = vol("down");
+      const monitor = o.instances?.n1?.monitor ?? {};
+      if (children === undefined) delete monitor.children;
+      else monitor.children = children;
+      return o;
+    };
+    for (const o of [childless(), childless({}), childless({ "ns/svc/gone": "undef" })]) {
+      const board = buildBoard({ path: "system/vol/dns", object: o });
+      expect(icons(board)).toEqual(["secondary", "secondary"]);
+      expect(board.notes).toContainEqual(expect.objectContaining({ level: "info", text: "no children" }));
+    }
+    // One child gone, the other down: its children are down.
+    const mixed = buildBoard({ path: "system/vol/dns", object: childless({ "ns/svc/gone": "undef", "ns/svc/s": "down" }) });
+    expect(mixed.notes).toContainEqual(expect.objectContaining({ text: "children are down" }));
+    // No monitor known: nothing said of its children, its downs red.
+    const unmonitored = vol("down");
+    delete unmonitored.instances?.n1?.monitor;
+    expect(icons(buildBoard({ path: "system/vol/dns", object: unmonitored }))).toEqual(["error", "error"]);
   });
 
   test("a failover service with an unsupported driver reads as om shows it", () => {

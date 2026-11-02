@@ -347,18 +347,39 @@ function kindOf(path: string): string {
   return parts.length >= 3 ? (parts[1] as string) : parts.length === 2 ? (parts[0] as string) : "svc";
 }
 
+/** The availability the daemon gives a child that is no object: undef. */
+const isChildOfNoObject = (st: string) => st === "" || st === "undef";
+
 /**
- * A vol down whose children, as its instance monitors report them, are all down
- * too: nothing uses it, its down is no issue. A vol down under a child up is one.
+ * The children of a vol down, as its instance monitors report them: "up", one of
+ * them up, the vol in use; "down", all of them down; "none", no child, or none of
+ * them an object. Null for another object, a vol not down, or one no monitor of
+ * which is known yet.
+ */
+export function volChildren(
+  path: string,
+  avail: string | undefined,
+  monitors: readonly (InstanceMonitor | undefined)[],
+): "up" | "down" | "none" | null {
+  if (kindOf(path) !== "vol" || avail !== "down") return null;
+  const known = monitors.filter((m) => m !== undefined && m !== null);
+  if (known.length === 0) return null;
+  const children = known.flatMap((m) => Object.values(m?.children ?? {})).filter((st) => !isChildOfNoObject(st));
+  if (children.length === 0) return "none";
+  return children.some((st) => CHILD_UP.has(st)) ? "up" : "down";
+}
+
+/**
+ * A vol down nothing uses: its children all down too, or none of them there. Its
+ * down is no issue. A vol down under a child up is one.
  */
 export function childrenDown(
   path: string,
   avail: string | undefined,
   monitors: readonly (InstanceMonitor | undefined)[],
 ): boolean {
-  if (kindOf(path) !== "vol" || avail !== "down") return false;
-  const children = monitors.flatMap((m) => Object.values(m?.children ?? {}));
-  return children.length > 0 && !children.some((st) => CHILD_UP.has(st));
+  const children = volChildren(path, avail, monitors);
+  return children === "down" || children === "none";
 }
 
 export function buildBoard(digest: Digest): Board {
@@ -389,7 +410,8 @@ export function buildBoard(digest: Digest): Board {
         : 0;
   const excess = allowed <= 0 || up <= allowed ? 0 : up - allowed;
   const hasExpectedInstances = actor && up >= Math.max(1, expected);
-  const isChildrenDown = childrenDown(digest.path, obj.avail, nodes.map((n) => stateOf(n).monitor));
+  const children = volChildren(digest.path, obj.avail, nodes.map((n) => stateOf(n).monitor));
+  const isChildrenDown = children === "down" || children === "none";
 
   /** A status as the om mon icon says it; a down is gray where no instance is missing, or nothing uses it. */
   const statusIcon = (st: string | undefined): Span => {
@@ -672,7 +694,8 @@ export function buildBoard(digest: Digest): Board {
     action,
     nodes: about.length === nodes.length && nodes.length > 1 ? [] : about,
   });
-  if (isChildrenDown) add("info", "children", [], "children are down");
+  if (children === "down") add("info", "children", [], "children are down");
+  if (children === "none") add("info", "children", [], "no children");
   if (excess > 0) {
     add(
       "error",
