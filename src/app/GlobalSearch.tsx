@@ -61,6 +61,7 @@ function isMac(): boolean {
  */
 export function GlobalSearch({ loadIndex }: { loadIndex: () => Promise<SearchIndex> }) {
   const { t } = useTranslation();
+  const touch = useMediaQuery(TOUCH_QUERY);
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const shortcut = isMac() ? "⌘K" : "Ctrl K";
@@ -95,9 +96,11 @@ export function GlobalSearch({ loadIndex }: { loadIndex: () => Promise<SearchInd
       >
         <SearchIcon className="h-4 w-4 shrink-0" />
         <span className="truncate max-md:sr-only">{t("search.title")}</span>
-        <kbd className="ml-auto shrink-0 rounded-sm border border-line px-1 text-data whitespace-nowrap max-md:hidden">
-          {shortcut}
-        </kbd>
+        {!touch && (
+          <kbd className="ml-auto shrink-0 rounded-sm border border-line px-1 text-data whitespace-nowrap">
+            {shortcut}
+          </kbd>
+        )}
       </button>
       {/* At the level of the page: the top bar has colours of its own. */}
       {open &&

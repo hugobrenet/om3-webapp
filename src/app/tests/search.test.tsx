@@ -93,7 +93,9 @@ describe("GlobalSearch", () => {
     }));
     try {
       renderSearch();
-      fireEvent.click(screen.getByRole("button", { name: /Search the cluster/ }));
+      const trigger = screen.getByRole("button", { name: /Search the cluster/ });
+      expect(trigger.querySelector("kbd")).toBeNull();
+      fireEvent.click(trigger);
       expect(screen.queryByText("to move")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Close the search" })).toBeInTheDocument();
     } finally {
