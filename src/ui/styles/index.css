@@ -122,3 +122,13 @@
     }
   }
 }
+
+/* A field under 16px makes iOS zoom the page in on focus. Out of the layers, so no
+   text size utility on a field wins over it. om3 addition. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(1rem, 1em);
+  }
+}

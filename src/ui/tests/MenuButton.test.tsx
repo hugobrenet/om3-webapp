@@ -497,6 +497,16 @@ describe("MenuButton filter", () => {
     expect(screen.getByText("No action matches.")).toBeInTheDocument();
   });
 
+  test("opened by a finger, the field waits for a tap: no keyboard rising over the menu", async () => {
+    const user = userEvent.setup();
+    render(<MenuButton label="Actions" items={rich} filterable filterLabel="Filter the actions" />);
+    await user.pointer({ keys: "[TouchA]", target: screen.getByRole("button", { name: "Actions" }) });
+    const field = screen.getByRole("searchbox", { name: "Filter the actions" });
+    expect(field).not.toHaveFocus();
+    await user.click(field);
+    expect(field).toHaveFocus();
+  });
+
   test("Down goes to the first entry kept, Up from it back to the field; Enter in the field chooses the first", async () => {
     const user = userEvent.setup();
     const chosen = vi.fn();
