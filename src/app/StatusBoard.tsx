@@ -62,7 +62,7 @@ function Status({ span }: { span: Span }) {
   const badge = statusBadge(span.status);
   if (span.status === "undef") {
     return (
-      <span data-state="unknown" className="inline-flex w-4 shrink-0 items-center justify-center font-semibold text-state-down">
+        <span data-state="unknown" className="inline-flex w-4 shrink-0 items-center justify-center font-semibold text-state-down">
         <span aria-hidden="true">?</span>
         <span className="sr-only">{badge.label ?? span.status}</span>
       </span>
@@ -71,7 +71,7 @@ function Status({ span }: { span: Span }) {
   // om grays a down where the object misses no instance: it is no issue.
   const muted = span.tone === "secondary" && badge.state !== "unknown" && badge.state !== "na";
   return (
-    <span data-state={badge.state} className={cn("inline-flex w-4 shrink-0 items-center justify-center", muted ? "text-ink-muted" : GLYPH_INK[badge.state])}>
+      <span data-state={badge.state} className={cn("inline-flex w-4 shrink-0 items-center justify-center", muted ? "text-ink-muted" : GLYPH_INK[badge.state])}>
       <StateGlyph state={badge.state} />
       <span className="sr-only">{badge.label ?? span.status}</span>
     </span>
@@ -129,7 +129,7 @@ function Mark({ span }: { span: Span }) {
   if (span.mark === "P") return <NotProvisionedMark label={label} />;
   if (glyph === null) return null;
   return (
-    <span role="img" aria-label={label} className={cn("inline-flex", glyph[1])}>
+      <span role="img" aria-label={label} className={cn("inline-flex", glyph[1])}>
       {glyph[0]}
     </span>
   );
@@ -145,12 +145,12 @@ function flagMeaning(span: Span, t: (key: string, options?: Record<string, unkno
 function Flag({ span }: { span: Span }) {
   const { t } = useTranslation();
   return (
-    <span
-      className={cn(
-        "inline-flex h-4 min-w-4 items-center justify-center rounded-sm border px-0.5 text-[0.6875rem] leading-none font-medium",
-        span.tone === "error" ? "border-state-down text-state-down" : "border-line text-ink-muted",
-      )}
-    >
+      <span
+          className={cn(
+              "inline-flex h-4 min-w-4 items-center justify-center rounded-sm border px-0.5 text-[0.6875rem] leading-none font-medium",
+              span.tone === "error" ? "border-state-down text-state-down" : "border-line text-ink-muted",
+          )}
+      >
       <span aria-hidden="true">{span.text}</span>
       <span className="sr-only">{flagMeaning(span, t)}</span>
     </span>
@@ -203,26 +203,26 @@ const LEGEND_FLAGS: { key: string; span: Span }[] = [
 export function SymbolLegend() {
   const { t } = useTranslation();
   const group = (key: string, items: { key: string; span: Span }[], Piece: (props: { span: Span }) => ReactNode) => (
-    <section aria-labelledby={`legend-${key}`} className="space-y-1">
-      <h3 id={`legend-${key}`} className="font-medium">{t(`legend.groups.${key}`)}</h3>
-      <dl className="grid grid-cols-[2.5rem_1fr] items-baseline gap-x-2 gap-y-1">
-        {items.map((item) => (
-          <Fragment key={item.key}>
-            <dt className="flex justify-center" data-legend={`${key}-${item.key}`}>
-              <Piece span={item.span} />
-            </dt>
-            <dd>{t(`legend.${key}.${item.key}`)}</dd>
-          </Fragment>
-        ))}
-      </dl>
-    </section>
+      <section aria-labelledby={`legend-${key}`} className="space-y-1">
+        <h3 id={`legend-${key}`} className="font-medium">{t(`legend.groups.${key}`)}</h3>
+        <dl className="grid grid-cols-[2.5rem_1fr] items-baseline gap-x-2 gap-y-1">
+          {items.map((item) => (
+              <Fragment key={item.key}>
+                <dt className="flex justify-center" data-legend={`${key}-${item.key}`}>
+                  <Piece span={item.span} />
+                </dt>
+                <dd>{t(`legend.${key}.${item.key}`)}</dd>
+              </Fragment>
+          ))}
+        </dl>
+      </section>
   );
   return (
-    <div className="grid gap-4 text-data md:grid-cols-3">
-      {group("states", LEGEND_STATES, Status)}
-      {group("marks", LEGEND_MARKS, Mark)}
-      {group("flags", LEGEND_FLAGS, Flag)}
-    </div>
+      <div className="grid gap-4 text-data md:grid-cols-3">
+        {group("states", LEGEND_STATES, Status)}
+        {group("marks", LEGEND_MARKS, Mark)}
+        {group("flags", LEGEND_FLAGS, Flag)}
+      </div>
   );
 }
 
@@ -233,22 +233,22 @@ export function SymbolLegend() {
 export function NotesList({ notes, className = "max-w-sm" }: { notes: RowNote[]; className?: string }) {
   const { t } = useTranslation();
   return (
-    <ul data-notes-card="" className={cn("space-y-1.5", className)}>
-      {notes.map((n, i) => {
-        const { ink, Icon } = LEVELS[n.level];
-        return (
-          <li key={i} className="flex items-start gap-1.5">
-            <Icon aria-hidden="true" className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", ink)} />
-            <span className="sr-only">{t(`statusBoard.levels.${n.level}`)}</span>
-            <span className="min-w-0">
+      <ul data-notes-card="" className={cn("space-y-1.5", className)}>
+        {notes.map((n, i) => {
+          const { ink, Icon } = LEVELS[n.level];
+          return (
+              <li key={i} className="flex items-start gap-1.5">
+                <Icon aria-hidden="true" className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", ink)} />
+                <span className="sr-only">{t(`statusBoard.levels.${n.level}`)}</span>
+                <span className="min-w-0">
               {n.marker !== "" && <sup className={cn("mr-0.5 font-medium", ink)}>{n.marker}</sup>}
-              <span className="text-ink">{n.text}</span>
-              {n.nodes !== "" && <span className="ml-1.5 text-ink-muted">{n.nodes}</span>}
+                  <span className="text-ink">{n.text}</span>
+                  {n.nodes !== "" && <span className="ml-1.5 text-ink-muted">{n.nodes}</span>}
             </span>
-          </li>
-        );
-      })}
-    </ul>
+              </li>
+          );
+        })}
+      </ul>
   );
 }
 
@@ -260,9 +260,9 @@ export function NotesList({ notes, className = "max-w-sm" }: { notes: RowNote[];
 function ResourceNotes({ notes, children }: { notes: RowNote[]; children: ReactNode }) {
   if (notes.length === 0) return <>{children}</>;
   return (
-    <HoverCard inert className="flex min-w-0 flex-1" card={<NotesList notes={notes} />}>
-      <span data-resource-notes="" className="flex min-w-0 flex-1 items-center">{children}</span>
-    </HoverCard>
+      <HoverCard inert className="flex min-w-0 flex-1" card={<NotesList notes={notes} />}>
+        <span data-resource-notes="" className="flex min-w-0 flex-1 items-center">{children}</span>
+      </HoverCard>
   );
 }
 
@@ -275,49 +275,49 @@ function Pieces({ text, kind, inert = false, notes = [] }: { text: Text; kind: B
   const { t } = useTranslation();
   if (text.length === 0) return null;
   return (
-    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+      <span className="inline-flex items-center gap-1 whitespace-nowrap">
       {text.map((s, i) => {
         if (s.status !== undefined)
           return (
-            <SymbolHelp key={i} inert={inert} meaning={t("statusBoard.details.status", { status: s.status === "n/a" ? "/" : s.status })}>
-              <Status span={s} />
-            </SymbolHelp>
+              <SymbolHelp key={i} inert={inert} meaning={t("statusBoard.details.status", { status: s.status === "n/a" ? "/" : s.status })}>
+                <Status span={s} />
+              </SymbolHelp>
           );
         if (s.mark !== undefined)
           return (
-            <SymbolHelp key={i} inert={inert} meaning={t(`statusBoard.marks.${markKey(s)}`)}>
-              <Mark span={s} />
-            </SymbolHelp>
+              <SymbolHelp key={i} inert={inert} meaning={t(`statusBoard.marks.${markKey(s)}`)}>
+                <Mark span={s} />
+              </SymbolHelp>
           );
         if (s.flag)
           return (
-            <SymbolHelp key={i} inert={inert} meaning={flagMeaning(s, t)}>
-              <Flag span={s} />
-            </SymbolHelp>
+              <SymbolHelp key={i} inert={inert} meaning={flagMeaning(s, t)}>
+                <Flag span={s} />
+              </SymbolHelp>
           );
         if (s.note) {
           // At the top of the value, not raised by the half of an em of a sup (the
           // preflight's): it would stand out of the badge of the value.
           const marker = (
-            <sup key={i} className={cn("static self-start text-[0.6875rem] leading-none font-medium", TONES[s.tone ?? "secondary"])}>
-              <span aria-hidden="true">{s.text}</span>
-              <span className="sr-only">{t("statusBoard.seeNote", { marker: s.text })}</span>
-            </sup>
+              <sup key={i} className={cn("static self-start text-[0.6875rem] leading-none font-medium", TONES[s.tone ?? "secondary"])}>
+                <span aria-hidden="true">{s.text}</span>
+                <span className="sr-only">{t("statusBoard.seeNote", { marker: s.text })}</span>
+              </sup>
           );
           const of = notes.filter((n) => n.marker === s.text);
           if (of.length === 0) return marker;
           return (
-            <HoverCard key={i} inert={inert} className="self-start" card={<NotesList notes={of} />}>
-              {/* Some room around the marker, for the pointer to find it. */}
-              <span className="-mx-1 inline-flex cursor-help self-start px-1">{marker}</span>
-            </HoverCard>
+              <HoverCard key={i} inert={inert} className="self-start" card={<NotesList notes={of} />}>
+                {/* Some room around the marker, for the pointer to find it. */}
+                <span className="-mx-1 inline-flex cursor-help self-start px-1">{marker}</span>
+              </HoverCard>
           );
         }
         if (s.text.trim() === "") return null;
         // A value with no meaning of its own: a monitor state, an expectation…
         if (s.text === "·") return <span key={i} className="text-ink-muted" aria-label={t("statusBoard.none")}>–</span>;
         return (
-          <span key={i} className={cn(kind !== "resource" && s.tone && TONES[s.tone])}>
+            <span key={i} className={cn(kind !== "resource" && s.tone && TONES[s.tone])}>
             {s.text}
           </span>
         );
@@ -348,7 +348,7 @@ const STATUS_INK: Record<string, string> = {
 function SummaryStatus({ status }: { status: string | undefined }) {
   const word = status || "n/a";
   return (
-    <span data-state={word} className={cn("font-semibold", STATUS_INK[word] ?? "text-state-unknown")}>
+      <span data-state={word} className={cn("font-semibold", STATUS_INK[word] ?? "text-state-unknown")}>
       {word}
     </span>
   );
@@ -411,32 +411,32 @@ const NODES_START = "border-l border-line";
  * click elsewhere in the cell selects nothing: its badges open their records.
  */
 function SelectBox({
-  checked,
-  indeterminate = false,
-  label,
-  onToggle,
-}: {
+                     checked,
+                     indeterminate = false,
+                     label,
+                     onToggle,
+                   }: {
   checked: boolean;
   indeterminate?: boolean;
   label: string;
   onToggle: () => void;
 }) {
   return (
-    <input
-      type="checkbox"
-      className={cn(
-        "h-3.5 w-3.5 shrink-0 cursor-pointer accent-(--accent)",
-        !checked && !indeterminate && "opacity-30 group-hover:opacity-100 focus-visible:opacity-100",
-      )}
-      checked={checked}
-      ref={(el) => {
-        if (el) el.indeterminate = indeterminate;
-      }}
-      aria-label={label}
-      onChange={onToggle}
-      // The click toggles it: not the row around too.
-      onClick={(event) => event.stopPropagation()}
-    />
+      <input
+          type="checkbox"
+          className={cn(
+              "h-3.5 w-3.5 shrink-0 cursor-pointer accent-(--accent)",
+              !checked && !indeterminate && "opacity-30 group-hover:opacity-100 focus-visible:opacity-100",
+          )}
+          checked={checked}
+          ref={(el) => {
+            if (el) el.indeterminate = indeterminate;
+          }}
+          aria-label={label}
+          onChange={onToggle}
+          // The click toggles it: not the row around too.
+          onClick={(event) => event.stopPropagation()}
+      />
   );
 }
 
@@ -471,10 +471,10 @@ function SideText({ row, className }: { row: BoardRow; className?: string }) {
   const desc = row.kind === "instance" ? "" : row.desc.map((s) => s.text).join("").trim();
   if (row.typ === "" && desc === "" && row.kind !== "subset") return null;
   return (
-    <span data-side-text="" className={cn("flex flex-wrap items-center gap-x-1.5 text-[0.75rem] font-normal break-all text-ink-muted not-italic", className)}>
-      {row.typ !== "" && <span>{row.typ}</span>}
-      {row.typ !== "" && desc !== "" && <span aria-hidden="true">·</span>}
-      <RowDescription row={row} />
+      <span data-side-text="" title={desc || undefined} className={cn("flex min-w-0 flex-nowrap items-center gap-x-1.5 text-[0.75rem] font-normal text-ink-muted not-italic", className)}>
+      {row.typ !== "" && <span className="shrink-0">{row.typ}</span>}
+        {row.typ !== "" && desc !== "" && <span aria-hidden="true" className="shrink-0">·</span>}
+        <span className="min-w-0 flex-1 truncate"><RowDescription row={row} /></span>
     </span>
   );
 }
@@ -488,12 +488,12 @@ function SideText({ row, className }: { row: BoardRow; className?: string }) {
  * selected node by node, in each block.
  */
 function NodeBlocks({
-  board,
-  selection,
-  linkNode,
-  linkResource,
-  openCell,
-}: {
+                      board,
+                      selection,
+                      linkNode,
+                      linkResource,
+                      openCell,
+                    }: {
   board: Board;
   selection?: BoardSelection;
   linkNode?: (node: string) => ReactNode;
@@ -505,82 +505,82 @@ function NodeBlocks({
   const detailRows = board.rows.filter((r) => INSTANCE_DETAILS.has(r.kind));
   const resourceRows = board.rows.filter((r) => r.kind === "resource" || r.kind === "subset" || r.kind === "label");
   return (
-    <div role="list" aria-label={t("statusBoard.caption", { path: board.path })} data-node-blocks="" className="space-y-3">
-      {board.nodes.map((n, j) => {
-        const picked = selection?.isNode(n.name) ?? false;
-        // The resources on this node, their subsets and labels with the first of them after.
-        const onNode = resourceRows.filter((r, i) => {
-          if (r.kind === "resource") return rowNodes(board, r).includes(n.name);
-          const next = resourceRows.slice(i + 1).find((x) => x.kind === "resource");
-          return next !== undefined && rowNodes(board, next).includes(n.name);
-        });
-        const count = onNode.filter((r) => r.kind === "resource").length;
-        return (
-          <section
-            key={n.name}
-            role="listitem"
-            aria-label={t("statusBoard.instanceOn", { node: n.name })}
-            data-node-block={n.name}
-            className={cn("overflow-hidden rounded-(--radius-panel) border bg-surface-raised text-data", picked ? "border-accent" : "border-line")}
-          >
-            <div className={cn("group flex items-center gap-2 border-b border-line px-2 py-1.5", picked ? SELECTED : "bg-surface-sunken")}>
-              {selection !== undefined && (
-                <SelectBox checked={picked} label={t("statusBoard.selectInstance", { node: n.name })} onToggle={() => selection.toggleNode(n.name)} />
-              )}
-              <span className="font-semibold text-ink">{linkNode ? linkNode(n.name) : n.name}</span>
-              {n.frozen && <FrozenMark frozen />}
-              {instanceRow && (
-                <span className="ml-auto">
+      <div role="list" aria-label={t("statusBoard.caption", { path: board.path })} data-node-blocks="" className="space-y-3">
+        {board.nodes.map((n, j) => {
+          const picked = selection?.isNode(n.name) ?? false;
+          // The resources on this node, their subsets and labels with the first of them after.
+          const onNode = resourceRows.filter((r, i) => {
+            if (r.kind === "resource") return rowNodes(board, r).includes(n.name);
+            const next = resourceRows.slice(i + 1).find((x) => x.kind === "resource");
+            return next !== undefined && rowNodes(board, next).includes(n.name);
+          });
+          const count = onNode.filter((r) => r.kind === "resource").length;
+          return (
+              <section
+                  key={n.name}
+                  role="listitem"
+                  aria-label={t("statusBoard.instanceOn", { node: n.name })}
+                  data-node-block={n.name}
+                  className={cn("overflow-hidden rounded-(--radius-panel) border bg-surface-raised text-data", picked ? "border-accent" : "border-line")}
+              >
+                <div className={cn("group flex items-center gap-2 border-b border-line px-2 py-1.5", picked ? SELECTED : "bg-surface-sunken")}>
+                  {selection !== undefined && (
+                      <SelectBox checked={picked} label={t("statusBoard.selectInstance", { node: n.name })} onToggle={() => selection.toggleNode(n.name)} />
+                  )}
+                  <span className="font-semibold text-ink">{linkNode ? linkNode(n.name) : n.name}</span>
+                  {n.frozen && <FrozenMark frozen />}
+                  {instanceRow && (
+                      <span className="ml-auto">
                   <span className="inline-flex">
                     <Pieces text={instanceRow.cells[j] ?? []} kind="instance" />
                   </span>
                 </span>
-              )}
-            </div>
-            {detailRows.some((r) => (r.cells[j] ?? []).length > 0) && (
-              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 px-2 py-1.5">
-                {detailRows.map((r) => (
-                  <Fragment key={r.kind}>
-                    <dt className="text-ink-muted">
-                      {ROW_TERMS[r.kind] ? <Term term={ROW_TERMS[r.kind] as string}>{t(`statusBoard.rows.${r.kind}`)}</Term> : t(`statusBoard.rows.${r.kind}`)}
-                    </dt>
-                    <dd>
+                  )}
+                </div>
+                {detailRows.some((r) => (r.cells[j] ?? []).length > 0) && (
+                    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 px-2 py-1.5">
+                      {detailRows.map((r) => (
+                          <Fragment key={r.kind}>
+                            <dt className="text-ink-muted">
+                              {ROW_TERMS[r.kind] ? <Term term={ROW_TERMS[r.kind] as string}>{t(`statusBoard.rows.${r.kind}`)}</Term> : t(`statusBoard.rows.${r.kind}`)}
+                            </dt>
+                            <dd>
                       <span className="inline-flex">
                         <Pieces text={r.cells[j] ?? []} kind={r.kind} />
                       </span>
-                    </dd>
-                  </Fragment>
-                ))}
-              </dl>
-            )}
-            {count > 0 && (
-              <>
-                <h4 className="border-t border-line bg-surface-sunken px-2 py-1 font-normal text-ink">
-                  {t("statusBoard.rows.resources", { count })}
-                </h4>
-                <ul aria-label={t("statusBoard.rows.resources", { count })} className="divide-y divide-line/40">
-                  {onNode.map((r, i) => {
-                    if (r.kind !== "resource")
-                      return (
-                        <li key={i} className="px-2 py-1 text-ink-muted italic">
-                          {r.kind === "subset" ? r.name : null}
-                          <SideText row={r} />
-                        </li>
-                      );
-                    const cell = r.cells[j] ?? [];
-                    const pickedCell = selection?.isCell(r.name, n.name) ?? false;
-                    return (
-                      <li key={i} className={cn("group flex items-start gap-2 px-2 py-1", pickedCell && SELECTED)}>
-                        {selection !== undefined && (
-                          <span className="pt-0.5">
+                            </dd>
+                          </Fragment>
+                      ))}
+                    </dl>
+                )}
+                {count > 0 && (
+                    <>
+                      <h4 className="border-t border-line bg-surface-sunken px-2 py-1 font-normal text-ink">
+                        {t("statusBoard.rows.resources", { count })}
+                      </h4>
+                      <ul aria-label={t("statusBoard.rows.resources", { count })} className="divide-y divide-line/40">
+                        {onNode.map((r, i) => {
+                          if (r.kind !== "resource")
+                            return (
+                                <li key={i} className="px-2 py-1 text-ink-muted italic">
+                                  {r.kind === "subset" ? r.name : null}
+                                  <SideText row={r} />
+                                </li>
+                            );
+                          const cell = r.cells[j] ?? [];
+                          const pickedCell = selection?.isCell(r.name, n.name) ?? false;
+                          return (
+                              <li key={i} className={cn("group flex items-start gap-2 px-2 py-1", pickedCell && SELECTED)}>
+                                {selection !== undefined && (
+                                    <span className="pt-0.5">
                             <SelectBox
-                              checked={pickedCell}
-                              label={t("statusBoard.selectCell", { rid: r.name, node: n.name })}
-                              onToggle={() => selection.toggleCell(r.name, n.name)}
+                                checked={pickedCell}
+                                label={t("statusBoard.selectCell", { rid: r.name, node: n.name })}
+                                onToggle={() => selection.toggleCell(r.name, n.name)}
                             />
                           </span>
-                        )}
-                        <span className="min-w-0 flex-1">
+                                )}
+                                <span className="min-w-0 flex-1">
                           <span className="flex">
                             <ResourceNotes notes={r.cellNotes[j] ?? []}>
                               <span className="font-medium">{linkResource ? linkResource(r.name) : r.name}</span>
@@ -588,30 +588,30 @@ function NodeBlocks({
                           </span>
                           <SideText row={r} />
                         </span>
-                        <span className="inline-flex">
+                                <span className="inline-flex">
                           {openCell ? (
-                            <button
-                              type="button"
-                              aria-label={t("statusBoard.openCell", { rid: r.name, node: n.name })}
-                              onClick={() => openCell(r.name, n.name)}
-                              className="inline-flex min-h-5 min-w-9 cursor-pointer items-center justify-center gap-1 rounded-full border border-line bg-surface px-1.5 py-px hover:border-line-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-(--focus-ring)"
-                            >
-                              <Pieces text={cell} kind="resource" inert notes={r.cellNotes[j] ?? []} />
-                            </button>
+                              <button
+                                  type="button"
+                                  aria-label={t("statusBoard.openCell", { rid: r.name, node: n.name })}
+                                  onClick={() => openCell(r.name, n.name)}
+                                  className="inline-flex min-h-5 min-w-9 cursor-pointer items-center justify-center gap-1 rounded-full border border-line bg-surface px-1.5 py-px hover:border-line-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-(--focus-ring)"
+                              >
+                                <Pieces text={cell} kind="resource" inert notes={r.cellNotes[j] ?? []} />
+                              </button>
                           ) : (
-                            <Pieces text={cell} kind="resource" notes={r.cellNotes[j] ?? []} />
+                              <Pieces text={cell} kind="resource" notes={r.cellNotes[j] ?? []} />
                           )}
                         </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </>
-            )}
-          </section>
-        );
-      })}
-    </div>
+                              </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                )}
+              </section>
+          );
+        })}
+      </div>
   );
 }
 
@@ -635,15 +635,15 @@ function NodeBlocks({
  * each a block, one under the other.
  */
 export function StatusBoard({
-  board,
-  selection,
-  toolbar,
-  linkNode,
-  linkResource,
-  openCell,
-  facts = [],
-  noteFix,
-}: {
+                              board,
+                              selection,
+                              toolbar,
+                              linkNode,
+                              linkResource,
+                              openCell,
+                              facts = [],
+                              noteFix,
+                            }: {
   board: Board;
   selection?: BoardSelection;
   /** What acts on the selection, over the table. */
@@ -702,7 +702,7 @@ export function StatusBoard({
   /** The rows as drawn: the instances under the header, which says them; the resources under a heading. */
   const shown: BoardRow[] = board.rows.filter((r) => r.kind !== "blank");
   const instances = board.nodes.filter((_, j) =>
-    (instanceRow?.cells[j] ?? []).some((s) => s.status !== undefined && s.status !== "undef"),
+      (instanceRow?.cells[j] ?? []).some((s) => s.status !== undefined && s.status !== "undef"),
   ).length;
   const rowSelectState = (r: BoardRow) => {
     if (selection === undefined || r.kind !== "resource") return "none";
@@ -732,300 +732,300 @@ export function StatusBoard({
   });
 
   return (
-    <div ref={root} data-board-step={step} className="space-y-3">
-      {/* The summary: the statuses of the object, one a line, and beside them what is
+      <div ref={root} data-board-step={step} className="space-y-3">
+        {/* The summary: the statuses of the object, one a line, and beside them what is
           wrong with it, if anything: a state coming or going (frozen, not provisioned)
           moves nothing below. Short of room, the states go under. */}
-      <div className="flex flex-wrap items-start gap-x-10 gap-y-3">
-        <dl className="grid w-max grid-cols-[auto_auto] items-center gap-x-3 gap-y-1">
-          {avail !== undefined && (
-            <>
-              <dt className="text-ink-muted"><Term term="avail">{t("statusBoard.avail")}</Term></dt>
-              <dd><SummaryStatus status={avail.status} /></dd>
-            </>
-          )}
-          {overall !== undefined && (
-            <>
-              <dt className="text-ink-muted"><Term term="overall">{t("statusBoard.overall")}</Term></dt>
-              <dd><SummaryStatus status={overall.status} /></dd>
-            </>
-          )}
-          {count !== undefined && (
-            <>
-              <dt className="text-ink-muted">{t("statusBoard.instancesUp")}</dt>
-              <dd className={cn("font-medium tabular-nums", count.tone === "error" && "text-state-down")}>{count.text}</dd>
-            </>
-          )}
-          {facts.map(({ label, value }) => (
-            <Fragment key={label}>
-              <dt className="text-ink-muted">{label}</dt>
-              <dd>{value}</dd>
-            </Fragment>
-          ))}
-        </dl>
-        {states.length > 0 && (
-          <ul aria-label={t("statusBoard.issues")} className="flex flex-col items-start gap-y-1">
-            {states.map((s) =>
-              s.text === "frozen" || s.text === "mixed-frozen" ? (
-                <li key={s.text} className="inline-flex items-center gap-1 text-icon-network">
-                  <FrozenMark frozen />
-                  {t(`statusBoard.states.${s.text}`)}
-                </li>
-              ) : (
-                <li key={s.text} className={cn("inline-flex items-center gap-1", TONES[s.tone ?? "secondary"])}>
-                  <AlertTriangleIcon className="h-3.5 w-3.5" />
-                  {t(`statusBoard.states.${s.text}`)}
-                </li>
-              ),
+        <div className="flex flex-wrap items-start gap-x-10 gap-y-3">
+          <dl className="grid w-max grid-cols-[auto_auto] items-center gap-x-3 gap-y-1">
+            {avail !== undefined && (
+                <>
+                  <dt className="text-ink-muted"><Term term="avail">{t("statusBoard.avail")}</Term></dt>
+                  <dd><SummaryStatus status={avail.status} /></dd>
+                </>
             )}
-          </ul>
-        )}
-      </div>
+            {overall !== undefined && (
+                <>
+                  <dt className="text-ink-muted"><Term term="overall">{t("statusBoard.overall")}</Term></dt>
+                  <dd><SummaryStatus status={overall.status} /></dd>
+                </>
+            )}
+            {count !== undefined && (
+                <>
+                  <dt className="text-ink-muted">{t("statusBoard.instancesUp")}</dt>
+                  <dd className={cn("font-medium tabular-nums", count.tone === "error" && "text-state-down")}>{count.text}</dd>
+                </>
+            )}
+            {facts.map(({ label, value }) => (
+                <Fragment key={label}>
+                  <dt className="text-ink-muted">{label}</dt>
+                  <dd>{value}</dd>
+                </Fragment>
+            ))}
+          </dl>
+          {states.length > 0 && (
+              <ul aria-label={t("statusBoard.issues")} className="flex flex-col items-start gap-y-1">
+                {states.map((s) =>
+                    s.text === "frozen" || s.text === "mixed-frozen" ? (
+                        <li key={s.text} className="inline-flex items-center gap-1 text-icon-network">
+                          <FrozenMark frozen />
+                          {t(`statusBoard.states.${s.text}`)}
+                        </li>
+                    ) : (
+                        <li key={s.text} className={cn("inline-flex items-center gap-1", TONES[s.tone ?? "secondary"])}>
+                          <AlertTriangleIcon className="h-3.5 w-3.5" />
+                          {t(`statusBoard.states.${s.text}`)}
+                        </li>
+                    ),
+                )}
+              </ul>
+          )}
+        </div>
 
-      {/* What the symbols below mean, on demand: someone new to OpenSVC reads them here. */}
-      {/* A hint as the intros of the pages: closed, back with them from the user page. */}
-      {hintsEnabled && !hiddenHints.includes(SYMBOLS_HINT) && (
-        <div className="relative">
-          <details className="rounded-(--radius-panel) border border-line bg-surface-raised px-3 py-2" data-legend-toggle="">
-            <summary className="cursor-pointer pr-8 text-ink-muted hover:text-ink">{t("legend.toggle")}</summary>
-            <div className="mt-2">
-              <SymbolLegend />
-            </div>
-          </details>
-          <span className="absolute top-1.5 right-2">
+        {/* What the symbols below mean, on demand: someone new to OpenSVC reads them here. */}
+        {/* A hint as the intros of the pages: closed, back with them from the user page. */}
+        {hintsEnabled && !hiddenHints.includes(SYMBOLS_HINT) && (
+            <div className="relative">
+              <details className="rounded-(--radius-panel) border border-line bg-surface-raised px-3 py-2" data-legend-toggle="">
+                <summary className="cursor-pointer pr-8 text-ink-muted hover:text-ink">{t("legend.toggle")}</summary>
+                <div className="mt-2">
+                  <SymbolLegend />
+                </div>
+              </details>
+              <span className="absolute top-1.5 right-2">
             <IconButton label={t("legend.hide")} size="sm" onClick={() => hideIntro(SYMBOLS_HINT)}>
               <CloseIcon className="h-3.5 w-3.5" />
             </IconButton>
           </span>
-        </div>
-      )}
+            </div>
+        )}
 
-      {toolbar}
+        {toolbar}
 
-      {/* A light border, a very light line between the rows; the headings on a grey band, as the group lines of the lists. */}
-      {/* Its columns are its nodes: the board keeps them, never cards; no room for them, a block each. */}
-      {layout.nodeColumns ? (
-      <Table
-        ref={frame}
-        aria-label={t("statusBoard.caption", { path: board.path })}
-        className="bg-transparent"
-        cards={false}
-      >
-        <thead>
-          {/* The heading of the instances on the line of the nodes, a line under them. */}
-          <HeaderRow className="border-b border-line bg-surface-sunken">
-            <HeaderCell className="font-normal text-ink">{t("statusBoard.rows.instances", { count: instances })}</HeaderCell>
-            {layout.sideColumns && (
-              <>
-                <HeaderCell>{t("common.type")}</HeaderCell>
-                <HeaderCell>{t("statusBoard.description")}</HeaderCell>
-              </>
-            )}
-            {board.nodes.map((n, j) => {
-              const pick = selection !== undefined;
-              const picked = nodeSelected(n.name);
-              const look = selectedLook(0, j + FIRST_NODE);
-              return (
-                <HeaderCell
-                  key={n.name}
-                  style={look.style}
-                  className={cn(j === 0 && NODES_START, pick && "group", look.className, picked && "text-ink")}
-                >
+        {/* A light border, a very light line between the rows; the headings on a grey band, as the group lines of the lists. */}
+        {/* Its columns are its nodes: the board keeps them, never cards; no room for them, a block each. */}
+        {layout.nodeColumns ? (
+            <Table
+                ref={frame}
+                aria-label={t("statusBoard.caption", { path: board.path })}
+                className="bg-transparent"
+                cards={false}
+            >
+              <thead>
+              {/* The heading of the instances on the line of the nodes, a line under them. */}
+              <HeaderRow className="border-b border-line bg-surface-sunken">
+                <HeaderCell className="font-normal text-ink">{t("statusBoard.rows.instances", { count: instances })}</HeaderCell>
+                {layout.sideColumns && (
+                    <>
+                      <HeaderCell>{t("common.type")}</HeaderCell>
+                      <HeaderCell>{t("statusBoard.description")}</HeaderCell>
+                    </>
+                )}
+                {board.nodes.map((n, j) => {
+                  const pick = selection !== undefined;
+                  const picked = nodeSelected(n.name);
+                  const look = selectedLook(0, j + FIRST_NODE);
+                  return (
+                      <HeaderCell
+                          key={n.name}
+                          style={look.style}
+                          className={cn(j === 0 && NODES_START, pick && "group", look.className, picked && "text-ink")}
+                      >
                   <span className="flex w-full items-center gap-1">
                       {pick && (
-                        <SelectBox
-                          checked={picked}
-                          label={t("statusBoard.selectInstance", { node: n.name })}
-                          onToggle={() => selection.toggleNode(n.name)}
-                        />
+                          <SelectBox
+                              checked={picked}
+                              label={t("statusBoard.selectInstance", { node: n.name })}
+                              onToggle={() => selection.toggleNode(n.name)}
+                          />
                       )}
-                      <span className="font-semibold text-ink">{linkNode ? linkNode(n.name) : n.name}</span>
-                      {n.frozen && <FrozenMark frozen />}
+                    <span className="font-semibold text-ink">{linkNode ? linkNode(n.name) : n.name}</span>
+                    {n.frozen && <FrozenMark frozen />}
                   </span>
-                </HeaderCell>
-              );
-            })}
-          </HeaderRow>
-        </thead>
-        <tbody>
-          {shown.map((r, i) => {
-            if (r.kind === "resources")
-              return (
-                // A line under the heading of the resources, as under the one of the instances.
-                <tr key={i} className="border-b border-line bg-surface-sunken">
-                  <th scope="rowgroup" colSpan={layout.sideColumns ? FIRST_NODE : 1} className="h-[1.875rem] px-2 pt-3 text-left font-normal text-ink">
-                    {t("statusBoard.rows.resources", { count: resources })}
-                  </th>
-                  {/* The line before the nodes runs through the heading too. */}
-                  <td colSpan={columns - FIRST_NODE} className={NODES_START} />
-                </tr>
-              );
-            // The instance row tells the state of each instance: under the heading of the instances.
-            const name =
-              r.kind === "resource" || r.kind === "subset"
-                ? r.name
-                : r.kind === "label"
-                  ? ""
-                  : r.kind === "instance"
-                    ? t("statusBoard.rows.state")
-                    : t(`statusBoard.rows.${r.kind}`);
-            // A row named by a word of OpenSVC: its definition on demand.
-            const rowTerm = ROW_TERMS[r.kind];
-            const shownName = rowTerm ? <Term term={rowTerm}>{name}</Term> : name;
-            const pickRow = selection !== undefined && r.kind === "resource";
-            const nodesOfRow = pickRow ? rowNodes(board, r) : [];
-            const rowState = rowSelectState(r);
-            // The place of the row in the grid of the selection, the header row first.
-            const v = i + 1;
-            const nameLook = selectedLook(v, 0);
-            return (
-              <Row key={i} className="border-line/40">
-                <th
-                  scope="row"
-                  className={cn(
-                    "px-2 py-1 text-left whitespace-nowrap",
-                    // The state, under its heading, sits with the monitor and the others.
-                    INDENT[Math.min(r.kind === "instance" ? 1 : r.indent, INDENT.length - 1)],
-                    r.kind === "resource" ? "font-medium" : r.kind === "subset" ? "font-normal text-ink-muted italic" : "font-normal",
-                    (r.kind === "monitor" || r.kind === "expect" || r.kind === "provisioned" || r.kind === "orchestration") && "text-ink-muted",
-                    pickRow && "group",
-                    nameLook.className,
-                  )}
-                  style={nameLook.style}
-                >
+                      </HeaderCell>
+                  );
+                })}
+              </HeaderRow>
+              </thead>
+              <tbody>
+              {shown.map((r, i) => {
+                if (r.kind === "resources")
+                  return (
+                      // A line under the heading of the resources, as under the one of the instances.
+                      <tr key={i} className="border-b border-line bg-surface-sunken">
+                        <th scope="rowgroup" colSpan={layout.sideColumns ? FIRST_NODE : 1} className="h-[1.875rem] px-2 pt-3 text-left font-normal text-ink">
+                          {t("statusBoard.rows.resources", { count: resources })}
+                        </th>
+                        {/* The line before the nodes runs through the heading too. */}
+                        <td colSpan={columns - FIRST_NODE} className={NODES_START} />
+                      </tr>
+                  );
+                // The instance row tells the state of each instance: under the heading of the instances.
+                const name =
+                    r.kind === "resource" || r.kind === "subset"
+                        ? r.name
+                        : r.kind === "label"
+                            ? ""
+                            : r.kind === "instance"
+                                ? t("statusBoard.rows.state")
+                                : t(`statusBoard.rows.${r.kind}`);
+                // A row named by a word of OpenSVC: its definition on demand.
+                const rowTerm = ROW_TERMS[r.kind];
+                const shownName = rowTerm ? <Term term={rowTerm}>{name}</Term> : name;
+                const pickRow = selection !== undefined && r.kind === "resource";
+                const nodesOfRow = pickRow ? rowNodes(board, r) : [];
+                const rowState = rowSelectState(r);
+                // The place of the row in the grid of the selection, the header row first.
+                const v = i + 1;
+                const nameLook = selectedLook(v, 0);
+                return (
+                    <Row key={i} className="border-line/40">
+                      <th
+                          scope="row"
+                          className={cn(
+                              "px-2 py-1 text-left whitespace-nowrap",
+                              // The state, under its heading, sits with the monitor and the others.
+                              INDENT[Math.min(r.kind === "instance" ? 1 : r.indent, INDENT.length - 1)],
+                              r.kind === "resource" ? "font-medium" : r.kind === "subset" ? "font-normal text-ink-muted italic" : "font-normal",
+                              (r.kind === "monitor" || r.kind === "expect" || r.kind === "provisioned" || r.kind === "orchestration") && "text-ink-muted",
+                              pickRow && "group",
+                              nameLook.className,
+                          )}
+                          style={nameLook.style}
+                      >
                   <span className="flex w-full items-center gap-1">
                     {pickRow && (
-                      <SelectBox
-                        checked={rowState === "all"}
-                        indeterminate={rowState === "some"}
-                        label={t("statusBoard.selectResource", { rid: r.name })}
-                        onToggle={() => selection.toggleRow(r.name)}
-                      />
+                        <SelectBox
+                            checked={rowState === "all"}
+                            indeterminate={rowState === "some"}
+                            label={t("statusBoard.selectResource", { rid: r.name })}
+                            onToggle={() => selection.toggleRow(r.name)}
+                        />
                     )}
                     <span className="flex w-full">
                       <span className="flex w-full items-center gap-1">
                         {r.kind === "resource" ? (
-                          <ResourceNotes notes={r.rowNotes}>{linkResource ? linkResource(r.name) : shownName}</ResourceNotes>
+                            <ResourceNotes notes={r.rowNotes}>{linkResource ? linkResource(r.name) : shownName}</ResourceNotes>
                         ) : (
-                          shownName
+                            shownName
                         )}
                       </span>
                     </span>
                   </span>
-                  {/* No room for their columns, the type and the description under the name. */}
-                  {!layout.sideColumns && <SideText row={r} className="mt-0.5 max-w-64 whitespace-normal" />}
-                </th>
-                {layout.sideColumns && (
-                  <>
-                    <Cell className="text-ink-muted">{r.typ}</Cell>
-                    <Cell className={cn("break-all", r.kind === "label" && "text-ink-muted")}>
-                      <RowDescription row={r} />
-                    </Cell>
-                  </>
-                )}
-                {r.cells.map((c, j) => {
-                  const node = board.nodes[j]?.name ?? "";
-                  // A resource cell selects the resource on its node, by its checkbox.
-                  const pickCell = pickRow && nodesOfRow.includes(node);
-                  const picked = pickCell && selection.isCell(r.name, node);
-                  // A resource cell opens the resource on its node, by its value.
-                  const openable = openCell !== undefined && r.kind === "resource" && rowNodes(board, r).includes(node);
-                  const look = selectedLook(v, j + FIRST_NODE);
-                  return (
-                    <Cell
-                      style={look.style}
-                      key={j}
-                      className={cn(j === 0 && NODES_START, pickCell && "group", look.className)}
-                    >
+                        {/* No room for their columns, the type and the description under the name. */}
+                        {!layout.sideColumns && <SideText row={r} className="mt-0.5 max-w-64" />}
+                      </th>
+                      {layout.sideColumns && (
+                          <>
+                            <Cell className="text-ink-muted">{r.typ}</Cell>
+                            <Cell className={cn("break-all", r.kind === "label" && "text-ink-muted")}>
+                              <RowDescription row={r} />
+                            </Cell>
+                          </>
+                      )}
+                      {r.cells.map((c, j) => {
+                        const node = board.nodes[j]?.name ?? "";
+                        // A resource cell selects the resource on its node, by its checkbox.
+                        const pickCell = pickRow && nodesOfRow.includes(node);
+                        const picked = pickCell && selection.isCell(r.name, node);
+                        // A resource cell opens the resource on its node, by its value.
+                        const openable = openCell !== undefined && r.kind === "resource" && rowNodes(board, r).includes(node);
+                        const look = selectedLook(v, j + FIRST_NODE);
+                        return (
+                            <Cell
+                                style={look.style}
+                                key={j}
+                                className={cn(j === 0 && NODES_START, pickCell && "group", look.className)}
+                            >
                       <span className="flex w-full">
                         <span className="flex w-full items-center gap-1">
                           {pickCell ? (
-                            <SelectBox
-                              checked={picked}
-                              label={t("statusBoard.selectCell", { rid: r.name, node })}
-                              onToggle={() => selection.toggleCell(r.name, node)}
-                            />
+                              <SelectBox
+                                  checked={picked}
+                                  label={t("statusBoard.selectCell", { rid: r.name, node })}
+                                  onToggle={() => selection.toggleCell(r.name, node)}
+                              />
                           ) : (
-                            // The room of a checkbox: the values of a column in line, those of the
-                            // instances under the resources' checkboxes.
-                            selection !== undefined && <span aria-hidden="true" data-checkbox-room className="h-3.5 w-3.5 shrink-0" />
+                              // The room of a checkbox: the values of a column in line, those of the
+                              // instances under the resources' checkboxes.
+                              selection !== undefined && <span aria-hidden="true" data-checkbox-room className="h-3.5 w-3.5 shrink-0" />
                           )}
                           {openable ? (
-                            // The value opens the resource on this instance; the checkbox, apart, selects it.
-                            // A badge, as the names that open their records: seen as such before a hover.
-                            <button
-                              type="button"
-                              aria-label={t("statusBoard.openCell", { rid: r.name, node })}
-                              onClick={() => openCell?.(r.name, node)}
-                              className="inline-flex min-h-5 max-w-full min-w-9 cursor-pointer items-center justify-center gap-1 rounded-full border border-line bg-surface px-1.5 py-px text-left hover:border-line-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-(--focus-ring)"
-                            >
-                              <Pieces text={c} kind={r.kind} inert notes={r.cellNotes[j] ?? []} />
-                            </button>
+                              // The value opens the resource on this instance; the checkbox, apart, selects it.
+                              // A badge, as the names that open their records: seen as such before a hover.
+                              <button
+                                  type="button"
+                                  aria-label={t("statusBoard.openCell", { rid: r.name, node })}
+                                  onClick={() => openCell?.(r.name, node)}
+                                  className="inline-flex min-h-5 max-w-full min-w-9 cursor-pointer items-center justify-center gap-1 rounded-full border border-line bg-surface px-1.5 py-px text-left hover:border-line-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-(--focus-ring)"
+                              >
+                                <Pieces text={c} kind={r.kind} inert notes={r.cellNotes[j] ?? []} />
+                              </button>
                           ) : (
-                            <Pieces text={c} kind={r.kind} notes={r.cellNotes[j] ?? []} />
+                              <Pieces text={c} kind={r.kind} notes={r.cellNotes[j] ?? []} />
                           )}
                         </span>
                       </span>
-                    </Cell>
-                  );
-                })}
-              </Row>
-            );
-          })}
-        </tbody>
-      </Table>
-      ) : (
-        <NodeBlocks
-          board={board}
-          selection={selection}
-          linkNode={linkNode}
-          linkResource={linkResource}
-          openCell={openCell}
-        />
-      )}
+                            </Cell>
+                        );
+                      })}
+                    </Row>
+                );
+              })}
+              </tbody>
+            </Table>
+        ) : (
+            <NodeBlocks
+                board={board}
+                selection={selection}
+                linkNode={linkNode}
+                linkResource={linkResource}
+                openCell={openCell}
+            />
+        )}
 
-      {board.notes.length > 0 && (
-        <section aria-labelledby="status-notes" className="space-y-1">
-          <h3 id="status-notes" className="px-2 font-semibold">
-            {t("statusBoard.notes", { count: board.notes.length })}
-          </h3>
-          <ul className="space-y-2">
-            {board.notes.map((g, i) => {
-              const { ink, Icon } = LEVELS[g.level];
-              return (
-                <li key={i} className="flex gap-2 px-2">
+        {board.notes.length > 0 && (
+            <section aria-labelledby="status-notes" className="space-y-1">
+              <h3 id="status-notes" className="px-2 font-semibold">
+                {t("statusBoard.notes", { count: board.notes.length })}
+              </h3>
+              <ul className="space-y-2">
+                {board.notes.map((g, i) => {
+                  const { ink, Icon } = LEVELS[g.level];
+                  return (
+                      <li key={i} className="flex gap-2 px-2">
                   <span className={cn("mt-0.5 shrink-0", ink)}>
                     <Icon className="h-4 w-4" />
                     <span className="sr-only">{t(`statusBoard.levels.${g.level}`)}</span>
                   </span>
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    {g.heads.map((h, j) => (
-                      <p key={j} className="flex flex-wrap items-baseline gap-x-2">
-                        {h.marker !== "" && h.marker !== "·" && (
-                          <sup className={cn("text-[0.75rem] font-medium", ink)}>{h.marker}</sup>
-                        )}
-                        <span className="font-medium">{h.subject}</span>
-                        {h.nodes !== "" && (
-                          <span className="text-ink-muted">
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          {g.heads.map((h, j) => (
+                              <p key={j} className="flex flex-wrap items-baseline gap-x-2">
+                                {h.marker !== "" && h.marker !== "·" && (
+                                    <sup className={cn("text-[0.75rem] font-medium", ink)}>{h.marker}</sup>
+                                )}
+                                <span className="font-medium">{h.subject}</span>
+                                {h.nodes !== "" && (
+                                    <span className="text-ink-muted">
                             {h.nodes === "all" ? t("statusBoard.allNodes") : h.nodes}
                           </span>
-                        )}
-                      </p>
-                    ))}
-                    <p className={cn(g.level === "info" ? "text-ink-muted" : "text-ink")}>{g.text}</p>
-                    {g.fix !== undefined && noteFix !== undefined && noteFix(g.fix)}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-          {board.moreInfos > 0 && (
-            <p className="px-2 text-ink-muted">
-              {t("statusBoard.moreInfos", { count: board.moreInfos })}
-            </p>
-          )}
-        </section>
-      )}
-    </div>
+                                )}
+                              </p>
+                          ))}
+                          <p className={cn(g.level === "info" ? "text-ink-muted" : "text-ink")}>{g.text}</p>
+                          {g.fix !== undefined && noteFix !== undefined && noteFix(g.fix)}
+                        </div>
+                      </li>
+                  );
+                })}
+              </ul>
+              {board.moreInfos > 0 && (
+                  <p className="px-2 text-ink-muted">
+                    {t("statusBoard.moreInfos", { count: board.moreInfos })}
+                  </p>
+              )}
+            </section>
+        )}
+      </div>
   );
 }
