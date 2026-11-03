@@ -1096,7 +1096,8 @@ const Objects = () => {
                                 onSearch={handleSearchChange}
                                 searchLabel={t("common.name")}
                             />
-                            <div className="ml-auto flex items-center gap-3">{legendButton}{listActions("end")}</div>
+                            {/* Narrow, on two lines rather than the actions out of the screen. */}
+                            <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2">{legendButton}{listActions("end")}</div>
                         </div>
                     )}
 
