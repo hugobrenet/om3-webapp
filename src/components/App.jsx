@@ -8,6 +8,7 @@ import Login from "./Login.jsx";
 import '../styles/main.css';
 import NavBar from './NavBar';
 import {Sidebar, menuAlert, useSidebarOpen} from './Sidebar';
+import {NARROW_QUERY, useMediaQuery} from '../ui/lib/media';
 import {useSidebarAlertsOf, useSidebarState} from '../hooks/useSidebarAlerts';
 import {OidcProvider, useOidc} from "../context/OidcAuthContext.tsx";
 import {
@@ -404,6 +405,7 @@ const App = () => {
 
     const authInfo = useAuthInfo();
     const [sidebarOpen, toggleSidebar, {compact: compactMenu, fold: foldSidebar}] = useSidebarOpen();
+    const narrowWindow = useMediaQuery(NARROW_QUERY);
     // The sign-in screens have no view to navigate to: no menu there.
     const bare = BARE_PATHS.some((path) => location.pathname.startsWith(path));
     const showSidebar = !bare && !AUTH_PATHS.some((path) => location.pathname.startsWith(path));
@@ -470,9 +472,11 @@ const App = () => {
                                 showSidebarToggle={showSidebar}
                             />
                         )}
-                        <div style={{display: 'flex', flex: 1, minHeight: 0}}>
-                            {/* Short of room, the menu folds once an entry is chosen. */}
-                            {showSidebar && <Sidebar open={sidebarOpen} alerts={sidebarAlerts} onNavigate={compactMenu ? foldSidebar : undefined}/>}
+                        <div style={{display: 'flex', flex: 1, minHeight: 0, position: 'relative'}}>
+                            {/* Short of room, the menu folds once an entry is chosen; on a phone,
+                                it lies over the page rather than squeezing it. */}
+                            {showSidebar && <Sidebar open={sidebarOpen} alerts={sidebarAlerts} onNavigate={compactMenu ? foldSidebar : undefined}
+                                                     overlay={narrowWindow} onClose={foldSidebar}/>}
                             <main id="app-scroll-container" ref={mainRef} style={mainStyle}>
                                 {/* What the page is about, for someone new to OpenSVC. */}
                                 {!bare && <PageIntro/>}

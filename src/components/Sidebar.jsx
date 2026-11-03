@@ -238,22 +238,44 @@ function onMenuKeyDown(event) {
 /**
  * Side menu, after the oc3 one. Foldable from the button at the top left of the
  * header: folded, it keeps its place in the layout but not its width, and `inert`
- * takes it out of the keyboard path.
+ * takes it out of the keyboard path. `overlay`, on a phone, it lies over the page
+ * rather than pushing it aside, a veil over the rest: a tap on the veil or Escape
+ * folds it (`onClose`).
  */
-export function Sidebar({open, alerts = {}, onNavigate}) {
+export function Sidebar({open, alerts = {}, onNavigate, overlay = false, onClose}) {
     const {t} = useTranslation();
+    const shown = overlay && open;
+    useEffect(() => {
+        if (!shown || !onClose) return undefined;
+        const onKeyDown = (event) => {
+            if (event.key === "Escape") onClose();
+        };
+        document.addEventListener("keydown", onKeyDown);
+        return () => document.removeEventListener("keydown", onKeyDown);
+    }, [shown, onClose]);
     return (
-        <aside
-            id="app-sidebar"
-            inert={!open}
-            className={cn(
-                "shrink-0 overflow-x-hidden overflow-y-auto border-r border-line bg-surface-raised transition-[width] duration-200 ease-out",
-                open ? "w-60" : "w-0 border-r-0"
+        <>
+            {shown && (
+                <div
+                    data-testid="sidebar-veil"
+                    aria-hidden="true"
+                    className="absolute inset-0 z-20 bg-ink/20"
+                    onClick={onClose}
+                />
             )}
-        >
-            <nav aria-label={t("nav.main")} aria-keyshortcuts="n" onKeyDown={onMenuKeyDown} className="w-60 p-2">
-                {NAV_SECTIONS.map((section) => <NavSection key={section.key} section={section} alerts={alerts} onNavigate={onNavigate}/>)}
-            </nav>
-        </aside>
+            <aside
+                id="app-sidebar"
+                inert={!open}
+                className={cn(
+                    "shrink-0 overflow-x-hidden overflow-y-auto border-r border-line bg-surface-raised transition-[width] duration-200 ease-out",
+                    overlay && "absolute inset-y-0 left-0 z-30 shadow-lg",
+                    open ? "w-60" : "w-0 border-r-0"
+                )}
+            >
+                <nav aria-label={t("nav.main")} aria-keyshortcuts="n" onKeyDown={onMenuKeyDown} className="w-60 p-2">
+                    {NAV_SECTIONS.map((section) => <NavSection key={section.key} section={section} alerts={alerts} onNavigate={onNavigate}/>)}
+                </nav>
+            </aside>
+        </>
     );
 }
