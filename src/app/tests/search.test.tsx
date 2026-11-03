@@ -83,15 +83,19 @@ describe("GlobalSearch", () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn((query) => ({
       matches: query === "(pointer: coarse)",
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
       addEventListener: () => {},
       removeEventListener: () => {},
+      dispatchEvent: () => true,
     }));
     try {
-      const { unmount } = renderSearch();
+      renderSearch();
       fireEvent.click(screen.getByRole("button", { name: /Search the cluster/ }));
       expect(screen.queryByText("to move")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Close the search" })).toBeInTheDocument();
-      unmount();
     } finally {
       window.matchMedia = originalMatchMedia;
     }

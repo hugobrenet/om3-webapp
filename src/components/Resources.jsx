@@ -374,10 +374,10 @@ const Resources = () => {
                             search={filter}
                             onSearch={(e) => setFilter(e.target.value)}
                             searchLabel={t("resources.filter")}
+                            compactAction={refresh}
                         >
                             {problems}
                         </FilterToolbar>
-                        {refresh}
                         <span className="ml-auto flex items-center gap-3">{actions}</span>
                     </div>
                 )}
@@ -389,74 +389,74 @@ const Resources = () => {
                 )}
                 <Table ref={frame} sticky cards aria-label={t("resources.caption")} className="min-h-0 flex-1">
                     <thead>
-                        <HeaderRow>
-                            <HeaderCell className="w-8">
-                                <Checkbox
-                                    checked={allSelected}
-                                    onChange={(e) => selectAll(e.target.checked)}
-                                    aria-label={t("resources.selection.all")}
-                                />
-                            </HeaderCell>
-                            {columns.map(({key, labelKey}) => (
-                                <SortHeaderCell
-                                    key={key}
-                                    label={t(labelKey)}
-                                    active={sortColumn === key}
-                                    direction={sortDirection}
-                                    onSort={() => sortBy(key)}
-                                />
-                            ))}
-                        </HeaderRow>
+                    <HeaderRow>
+                        <HeaderCell className="w-8">
+                            <Checkbox
+                                checked={allSelected}
+                                onChange={(e) => selectAll(e.target.checked)}
+                                aria-label={t("resources.selection.all")}
+                            />
+                        </HeaderCell>
+                        {columns.map(({key, labelKey}) => (
+                            <SortHeaderCell
+                                key={key}
+                                label={t(labelKey)}
+                                active={sortColumn === key}
+                                direction={sortDirection}
+                                onSort={() => sortBy(key)}
+                            />
+                        ))}
+                    </HeaderRow>
                     </thead>
                     <tbody>
-                        {drawn.rows(shown).map((l) => (
-                            <Row key={l.key}>
-                                <Cell className="w-8">
-                                    <Checkbox
-                                        checked={selected.has(l.key)}
-                                        onChange={(e) => toggle(l.key, e)}
-                                        aria-label={t("resources.selection.one", {rid: l.rid, path: l.object, node: l.node})}
-                                    />
-                                </Cell>
-                                <Cell className="whitespace-nowrap">
+                    {drawn.rows(shown).map((l) => (
+                        <Row key={l.key}>
+                            <Cell className="w-8">
+                                <Checkbox
+                                    checked={selected.has(l.key)}
+                                    onChange={(e) => toggle(l.key, e)}
+                                    aria-label={t("resources.selection.one", {rid: l.rid, path: l.object, node: l.node})}
+                                />
+                            </Cell>
+                            <Cell className="whitespace-nowrap">
                                     <span className="inline-flex items-center gap-1.5">
                                         <CrossLink kind="object" id={l.object}>{l.object}</CrossLink>
                                         {/* No room for its column, the node a badge by the object, opening the instance (resourceLayout). */}
                                         {!layout.nodeColumn && <InstanceLink path={l.object} node={l.hostNode} label={l.node}/>}
                                     </span>
-                                </Cell>
-                                {layout.nodeColumn && <Cell className="whitespace-nowrap"><InstanceLink path={l.object} node={l.hostNode} label={l.node}/></Cell>}
-                                <Cell className="whitespace-nowrap">
+                            </Cell>
+                            {layout.nodeColumn && <Cell className="whitespace-nowrap"><InstanceLink path={l.object} node={l.hostNode} label={l.node}/></Cell>}
+                            <Cell className="whitespace-nowrap">
                                     <span className="inline-flex items-center gap-1.5">
                                         <CrossLink kind="resource" id={resourceId(l.object, l.rid, l.hostNode)}>{l.rid}</CrossLink>
                                         <ResourceSessionLinks path={l.object} rid={l.rid} node={l.hostNode} type={l.type}/>
                                         {/* No room for its column, the type a badge by the resource (resourceLayout). */}
                                         {!layout.typeColumn && l.type && <span className={BADGE}>{l.type}</span>}
                                     </span>
-                                </Cell>
-                                {layout.typeColumn && <Cell className="text-ink-muted">{l.type}</Cell>}
-                                <Cell className="whitespace-nowrap">
+                            </Cell>
+                            {layout.typeColumn && <Cell className="text-ink-muted">{l.type}</Cell>}
+                            <Cell className="whitespace-nowrap">
                                     <span className="inline-flex items-center gap-1.5">
                                         <StatusMark state={toObjectState(l.status)} label={l.status || t("instance.unknown")} muted={l.passive}/>
                                         <span className={l.passive ? "text-ink-muted" : undefined}>{l.status || "-"}</span>
                                         {l.passive && <span className="text-ink-muted">· {t("resources.passive")}</span>}
                                         {l.notProvisioned && <span className="text-state-warn">{t("resources.notProvisioned")}</span>}
                                     </span>
-                                </Cell>
-                                {/* On one line, and the label no narrower than a few words: not fitting, dropped (resourceLayout). */}
-                                {layout.flags && <Cell className="whitespace-nowrap text-ink-muted">
-                                    {[
-                                        ...l.flags.map((f) => t(`resources.flags.${f}`)),
-                                        ...(l.restarts === undefined ? [] : [t("resources.restarts", {count: l.restarts})]),
-                                    ].join(", ") || "-"}
-                                </Cell>}
-                                {layout.label && <Cell className="min-w-40 break-all">{l.label}</Cell>}
-                            </Row>
-                        ))}
-                        <MoreRows rows={drawn} colSpan={columns.length + 1}/>
-                        {shown.length === 0 && (
-                            <EmptyRow colSpan={columns.length + 1}>{lines.length === 0 ? t("resources.empty") : t("resources.noMatch")}</EmptyRow>
-                        )}
+                            </Cell>
+                            {/* On one line, and the label no narrower than a few words: not fitting, dropped (resourceLayout). */}
+                            {layout.flags && <Cell className="whitespace-nowrap text-ink-muted">
+                                {[
+                                    ...l.flags.map((f) => t(`resources.flags.${f}`)),
+                                    ...(l.restarts === undefined ? [] : [t("resources.restarts", {count: l.restarts})]),
+                                ].join(", ") || "-"}
+                            </Cell>}
+                            {layout.label && <Cell className="min-w-40 break-all">{l.label}</Cell>}
+                        </Row>
+                    ))}
+                    <MoreRows rows={drawn} colSpan={columns.length + 1}/>
+                    {shown.length === 0 && (
+                        <EmptyRow colSpan={columns.length + 1}>{lines.length === 0 ? t("resources.empty") : t("resources.noMatch")}</EmptyRow>
+                    )}
                     </tbody>
                 </Table>
             </div>

@@ -829,6 +829,7 @@ describe('ObjectStatus', () => {
             const note = screen.getByText(/the orchestration gave up/).closest('li');
             fireEvent.click(within(note).getByRole('button', {name: 'Clear'}));
             expect(posted).toEqual([]);
+            await screen.findByRole('dialog', {name: /clear/i});
             confirm('clear');
             await waitFor(() => expect(posted).toEqual([
                 'POST /api/node/name/dev3n1/instance/path/system/svc/dns/clear',
