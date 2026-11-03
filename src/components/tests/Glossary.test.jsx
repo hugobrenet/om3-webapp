@@ -1,11 +1,13 @@
 import React from 'react';
 import {act, fireEvent, render, screen, within} from '@testing-library/react';
+import {vi} from 'vitest';
 import {MemoryRouter} from 'react-router-dom';
 import {Glossary} from '../Glossary';
 import {PageIntro} from '../PageIntro';
 import {hideIntro, reloadHiddenIntros, setIntrosEnabled} from '../../app/page-intro';
 import {Term} from '../../app/Term';
 import {HOVER_CARD_DELAY_MS} from '../../ui/components/HoverCard';
+import {NARROW_QUERY} from '../../ui/lib/media';
 
 const renderAt = (url, ui) => render(<MemoryRouter initialEntries={[url]}>{ui}</MemoryRouter>);
 
@@ -125,6 +127,23 @@ describe('Term', () => {
 });
 
 describe('PageIntro', () => {
+    test('is not shown on a narrow screen', () => {
+        const originalMatchMedia = window.matchMedia;
+        window.matchMedia = vi.fn((query) => ({
+            matches: query === NARROW_QUERY,
+            addEventListener: () => {
+            },
+            removeEventListener: () => {
+            },
+        }));
+        try {
+            renderAt('/nodes', <PageIntro/>);
+            expect(screen.queryByRole('complementary', {name: 'About this page'})).not.toBeInTheDocument();
+        } finally {
+            window.matchMedia = originalMatchMedia;
+        }
+    });
+
     test('what the page is about, the glossary a click away; hidden for the browser, page by page', () => {
         const {unmount} = renderAt('/objects?list=secrets', <PageIntro/>);
         const intro = screen.getByRole('complementary', {name: 'About this page'});

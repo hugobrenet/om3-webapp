@@ -4,6 +4,7 @@ import {useTranslation} from "react-i18next";
 import {hideIntro, introPage, useHiddenIntros, useIntrosEnabled} from "../app/page-intro";
 import {IconButton} from "../ui/components/Button";
 import {CloseIcon, InfoIcon} from "../ui/icons";
+import {NARROW_QUERY, useMediaQuery} from "../ui/lib/media";
 
 /**
  * What the page shown is about, for someone who does not know OpenSVC: a sentence
@@ -16,8 +17,9 @@ export function PageIntro() {
     const location = useLocation();
     const hidden = useHiddenIntros();
     const enabled = useIntrosEnabled();
+    const narrow = useMediaQuery(NARROW_QUERY);
     const page = introPage(location.pathname, location.search);
-    if (!enabled || page === null || hidden.includes(page)) return null;
+    if (narrow || !enabled || page === null || hidden.includes(page)) return null;
     return (
         <aside
             aria-label={t("pageIntro.label")}
