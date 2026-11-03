@@ -111,7 +111,8 @@ export const IconButton = forwardRef<
       type={type}
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-(--radius-control) disabled:pointer-events-none disabled:opacity-60",
-        size === "sm" ? "h-5 w-5" : "h-7 w-7",
+        // A finger needs more than 20px: on a touch screen, the small one as the other.
+        size === "sm" ? "h-5 w-5 pointer-coarse:h-7 pointer-coarse:w-7" : "h-7 w-7",
         tone === "create"
           ? "bg-accent text-accent-ink hover:brightness-110"
           : tone === "delete"

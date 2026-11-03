@@ -132,3 +132,32 @@
     font-size: max(1rem, 1em);
   }
 }
+
+/* A finger needs room the mouse does not: on a touch screen, a checkbox a little
+   larger, and around a control smaller than 32px a zone taking its taps, unseen.
+   32px, not more: wider, the zone of a control would take the taps of the next one.
+   The links stretched over a card (their `after:` classes) keep theirs. om3 addition. */
+@media (pointer: coarse) {
+  input[type="checkbox"],
+  input[type="radio"] {
+    flex-shrink: 0;
+    width: 1.5rem;
+    min-width: 1.5rem;
+    height: 1.5rem;
+  }
+  :where(button, a[href], [role="tab"], summary):not([class*="after:"]):not(
+      [class~="absolute"],
+      [class~="fixed"],
+      [class~="sticky"]
+    ) {
+    position: relative;
+  }
+  :where(button, a[href], [role="tab"], summary):not([class*="after:"])::after {
+    content: "";
+    position: absolute;
+    top: min(0px, calc((100% - 32px) / 2));
+    bottom: min(0px, calc((100% - 32px) / 2));
+    left: min(0px, calc((100% - 32px) / 2));
+    right: min(0px, calc((100% - 32px) / 2));
+  }
+}
