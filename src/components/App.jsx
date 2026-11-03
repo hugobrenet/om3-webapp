@@ -25,7 +25,6 @@ import {prepareForNavigation} from "../eventSourceManager";
 import {isRenewalRefused} from "../context/serialRenewal";
 import {PeekPanel} from "./PeekPanel";
 import {PanelReopenKey} from "../app/PanelReopenKey";
-import {ActionTray} from "../app/ActionTray";
 import {ShortcutsHelp} from "../app/ShortcutsHelp";
 import {PageIntro} from "./PageIntro";
 import {useShortcut} from "../ui/lib/shortcuts";
@@ -515,8 +514,6 @@ const App = () => {
                                             <PeekPanel/>
                                             <PanelReopenKey/>
                                             <ShortcutsHelp/>
-                                            {/* The actions asked, followed to their end, whatever the view. */}
-                                            <ActionTray/>
                                         </>
                                     )}
                                 </Suspense>

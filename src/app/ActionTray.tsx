@@ -2,16 +2,19 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { actionLabel } from "../constants/actions";
 import { cn } from "../ui/cn";
-import { AlertTriangleIcon, BanIcon, BoltIcon, CheckIcon, ChevronDownIcon, CloseIcon, FileIcon, TrashIcon } from "../ui/icons";
+import { AlertTriangleIcon, BanIcon, BoltIcon, CheckIcon, CloseIcon, FileIcon, TrashIcon } from "../ui/icons";
+import { Button } from "../ui/components/Button";
+import { Dialog } from "../ui/components/Dialog";
 import { DaemonIdLogs } from "../components/DaemonIdLogs";
 import useEventStore from "../hooks/useEventStore.js";
 import { type TrackState, type TrackStep, type Tracked, useActionTracker } from "./action-tracker";
 
 /*
- * The actions asked, as they go: a tray in the corner of the window, whatever the
- * view, opened on each action asked. Each says where it stands, how long it took,
- * why it failed, and, for an orchestration, the run of each node it made. A
- * success leaves on its own after a while; a failure stays until dismissed.
+ * The actions asked, as they go: a button of the header, whatever the view, its
+ * mark turning while one runs, which opens them in a dialog. Each says there where
+ * it stands, how long it took, why it failed, and, for an orchestration, the run
+ * of each node it made. A success leaves on its own after a while; a failure stays
+ * until dismissed, or until the ended are cleared, from the dialog.
  */
 
 /** A duration said short: 0.4 s, 12 s, 3 min 05 s. */
@@ -185,17 +188,13 @@ function Entry({ entry, now }: { entry: Tracked; now: number }) {
 export function ActionTray() {
   const { t } = useTranslation();
   const tracked = useActionTracker((s) => s.tracked);
-  const revealed = useActionTracker((s) => s.revealed);
   const clearEnded = useActionTracker((s) => s.clearEnded);
-  const [open, setOpen] = useState(true);
+  // The dialog of the actions: opened from the bar, not on each action asked, which
+  // a modal would put over what the user is doing; the bar says it goes.
+  const [open, setOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const running = tracked.filter((entry) => entry.state === "running").length;
   const ended = tracked.length - running;
-
-  // A new action asked opens the tray.
-  useEffect(() => {
-    if (revealed > 0) setOpen(true);
-  }, [revealed]);
 
   // The durations of what runs go on.
   useEffect(() => {
@@ -208,6 +207,11 @@ export function ActionTray() {
     };
   }, [running]);
 
+  // None left, the dialog closes with the bar.
+  useEffect(() => {
+    if (tracked.length === 0) setOpen(false);
+  }, [tracked.length]);
+
   if (tracked.length === 0) return null;
   const counts = [
     running > 0 ? t("actionTray.running", { count: running }) : null,
@@ -216,48 +220,57 @@ export function ActionTray() {
     .filter(Boolean)
     .join(" · ");
   const failed = tracked.some((entry) => entry.state === "failed" || entry.state === "refused");
+  const mark =
+    running > 0 ? (
+      <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-line border-t-accent" />
+    ) : (
+      <BoltIcon className={cn("h-3.5 w-3.5 shrink-0", failed ? "text-state-down" : "text-ink-muted")} />
+    );
 
   return (
-    <section
-      aria-label={t("actionTray.label")}
-      className="fixed right-3 bottom-3 left-3 z-[1100] flex max-h-[60dvh] flex-col overflow-hidden rounded-(--radius-panel) border border-line bg-surface-raised text-ui shadow-lg sm:left-auto sm:w-[26rem]"
-    >
-      <div className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-1.5">
-        <button
-          type="button"
-          aria-expanded={open}
-          onClick={() => {
-            setOpen((previous) => !previous);
-          }}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-        >
-          {running > 0 ? (
-            <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-line border-t-accent" />
-          ) : (
-            <BoltIcon className={cn("h-3.5 w-3.5 shrink-0", failed ? "text-state-down" : "text-ink-muted")} />
-          )}
-          <span className="font-semibold">{t("actionTray.title")}</span>
-          <span className="truncate text-data text-ink-muted">{counts}</span>
-          <ChevronDownIcon className={cn("ml-auto h-3.5 w-3.5 shrink-0 text-ink-muted transition-transform", open ? "" : "rotate-180")} />
-        </button>
-        {ended > 0 && (
-          <button
-            type="button"
-            onClick={clearEnded}
-            className="shrink-0 rounded-(--radius-control) border border-line p-1 text-ink-muted hover:bg-surface-sunken hover:text-ink"
-          >
-            <TrashIcon className="h-3.5 w-3.5" />
-            <span className="sr-only">{t("actionTray.clear")}</span>
-          </button>
-        )}
-      </div>
-      {open && (
-        <ol className="min-h-0 divide-y divide-line overflow-y-auto">
+    <>
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`${t("actionTray.title")}: ${counts}`}
+        title={`${t("actionTray.title")}: ${counts}`}
+        onClick={() => {
+          setOpen(true);
+        }}
+        className="flex h-7 shrink-0 items-center gap-1 rounded-(--radius-control) border border-line px-1.5 text-ink-muted hover:bg-surface-sunken hover:text-ink"
+      >
+        {mark}
+        <span aria-hidden="true" className="text-data tabular-nums">
+          {tracked.length}
+        </span>
+      </button>
+      <Dialog
+        open={open}
+        onClose={() => {
+          setOpen(false);
+        }}
+        title={
+          <span className="flex min-w-0 items-center gap-2">
+            {mark}
+            <span>{t("actionTray.title")}</span>
+            <span className="truncate text-data font-normal text-ink-muted">{counts}</span>
+          </span>
+        }
+        footer={
+          ended > 0 && (
+            <Button onClick={clearEnded} icon={<TrashIcon className="h-3.5 w-3.5" />}>
+              {t("actionTray.clear")}
+            </Button>
+          )
+        }
+      >
+        <ol aria-label={t("actionTray.label")} className="-m-3 divide-y divide-line">
           {tracked.map((entry) => (
             <Entry key={entry.id} entry={entry} now={now} />
           ))}
         </ol>
-      )}
-    </section>
+      </Dialog>
+    </>
   );
 }

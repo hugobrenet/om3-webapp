@@ -12,6 +12,7 @@ import {useEffect, useState} from "react";
 import useClusterConfig from "../hooks/useClusterConfig.js";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 import {getAiAgentConfig} from "../config/ai-agent.js";
+import {ActionTray} from "../app/ActionTray";
 
 // Header icon buttons: outlined, as every button that neither creates nor deletes; muted ink, darker on hover.
 const HEADER_BUTTON =
@@ -177,6 +178,8 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                     <>
                         {/* The shortcuts list opens with the "?" key: no button for it, which read as a help. */}
                         <GlobalSearch loadIndex={loadSearchIndex}/>
+                        {/* The actions asked, followed to their end, whatever the view. */}
+                        <ActionTray/>
                     </>
                 )}
 
