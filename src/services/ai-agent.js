@@ -9,7 +9,7 @@ const MAX_HISTORY_MESSAGES = 100;
 const AGUI_PROTOCOL_VERSION = '1.0';
 // The tools of the agent itself, which the webapp shows apart: their results
 // carry no structured content when they succeed, unlike the tools of the MCP.
-export const AGENT_TOOLS = new Set(['search_tools', 'read_resource', 'load_skill']);
+export const AGENT_TOOLS = new Set(['search_tools', 'search_docs', 'read_resource', 'load_skill']);
 // The reasons of a negative feedback, in the order the agent keeps them.
 export const FEEDBACK_REASONS = [
     'not_answered',
