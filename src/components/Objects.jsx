@@ -503,7 +503,10 @@ const TableRowComponent = React.memo(({
                             <span className="flex h-4 items-center" data-badge-line="">
                                 <OrchestrateBadge objectName={objectName}/>
                             </span>
-                            {objectName}
+                            {/* A long path on two lines, after a slash, rather than the table out of the screen. */}
+                            <span className="whitespace-normal">
+                                {objectName.split("/").map((part, i) => <React.Fragment key={i}>{i > 0 && <>/<wbr/></>}{part}</React.Fragment>)}
+                            </span>
                             {/* Not up, why, under its name. */}
                             <ObjectReason objectName={objectName}/>
                         </span>

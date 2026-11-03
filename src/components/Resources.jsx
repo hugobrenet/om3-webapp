@@ -387,7 +387,7 @@ const Resources = () => {
                         {t("resources.loadError", {message: error})}
                     </Alert>
                 )}
-                <Table ref={frame} sticky aria-label={t("resources.caption")} className="min-h-0 flex-1">
+                <Table ref={frame} sticky cards aria-label={t("resources.caption")} className="min-h-0 flex-1">
                     <thead>
                         <HeaderRow>
                             <HeaderCell className="w-8">

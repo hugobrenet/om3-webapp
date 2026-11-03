@@ -190,7 +190,8 @@ const NodeRow = ({
                 // The four figures in one cell, two a line, each after its short name; no bar,
                 // the load and the memory in the tint of their state.
                 <Cell className="whitespace-nowrap">
-                    <span data-metrics="" className="grid grid-cols-[auto_auto_auto_auto] items-center gap-x-2 text-data tabular-nums">
+                    {/* Narrow, a figure a line: the table in the screen. */}
+                    <span data-metrics="" className="grid grid-cols-[auto_auto_auto_auto] items-center gap-x-2 text-data tabular-nums max-md:grid-cols-[auto_auto]">
                         <span className="text-ink-muted">{t("nodes.short.score")}</span><span>{score}</span>
                         <span className="text-ink-muted">{t("nodes.short.load")}</span>
                         <span data-state={loadState} className={FIGURE_INK[loadState]}>{stats?.load_15m ?? notAvailable}</span>
