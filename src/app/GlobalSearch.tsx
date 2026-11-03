@@ -8,6 +8,7 @@ import { statusBadge } from "../ui/components/status";
 import { CloseIcon, HistoryIcon, SearchIcon, TrashIcon } from "../ui/icons";
 import { formatRelativeInstant } from "../ui/lib/format";
 import { typing } from "../ui/lib/shortcuts";
+import { TOUCH_QUERY, useMediaQuery } from "../ui/lib/media";
 import { usePanelSearch, usePeek } from "./panel-search";
 import { useHistoryGrouping, usePanelHistory, type HistoryEntry } from "./panel-history";
 import { serialiseStep } from "./peek";
@@ -124,6 +125,7 @@ function SearchPalette({
   onClose: (restoreFocus: boolean) => void;
 }) {
   const { t, i18n } = useTranslation();
+  const touch = useMediaQuery(TOUCH_QUERY);
   const id = useId();
   const peek = usePeek();
   const grouping = useHistoryGrouping();
@@ -447,23 +449,25 @@ function SearchPalette({
           )}
         </div>
 
-        <div className="flex flex-wrap gap-4 border-t border-line px-3 py-1.5 text-data text-ink-muted">
-          <span>
-            <kbd className="rounded-sm border border-line px-1">↑</kbd> <kbd className="rounded-sm border border-line px-1">↓</kbd>{" "}
-            {t("search.keys.move")}
-          </span>
-          <span>
-            <kbd className="rounded-sm border border-line px-1">↵</kbd> {t("search.keys.open")}
-          </span>
-          {proposing && recent.entries.length > 0 && (
+        {!touch && (
+          <div className="flex flex-wrap gap-4 border-t border-line px-3 py-1.5 text-data text-ink-muted">
             <span>
-              <kbd className="rounded-sm border border-line px-1">Del</kbd> {t("search.keys.remove")}
+              <kbd className="rounded-sm border border-line px-1">↑</kbd> <kbd className="rounded-sm border border-line px-1">↓</kbd>{" "}
+              {t("search.keys.move")}
             </span>
-          )}
-          <span>
-            <kbd className="rounded-sm border border-line px-1">Esc</kbd> {t("search.keys.close")}
-          </span>
-        </div>
+            <span>
+              <kbd className="rounded-sm border border-line px-1">↵</kbd> {t("search.keys.open")}
+            </span>
+            {proposing && recent.entries.length > 0 && (
+              <span>
+                <kbd className="rounded-sm border border-line px-1">Del</kbd> {t("search.keys.remove")}
+              </span>
+            )}
+            <span>
+              <kbd className="rounded-sm border border-line px-1">Esc</kbd> {t("search.keys.close")}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

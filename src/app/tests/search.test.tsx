@@ -57,10 +57,10 @@ function Search() {
 
 function renderSearch(load = vi.fn(() => Promise.resolve(index)), at = "/objects?kind=svc") {
   render(
-    <MemoryRouter initialEntries={[at]}>
-      <GlobalSearch loadIndex={load} />
-      <Search />
-    </MemoryRouter>,
+      <MemoryRouter initialEntries={[at]}>
+        <GlobalSearch loadIndex={load} />
+        <Search />
+      </MemoryRouter>,
   );
   return load;
 }
@@ -77,6 +77,24 @@ describe("GlobalSearch", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: "k", ctrlKey: true });
     expect(screen.getByRole("dialog", { name: "Search the cluster" })).toBeInTheDocument();
+  });
+
+  test("hides keyboard shortcut help on touch devices", () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query) => ({
+      matches: query === "(pointer: coarse)",
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    try {
+      const { unmount } = renderSearch();
+      fireEvent.click(screen.getByRole("button", { name: /Search the cluster/ }));
+      expect(screen.queryByText("to move")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Close the search" })).toBeInTheDocument();
+      unmount();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
   });
 
   test("a result opens its record over the view, the arrows choosing it", async () => {
