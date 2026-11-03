@@ -193,7 +193,8 @@ const WhoAmI = () => {
                         {/* The intros of the pages: all off for whom knows OpenSVC, or those hidden one by one shown again. */}
                         <Checkbox label={t('user.showIntros')} checked={introsEnabled} onChange={(e) => setIntrosEnabled(e.target.checked)}/>
                         <span className="col-start-3">
-                            <Button size="sm" onClick={showAllIntros} disabled={!introsEnabled || hiddenIntros.length === 0}>
+                            {/* Its words on two lines rather than out of the panel, in a narrow window. */}
+                            <Button size="sm" onClick={showAllIntros} disabled={!introsEnabled || hiddenIntros.length === 0} className="h-auto min-h-7 py-1 text-left whitespace-normal">
                                 {t('user.resetIntros', {count: hiddenIntros.length})}
                             </Button>
                         </span>
