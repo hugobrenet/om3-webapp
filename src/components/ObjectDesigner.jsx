@@ -3,6 +3,7 @@ import {useTranslation} from "react-i18next";
 import {getResponseErrorMessage} from "../services/api.jsx";
 import {URL_NETWORK, URL_NODE, URL_OBJECT, URL_POOL} from "../config/apiPath.js";
 import {formatBytes} from "../ui/lib/format";
+import {TOUCH_QUERY, useMediaQuery} from "../ui/lib/media";
 
 /** Free addresses past this many say nothing (an ipv6 /64): not told. */
 const FREE_ADDRESSES_TOLD = 2 ** 32;
@@ -321,6 +322,8 @@ function KeywordPicker({keywords, onAdd, grantsTold = true}) {
     // The line the arrows move over, Enter adding it: the first matching as the words change.
     const [active, setActive] = useState(0);
     const listRef = useRef(null);
+    // On a phone, the keywords in sight to tap: no keyboard rising over them.
+    const touch = useMediaQuery(TOUCH_QUERY);
     const matching = keywords.filter((k) => `${k.option} ${k.text ?? ""}`.toLowerCase().includes(words.toLowerCase()));
     const current = Math.min(active, matching.length - 1);
     useEffect(() => {
@@ -352,7 +355,7 @@ function KeywordPicker({keywords, onAdd, grantsTold = true}) {
                     onKeyDown={onKeyDown}
                     aria-controls={`${ids}-keywords`}
                     aria-activedescendant={matching[current] ? `${ids}-kw-${matching[current].option}` : undefined}
-                    autoFocus
+                    autoFocus={!touch}
                 />
             </label>
             <ul ref={listRef} id={`${ids}-keywords`} aria-label={t("objectDesigner.keywords")} className="max-h-64 space-y-0.5 overflow-auto">
@@ -915,7 +918,8 @@ export function ObjectDesigner({kind, namespace = "", sections, onChange, keywor
                                 const empty = isRequired && entry.value.trim() === "";
                                 return (
                                     <li key={i} data-entry={entry.key} className="space-y-1">
-                                        <div className="grid grid-cols-[minmax(8rem,14rem)_1fr_auto] items-center gap-2">
+                                        {/* On a phone, the room to the value: the name cut, its help a tap away. */}
+                                        <div className="grid grid-cols-[minmax(8rem,14rem)_1fr_auto] items-center gap-2 max-sm:grid-cols-[minmax(0,7rem)_minmax(0,1fr)_auto]">
                                             {free ? (
                                                 <Input
                                                     aria-label={t("objectDesigner.variable")}

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { CloseIcon } from "../icons";
 import { cn } from "../cn";
+import { useVisualViewport } from "../lib/media";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -47,6 +48,18 @@ export function Dialog({
   const dialog = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
   const close = closeLabel ?? t("common.close");
+  // Held in the part of the page in sight: on a phone, the keyboard open does not
+  // hide its foot, nor the field typed in.
+  const viewport = useVisualViewport();
+  // The dialog shortened by the keyboard rising: the field typed in brought back in
+  // sight, or it falls under the foot and the phone pans the page to find it.
+  const viewportHeight = viewport?.height;
+  useEffect(() => {
+    const field = document.activeElement;
+    if (!(field instanceof HTMLElement) || !dialog.current?.contains(field)) return;
+    if (!field.matches("input, textarea, select, [contenteditable]")) return;
+    field.scrollIntoView?.({ block: "nearest" });
+  }, [viewportHeight]);
 
   useEffect(() => {
     if (!open) return;
@@ -91,7 +104,8 @@ export function Dialog({
   return createPortal(
     <div
       data-testid="dialog-backdrop"
-      className="fixed inset-0 z-[1300] flex items-start justify-center bg-ink/20 px-4 pt-[15vh]"
+      className="fixed inset-0 z-[1300] flex items-start justify-center bg-ink/20 px-4 pt-[15vh] max-md:p-2"
+      style={viewport ? { top: viewport.top, bottom: "auto", height: viewport.height } : undefined}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget && !dirty) onClose();
       }}
@@ -104,7 +118,7 @@ export function Dialog({
         tabIndex={-1}
         onKeyDown={onKeyDown}
         className={cn(
-          "flex max-h-[75vh] w-full flex-col rounded-(--radius-panel) border border-line bg-surface-raised text-ink shadow-xl",
+          "flex max-h-[75vh] w-full flex-col max-md:max-h-full rounded-(--radius-panel) border border-line bg-surface-raised text-ink shadow-xl",
           WIDTHS[size],
         )}
       >
