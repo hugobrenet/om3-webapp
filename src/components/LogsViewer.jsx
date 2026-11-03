@@ -578,7 +578,8 @@ const LogsViewer = ({
                     <IconButton label={t("logs.clear")} onClick={handleClearLogs} disabled={logs.length === 0}>
                         <TrashIcon/>
                     </IconButton>
-                    <IconButton label={t("logs.download")} onClick={handleDownload} disabled={filteredLogs.length === 0}>
+                    <IconButton label={t("logs.download")} onClick={handleDownload}
+                                disabled={filteredLogs.length === 0}>
                         <DownloadIcon/>
                     </IconButton>
                 </div>
@@ -641,7 +642,8 @@ const LogsViewer = ({
                     </details>
                 </div>
                 {isFiltered ? (
-                    <span className="inline-flex items-center gap-1 rounded-(--radius-control) border border-line bg-surface-sunken pl-2 text-data">
+                    <span
+                        className="inline-flex items-center gap-1 rounded-(--radius-control) border border-line bg-surface-sunken pl-2 text-data">
                         {t("logs.filtersActive")}
                         <IconButton
                             size="sm"
@@ -699,35 +701,37 @@ const LogsViewer = ({
                                 const next = filteredLogs[i + 1];
                                 const closes = merged && next !== undefined && (next.stream ?? next.node) !== node;
                                 return (
-                                <div
-                                    key={log.key ?? log.__REALTIME_TIMESTAMP}
-                                    data-block-start={merged && opens ? "" : undefined}
-                                    className={cn(
-                                        // A very light line between entries, no frame around them.
-                                        "log-line col-span-full grid grid-cols-subgrid items-baseline border-b px-2 py-0.5 transition-colors",
-                                        closes ? "border-line" : "border-line/40",
-                                        isFiltered && "cursor-pointer hover:bg-surface-raised",
-                                        highlightedLogId === (log.key ?? log.__REALTIME_TIMESTAMP) && "bg-accent-soft"
-                                    )}
-                                    id={getLogId(log)}
-                                    data-at={log.timestamp.getTime()}
-                                    onClick={() => handleLogClick(log)}
-                                >
-                                    {/* The time, the level under it in its colour, the word alone. */}
-                                    <span className="flex flex-col">
+                                    <div
+                                        key={log.key ?? log.__REALTIME_TIMESTAMP}
+                                        data-block-start={merged && opens ? "" : undefined}
+                                        className={cn(
+                                            // A very light line between entries, no frame around them.
+                                            "log-line col-span-full grid grid-cols-subgrid items-baseline border-b px-2 py-0.5 transition-colors max-md:grid-cols-1",
+                                            closes ? "border-line" : "border-line/40",
+                                            isFiltered && "cursor-pointer hover:bg-surface-raised",
+                                            highlightedLogId === (log.key ?? log.__REALTIME_TIMESTAMP) && "bg-accent-soft"
+                                        )}
+                                        id={getLogId(log)}
+                                        data-at={log.timestamp.getTime()}
+                                        onClick={() => handleLogClick(log)}
+                                    >
+                                        {/* The time, the level under it in its colour, the word alone. */}
+                                        <span className="flex flex-col">
                                         <span className="text-ink-muted">{formatTime(log.timestamp)}</span>
                                         <span className={getLevelClass(log.level)}>{log.level.toUpperCase()}</span>
                                     </span>
-                                    {marked && <NodeMarker count={nodes.length} index={nodeIndex.get(node) ?? 0} faint={!opens}/>}
-                                    {merged && (
-                                        // The name on the first line of its block; after, kept for assistive tools.
-                                        <span className="text-ink-muted" data-node>
+                                        {marked && <NodeMarker count={nodes.length} index={nodeIndex.get(node) ?? 0}
+                                                               faint={!opens}/>}
+                                        {merged && (
+                                            // The name on the first line of its block; after, kept for assistive tools.
+                                            <span className="text-ink-muted" data-node>
                                             {opens ? node : <span className="sr-only">{node}</span>}
                                         </span>
-                                    )}
-                                    {/* The message apart from what tells where and when, by a line: on
+                                        )}
+                                        {/* The message apart from what tells where and when, by a line: on
                                         a first line, what it is about, small badges; on the next, its text. */}
-                                    <span className="flex min-w-0 flex-col border-l border-line pl-2">
+                                        <span
+                                            className="flex min-w-0 flex-col border-l border-line pl-2 max-md:border-l-0 max-md:pl-0">
                                         {(log.prefixes?.length > 0 || log.method || log.path) && (
                                             <span className="flex flex-wrap gap-1 font-sans" data-meta="">
                                                 {[...(log.prefixes ?? []), log.method, log.path].filter(Boolean).map((meta, j) => (
@@ -740,9 +744,10 @@ const LogsViewer = ({
                                                 ))}
                                             </span>
                                         )}
-                                        <span className="break-words whitespace-pre-wrap" data-text="">{log.text ?? log.message}</span>
+                                            <span className="break-words whitespace-pre-wrap"
+                                                  data-text="">{log.text ?? log.message}</span>
                                     </span>
-                                </div>
+                                    </div>
                                 );
                             })}
                         </div>
