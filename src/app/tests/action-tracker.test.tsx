@@ -71,12 +71,12 @@ const tracked = () => useActionTracker.getState().tracked;
 
 beforeEach(() => {
   resetClusterStatus();
-  useActionTracker.setState({ tracked: [], revealed: 0 });
+  useActionTracker.setState({ tracked: [] });
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
-  useActionTracker.setState({ tracked: [], revealed: 0 });
+  useActionTracker.setState({ tracked: [] });
 });
 
 describe("trackAccepted", () => {
@@ -124,12 +124,10 @@ describe("trackAccepted", () => {
     expect(tracked()[0]?.steps[0]).toMatchObject({ node: "dev3n2", exitCode: 1 });
   });
 
-  test("an action refused is said at once, ended, with its reason, and opens the tray", () => {
-    const revealed = useActionTracker.getState().revealed;
+  test("an action refused is said at once, ended, with its reason", () => {
     trackRefused({ action: "start", subject: "foo", reason: "HTTP 409 already started" });
     expect(tracked()[0]).toMatchObject({ action: "start", subject: "foo", state: "refused", error: "HTTP 409 already started" });
     expect(tracked()[0]?.endedAt).toBeDefined();
-    expect(useActionTracker.getState().revealed).toBe(revealed + 1);
   });
 
   test("over the limit, the oldest ended actions go, never the running ones", () => {
@@ -139,7 +137,7 @@ describe("trackAccepted", () => {
       node: "dev3n1", state: "running" as const, startedAt: 0, steps: [],
     }));
     const old = { id: "old", action: "start", subject: "web", kind: "exec" as const, node: "", state: "refused" as const, startedAt: 0, endedAt: 0, steps: [] };
-    useActionTracker.setState({ tracked: [...running, old], revealed: 0 });
+    useActionTracker.setState({ tracked: [...running, old] });
     trackRefused({ action: "stop", subject: "svc40", reason: "HTTP 409" });
     const ids = tracked().map((t) => t.id);
     expect(ids).toEqual(expect.arrayContaining(running.map((t) => t.id)));

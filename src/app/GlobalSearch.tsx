@@ -96,8 +96,9 @@ export function GlobalSearch({ loadIndex }: { loadIndex: () => Promise<SearchInd
       >
         <SearchIcon className="h-4 w-4 shrink-0" />
         <span className="truncate max-md:sr-only">{t("search.title")}</span>
+        {/* No key to press on a touch screen; in a narrow window, the button its icon only. */}
         {!touch && (
-          <kbd className="ml-auto shrink-0 rounded-sm border border-line px-1 text-data whitespace-nowrap">
+          <kbd className="ml-auto shrink-0 rounded-sm border border-line px-1 text-data whitespace-nowrap max-md:hidden">
             {shortcut}
           </kbd>
         )}

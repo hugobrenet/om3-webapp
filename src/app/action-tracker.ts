@@ -96,15 +96,12 @@ export const SUCCESS_LINGER_MS = 120_000;
 
 interface TrackerState {
   tracked: Tracked[];
-  /** The tray asked open: a new action was asked. */
-  revealed: number;
   dismiss: (id: string) => void;
   clearEnded: () => void;
 }
 
 export const useActionTracker = create<TrackerState>((set) => ({
   tracked: [],
-  revealed: 0,
   dismiss: (id) => {
     set((s) => ({ tracked: s.tracked.filter((t) => t.id !== id) }));
   },
@@ -290,7 +287,7 @@ export function trackAccepted(
     startedAt: Date.now(),
     steps: [],
   };
-  useActionTracker.setState((s) => ({ tracked: withNew(tracked, s.tracked), revealed: s.revealed + 1 }));
+  useActionTracker.setState((s) => ({ tracked: withNew(tracked, s.tracked) }));
   if (orchestrationId) void followOrchestration(id, orchestrationId, answering);
   else if (execId) void followExec(id, execId, answering);
 }
@@ -325,7 +322,7 @@ export function trackRefused({
     endedAt: now,
     steps: [],
   };
-  useActionTracker.setState((s) => ({ tracked: withNew(refused, s.tracked), revealed: s.revealed + 1 }));
+  useActionTracker.setState((s) => ({ tracked: withNew(refused, s.tracked) }));
 }
 
 /**
@@ -363,7 +360,7 @@ export function trackDone({
     endedAt: now,
     steps: [],
   };
-  useActionTracker.setState((s) => ({ tracked: withNew(done, s.tracked), revealed: s.revealed + 1 }));
+  useActionTracker.setState((s) => ({ tracked: withNew(done, s.tracked) }));
   lingerIfSucceeded(id);
 }
 
@@ -440,7 +437,7 @@ export function trackUntil(
     startedAt: Date.now(),
     steps: [],
   };
-  useActionTracker.setState((s) => ({ tracked: withNew(entry, s.tracked), revealed: s.revealed + 1 }));
+  useActionTracker.setState((s) => ({ tracked: withNew(entry, s.tracked) }));
   let unsubscribe: () => void = () => undefined;
   const end = (change: Partial<Tracked>) => {
     unsubscribe();
@@ -491,7 +488,6 @@ export function trackPoll(
       },
       s.tracked,
     ),
-    revealed: s.revealed + 1,
   }));
   void (async () => {
     while (isLive(id)) {

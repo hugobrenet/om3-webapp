@@ -79,6 +79,12 @@ describe("GlobalSearch", () => {
     expect(screen.getByRole("dialog", { name: "Search the cluster" })).toBeInTheDocument();
   });
 
+  test("the shortcut said on the button, but in a narrow window, the button its icon only", () => {
+    renderSearch();
+    const trigger = screen.getByRole("button", { name: /Search the cluster/ });
+    expect(trigger.querySelector("kbd")).toHaveClass("max-md:hidden");
+  });
+
   test("hides keyboard shortcut help on touch devices", () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn((query) => ({

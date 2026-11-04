@@ -23,7 +23,7 @@ describe('ObjectSnapshots', () => {
     let answers;
 
     beforeEach(() => {
-        useActionTracker.setState({tracked: [], revealed: 0});
+        useActionTracker.setState({tracked: []});
         localStorage.setItem('authToken', 'tok');
         requests = [];
         // The snapshots oldest first, as the daemon lists them.

@@ -46,7 +46,7 @@ describe("the parameters of a write", () => {
 describe("a wait for the nodes that expired", () => {
   afterEach(() => {
     clearConfigStamps();
-    useActionTracker.setState({ tracked: [], revealed: 0 });
+    useActionTracker.setState({ tracked: [] });
   });
 
   test("is a write done, the nodes not reached said beside it, its time kept", async () => {
