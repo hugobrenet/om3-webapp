@@ -127,7 +127,7 @@ describe('Term', () => {
 });
 
 describe('PageIntro', () => {
-    test('is not shown on a narrow screen', () => {
+    test('narrow, a line cut short, read in full and the glossary a tap away; the settings kept', () => {
         const originalMatchMedia = window.matchMedia;
         window.matchMedia = vi.fn((query) => ({
             matches: query === NARROW_QUERY,
@@ -137,10 +137,28 @@ describe('PageIntro', () => {
             },
         }));
         try {
-            renderAt('/nodes', <PageIntro/>);
-            expect(screen.queryByRole('complementary', {name: 'About this page'})).not.toBeInTheDocument();
+            const {unmount} = renderAt('/nodes', <PageIntro/>);
+            const intro = screen.getByRole('complementary', {name: 'About this page'});
+            const line = within(intro).getByRole('button', {name: /^These are the servers in your cluster\./});
+            expect(line).toHaveAttribute('aria-expanded', 'false');
+            expect(line.firstElementChild).toHaveClass('truncate');
+            expect(within(intro).queryByRole('link')).toBeNull();
+            fireEvent.click(line);
+            expect(line).toHaveAttribute('aria-expanded', 'true');
+            expect(line.firstElementChild).not.toHaveClass('truncate');
+            expect(within(intro).getByRole('link', {name: 'What the words mean'})).toHaveAttribute('href', '/glossary');
+            fireEvent.click(line);
+            expect(line).toHaveAttribute('aria-expanded', 'false');
+            // Hidden page by page, and all turned off, as in a wide window.
+            fireEvent.click(within(intro).getByRole('button', {name: 'Hide this introduction'}));
+            expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+            unmount();
+            setIntrosEnabled(false);
+            renderAt('/objects?list=secrets', <PageIntro/>);
+            expect(document.querySelector('[data-page-intro]')).toBeNull();
         } finally {
             window.matchMedia = originalMatchMedia;
+            setIntrosEnabled(true);
         }
     });
 
