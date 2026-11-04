@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 /**
  * Whether a media query matches, following its changes. False where the browser
@@ -35,27 +35,33 @@ export const TOUCH_QUERY = "(pointer: coarse)";
 /**
  * The part of the page in sight, following its changes: on a phone, what the
  * keyboard and the browser bars leave, which the `vh` units ignore. Null where
- * the browser has no `visualViewport` (jsdom).
+ * the browser has no `visualViewport` (jsdom), or while not `active`: nothing
+ * listened to then, a dialog closed not drawn again on each scroll.
  */
-export function useVisualViewport(): { top: number; height: number } | null {
-  const [box, setBox] = useState<{ top: number; height: number } | null>(() => readViewport());
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    if (!viewport) return;
-    const onChange = () => {
-      setBox(readViewport());
-    };
-    viewport.addEventListener("resize", onChange);
-    viewport.addEventListener("scroll", onChange);
-    return () => {
-      viewport.removeEventListener("resize", onChange);
-      viewport.removeEventListener("scroll", onChange);
-    };
-  }, []);
-  return box;
+export function useVisualViewport(active = true): { top: number; height: number } | null {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const viewport = active ? window.visualViewport : null;
+      if (!viewport) return () => {};
+      viewport.addEventListener("resize", onChange);
+      viewport.addEventListener("scroll", onChange);
+      return () => {
+        viewport.removeEventListener("resize", onChange);
+        viewport.removeEventListener("scroll", onChange);
+      };
+    },
+    [active],
+  );
+  // Said as a string, the same box the same snapshot: no render for nothing.
+  const box = useSyncExternalStore(subscribe, () => (active ? readViewport() : ""), () => "");
+  return useMemo(() => {
+    if (box === "") return null;
+    const [top, height] = box.split(" ").map(Number);
+    return { top: top ?? 0, height: height ?? 0 };
+  }, [box]);
 }
 
-function readViewport(): { top: number; height: number } | null {
+function readViewport(): string {
   const viewport = typeof window === "undefined" ? undefined : window.visualViewport;
-  return viewport ? { top: viewport.offsetTop, height: viewport.height } : null;
+  return viewport ? `${viewport.offsetTop} ${viewport.height}` : "";
 }

@@ -49,8 +49,8 @@ export function Dialog({
   const { t } = useTranslation();
   const close = closeLabel ?? t("common.close");
   // Held in the part of the page in sight: on a phone, the keyboard open does not
-  // hide its foot, nor the field typed in.
-  const viewport = useVisualViewport();
+  // hide its foot, nor the field typed in. Closed, nothing followed.
+  const viewport = useVisualViewport(open);
   // The dialog shortened by the keyboard rising: the field typed in brought back in
   // sight, or it falls under the foot and the phone pans the page to find it.
   const viewportHeight = viewport?.height;

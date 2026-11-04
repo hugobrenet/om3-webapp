@@ -61,4 +61,16 @@ describe("useVisualViewport", () => {
     });
     expect(result.current).toEqual({ top: 120, height: 364 });
   });
+
+  test("not active, null and nothing listened to; active, the part in sight", () => {
+    const viewport = Object.assign(new EventTarget(), { offsetTop: 0, height: 664 });
+    const listen = vi.spyOn(viewport, "addEventListener");
+    Object.defineProperty(window, "visualViewport", { value: viewport, configurable: true });
+    const { result, rerender } = renderHook(({ active }) => useVisualViewport(active), { initialProps: { active: false } });
+    expect(result.current).toBeNull();
+    expect(listen).not.toHaveBeenCalled();
+    rerender({ active: true });
+    expect(result.current).toEqual({ top: 0, height: 664 });
+    expect(listen).toHaveBeenCalledWith("resize", expect.any(Function));
+  });
 });
