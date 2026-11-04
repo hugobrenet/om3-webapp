@@ -145,6 +145,40 @@
     min-width: 1.5rem;
     height: 1.5rem;
   }
+  /* Safari on a phone draws its own checkbox, rounded to a disc, its ring thick
+     once larger: drawn here as on a desktop, a square of a thin line, filled
+     with the accent and checked when checked, a dash when partly. */
+  input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-control);
+    background: var(--surface-raised) center / 100% 100% no-repeat;
+    cursor: pointer;
+  }
+  input[type="checkbox"]:checked,
+  input[type="checkbox"]:indeterminate {
+    border-color: var(--accent);
+    background-color: var(--accent);
+  }
+  input[type="checkbox"]:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8.5l2.5 2.5L12 5.5'/%3E%3C/svg%3E");
+  }
+  input[type="checkbox"]:indeterminate {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4.5 8h7'/%3E%3C/svg%3E");
+  }
+  /* The ink on the accent, dark in the dark modes. */
+  .dark input[type="checkbox"]:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%230c1417' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8.5l2.5 2.5L12 5.5'/%3E%3C/svg%3E");
+  }
+  .dark input[type="checkbox"]:indeterminate {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%230c1417' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4.5 8h7'/%3E%3C/svg%3E");
+  }
+  input[type="checkbox"]:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
   :where(button, a[href], [role="tab"], summary):not([class*="after:"]):not(
       [class~="absolute"],
       [class~="fixed"],
