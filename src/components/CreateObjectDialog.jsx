@@ -555,7 +555,8 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
                                         label={t("createObject.copyFrom")}
                                         placeholder={t("createObject.copyFrom")}
                                         emptyText={t("createObject.noObject")}
-                                        className="w-80"
+                                        // 20rem, less on a phone narrower: the spinner beside it, in the dialog.
+                                        className="w-80 min-w-0"
                                     />
                                     {loadingSource && <Spinner label={t("createObject.reading")}/>}
                                 </div>
