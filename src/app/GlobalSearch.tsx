@@ -8,7 +8,7 @@ import { statusBadge } from "../ui/components/status";
 import { CloseIcon, HistoryIcon, SearchIcon, TrashIcon } from "../ui/icons";
 import { formatRelativeInstant } from "../ui/lib/format";
 import { typing } from "../ui/lib/shortcuts";
-import { TOUCH_QUERY, useMediaQuery } from "../ui/lib/media";
+import { TOUCH_QUERY, useMediaQuery, useVisualViewport } from "../ui/lib/media";
 import { usePanelSearch, usePeek } from "./panel-search";
 import { useHistoryGrouping, usePanelHistory, type HistoryEntry } from "./panel-history";
 import { serialiseStep } from "./peek";
@@ -130,6 +130,9 @@ function SearchPalette({
 }) {
   const { t, i18n } = useTranslation();
   const touch = useMediaQuery(TOUCH_QUERY);
+  // Held in the part of the page in sight, as a dialog: on a phone, the keyboard
+  // risen at once does not hide the results, their list shortened above it.
+  const viewport = useVisualViewport();
   const id = useId();
   const peek = usePeek();
   const grouping = useHistoryGrouping();
@@ -260,7 +263,9 @@ function SearchPalette({
 
   return (
     <div
-      className="fixed inset-0 z-[1300] flex items-start justify-center bg-ink/20 px-4 pt-[10vh]"
+      data-testid="search-backdrop"
+      className="fixed inset-0 z-[1300] flex items-start justify-center bg-ink/20 px-4 pt-[10vh] max-md:p-2"
+      style={viewport ? { top: viewport.top, bottom: "auto", height: viewport.height } : undefined}
       onPointerDown={(event) => {
         // A click on the backdrop, not inside the palette, closes it.
         if (event.target === event.currentTarget) onClose(true);
@@ -272,7 +277,7 @@ function SearchPalette({
         aria-modal="true"
         aria-label={t("search.title")}
         onKeyDown={onKeyDown}
-        className="flex max-h-[75vh] w-full max-w-2xl flex-col overflow-hidden rounded-(--radius-panel) border border-line bg-surface-raised text-ink shadow-xl"
+        className="flex max-h-[75vh] w-full max-w-2xl flex-col overflow-hidden max-md:max-h-full rounded-(--radius-panel) border border-line bg-surface-raised text-ink shadow-xl"
       >
         <div className="flex items-center gap-2 border-b border-line px-3">
           <SearchIcon className="h-5 w-5 shrink-0 text-ink-muted" />
@@ -515,13 +520,14 @@ function RecentRow({
       <span className="shrink-0 text-data text-ink-muted tabular-nums">{when}</span>
       <button
         type="button"
-        // The keyboard removes it with Delete: the cross is for the pointer.
+        // The keyboard removes it with Delete: the cross is for the pointer, shown on
+        // hover, and always on a touch screen, which has none.
         tabIndex={-1}
         onClick={(event) => {
           event.stopPropagation();
           onRemove();
         }}
-        className="shrink-0 rounded-full p-1 text-ink-muted opacity-0 group-hover:opacity-100 group-aria-selected:opacity-100 hover:bg-surface-sunken hover:text-ink"
+        className="shrink-0 rounded-full p-1 text-ink-muted opacity-0 group-hover:opacity-100 group-aria-selected:opacity-100 pointer-coarse:opacity-100 hover:bg-surface-sunken hover:text-ink"
       >
         <CloseIcon className="h-3 w-3" />
         <span className="sr-only">{t("panelHistory.remove", { name: entry.label })}</span>
