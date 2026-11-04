@@ -194,7 +194,7 @@ export function SearchField({label, value, onChange}) {
  * (FilterPopover), then the words searched, then `children`, what else filters (a
  * checkbox, a clear of them all). On a phone, folded under a Filters button.
  */
-export function FilterToolbar({facets, search, onSearch, searchLabel, children}) {
+export function FilterToolbar({facets, search, onSearch, searchLabel, children, compactAction}) {
     const {t} = useTranslation();
     const id = useId();
     const folded = useMediaQuery(FOLDED_QUERY);
@@ -204,17 +204,20 @@ export function FilterToolbar({facets, search, onSearch, searchLabel, children})
     return (
         <>
             {folded && (
-                <Button
-                    size="sm"
-                    icon={<FilterIcon className="h-4 w-4"/>}
-                    onClick={() => setOpen((v) => !v)}
-                    aria-label={open ? t("objects.filters.hide") : t("objects.filters.show")}
-                    aria-expanded={open}
-                    aria-controls={id}
-                >
-                    <span className="hidden sm:inline">{t("common.filters")}</span>
-                    <ChevronDownIcon className={open ? "h-4 w-4 rotate-180" : "h-4 w-4"}/>
-                </Button>
+                <>
+                    <Button
+                        size="sm"
+                        icon={<FilterIcon className="h-4 w-4"/>}
+                        onClick={() => setOpen((v) => !v)}
+                        aria-label={open ? t("objects.filters.hide") : t("objects.filters.show")}
+                        aria-expanded={open}
+                        aria-controls={id}
+                    >
+                        <span className="hidden sm:inline">{t("common.filters")}</span>
+                        <ChevronDownIcon className={open ? "h-4 w-4 rotate-180" : "h-4 w-4"}/>
+                    </Button>
+                    {compactAction}
+                </>
             )}
             {(!folded || open) && (
                 <div id={id} data-filter-toolbar="" className="flex flex-wrap items-center gap-3">
@@ -223,6 +226,7 @@ export function FilterToolbar({facets, search, onSearch, searchLabel, children})
                     {children}
                 </div>
             )}
+            {!folded && compactAction}
         </>
     );
 }

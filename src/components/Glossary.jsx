@@ -41,7 +41,8 @@ export function Glossary() {
                 <p className="text-ink-muted">{t("glossary.intro")}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-                <span className="relative flex min-w-0 flex-1 items-center">
+                {/* Room to type kept: the button goes under it rather than over it. */}
+                <span className="relative flex min-w-48 flex-1 items-center">
                     <SearchIcon className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-ink-muted"/>
                     <Input
                         type="search"

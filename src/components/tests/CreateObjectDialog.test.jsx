@@ -248,6 +248,46 @@ describe('CreateObjectDialog', () => {
         expect(screen.getByRole('button', {name: 'Create'})).toBeEnabled();
     });
 
+    test('a copy that could not be read: not the one before created, nothing to create until one is read', async () => {
+        answers['GET /api/object/path/ns1/svc/web/config/file?redact-secrets=false'] = {status: 200, text: SOURCE};
+        answers['GET /api/object/path/ns1/svc/api/config/file?redact-secrets=false'] = {status: 500, text: 'boom'};
+        open({defaultNamespace: 'ns1', paths: ['ns1/svc/web', 'ns1/svc/api']});
+        type('Name', 'x');
+        next();
+        source('copy');
+        fireEvent.click(screen.getByRole('combobox', {name: 'Object to copy'}));
+        fireEvent.click(screen.getByRole('option', {name: 'ns1/svc/web'}));
+        await waitFor(() => expect(screen.getByLabelText('Configuration')).toHaveValue(SOURCE));
+        fireEvent.click(screen.getByRole('combobox', {name: 'Object to copy'}));
+        fireEvent.click(screen.getByRole('option', {name: 'ns1/svc/api'}));
+        await waitFor(() => expect(screen.getByText(/The configuration of ns1\/svc\/api could not be read/)).toBeInTheDocument());
+        // The text of ns1/svc/web no longer under ns1/svc/api, and nothing posted.
+        expect(screen.queryByLabelText('Configuration')).toBeNull();
+        expect(screen.getByRole('button', {name: 'Create'})).toBeDisabled();
+        fireEvent.submit(screen.getByRole('button', {name: 'Create'}).form ?? document.querySelector('form'));
+        expect(posts()).toEqual([]);
+        // Picked again and read: created from it.
+        fireEvent.click(screen.getByRole('combobox', {name: 'Object to copy'}));
+        fireEvent.click(screen.getByRole('option', {name: 'ns1/svc/web'}));
+        await waitFor(() => expect(screen.getByRole('button', {name: 'Create'})).toBeEnabled());
+        create();
+        await waitFor(() => expect(onCreated).toHaveBeenCalledWith('ns1/svc/x'));
+        expect(posts()[0].body).toContain('[fs#1]');
+    });
+
+    test('a text written, then a copy chosen and none picked: the text written not created as a copy', async () => {
+        open({defaultNamespace: 'ns1'});
+        type('Name', 'x');
+        next();
+        source('edit');
+        fireEvent.change(screen.getByLabelText('Configuration'), {target: {value: '[DEFAULT]\nnodes = written\n'}});
+        source('copy');
+        expect(screen.getByRole('button', {name: 'Create'})).toBeDisabled();
+        // Back to it, the text written is still there.
+        source('edit');
+        expect(screen.getByLabelText('Configuration')).toHaveValue('[DEFAULT]\nnodes = written\n');
+    });
+
     test('written: a file dropped on the text read into it, sent with a new id', async () => {
         open({defaultNamespace: 'ns1'});
         type('Name', 'db');

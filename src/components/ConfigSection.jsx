@@ -670,7 +670,9 @@ const ConfigSection = ({
                             disabled={actionLoading}
                             spellCheck={false}
                             rows={Math.min(30, Math.max(10, edit.text.split("\n").length + 1))}
-                            className="font-mono text-data whitespace-pre"
+                            // On a phone, half the screen at most: a finger finds the
+                            // panel around it to scroll, not the file alone.
+                            className="font-mono text-data whitespace-pre max-md:max-h-[50dvh]"
                         />
                     </div>
                 ) : (
@@ -822,7 +824,8 @@ const ConfigSection = ({
         return (
             <div className="space-y-2">
                 {body}
-                {edit && <div className="flex justify-end gap-2">{footer}</div>}
+                {/* Held at the foot of the panel: Save at hand, however long the file. */}
+                {edit && <div className="sticky bottom-0 flex justify-end gap-2 bg-surface-raised py-2">{footer}</div>}
                 {subDialogs}
             </div>
         );

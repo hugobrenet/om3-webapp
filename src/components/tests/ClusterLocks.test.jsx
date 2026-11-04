@@ -35,7 +35,7 @@ describe('ClusterLocks', () => {
 
     beforeEach(() => {
         vi.useFakeTimers({shouldAdvanceTime: true});
-        useActionTracker.setState({tracked: [], revealed: 0});
+        useActionTracker.setState({tracked: []});
         localStorage.setItem('authToken', 'tok');
         requests = [];
         locks = [lock('net-default', 'id-2', {node: 'n2', holder: '', expires_in: '1m5s'}), lock('alloc', 'id-1')];

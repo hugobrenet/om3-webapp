@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 /**
  * Whether a media query matches, following its changes. False where the browser
@@ -28,3 +28,40 @@ export const BREAKPOINTS = {
   lg: "(min-width: 64rem)",
   xl: "(min-width: 80rem)",
 } as const;
+
+/** A finger as the pointer: a phone or a tablet. */
+export const TOUCH_QUERY = "(pointer: coarse)";
+
+/**
+ * The part of the page in sight, following its changes: on a phone, what the
+ * keyboard and the browser bars leave, which the `vh` units ignore. Null where
+ * the browser has no `visualViewport` (jsdom), or while not `active`: nothing
+ * listened to then, a dialog closed not drawn again on each scroll.
+ */
+export function useVisualViewport(active = true): { top: number; height: number } | null {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const viewport = active ? window.visualViewport : null;
+      if (!viewport) return () => {};
+      viewport.addEventListener("resize", onChange);
+      viewport.addEventListener("scroll", onChange);
+      return () => {
+        viewport.removeEventListener("resize", onChange);
+        viewport.removeEventListener("scroll", onChange);
+      };
+    },
+    [active],
+  );
+  // Said as a string, the same box the same snapshot: no render for nothing.
+  const box = useSyncExternalStore(subscribe, () => (active ? readViewport() : ""), () => "");
+  return useMemo(() => {
+    if (box === "") return null;
+    const [top, height] = box.split(" ").map(Number);
+    return { top: top ?? 0, height: height ?? 0 };
+  }, [box]);
+}
+
+function readViewport(): string {
+  const viewport = typeof window === "undefined" ? undefined : window.visualViewport;
+  return viewport ? `${viewport.offsetTop} ${viewport.height}` : "";
+}

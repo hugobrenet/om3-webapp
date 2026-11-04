@@ -220,7 +220,7 @@ const Pools = () => {
                     {t("pools.loadError")}
                 </Alert>
             ) : (
-                <Table sticky>
+                <Table sticky cards>
                     <caption className="sr-only">{t("pools.caption")}</caption>
                     <thead>
                         <HeaderRow>

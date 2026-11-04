@@ -175,6 +175,29 @@ describe('Sidebar', () => {
         expect(aside).not.toHaveAttribute('inert');
         expect(aside).toHaveClass('w-60');
     });
+
+    test('on a phone, over the page: a tap on the veil or Escape folds it', () => {
+        const onClose = vi.fn();
+        const {container, rerender} = render(
+            <MemoryRouter initialEntries={['/cluster']}>
+                <Sidebar open overlay onClose={onClose}/>
+            </MemoryRouter>
+        );
+        expect(container.querySelector('#app-sidebar')).toHaveClass('absolute');
+        fireEvent.click(screen.getByTestId('sidebar-veil'));
+        expect(onClose).toHaveBeenCalledTimes(1);
+        fireEvent.keyDown(document, {key: 'Escape'});
+        expect(onClose).toHaveBeenCalledTimes(2);
+        // Folded, no veil, Escape left to the rest of the page.
+        rerender(
+            <MemoryRouter initialEntries={['/cluster']}>
+                <Sidebar open={false} overlay onClose={onClose}/>
+            </MemoryRouter>
+        );
+        expect(screen.queryByTestId('sidebar-veil')).not.toBeInTheDocument();
+        fireEvent.keyDown(document, {key: 'Escape'});
+        expect(onClose).toHaveBeenCalledTimes(2);
+    });
 });
 
 describe('useSidebarOpen', () => {

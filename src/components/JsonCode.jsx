@@ -94,7 +94,7 @@ export function RawDataButton({title, data}) {
                 size="lg"
                 footer={<CopyButton text={toJSON(data, 2)} label={t("rawData.copy")}/>}
             >
-                <div className="max-h-[70vh] overflow-auto">
+                <div className="max-h-[70dvh] overflow-auto">
                     <JsonCode data={data}/>
                 </div>
             </Dialog>

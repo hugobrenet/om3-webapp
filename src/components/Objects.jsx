@@ -503,7 +503,10 @@ const TableRowComponent = React.memo(({
                             <span className="flex h-4 items-center" data-badge-line="">
                                 <OrchestrateBadge objectName={objectName}/>
                             </span>
-                            {objectName}
+                            {/* A long path on two lines, after a slash, rather than the table out of the screen. */}
+                            <span className="whitespace-normal">
+                                {objectName.split("/").map((part, i) => <React.Fragment key={i}>{i > 0 && <>/<wbr/></>}{part}</React.Fragment>)}
+                            </span>
                             {/* Not up, why, under its name. */}
                             <ObjectReason objectName={objectName}/>
                         </span>
@@ -1096,7 +1099,8 @@ const Objects = () => {
                                 onSearch={handleSearchChange}
                                 searchLabel={t("common.name")}
                             />
-                            <div className="ml-auto flex items-center gap-3">{legendButton}{listActions("end")}</div>
+                            {/* Narrow, on two lines rather than the actions out of the screen. */}
+                            <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2">{legendButton}{listActions("end")}</div>
                         </div>
                     )}
 

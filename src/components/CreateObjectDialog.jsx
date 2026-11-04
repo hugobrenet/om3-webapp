@@ -254,6 +254,9 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
     const [copyFrom, setCopyFrom] = useState("");
     const [fileName, setFileName] = useState("");
     const [config, setConfig] = useState("");
+    // The configuration of the object copied, `from` it, as read then edited; none until
+    // read, nor when it could not be: apart from the one written, never another's posted.
+    const [copied, setCopied] = useState(null);
     const [design, setDesign] = useState(() => designStart());
     // What it is, then how its configuration starts.
     const [step, setStep] = useState("what");
@@ -294,6 +297,7 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
         setCopyFrom("");
         setFileName("");
         setConfig("");
+        setCopied(null);
         const start = designStart(RUNNING_KINDS.includes(defaultKind));
         designAtStart.current = start;
         setDesign(start);
@@ -357,6 +361,8 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
     const copy = async (from) => {
         setCopyFrom(from);
         copying.current = from;
+        // The one copied before goes: a read failing leaves nothing to create from.
+        setCopied(null);
         if (from === "") {
             setLoadingSource(false);
             return;
@@ -365,7 +371,7 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
         setError(null);
         try {
             const text = await fetchConfigFile(from);
-            if (copying.current === from) setConfig(text);
+            if (copying.current === from) setCopied({from, text});
         } catch (err) {
             if (copying.current === from) setError(t("createObject.feedback.copyFailed", {path: from, message: err.message}));
         } finally {
@@ -373,22 +379,29 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
         }
     };
 
-    const readFile = async (file) => {
+    /** A file dropped or chosen, its text in the editor shown: `set` it. */
+    const readFile = async (file, set = setConfig) => {
         if (!file) return;
         setFileName(file.name);
         setError(null);
         try {
-            setConfig(await file.text());
+            set(await file.text());
         } catch (err) {
             setError(t("createObject.feedback.readFailed", {message: err.message}));
         }
     };
 
+    // A copy is created from the configuration read of the object picked, and that only:
+    // none picked, being read, or not read, nothing to create.
+    const hasCopy = copied !== null && copied.from === copyFrom;
+    const waitingCopy = source === "copy" && !datastore && !hasCopy;
+    const editCopy = (text) => setCopied((c) => (c === null ? c : {...c, text}));
+
     // `force`, created anyway past a refusal force lifts.
     const submit = async (event, force = false) => {
         event?.preventDefault();
         setTouched({name: true, namespace: true});
-        if (invalid || submitting) {
+        if (invalid || submitting || waitingCopy) {
             if (nameError !== null) nameRef.current?.focus();
             return;
         }
@@ -405,7 +418,10 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
                 },
                 // A datastore is created empty, as the dialog says: a text left from another
                 // kind, hidden, is not sent.
-                body: withId(datastore || source === "empty" ? "" : source === "design" ? designText(design) : config, newId()),
+                body: withId(
+                    datastore || source === "empty" ? "" : source === "design" ? designText(design) : source === "copy" ? copied.text : config,
+                    newId()
+                ),
             });
             // What came of it, the actions tray says; refused, the dialog stays open and says why.
             // A wait for the nodes that expired (408) is a creation done, said so.
@@ -444,7 +460,7 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
     // A cfg or a sec has no second step: created at the first.
     const last = datastore || step === "how";
     // Something typed, picked or designed: not lost to a stray Escape or click beside the dialog.
-    const dirty = name.trim() !== "" || config !== "" || copyFrom !== "" || fileName !== "" || design !== designAtStart.current;
+    const dirty = name.trim() !== "" || config !== "" || copied !== null || copyFrom !== "" || fileName !== "" || design !== designAtStart.current;
     return (
         <Dialog
             open={open}
@@ -466,7 +482,7 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
                             variant="create"
                             type="submit"
                             form={`${ids}-form`}
-                            disabled={submitting || loadingSource}
+                            disabled={submitting || loadingSource || waitingCopy}
                             icon={submitting ? <Spinner label={t("createObject.creating")}/> : undefined}
                         >
                             {t("createObject.submit")}
@@ -539,12 +555,18 @@ const CreateObjectDialog = ({open, onClose, defaultKind = "svc", defaultNamespac
                                         label={t("createObject.copyFrom")}
                                         placeholder={t("createObject.copyFrom")}
                                         emptyText={t("createObject.noObject")}
-                                        className="w-80"
+                                        // 20rem, less on a phone narrower: the spinner beside it, in the dialog.
+                                        className="w-80 min-w-0"
                                     />
                                     {loadingSource && <Spinner label={t("createObject.reading")}/>}
                                 </div>
-                                {copyFrom !== "" && !loadingSource && (
-                                    <ConfigDropZone value={config} onChange={setConfig} onFile={readFile} fileName={fileName}/>
+                                {hasCopy && !loadingSource && (
+                                    <ConfigDropZone
+                                        value={copied.text}
+                                        onChange={editCopy}
+                                        onFile={(file) => readFile(file, editCopy)}
+                                        fileName={fileName}
+                                    />
                                 )}
                             </div>
                         )}

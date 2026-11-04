@@ -491,7 +491,7 @@ function ConfirmationCard({confirmation, doc, busy, previewing, queued, onApprov
     return (
         <section
             aria-label={t("ai.confirm.region")}
-            className="mx-3 mb-2 max-h-[60vh] space-y-2 overflow-y-auto rounded-(--radius-control) border border-state-warn bg-state-warn-soft p-3"
+            className="mx-3 mb-2 max-h-[60dvh] space-y-2 overflow-y-auto rounded-(--radius-control) border border-state-warn bg-state-warn-soft p-3"
         >
             <p className="flex items-center gap-2 font-semibold text-state-warn">
                 <AlertTriangleIcon width={16} height={16}/>
@@ -805,7 +805,7 @@ const AiChat = ({status}) => {
                         id={CONVERSATIONS_PANEL}
                         aria-labelledby="ai-conversations"
                         hidden={!conversationsOpen}
-                        className={cn(PANEL, "max-md:max-h-[40vh]")}
+                        className={cn(PANEL, "max-md:max-h-[40dvh]")}
                     >
                         <div className={PANEL_HEADER}>
                             <h2 id="ai-conversations" className="font-semibold">{t("ai.conversations.title")}</h2>

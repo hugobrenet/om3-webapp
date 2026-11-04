@@ -112,7 +112,7 @@ export default function AiToolsDialog({open, client, onClose}) {
                     <p className="mt-1 text-ink-muted" aria-live="polite">
                         {t("ai.tools.count", {count: groups.reduce((total, [, tools]) => total + tools.length, 0)})}
                     </p>
-                    <div className="mt-2 max-h-[60vh] space-y-3 overflow-y-auto">
+                    <div className="mt-2 max-h-[60dvh] space-y-3 overflow-y-auto">
                         {groups.map(([key, tools]) => (
                             <section key={key} aria-labelledby={`ai-tools-${key}`}>
                                 <h3 id={`ai-tools-${key}`} className="font-semibold">{t(`ai.tools.groups.${key}`)}</h3>

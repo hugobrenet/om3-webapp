@@ -121,10 +121,12 @@ const NodeRow = ({
         );
     }
 
+    // A figure reported, 0 included: none is "n/a", a 0 one is a 0 (no memory left, no load).
+    const has = (value) => typeof value === "number";
     const versionDiffers = !layout.version && commonVersion !== undefined && !!status?.agent && status.agent !== commonVersion;
     const load = (
         <UsageBar
-            value={stats?.load_15m ? Math.min(stats.load_15m * 20, 100) : undefined}
+            value={has(stats?.load_15m) ? Math.min(stats.load_15m * 20, 100) : undefined}
             text={String(stats?.load_15m)}
             missing={notAvailable}
             state={loadState}
@@ -133,7 +135,7 @@ const NodeRow = ({
     );
     const mem = (
         <UsageBar
-            value={stats?.mem_avail ? stats.mem_avail : undefined}
+            value={has(stats?.mem_avail) ? stats.mem_avail : undefined}
             text={`${stats?.mem_avail}%`}
             missing={notAvailable}
             state={memState}
@@ -142,7 +144,7 @@ const NodeRow = ({
     );
     // A dash rather than a percent of nothing: no value reported, or no swap.
     const swap = typeof stats?.swap_avail === "number" && stats?.swap_total !== 0 ? `${stats.swap_avail}%` : "-";
-    const score = stats?.score || notAvailable;
+    const score = has(stats?.score) ? stats.score : notAvailable;
 
     return (
         <Row
@@ -188,7 +190,8 @@ const NodeRow = ({
                 // The four figures in one cell, two a line, each after its short name; no bar,
                 // the load and the memory in the tint of their state.
                 <Cell className="whitespace-nowrap">
-                    <span data-metrics="" className="grid grid-cols-[auto_auto_auto_auto] items-center gap-x-2 text-data tabular-nums">
+                    {/* Narrow, a figure a line: the table in the screen. */}
+                    <span data-metrics="" className="grid grid-cols-[auto_auto_auto_auto] items-center gap-x-2 text-data tabular-nums max-md:grid-cols-[auto_auto]">
                         <span className="text-ink-muted">{t("nodes.short.score")}</span><span>{score}</span>
                         <span className="text-ink-muted">{t("nodes.short.load")}</span>
                         <span data-state={loadState} className={FIGURE_INK[loadState]}>{stats?.load_15m ?? notAvailable}</span>

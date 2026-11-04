@@ -71,12 +71,12 @@ const tracked = () => useActionTracker.getState().tracked;
 
 beforeEach(() => {
   resetClusterStatus();
-  useActionTracker.setState({ tracked: [], revealed: 0 });
+  useActionTracker.setState({ tracked: [] });
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
-  useActionTracker.setState({ tracked: [], revealed: 0 });
+  useActionTracker.setState({ tracked: [] });
 });
 
 describe("trackAccepted", () => {
@@ -124,12 +124,10 @@ describe("trackAccepted", () => {
     expect(tracked()[0]?.steps[0]).toMatchObject({ node: "dev3n2", exitCode: 1 });
   });
 
-  test("an action refused is said at once, ended, with its reason, and opens the tray", () => {
-    const revealed = useActionTracker.getState().revealed;
+  test("an action refused is said at once, ended, with its reason", () => {
     trackRefused({ action: "start", subject: "foo", reason: "HTTP 409 already started" });
     expect(tracked()[0]).toMatchObject({ action: "start", subject: "foo", state: "refused", error: "HTTP 409 already started" });
     expect(tracked()[0]?.endedAt).toBeDefined();
-    expect(useActionTracker.getState().revealed).toBe(revealed + 1);
   });
 
   test("over the limit, the oldest ended actions go, never the running ones", () => {
@@ -139,7 +137,7 @@ describe("trackAccepted", () => {
       node: "dev3n1", state: "running" as const, startedAt: 0, steps: [],
     }));
     const old = { id: "old", action: "start", subject: "web", kind: "exec" as const, node: "", state: "refused" as const, startedAt: 0, endedAt: 0, steps: [] };
-    useActionTracker.setState({ tracked: [...running, old], revealed: 0 });
+    useActionTracker.setState({ tracked: [...running, old] });
     trackRefused({ action: "stop", subject: "svc40", reason: "HTTP 409" });
     const ids = tracked().map((t) => t.id);
     expect(ids).toEqual(expect.arrayContaining(running.map((t) => t.id)));
@@ -198,10 +196,19 @@ describe("trackPoll", () => {
   });
 });
 
+/** The button of the header that opens the actions asked. */
+const trayButton = () => screen.queryByRole("button", { name: /^Actions: / });
+
+/** The dialog of the actions, opened from its button. */
+const openTray = () => {
+  fireEvent.click(trayButton() as HTMLElement);
+  return screen.getByRole("dialog", { name: /^Actions/ });
+};
+
 describe("ActionTray", () => {
   test("nothing asked, nothing shown", () => {
     render(<ActionTray />);
-    expect(screen.queryByRole("region", { name: "Actions asked" })).not.toBeInTheDocument();
+    expect(trayButton()).not.toBeInTheDocument();
   });
 
   test("says how each action goes, its runs, and lets the ended ones go", async () => {
@@ -211,17 +218,23 @@ describe("ActionTray", () => {
       trackAccepted({ orchestration_id: ORCH, node: "dev3n1" }, { action: "provision", subject: "foo" });
       trackAccepted({ exec_id: EXEC }, { action: "start", subject: "foo on dev3n2", node: "dev3n2" });
     });
-    const tray = screen.getByRole("region", { name: "Actions asked" });
-    expect(within(tray).getByText("2 running")).toBeInTheDocument();
+    // The button says how many run, no dialog opened by the actions asked.
+    expect(trayButton()).toHaveAccessibleName("Actions: 2 running");
+    expect(trayButton()).toHaveTextContent(/^2$/);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // The trash can in the dialog only.
+    expect(screen.queryByRole("button", { name: "Clear the ended actions" })).toBeNull();
     await waitFor(() => {
-      expect(within(tray).getByText("2 ended")).toBeInTheDocument();
+      expect(trayButton()).toHaveAccessibleName("Actions: 2 ended");
     }, { timeout: 3000 });
+    const tray = openTray();
     const runs = within(tray).getByRole("list", { name: "The runs of Provision on the nodes" });
     expect(within(runs).getByText("provision leader")).toBeInTheDocument();
     expect(within(runs).getByText("provision non leader")).toBeInTheDocument();
     expect(within(tray).getByText("fs#1: mount failed · exit code 1")).toHaveClass("text-state-down");
     fireEvent.click(within(tray).getByRole("button", { name: "Clear the ended actions" }));
-    expect(screen.queryByRole("region", { name: "Actions asked" })).not.toBeInTheDocument();
+    expect(trayButton()).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
 
@@ -235,7 +248,7 @@ describe("ActionTray, the logs of each action", () => {
       trackAccepted({ exec_id: EXEC }, { action: "start", subject: "foo on dev3n2", node: "dev3n2" });
       trackRefused({ action: "stop", subject: "bar", reason: "HTTP 403" });
     });
-    const tray = screen.getByRole("region", { name: "Actions asked" });
+    const tray = openTray();
     fireEvent.click(within(tray).getByRole("button", { name: "Logs of Provision foo" }));
     const orchestration = screen.getByRole("dialog", { name: "logs Provision foo" });
     expect(orchestration).toHaveAttribute("data-kind", "orchestration");
@@ -267,7 +280,7 @@ describe("ActionTray, an orchestration running nothing yet", () => {
     act(() => {
       trackAccepted({ orchestration_id: ORCH, node: "dev3n1" }, { action: "start", subject: "foo", path: "foo" });
     });
-    const runs = screen.getByRole("list", { name: "The runs of Start on the nodes" });
+    const runs = within(openTray()).getByRole("list", { name: "The runs of Start on the nodes" });
     // Idle says nothing; another object's monitor is not of it.
     expect(within(runs).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["dev3n1: the monitor is readydev3n1ready"]);
   });

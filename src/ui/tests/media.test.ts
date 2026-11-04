@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { useMediaQuery } from "../lib/media";
+import { useMediaQuery, useVisualViewport } from "../lib/media";
 
 describe("useMediaQuery", () => {
   const original = window.matchMedia;
@@ -34,5 +34,43 @@ describe("useMediaQuery", () => {
     expect(result.current).toBe(false);
     unmount();
     expect(listeners.size).toBe(0);
+  });
+});
+
+describe("useVisualViewport", () => {
+  const original = window.visualViewport;
+  afterEach(() => {
+    Object.defineProperty(window, "visualViewport", { value: original, configurable: true });
+  });
+
+  test("is null without visualViewport", () => {
+    Object.defineProperty(window, "visualViewport", { value: undefined, configurable: true });
+    const { result } = renderHook(() => useVisualViewport());
+    expect(result.current).toBeNull();
+  });
+
+  test("follows the part in sight: a phone keyboard opening shortens it", () => {
+    const viewport = Object.assign(new EventTarget(), { offsetTop: 0, height: 664 });
+    Object.defineProperty(window, "visualViewport", { value: viewport, configurable: true });
+    const { result } = renderHook(() => useVisualViewport());
+    expect(result.current).toEqual({ top: 0, height: 664 });
+    act(() => {
+      viewport.height = 364;
+      viewport.offsetTop = 120;
+      viewport.dispatchEvent(new Event("resize"));
+    });
+    expect(result.current).toEqual({ top: 120, height: 364 });
+  });
+
+  test("not active, null and nothing listened to; active, the part in sight", () => {
+    const viewport = Object.assign(new EventTarget(), { offsetTop: 0, height: 664 });
+    const listen = vi.spyOn(viewport, "addEventListener");
+    Object.defineProperty(window, "visualViewport", { value: viewport, configurable: true });
+    const { result, rerender } = renderHook(({ active }) => useVisualViewport(active), { initialProps: { active: false } });
+    expect(result.current).toBeNull();
+    expect(listen).not.toHaveBeenCalled();
+    rerender({ active: true });
+    expect(result.current).toEqual({ top: 0, height: 664 });
+    expect(listen).toHaveBeenCalledWith("resize", expect.any(Function));
   });
 });

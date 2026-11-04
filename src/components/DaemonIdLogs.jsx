@@ -38,7 +38,7 @@ export function DaemonIdLogs({target, onClose}) {
                     key={`${nodes.join(",")}/${filter}`}
                     nodenames={nodes}
                     type="node"
-                    height="60vh"
+                    height="60dvh"
                     filters={[filter]}
                 />
             </div>

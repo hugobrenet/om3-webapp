@@ -212,7 +212,7 @@ const KeyFormDialog = ({
                     placeholder={placeholder}
                     spellCheck={false}
                     rows={fullscreen ? 24 : 8}
-                    className={fullscreen ? "h-[60vh] resize-none font-mono text-data" : "resize-y font-mono text-data"}
+                    className={fullscreen ? "h-[60dvh] resize-none font-mono text-data" : "resize-y font-mono text-data"}
                 />
             )}
             {dragOver && (

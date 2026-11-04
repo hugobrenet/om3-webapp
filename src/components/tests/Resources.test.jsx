@@ -123,6 +123,25 @@ describe('Resources', () => {
         expect(within(table()).getByText('No resource matches.')).toBeInTheDocument();
     });
 
+    test('refresh stays above the expanded filters on mobile', async () => {
+        const originalMatchMedia = window.matchMedia;
+        window.matchMedia = vi.fn((query) => ({
+            matches: query === '(max-width:899.95px)',
+            addEventListener: () => {},
+            removeEventListener: () => {},
+        }));
+        try {
+            renderView();
+            await waitFor(() => expect(rows()).toHaveLength(4));
+            fireEvent.click(screen.getByRole('button', {name: 'Show filters'}));
+            const refresh = screen.getByRole('button', {name: 'Refresh'});
+            const filters = document.querySelector('[data-filter-toolbar]');
+            expect(refresh.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        } finally {
+            window.matchMedia = originalMatchMedia;
+        }
+    });
+
     test('wide, the filters beside the table as facets, each value counted, several kept at once; the tools at their head', async () => {
         window.matchMedia = (query) => ({matches: query.includes('1536px'), addEventListener() {}, removeEventListener() {}});
         try {

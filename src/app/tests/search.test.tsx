@@ -57,10 +57,10 @@ function Search() {
 
 function renderSearch(load = vi.fn(() => Promise.resolve(index)), at = "/objects?kind=svc") {
   render(
-    <MemoryRouter initialEntries={[at]}>
-      <GlobalSearch loadIndex={load} />
-      <Search />
-    </MemoryRouter>,
+      <MemoryRouter initialEntries={[at]}>
+        <GlobalSearch loadIndex={load} />
+        <Search />
+      </MemoryRouter>,
   );
   return load;
 }
@@ -77,6 +77,58 @@ describe("GlobalSearch", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: "k", ctrlKey: true });
     expect(screen.getByRole("dialog", { name: "Search the cluster" })).toBeInTheDocument();
+  });
+
+  test("the shortcut said on the button, but in a narrow window, the button its icon only", () => {
+    renderSearch();
+    const trigger = screen.getByRole("button", { name: /Search the cluster/ });
+    expect(trigger.querySelector("kbd")).toHaveClass("max-md:hidden");
+  });
+
+  test("hides keyboard shortcut help on touch devices", () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query) => ({
+      matches: query === "(pointer: coarse)",
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => true,
+    }));
+    try {
+      renderSearch();
+      const trigger = screen.getByRole("button", { name: /Search the cluster/ });
+      expect(trigger.querySelector("kbd")).toBeNull();
+      fireEvent.click(trigger);
+      expect(screen.queryByText("to move")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Close the search" })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  test("held in the part of the page in sight: the keyboard rising, the results above it", () => {
+    const original = window.visualViewport;
+    const viewport = Object.assign(new EventTarget(), { offsetTop: 0, height: 664 });
+    Object.defineProperty(window, "visualViewport", { value: viewport, configurable: true });
+    try {
+      renderSearch();
+      fireEvent.click(screen.getByRole("button", { name: /Search the cluster/ }));
+      const backdrop = screen.getByTestId("search-backdrop");
+      expect(backdrop.style.height).toBe("664px");
+      act(() => {
+        viewport.height = 364;
+        viewport.offsetTop = 120;
+        viewport.dispatchEvent(new Event("resize"));
+      });
+      expect(backdrop.style.top).toBe("120px");
+      expect(backdrop.style.height).toBe("364px");
+      expect(screen.getByRole("dialog", { name: "Search the cluster" })).toHaveClass("max-md:max-h-full");
+    } finally {
+      Object.defineProperty(window, "visualViewport", { value: original, configurable: true });
+    }
   });
 
   test("a result opens its record over the view, the arrows choosing it", async () => {
@@ -216,7 +268,10 @@ describe("GlobalSearch, the records shown recently", () => {
     const input = open();
     fireEvent.keyDown(input, { key: "Delete" });
     expect(names()).toEqual(["lo", "ns1/sec/tls"]);
-    fireEvent.click(screen.getByRole("button", { name: "Remove ns1/sec/tls from the history" }));
+    const cross = screen.getByRole("button", { name: "Remove ns1/sec/tls from the history" });
+    // Shown on hover, and always on a touch screen: no hover there.
+    expect(cross).toHaveClass("opacity-0", "group-hover:opacity-100", "pointer-coarse:opacity-100");
+    fireEvent.click(cross);
     expect(names()).toEqual(["lo"]);
     // Still open, the focus back in the field.
     expect(input).toHaveFocus();

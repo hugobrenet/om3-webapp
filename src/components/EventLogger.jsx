@@ -967,7 +967,10 @@ const EventLogger = React.memo(({
         e.stopPropagation();
         const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
         const deltaY = startYRef.current - clientY;
-        const newHeight = Math.max(220, Math.min(window.innerHeight * 0.8, startHeightRef.current + deltaY));
+        // At most 80% of the part in sight: on a phone, the browser bars and the
+        // keyboard taken off, which innerHeight counts in.
+        const inSight = window.visualViewport?.height ?? window.innerHeight;
+        const newHeight = Math.max(220, Math.min(inSight * 0.8, startHeightRef.current + deltaY));
         if (resizeTimeoutRef.current) {
             clearTimeout(resizeTimeoutRef.current);
         }
@@ -1033,7 +1036,7 @@ const EventLogger = React.memo(({
                 <section
                     aria-label={title}
                     style={{height: drawerHeight}}
-                    className="fixed inset-x-0 bottom-0 z-[1200] flex max-h-[80vh] touch-none flex-col overflow-hidden rounded-t-(--radius-panel) border-t border-line bg-surface-raised text-ink shadow-lg max-md:max-h-[90vh]"
+                    className="fixed inset-x-0 bottom-0 z-[1200] flex max-h-[80dvh] touch-none flex-col overflow-hidden rounded-t-(--radius-panel) border-t border-line bg-surface-raised text-ink shadow-lg max-md:max-h-[90dvh]"
                 >
                     <div
                         role="separator"

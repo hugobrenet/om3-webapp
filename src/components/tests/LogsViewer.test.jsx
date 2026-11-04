@@ -844,7 +844,8 @@ describe('LogsViewer', () => {
             expect([...meta.children].map((badge) => badge.textContent)).toEqual(['daemon', 'imon', 'kvm/svc/vm1']);
             expect(meta.firstElementChild).toHaveClass('rounded-full', 'text-ink-muted');
             expect(meta.nextElementSibling).toBe(text);
-            expect(text.closest('.log-line')).toHaveClass('grid-cols-subgrid', 'col-span-full');
+            expect(text.closest('.log-line')).toHaveClass('grid-cols-subgrid', 'col-span-full', 'max-md:grid-cols-1');
+            expect(cell).toHaveClass('max-md:border-l-0', 'max-md:pl-0');
             expect(text.closest('.log-line').querySelectorAll('button')).toHaveLength(0);
         });
 

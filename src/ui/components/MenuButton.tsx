@@ -143,6 +143,9 @@ export function MenuButton({
   const [query, setQuery] = useState("");
   // Entry to focus on opening: the first one from the keyboard, none with the mouse.
   const focusOnOpen = useRef<"first" | "last" | null>(null);
+  // Opened by a finger: the filter field waits for a tap, or the phone keyboard
+  // would rise over the menu.
+  const openedByTouch = useRef(false);
 
   // The entries of the top level only: a submenu walks its own.
   function entries(): HTMLElement[] {
@@ -192,7 +195,7 @@ export function MenuButton({
     const target = focusOnOpen.current;
     focusOnOpen.current = null;
     if (filterable) {
-      filterField.current?.focus();
+      if (!openedByTouch.current) filterField.current?.focus();
     } else if (target !== null) {
       const list = entries();
       (target === "first" ? list[0] : list[list.length - 1])?.focus();
@@ -336,7 +339,12 @@ export function MenuButton({
         aria-expanded={open}
         aria-controls={menuId}
         disabled={disabled}
-        onClick={() => {
+        onPointerDown={(event) => {
+          openedByTouch.current = event.pointerType === "touch";
+        }}
+        onClick={(event) => {
+          // A click from the keyboard (Enter, Space) has no pointer before it.
+          if (event.detail === 0) openedByTouch.current = false;
           setOpen((previous) => !previous);
         }}
         onKeyDown={onButtonKeyDown}

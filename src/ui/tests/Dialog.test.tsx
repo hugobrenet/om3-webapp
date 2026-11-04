@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { describe, expect, test, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Dialog } from "../components/Dialog";
 
@@ -181,5 +181,38 @@ describe("Dialog", () => {
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     rerender(<Dialog open title="T" onClose={() => {}} footer={<button type="button">Save</button>} />);
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  });
+});
+
+describe("Dialog on a phone", () => {
+  test("held in the part in sight; the keyboard rising, the field typed in brought back in sight", () => {
+    const original = window.visualViewport;
+    const viewport = Object.assign(new EventTarget(), { offsetTop: 0, height: 664 });
+    Object.defineProperty(window, "visualViewport", { value: viewport, configurable: true });
+    const scrolled = vi.fn();
+    const originalScroll = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrolled;
+    try {
+      render(
+        <Dialog open title="T" onClose={() => {}}>
+          <input aria-label="Value" />
+        </Dialog>,
+      );
+      const backdrop = screen.getByTestId("dialog-backdrop");
+      expect(backdrop.style.height).toBe("664px");
+      expect(screen.getByRole("textbox", { name: "Value" })).toHaveFocus();
+      scrolled.mockClear();
+      act(() => {
+        viewport.height = 364;
+        viewport.offsetTop = 120;
+        viewport.dispatchEvent(new Event("resize"));
+      });
+      expect(backdrop.style.top).toBe("120px");
+      expect(backdrop.style.height).toBe("364px");
+      expect(scrolled).toHaveBeenCalledWith({ block: "nearest" });
+    } finally {
+      HTMLElement.prototype.scrollIntoView = originalScroll;
+      Object.defineProperty(window, "visualViewport", { value: original, configurable: true });
+    }
   });
 });

@@ -13,7 +13,7 @@ export interface TabItem {
  * arrows, Home and End move from one tab to the next and activate it.
  *
  * It scrolls horizontally when the tabs no longer fit: their number can grow without
- * breaking the layout.
+ * breaking the layout. In a narrow window, they wrap instead, every tab in sight.
  */
 export function TabList({
   tabs,
@@ -61,8 +61,9 @@ export function TabList({
       onKeyDown={onKeyDown}
       // The bottom line is an inner shadow rather than a border: the underline of the
       // active tab covers it without overflowing by a pixel, which used to bring up a
-      // vertical scrollbar. Only horizontal scrolling stays allowed.
-      className="flex shrink-0 gap-1 overflow-x-auto overflow-y-hidden px-3 shadow-[inset_0_-1px_0_var(--color-line)]"
+      // vertical scrollbar. Only horizontal scrolling stays allowed. In a narrow
+      // window, the tabs on two lines rather than those past the edge out of sight.
+      className="flex shrink-0 gap-1 overflow-x-auto overflow-y-hidden px-3 shadow-[inset_0_-1px_0_var(--color-line)] max-md:flex-wrap max-md:overflow-visible"
     >
       {tabs.map((tab) => {
         const selected = tab.key === active;
