@@ -520,7 +520,7 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
 
     if (initialLoading) {
         return (
-            <div className={embedded ? "flex items-center justify-center gap-2 py-8" : "flex min-h-[80vh] items-center justify-center gap-2 p-4"}>
+            <div className={embedded ? "flex items-center justify-center gap-2 py-8" : "flex min-h-[80dvh] items-center justify-center gap-2 p-4"}>
                 <Spinner label={t("objectDetails.loading")}/>
                 <span className="text-ink-muted">{t("objectDetails.loadingText")}</span>
             </div>
