@@ -14,6 +14,7 @@ import { SYMBOLS_HINT, hideIntro, useHiddenIntros, useIntrosEnabled } from "./pa
 import { SymbolHelp } from "./SymbolHelp";
 import { Term } from "./Term";
 import { HoverCard } from "../ui/components/HoverCard";
+import { TOUCH_QUERY, useMediaQuery } from "../ui/lib/media";
 import type { Board, BoardRow, Level, NoteFix, RowNote, Span, Text, Tone } from "./statusboard";
 
 
@@ -466,15 +467,41 @@ function RowDescription({ row }: { row: BoardRow }) {
   return <>{row.desc.map((s) => s.text).join("")}</>;
 }
 
-/** The type and the description of a row on one muted line, under its name: none when it has neither. */
+/**
+ * The type and the description of a row on one muted line, under its name: none when
+ * it has neither. A long description cut short, in full in its tooltip; on a touch
+ * screen, which has no hover, in full on a tap.
+ */
 function SideText({ row, className }: { row: BoardRow; className?: string }) {
+  const touch = useMediaQuery(TOUCH_QUERY);
+  const [full, setFull] = useState(false);
   const desc = row.kind === "instance" ? "" : row.desc.map((s) => s.text).join("").trim();
   if (row.typ === "" && desc === "" && row.kind !== "subset") return null;
+  const tappable = touch && desc !== "" && row.kind !== "subset";
   return (
-      <span data-side-text="" title={desc || undefined} className={cn("flex min-w-0 flex-nowrap items-center gap-x-1.5 text-[0.75rem] font-normal text-ink-muted not-italic", className)}>
+    <span
+      data-side-text=""
+      title={desc || undefined}
+      className={cn("flex min-w-0 flex-nowrap items-center gap-x-1.5 text-[0.75rem] font-normal text-ink-muted not-italic", full && "items-start", className)}
+    >
       {row.typ !== "" && <span className="shrink-0">{row.typ}</span>}
-        {row.typ !== "" && desc !== "" && <span aria-hidden="true" className="shrink-0">·</span>}
-        <span className="min-w-0 flex-1 truncate"><RowDescription row={row} /></span>
+      {row.typ !== "" && desc !== "" && <span aria-hidden="true" className="shrink-0">·</span>}
+      {tappable ? (
+        <button
+          type="button"
+          aria-expanded={full}
+          onClick={() => {
+            setFull((previous) => !previous);
+          }}
+          className={cn("min-w-0 flex-1 text-left", full ? "break-words whitespace-normal" : "truncate")}
+        >
+          <RowDescription row={row} />
+        </button>
+      ) : (
+        <span className="min-w-0 flex-1 truncate">
+          <RowDescription row={row} />
+        </span>
+      )}
     </span>
   );
 }
