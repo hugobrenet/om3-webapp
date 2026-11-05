@@ -101,26 +101,30 @@ describe('the steps of an answer', () => {
     const step = (sentence) => within(answer()).getByRole('button', {name: sentence}).closest('li');
 
     test.each([
-        ['stream', undefined],
-        ['stream', false],
-        ['stream', true],
-        ['snapshot', undefined],
-        ['snapshot', false],
-        ['snapshot', true],
-    ])('shows the documentation search status from a %s with isError=%s', async (delivery, isError) => {
+        ['stream', undefined, 'search_docs', 'Search the documentation'],
+        ['stream', false, 'search_docs', 'Search the documentation'],
+        ['stream', true, 'search_docs', 'Search the documentation'],
+        ['snapshot', undefined, 'search_docs', 'Search the documentation'],
+        ['snapshot', false, 'search_docs', 'Search the documentation'],
+        ['snapshot', true, 'search_docs', 'Search the documentation'],
+        ['stream', undefined, 'search_code', 'Search the code'],
+        ['stream', true, 'search_code', 'Search the code'],
+        ['snapshot', undefined, 'search_code', 'Search the code'],
+        ['snapshot', true, 'search_code', 'Search the code'],
+    ])('shows the status of an agent search from a %s with isError=%s: %s', async (delivery, isError, tool, label) => {
         const payload = {
             content: [{type: 'text', text: isError ? 'Documentation unavailable.' : 'Frozen nodes do not evaluate quorum.'}],
             ...(isError === undefined ? {} : {isError}),
         };
         const answerText = 'Documentation checked.';
         const events = delivery === 'stream' ? [
-            ...call('docs-1', 'search_docs', {query: 'frozen quorum'}, T0 + 100),
+            ...call('docs-1', tool, {query: 'frozen quorum'}, T0 + 100),
             result('docs-1', payload, T0 + 150),
             ...text('turn-s:2', answerText, T0 + 200),
         ] : [
             {type: 'MESSAGES_SNAPSHOT', messages: [
                 {id: 'turn-s:1', role: 'user', content: 'Does a frozen node evaluate quorum?'},
-                {id: 'turn-s:2', role: 'assistant', content: '', toolCalls: [{id: 'docs-1', type: 'function', function: {name: 'search_docs', arguments: '{"query":"frozen quorum"}'}}]},
+                {id: 'turn-s:2', role: 'assistant', content: '', toolCalls: [{id: 'docs-1', type: 'function', function: {name: tool, arguments: '{"query":"frozen quorum"}'}}]},
                 {id: 'docs-1-result', role: 'tool', toolCallId: 'docs-1', content: JSON.stringify(payload)},
                 {id: 'turn-s:4', role: 'assistant', content: answerText},
             ]},
@@ -135,7 +139,7 @@ describe('the steps of an answer', () => {
         fireEvent.click(within(message).getByRole('button', {name: /^1 step · /}));
         const list = within(message).getByRole('list', {name: 'Steps of the answer'});
         const toggle = within(list).getByRole('button', {expanded: false});
-        expect(toggle).toHaveTextContent('Search the documentation: “frozen quorum”');
+        expect(toggle).toHaveTextContent(`${label}: “frozen quorum”`);
         const search = toggle.closest('li');
         const mark = within(search).getByText(isError ? 'refused by the tool' : 'done');
         expect(mark.parentElement).toHaveClass(isError ? 'text-state-down' : 'text-state-up');
