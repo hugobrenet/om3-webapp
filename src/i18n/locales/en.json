@@ -1534,12 +1534,6 @@
       "booted": "booted",
       "updated": "updated"
     },
-    "time": {
-      "justNow": "Just now",
-      "minutesAgo": "{{count}}m ago",
-      "hoursAgo": "{{count}}h ago",
-      "daysAgo": "{{count}}d ago"
-    },
     "selectHint": "Select nodes to act on them, or open one",
     "noMatch": "No node matches.",
     "filters": {

@@ -719,7 +719,7 @@ export default function ClusterView() {
                                         <CrossLink kind="store" id={s.ref}>{storeSource(s.ref).name}</CrossLink>
                                         <span className={`text-data tabular-nums ${s.stats?.check_error ? "text-state-warn" : "text-ink-muted"}`}>
                                             {[t("clusterView.stores.snapshots", {count: s.stats?.runs ?? 0}),
-                                                s.stats?.last_created_at && t("clusterView.stores.latest", {age: formatAge(s.stats.last_created_at, t, i18n.language)})]
+                                                s.stats?.last_created_at && t("clusterView.stores.latest", {age: formatAge(s.stats.last_created_at, i18n.language)})]
                                                 .filter(Boolean).join(" · ")}
                                         </span>
                                     </li>

@@ -1,38 +1,27 @@
 import React from "react";
 import {useTranslation} from "react-i18next";
+import {RelativeTime} from "../ui/components/RelativeTime";
+import {formatRelativeTime} from "../ui/lib/format";
 
 /** The zero time a daemon reports for a time that never happened. */
 export const ZERO_DATE = "0001-01-01T00:00:00Z";
 
 /**
- * How long ago a time was, as the tables say it: just now, minutes, hours or days
- * ago within a week, the date after that, a dash when there is none.
+ * How long ago a time was, within a sentence: as every time from now is said
+ * (RelativeTime), "4 days ago", a dash when there is none.
  */
-export const formatAge = (dateString, t, language) => {
+export const formatAge = (dateString, language) => {
     if (!dateString || dateString === ZERO_DATE) {
         return "-";
     }
-
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return t("nodes.time.justNow");
-    if (diffMins < 60) return t("nodes.time.minutesAgo", {count: diffMins});
-    if (diffHours < 24) return t("nodes.time.hoursAgo", {count: diffHours});
-    if (diffDays < 7) return t("nodes.time.daysAgo", {count: diffDays});
-
-    return date.toLocaleDateString(language);
+    return formatRelativeTime(dateString, language);
 };
 
-/** A time in a table: its age, a dash when there is none. */
+/** A time in a table: from now, as in the panels (RelativeTime), a dash when there is none. */
 export const AgeTime = ({value}) => {
-    const {t, i18n} = useTranslation();
+    const {i18n} = useTranslation();
     if (!value || value === ZERO_DATE) {
         return "-";
     }
-    return <span>{formatAge(value, t, i18n.language)}</span>;
+    return <RelativeTime value={value} locale={i18n.language}/>;
 };

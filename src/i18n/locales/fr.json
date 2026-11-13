@@ -1534,12 +1534,6 @@
       "booted": "démarré",
       "updated": "mis à jour"
     },
-    "time": {
-      "justNow": "À l'instant",
-      "minutesAgo": "il y a {{count}} min",
-      "hoursAgo": "il y a {{count}} h",
-      "daysAgo": "il y a {{count}} j"
-    },
     "selectHint": "Sélectionnez des nœuds pour agir dessus, ou ouvrez-en un",
     "noMatch": "Aucun nœud ne correspond.",
     "filters": {

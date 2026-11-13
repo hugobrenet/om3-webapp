@@ -811,7 +811,7 @@ describe("Heartbeats Component", () => {
         }]));
         renderWithRouter(<Heartbeats/>);
         const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
-        expect(cells[8]).toHaveTextContent("2h ago");
+        expect(cells[8]).toHaveTextContent("2 hours ago");
     });
 
     test("peer without desc/changed_at/last_beating_at shows N/A", () => {
@@ -888,18 +888,17 @@ describe("Heartbeats Component", () => {
         };
         mockHeartbeatStore(status);
         renderWithRouter(<Heartbeats/>);
-        // A time older than a week shows as its date, as the nodes table shows it.
-        const shown = (v) => key.endsWith("_at") ? new Date(v).toLocaleDateString(i18n.language) : v;
-        ascValue = shown(ascValue);
-        descValue = shown(descValue);
 
         const header = screen.getByRole("button", {name: headerText});
         await userEvent.click(header);
         expect(header.closest("th")).toHaveAttribute("aria-sort", "ascending");
         // The id is the heartbeat and the side of the row, in two cells.
+        // A time by the instant it stands for: said from now, two may read the same.
         const shows = (row, value) => key === "id"
             ? expect(streamOf(row)).toBe(value)
-            : expect(within(row).getByText(value)).toBeInTheDocument();
+            : key.endsWith("_at")
+                ? expect(row.querySelector(`time[datetime="${new Date(value).toISOString()}"]`)).not.toBeNull()
+                : expect(within(row).getByText(value)).toBeInTheDocument();
         let rows = getDataRows();
         shows(rows[0], ascValue);
         shows(rows[1], descValue);

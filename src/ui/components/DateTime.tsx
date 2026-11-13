@@ -9,14 +9,17 @@ import { formatDate, formatDateTime, parseCollectorDate } from "../lib/format";
  */
 export function DateStamp({
   date,
+  title,
   children,
 }: {
   date: Date;
+  title?: string;
   children: ReactNode;
 }) {
   return (
     <time
       dateTime={date.toISOString()}
+      title={title}
       className="inline-flex items-center gap-1 whitespace-nowrap"
     >
       <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-ink-muted" />

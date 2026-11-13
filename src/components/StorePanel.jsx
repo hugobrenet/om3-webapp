@@ -158,7 +158,7 @@ const Figure = ({name, label, children}) => (
 /** An age said within a sentence, `key` its words around `{{age}}`. */
 function AgeSentence({value, k}) {
     const {t, i18n} = useTranslation();
-    return <span>{t(k, {age: formatAge(value, t, i18n.language)})}</span>;
+    return <span>{t(k, {age: formatAge(value, i18n.language)})}</span>;
 }
 
 /**
