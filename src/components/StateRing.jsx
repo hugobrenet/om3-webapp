@@ -30,6 +30,19 @@ const STROKE = 8;
 const STROKE_POINTED = 13;
 const ARC_GROWS = "transition-[stroke-width] duration-150 [[data-card]:hover_&]:[stroke-width:10]";
 
+/** The width of a labelled ring at its largest, in rem (max-w-[23rem]). */
+const RING_FULL_REM = 23;
+
+/**
+ * How much the words inside a labelled ring are shrunk, the ring drawn `room` pixels
+ * wide: as much as the ring is, from its largest, where they fit; not at all unknown.
+ */
+export function wordsScale(room) {
+    if (!room) return 1;
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    return Math.min(1, room / (RING_FULL_REM * rem));
+}
+
 /**
  * The labels of the arcs, each `\_ word count` from the middle of its arc out: on the
  * side of the ring the middle stands, one above the other with room between them, kept
@@ -202,13 +215,21 @@ export function StateRing({parts, total = parts.reduce((sum, [, count]) => sum +
                 )}
             </svg>
             {/* Its figures and words inside the ring, a long label on two lines, not under its arcs. */}
-            <div
-                className={`absolute inset-y-0 flex flex-col items-center justify-center text-center leading-tight text-balance ${
-                    labelled ? "right-[31%] left-[31%]" : "inset-x-0 px-6"
-                }`}
-            >
-                {children}
-            </div>
+            {labelled ? (
+                // Laid out as in the ring at its full width, and shrunk with it: the drawing
+                // shrinks on a phone, its words would not, and would run over the ring.
+                <div
+                    data-ring-words=""
+                    className="absolute top-1/2 left-1/2 flex w-[calc(23rem*0.38)] flex-col items-center justify-center text-center leading-tight text-balance"
+                    style={{transform: `translate(-50%, -50%) scale(${wordsScale(room)})`}}
+                >
+                    {children}
+                </div>
+            ) : (
+                <div className="absolute inset-y-0 inset-x-0 flex flex-col items-center justify-center px-6 text-center leading-tight text-balance">
+                    {children}
+                </div>
+            )}
         </div>
     );
 }
