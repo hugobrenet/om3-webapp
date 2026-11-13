@@ -1126,7 +1126,8 @@ export function NodeDetailPanel({node, tab, onTabChange, onClose}) {
         setLogsOrchestration(id);
         onTabChange("logs");
     };
-    const tabs = ["status", "inventory", "config", "schedules", "drivers", "daemon", "events", "logs"]
+    // As every panel: its own views, then its configuration, its logs, its events (RecordPanel).
+    const tabs = ["status", "inventory", "schedules", "drivers", "daemon", "config", "logs", "events"]
         .map((key) => ({key, label: t(`nodePanel.tabs.${key}`)}));
     return (
         <RecordPanel

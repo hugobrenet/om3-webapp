@@ -464,7 +464,7 @@ describe('ResourceStatus', () => {
         render(<MemoryRouter><ResourceDetailPanel id="prod/svc/web:container#1" tab="container" onTabChange={vi.fn()} onClose={vi.fn()}/></MemoryRouter>);
         const panel = screen.getByRole('dialog', {name: 'container#1 of prod/svc/web'});
         expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent))
-            .toEqual(['Status', 'Info', 'Logs', 'Container logs', 'Configuration']);
+            .toEqual(['Status', 'Info', 'Configuration', 'Logs', 'Container logs']);
         expect(screen.getByTestId('container-logs')).toHaveTextContent('prod/svc/web container#1 on n1+n2, up on n2');
     });
 
@@ -488,7 +488,7 @@ describe('ResourceStatus', () => {
             await open('console');
             const panel = screen.getByRole('dialog', {name: 'container#1 of prod/svc/web'});
             expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent))
-                .toEqual(['Status', 'Info', 'Logs', 'Container logs', 'Console', 'Display', 'Configuration']);
+                .toEqual(['Status', 'Info', 'Console', 'Display', 'Configuration', 'Logs', 'Container logs']);
             // Running on a standby node counts: that node at first.
             expect(within(panel).getByRole('combobox', {name: 'Node of the session'})).toHaveValue('n2');
         });
@@ -540,7 +540,7 @@ describe('ResourceStatus', () => {
     test('its info tab: what the resource alone reports on each node, its table without title nor filter', async () => {
         render(<MemoryRouter><ResourceDetailPanel id="prod/svc/web:app#1" tab="info" onTabChange={vi.fn()} onClose={vi.fn()}/></MemoryRouter>);
         const panel = screen.getByRole('dialog', {name: 'app#1 of prod/svc/web'});
-        expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Status', 'Info', 'Logs', 'Configuration']);
+        expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Status', 'Info', 'Configuration', 'Logs']);
         const table = await within(panel).findByRole('table', {name: 'Resource information'});
         expect(within(panel).getAllByRole('table')).toHaveLength(1);
         expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Key', 'on n1', 'on n2']);

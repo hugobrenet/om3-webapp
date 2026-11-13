@@ -521,13 +521,14 @@ export function ResourceDetailPanel({id, tab, onTabChange, onClose}) {
         const others = list.filter((s) => s !== session);
         return live ? [...others, session] : others;
     }), []);
+    // As every panel: its own views, then its configuration, then its logs (RecordPanel).
     const tabs = [
         {key: "status", label: t("panel.tabs.status")},
         {key: "info", label: t("panel.tabs.info")},
-        {key: "logs", label: t("panel.tabs.logs")},
-        ...(container ? [{key: "container", label: t("panel.tabs.containerLogs")}] : []),
         ...sessions.map((session) => ({key: session, label: t(`panel.tabs.${session}`)})),
         {key: "config", label: t("panel.tabs.config")},
+        {key: "logs", label: t("panel.tabs.logs")},
+        ...(container ? [{key: "container", label: t("panel.tabs.containerLogs")}] : []),
     ];
     const askClose = () => (liveSessions.length > 0 ? setClosing(true) : onClose());
     const closeSessions = () => {

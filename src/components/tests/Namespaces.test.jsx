@@ -343,9 +343,10 @@ describe('Namespaces', () => {
         fireEvent.click(cell('prod', 'Name'));
         const panel = screen.getByRole('dialog', {name: 'prod'});
         // The claims second, between the usage and the configuration.
-        // Its objects by kind after them, each its count, a service down a red alert; its configuration last.
+        // Its objects by kind after them, each its count, a service down a red alert; then, as
+        // every panel, its configuration, then its events.
         expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent))
-            .toEqual(['Usage', 'Claims', 'Services3!', 'Volumes2', 'Configurations2', 'Secrets1', 'Events', 'Configuration']);
+            .toEqual(['Usage', 'Claims', 'Services3!', 'Volumes2', 'Configurations2', 'Secrets1', 'Configuration', 'Events']);
         expect(within(panel).getByTestId('ns-tab-alert-services')).toHaveAttribute('data-level', 'down');
         expect(within(panel).getByTestId('namespace-usage')).toHaveTextContent('prod');
         expect(row('prod')).toHaveAttribute('aria-current', 'true');

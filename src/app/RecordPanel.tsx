@@ -83,7 +83,11 @@ export function RecordPanel({
   recordId: string | undefined;
   title: string;
   onClose: () => void;
-  /** The tabs, the first one being the default; none or one, no tab bar. */
+  /**
+   * The tabs, the first one being the default; none or one, no tab bar. In the same
+   * order in every panel: the record's own views, then its configuration, then its
+   * logs, then its events.
+   */
   tabs?: TabItem[];
   tab?: string;
   onTabChange?: (tab: string | undefined) => void;

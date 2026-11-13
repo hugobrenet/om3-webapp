@@ -116,7 +116,7 @@ describe('NodeDetailPanel', () => {
     test('opens on its monitor, its health, then its properties in groups, discovered then organisation, kept current by the node events', async () => {
         renderPanel();
         expect(within(panel()).getAllByRole('tab').map((tab) => tab.textContent))
-            .toEqual(['Overview', 'Inventory', 'Configuration', 'Schedules', 'Drivers', 'Daemon', 'Events', 'Logs']);
+            .toEqual(['Overview', 'Inventory', 'Schedules', 'Drivers', 'Daemon', 'Configuration', 'Logs', 'Events']);
         const monitor = within(panel()).getByRole('region', {name: 'Monitor'});
         expect(monitor).toHaveTextContent('Stateidle');
         // Idle, quiet: no mark, no emphasis; running, bold; failed, red.
