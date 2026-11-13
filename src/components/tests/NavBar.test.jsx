@@ -169,18 +169,24 @@ describe('NavBar', () => {
     describe('breadcrumbs', () => {
         const cases = [
             ['/cluster/node1/pod1', ['Cluster', 'node1', 'pod1']],
-            ['/network/eth0', ['Cluster', 'network', 'eth0']],
-            ['/network', ['Cluster', 'network']],
-            ['/objects/vol1', ['Cluster', 'objects', 'vol1']],
-            ['/objects', ['Cluster', 'objects']],
-            ['/namespaces/ns1', ['Cluster', 'namespaces', 'ns1']],
-            ['/namespaces/cluster/objects', ['Cluster', 'namespaces', 'objects']],
+            ['/network/eth0', ['Cluster', 'Networks', 'eth0']],
+            ['/network', ['Cluster', 'Networks']],
+            ['/objects/vol1', ['Cluster', 'Objects', 'vol1']],
+            ['/objects', ['Cluster', 'Objects']],
+            ['/namespaces/ns1', ['Cluster', 'Namespaces', 'ns1']],
+            ['/namespaces/cluster/objects', ['Cluster', 'Namespaces', 'objects']],
+            // Named as the menu names them, else by their own title, not by their address.
+            ['/heartbeats', ['Cluster', 'Links']],
+            ['/whoami', ['Cluster', 'Account']],
+            ['/ai', ['Cluster', 'AI Assistant']],
+            ['/token', ['Cluster', 'Token']],
+            ['/auth/login', ['Cluster', 'Login']],
         ];
         test.each(cases)('path %s shows breadcrumbs %s', (pathname, expectedParts) => {
             setupMocks({pathname, authToken: null});
             renderNavBar();
             expectedParts.forEach((part) => {
-                expect(screen.getByRole('link', {name: new RegExp(`navigate to ${part}`, 'i')})).toBeInTheDocument();
+                expect(screen.getByRole('link', {name: `Navigate to ${part}`})).toBeInTheDocument();
             });
             if (expectedParts.length > 1) {
                 expect(screen.getAllByText('>')).toHaveLength(expectedParts.length - 1);

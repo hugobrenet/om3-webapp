@@ -1362,22 +1362,7 @@
       "navigateTo": "Aller à {{name}}",
       "cluster": "Cluster",
       "loading": "Chargement...",
-      "segments": {
-        "heartbeats": "liens",
-        "kinds": "types",
-        "namespaces": "namespaces",
-        "network": "réseaux",
-        "nodes": "nœuds",
-        "objects": "objets",
-        "pools": "pools",
-        "whoami": "utilisateur",
-        "resources": "ressources",
-        "stores": "dépôts",
-        "cluster": "cluster",
-        "glossary": "glossaire",
-        "about": "À propos",
-        "relay": "Relais"
-      }
+      "token": "Jeton"
     },
     "sections": {
       "cluster": "Cluster",

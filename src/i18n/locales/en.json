@@ -1362,22 +1362,7 @@
       "navigateTo": "Navigate to {{name}}",
       "cluster": "Cluster",
       "loading": "Loading...",
-      "segments": {
-        "heartbeats": "links",
-        "kinds": "kinds",
-        "namespaces": "namespaces",
-        "network": "network",
-        "nodes": "nodes",
-        "objects": "objects",
-        "pools": "pools",
-        "whoami": "whoami",
-        "resources": "resources",
-        "stores": "stores",
-        "cluster": "cluster",
-        "glossary": "glossary",
-        "about": "About",
-        "relay": "Relay"
-      }
+      "token": "Token"
     },
     "sections": {
       "cluster": "Cluster",

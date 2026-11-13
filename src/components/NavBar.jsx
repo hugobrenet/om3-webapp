@@ -18,14 +18,37 @@ import {ActionTray} from "../app/ActionTray";
 const HEADER_BUTTON =
     "flex h-7 w-7 shrink-0 items-center justify-center rounded-(--radius-control) border border-line text-ink-muted hover:bg-surface-sunken hover:text-ink";
 
-/** First path segments named after a view: their breadcrumb is translated, the others are names. */
-const SEGMENTS = new Set(["about", "cluster", "glossary", "relay", "heartbeats", "kinds", "namespaces", "network", "nodes", "objects", "pools", "resources", "stores", "whoami"]);
+/**
+ * A page by the first segment of its address, the catalog key of the name it goes by:
+ * the menu's (nav.routes), else its own title. Links at /heartbeats, Networks at
+ * /network. The other segments are names.
+ */
+const PAGE_NAMES = {
+    about: "nav.routes.about",
+    ai: "ai.title",
+    auth: "auth.login.title",
+    "auth-choice": "auth.choice.title",
+    cluster: "nav.sections.cluster",
+    glossary: "nav.routes.glossary",
+    heartbeats: "nav.routes.heartbeats",
+    kinds: "nav.routes.kinds",
+    namespaces: "nav.routes.namespaces",
+    network: "nav.routes.networks",
+    nodes: "nav.routes.nodes",
+    objects: "nav.routes.objects",
+    pools: "nav.routes.pools",
+    relay: "nav.sections.relay",
+    resources: "nav.routes.resources",
+    stores: "nav.routes.stores",
+    token: "nav.breadcrumb.token",
+    whoami: "user.myInfo",
+};
 
 /** Breadcrumb item of a path segment; `key` is the catalog key of its label, translated at render. */
 const crumb = (part, index, path) => ({
     name: part,
     path,
-    key: index === 0 && SEGMENTS.has(part) ? `nav.breadcrumb.segments.${part}` : undefined,
+    key: index === 0 ? PAGE_NAMES[part] : undefined,
 });
 
 const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false, menuAlert = null}) => {
@@ -89,6 +112,9 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                     breadcrumbItems.push({name: pathParts[1], path: `/network/${pathParts[1]}`});
                 } else if (pathParts[0] === "network" && pathParts.length === 1) {
                     breadcrumbItems.push(crumb("network", 0, "/network"));
+                } else if (pathParts[0] === "auth") {
+                    // The sign-in, one page whatever follows: not "Login > login".
+                    breadcrumbItems.push(crumb("auth", 0, location.pathname));
                 } else {
                     pathParts.forEach((part, index) => {
                         const fullPath = "/" + pathParts.slice(0, index + 1).join("/");
