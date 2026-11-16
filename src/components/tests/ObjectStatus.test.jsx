@@ -187,6 +187,10 @@ describe('ObjectStatus', () => {
 
     describe('the symbols, a hint', () => {
         const legend = () => screen.queryByText('What the symbols mean');
+        // The board subscribes to the hints in an effect, which may run after the table
+        // shows on a busy machine: a change of the hints is waited for, not read at once.
+        const legendGone = () => waitFor(() => expect(legend()).toBeNull());
+        const legendShown = () => waitFor(() => expect(legend()).toBeInTheDocument());
 
         afterEach(() => {
             act(() => {
@@ -200,7 +204,7 @@ describe('ObjectStatus', () => {
             const {unmount} = render(<ObjectStatus path="system/svc/dns"/>);
             await screen.findByRole('table');
             fireEvent.click(screen.getByRole('button', {name: 'Hide this help'}));
-            expect(legend()).toBeNull();
+            await legendGone();
             unmount();
 
             answer(structuredClone(dns));
@@ -208,17 +212,18 @@ describe('ObjectStatus', () => {
             await screen.findByRole('table');
             expect(legend()).toBeNull();
             act(() => showAllIntros());
-            expect(legend()).toBeInTheDocument();
+            await legendShown();
         });
 
         test('off with the hints', async () => {
             answer(structuredClone(dns));
             render(<ObjectStatus path="system/svc/dns"/>);
             await screen.findByRole('table');
-            act(() => setIntrosEnabled(false));
-            expect(legend()).toBeNull();
-            act(() => setIntrosEnabled(true));
             expect(legend()).toBeInTheDocument();
+            act(() => setIntrosEnabled(false));
+            await legendGone();
+            act(() => setIntrosEnabled(true));
+            await legendShown();
         });
     });
 
