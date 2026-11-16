@@ -267,15 +267,18 @@ export function SlideOver({
   // Counted among the open panels, for what only shows when none is.
   useEffect(() => (open ? panelOpened() : undefined), [open]);
 
+  // Focused without a scroll: the panel, still off the window as it slides in, would
+  // otherwise have Firefox scroll the page to reveal it, sideways, the page then
+  // shifted under a shell that hides its overflow.
   useEffect(() => {
     if (open) {
       // Remembers the triggering element to give it the focus back on closing.
       opener.current = document.activeElement;
-      panel.current?.focus();
+      panel.current?.focus({ preventScroll: true });
       return;
     }
     if (opener.current instanceof HTMLElement && document.contains(opener.current)) {
-      opener.current.focus();
+      opener.current.focus({ preventScroll: true });
       opener.current = null;
     }
   }, [open]);
@@ -289,7 +292,7 @@ export function SlideOver({
     shown.current = title;
     if (!open || panel.current === null) return;
     const focused = document.activeElement;
-    if (focused === null || focused === document.body || !document.contains(focused)) panel.current.focus();
+    if (focused === null || focused === document.body || !document.contains(focused)) panel.current.focus({ preventScroll: true });
   }, [open, title]);
 
   /**
