@@ -2251,7 +2251,6 @@
     "hint": "Type a name: objects, namespaces, nodes and networks are searched.",
     "searching": "Reading…",
     "none": "Nothing matches “{{query}}”.",
-    "more": "Show more",
     "refine": "More match: refine the search.",
     "kindError": "This kind could not be read.",
     "keys": {
@@ -2268,7 +2267,7 @@
     },
     "recent": {
       "title": "Recently opened",
-      "clear": "Clear",
+      "clear": "Clear history",
       "current": "open",
       "noneOfKind": "Nothing of this kind opened recently.",
       "types": {
@@ -2285,7 +2284,8 @@
         "instance": "Instance",
         "resource": "Resource"
       }
-    }
+    },
+    "moreOf": "Show more {{kinds}}"
   },
   "orchestration": {
     "label": "Orchestration in progress: {{expect}}",

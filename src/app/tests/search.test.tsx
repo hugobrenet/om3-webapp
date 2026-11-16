@@ -249,6 +249,20 @@ describe("GlobalSearch, the records shown recently", () => {
   const names = () => screen.queryAllByRole("option").map((option) => option.querySelector(".font-medium")?.textContent);
   const active = () => screen.getAllByRole("option").find((option) => option.getAttribute("aria-selected") === "true");
 
+  test("each control says what it does in words, no tooltip", () => {
+    show(["object", "ns1/svc/web"], ["network", "lo"]);
+    renderSearch();
+    open();
+    // The chips narrow the search, said before them.
+    const scopes = screen.getByRole("group", { name: "Search in" });
+    expect(scopes).toHaveTextContent(/^Search inAll/);
+    // The grouping of the history in words beside its icons; its clear, what it clears.
+    expect(screen.getByRole("button", { name: "By time" })).toHaveTextContent("By time");
+    expect(screen.getByRole("button", { name: "By kind" })).toHaveTextContent("By kind");
+    expect(screen.getByRole("button", { name: "Clear history" })).toBeInTheDocument();
+    for (const button of screen.getAllByRole("button")) expect(button).not.toHaveAttribute("title");
+  });
+
   test("nothing typed, proposed the most recent first, each with its kind and when; the arrows and Enter open one", () => {
     show(["object", "ns1/sec/tls"], ["network", "lo"], ["object", "ns1/svc/web"]);
     renderSearch();
@@ -310,7 +324,7 @@ describe("GlobalSearch, the records shown recently", () => {
     expect(names()).toEqual(["lo"]);
     // Still open, the focus back in the field.
     expect(input).toHaveFocus();
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear history" }));
     expect(names()).toEqual([]);
     expect(screen.getByText(/Type a name/)).toBeInTheDocument();
   });

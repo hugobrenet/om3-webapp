@@ -2251,7 +2251,6 @@
     "hint": "Saisissez un nom : la recherche porte sur les objets, les namespaces, les nœuds et les réseaux.",
     "searching": "Lecture…",
     "none": "Rien ne correspond à « {{query}} ».",
-    "more": "Voir plus",
     "refine": "D'autres résultats existent : affinez la recherche.",
     "kindError": "Ce type n'a pas pu être lu.",
     "keys": {
@@ -2268,7 +2267,7 @@
     },
     "recent": {
       "title": "Ouverts récemment",
-      "clear": "Effacer",
+      "clear": "Vider l'historique",
       "current": "ouvert",
       "noneOfKind": "Rien de ce type ouvert récemment.",
       "types": {
@@ -2285,7 +2284,8 @@
         "instance": "Instance",
         "resource": "Ressource"
       }
-    }
+    },
+    "moreOf": "Voir plus de {{kinds}}"
   },
   "orchestration": {
     "label": "Orchestration en cours : {{expect}}",

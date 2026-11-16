@@ -334,17 +334,21 @@ function SearchPalette({
           )}
           <button
             type="button"
+            aria-label={t("search.close")}
             onClick={() => {
               onClose(true);
             }}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-(--radius-control) border border-line text-ink-muted hover:bg-surface-sunken hover:text-ink"
+            className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-(--radius-control) border border-line text-ink-muted hover:border-line-strong hover:bg-surface-sunken hover:text-ink"
           >
             <CloseIcon />
-            <span className="sr-only">{t("search.close")}</span>
           </button>
         </div>
 
-        <div role="group" aria-label={t("search.scopes")} className="flex flex-wrap gap-1 border-b border-line px-3 py-2">
+        {/* What the chips do said before them: the search narrowed to a kind. */}
+        <div role="group" aria-labelledby={`${id}-scopes`} className="flex flex-wrap items-center gap-1 border-b border-line px-3 py-2">
+          <span id={`${id}-scopes`} className="mr-1 text-data text-ink-muted">
+            {t("search.scopes")}
+          </span>
           {scopes.map((value) => (
             <button
               key={value}
@@ -354,10 +358,10 @@ function SearchPalette({
                 setScope(value);
                 input.current?.focus();
               }}
-              className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-data ${
+              className={`flex shrink-0 cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-data ${
                 scope === value
                   ? "border-accent bg-accent-soft text-ink"
-                  : "border-line text-ink-muted hover:border-line-strong hover:text-ink"
+                  : "border-line text-ink-muted hover:border-line-strong hover:bg-surface-sunken hover:text-ink"
               }`}
             >
               {value !== "all" && <ObjectIcon kind={KIND_ICON[value]} className="h-3.5 w-3.5" />}
@@ -389,7 +393,7 @@ function SearchPalette({
                       input.current?.focus();
                     }}
                     // It deletes the records: the down fill.
-                    className="flex h-6 items-center gap-1 rounded-(--radius-control) bg-state-down px-1.5 text-data font-medium text-surface-raised hover:brightness-110"
+                    className="flex h-6 cursor-pointer items-center gap-1 rounded-(--radius-control) bg-state-down px-1.5 text-data font-medium text-surface-raised hover:brightness-110"
                   >
                     <TrashIcon className="h-3.5 w-3.5" />
                     {t("search.recent.clear")}
@@ -448,9 +452,9 @@ function SearchPalette({
                           setScope(group.kind);
                           input.current?.focus();
                         }}
-                        className="ml-auto text-accent hover:underline"
+                        className="ml-auto cursor-pointer text-accent hover:underline"
                       >
-                        {t("search.more")}
+                        {t("search.moreOf", { kinds: t(`search.kinds.${group.kind}`).toLocaleLowerCase(i18n.language) })}
                       </button>
                     )}
                   </div>
@@ -558,7 +562,7 @@ function RecentRow({
         // hover, and always on a touch screen, which has none.
         tabIndex={-1}
         onClick={onRemove}
-        className={`absolute top-1/2 right-3 -translate-y-1/2 rounded-full p-1 text-ink-muted group-hover:opacity-100 pointer-coarse:opacity-100 hover:bg-surface-sunken hover:text-ink ${
+        className={`absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer rounded-full p-1 text-ink-muted group-hover:opacity-100 pointer-coarse:opacity-100 hover:bg-surface-sunken hover:text-ink ${
           optionProps["aria-selected"] === true ? "opacity-100" : "opacity-0"
         }`}
       >
