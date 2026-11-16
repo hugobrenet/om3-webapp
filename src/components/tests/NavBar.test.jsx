@@ -55,6 +55,7 @@ vi.mock('../../context/OidcAuthContext.tsx', () => ({
 
 vi.mock('../../context/AuthProvider.jsx', () => ({
     useAuth: mockUseAuth,
+    useAuthSession: mockUseAuth,
     useAuthDispatch: () => mockAuthDispatch,
     Logout: 'LOGOUT',
 }));

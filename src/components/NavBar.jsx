@@ -12,6 +12,7 @@ import {useEffect, useState} from "react";
 import useClusterConfig from "../hooks/useClusterConfig.js";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 import {ActionTray} from "../app/ActionTray";
+import {AiDockButton} from "./AiDock.jsx";
 
 // Header icon buttons: outlined, as every button that neither creates nor deletes; muted ink, darker on hover.
 const HEADER_BUTTON =
@@ -207,6 +208,9 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                         <ActionTray/>
                     </>
                 )}
+
+                {/* The dock of the assistant, over the page on display. */}
+                <AiDockButton/>
 
                 <Link to="/whoami" aria-label={t("nav.viewUser")} className={HEADER_BUTTON}>
                     <UserIcon width={16} height={16}/>

@@ -938,6 +938,20 @@ export function SparklesIcon(props: IconProps) {
   );
 }
 
+/** A handle to move what it holds: two columns of dots. */
+export function GripIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="9" cy="6" r="1.6" />
+      <circle cx="15" cy="6" r="1.6" />
+      <circle cx="9" cy="12" r="1.6" />
+      <circle cx="15" cy="12" r="1.6" />
+      <circle cx="9" cy="18" r="1.6" />
+      <circle cx="15" cy="18" r="1.6" />
+    </Svg>
+  );
+}
+
 /** Sending a message: a paper plane. */
 export function SendIcon(props: IconProps) {
   return (

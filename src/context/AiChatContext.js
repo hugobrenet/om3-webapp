@@ -23,7 +23,7 @@ export const AiChatContext = createContext(null);
  * What the assistant does while no view shows it, all false while one does:
  * `answering`, a turn runs; `ended`, a turn ended meanwhile, answered, stopped or
  * failed; `waiting`, an action waits for the decision of the user. The menu and
- * the folded dock read it, rendered when it changes only.
+ * the button of the dock read it, rendered when it changes only.
  */
 export const AiActivityContext = createContext(null);
 
@@ -40,7 +40,7 @@ export const AiDockContext = createContext(null);
 /** The chat the application holds, or null outside of a provider. */
 export const useSharedAiChat = () => useContext(AiChatContext);
 
-/** What the assistant does, for the menu and the folded dock; null outside of a provider. */
+/** What the assistant does, for the menu and the button of the dock; null outside of a provider. */
 export const useAiActivity = () => useContext(AiActivityContext);
 
 /** The dock of the assistant, or null outside of a provider. */

@@ -6,9 +6,7 @@ import {useMediaQuery} from "../ui/lib/media";
 import {AlertMark} from "../ui/components/AlertMark";
 import {CaretRightIcon, SparklesIcon} from "../ui/icons";
 import {ALL_LIST, OBJECT_LISTS, listUrl} from "../utils/objectLists";
-import {getAiAgentConfig} from "../config/ai-agent.js";
-import {useAuthSession} from "../context/AuthProvider.jsx";
-import useClusterConfig from "../hooks/useClusterConfig.js";
+import {useAiOffered} from "../hooks/useAiAvailable.js";
 import AiActivityBadge from "./AiActivityBadge.jsx";
 
 /**
@@ -261,9 +259,7 @@ export function Sidebar({open, alerts = {}, onNavigate, overlay = false, onClose
     const {t} = useTranslation();
     // The assistant, for a cluster whose configuration names an agent, to an
     // OpenID session: the agent takes no other.
-    const auth = useAuthSession();
-    const {agentUrl} = useClusterConfig();
-    const assistant = getAiAgentConfig(agentUrl).enabled && auth?.authChoice === "openid";
+    const assistant = useAiOffered();
     const shown = overlay && open;
     useEffect(() => {
         if (!shown || !onClose) return undefined;

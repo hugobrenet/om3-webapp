@@ -43,6 +43,7 @@ export const SHORTCUTS: readonly { keys: readonly string[]; labelKey: string }[]
   { keys: ["/", "Ctrl K"], labelKey: "shortcuts.search" },
   { keys: ["p"], labelKey: "shortcuts.panel" },
   { keys: ["n"], labelKey: "shortcuts.menu" },
+  { keys: ["a"], labelKey: "shortcuts.assistant" },
   { keys: ["↑ ↓"], labelKey: "shortcuts.menuMove" },
   { keys: ["Esc"], labelKey: "shortcuts.escape" },
   { keys: ["?"], labelKey: "shortcuts.help" },

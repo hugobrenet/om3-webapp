@@ -1,9 +1,9 @@
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useLocation, useNavigate} from 'react-router-dom';
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import AiChat from '../AiChat.jsx';
-import AiDock from '../AiDock.jsx';
+import AiDock, {AiDockButton} from '../AiDock.jsx';
 import AskAssistantLink from '../AskAssistantLink.jsx';
 import {AiChatProvider} from '../../context/AiChatProvider.jsx';
 import useAddressPrompt from '../../hooks/useAddressPrompt.js';
@@ -56,14 +56,27 @@ function AiPage() {
  * with a record and its link to the assistant, the page of the assistant, and
  * the dock over them.
  */
-function renderApp({path = '/', withLink = true} = {}) {
+/** A record panel as SlideOver is: not modal, closed by Escape anywhere, inert once closed. */
+function RecordPanelStub() {
+    const [open, setOpen] = useState(true);
+    useEffect(() => {
+        if (!open) return undefined;
+        const onKeyDown = (event) => event.key === 'Escape' && setOpen(false);
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [open]);
+    return <div role="dialog" aria-modal="false" aria-label="record" inert={!open}>panel</div>;
+}
+
+function renderApp({path = '/', withLink = true, withPanel = false} = {}) {
     const tree = () => (
         <MemoryRouter initialEntries={[path]}>
             <AiChatProvider>
                 <Routes>
-                    <Route path="/" element={<section aria-label="object">{withLink && <AskAssistantLink prompt={question}/>}</section>}/>
+                    <Route path="/" element={<section aria-label="object">{withLink && <AskAssistantLink prompt={question}/>}{withPanel && <RecordPanelStub/>}</section>}/>
                     <Route path="/ai" element={<AiPage/>}/>
                 </Routes>
+                <AiDockButton/>
                 <AiDock/>
                 <Probe/>
             </AiChatProvider>
@@ -193,6 +206,24 @@ describe('the dock of the assistant', () => {
         await waitFor(() => expect(screen.getByRole('button', {name: 'New conversation'})).toBeEnabled());
         expect(screen.queryByRole('complementary')).toBeNull();
         expect(screen.queryByRole('button', {name: /^Open the assistant/})).toBeNull();
+        // Its button stays, greyed, saying why.
+        expect(screen.getByRole('button', {name: 'The assistant is on this page'})).toBeDisabled();
+    });
+
+    test('keeps its button greyed until the assistant can be used', async () => {
+        mocks.auth = {...mocks.auth, accessToken: ''};
+        renderApp({withLink: false});
+        const button = await screen.findByRole('button', {name: 'The assistant is not available: see its page'});
+        expect(button).toBeDisabled();
+        fireEvent.click(button);
+        expect(screen.queryByRole('complementary')).toBeNull();
+    });
+
+    test('shows no button where the menu has no entry for the assistant: another session than OpenID', async () => {
+        mocks.auth = {...mocks.auth, authChoice: 'basic'};
+        renderApp({withLink: false});
+        await act(async () => {});
+        expect(screen.queryByRole('button', {name: /assistant/i})).toBeNull();
     });
 
     test('expands to the page, the conversation and the message typed kept', async () => {
@@ -233,6 +264,116 @@ describe('the dock of the assistant', () => {
         expect(screen.getByRole('button', {name: 'Open the assistant'})).toBeInTheDocument();
     });
 
+    test('opens and folds from its button of the top bar, which it leaves without the focus', async () => {
+        renderApp({withLink: false});
+        const button = await screen.findByRole('button', {name: 'Open the assistant'});
+        expect(button).toHaveAttribute('aria-expanded', 'false');
+        fireEvent.click(button);
+        await waitFor(() => expect(dockBox()).toBeEnabled());
+        expect(button).toHaveAttribute('aria-expanded', 'true');
+        fireEvent.click(button);
+        await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+        expect(button).toHaveAttribute('aria-expanded', 'false');
+        fireEvent.click(button);
+        await waitFor(() => expect(dockBox()).toBeEnabled());
+        // Folded with Escape, it leaves the focus nowhere: the button, which did
+        // not open it from a link, is not ringed.
+        fireEvent.keyDown(dockBox(), {key: 'Escape'});
+        await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+        expect(button).not.toHaveFocus();
+    });
+
+    test('moves along the bottom, by its handle, not to hide the page, and remembers where', async () => {
+        const matchMedia = window.matchMedia;
+        window.matchMedia = (query) => ({matches: query.includes('40rem'), addEventListener() {}, removeEventListener() {}});
+        localStorage.removeItem('om3.ai.dock.right');
+        try {
+            renderApp({withLink: false});
+            fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
+            const handle = within(dock()).getByRole('button', {name: /^Move the assistant/});
+            fireEvent.keyDown(handle, {key: 'ArrowLeft'});
+            fireEvent.keyDown(handle, {key: 'ArrowLeft'});
+            expect(dock().style.right).toBe('80px');
+            expect(localStorage.getItem('om3.ai.dock.right')).toBe('80');
+            fireEvent.keyDown(handle, {key: 'ArrowRight'});
+            expect(dock().style.right).toBe('48px');
+            // Folded and opened again, where the user left it.
+            fireEvent.click(screen.getByRole('button', {name: 'Open the assistant'}));
+            await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+            fireEvent.click(screen.getByRole('button', {name: 'Open the assistant'}));
+            await waitFor(() => expect(dock().style.right).toBe('48px'));
+            // Home takes it back to the right.
+            fireEvent.keyDown(within(dock()).getByRole('button', {name: /^Move the assistant/}), {key: 'Home'});
+            expect(dock().style.right).toBe('');
+            expect(localStorage.getItem('om3.ai.dock.right')).toBeNull();
+        } finally {
+            window.matchMedia = matchMedia;
+            localStorage.removeItem('om3.ai.dock.right');
+        }
+    });
+
+    test('has no handle on a narrow window, where it takes the width', async () => {
+        renderApp({withLink: false});
+        fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
+        await waitFor(() => expect(dockBox()).toBeEnabled());
+        expect(within(dock()).queryByRole('button', {name: /^Move the assistant/})).toBeNull();
+    });
+
+    test('opens with the key a out of a field, as the other shortcuts, and folds with it', async () => {
+        renderApp({withLink: false});
+        const button = await screen.findByRole('button', {name: 'Open the assistant'});
+        fireEvent.keyDown(document.body, {key: 'a'});
+        await waitFor(() => expect(dockBox()).toBeEnabled());
+        // Typed in the message box, the key is a letter.
+        fireEvent.keyDown(dockBox(), {key: 'a'});
+        expect(dock()).toBeInTheDocument();
+        // With the focus out of a field, it folds the dock.
+        button.focus();
+        fireEvent.keyDown(button, {key: 'a'});
+        await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+        // With Ctrl, the key is the browser's.
+        fireEvent.keyDown(document.body, {key: 'a', ctrlKey: true});
+        expect(screen.queryByRole('complementary')).toBeNull();
+    });
+
+    test('leaves the key a alone on the page of the assistant', async () => {
+        renderApp({path: '/ai'});
+        await waitFor(() => expect(screen.getByRole('button', {name: 'New conversation'})).toBeEnabled());
+        const event = new KeyboardEvent('keydown', {key: 'a', bubbles: true, cancelable: true});
+        document.body.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);
+        expect(screen.queryByRole('complementary')).toBeNull();
+    });
+
+    test('folds on Escape from the page, once the panel over it is closed', async () => {
+        renderApp({withLink: false, withPanel: true});
+        fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
+        await waitFor(() => expect(dockBox()).toBeEnabled());
+        // The focus on the page: the first Escape closes the panel, the dock stays.
+        act(() => document.activeElement.blur());
+        fireEvent.keyDown(document.body, {key: 'Escape'});
+        await waitFor(() => expect(screen.getByText('panel').closest('[role="dialog"]')).toHaveAttribute('inert'));
+        expect(dock()).toBeInTheDocument();
+        // The second folds the dock.
+        fireEvent.keyDown(document.body, {key: 'Escape'});
+        await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+    });
+
+    test('leaves Escape to a field of the page', async () => {
+        renderApp({withLink: false});
+        fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
+        await waitFor(() => expect(dockBox()).toBeEnabled());
+        const field = document.createElement('input');
+        document.body.appendChild(field);
+        try {
+            field.focus();
+            fireEvent.keyDown(field, {key: 'Escape'});
+            expect(dock()).toBeInTheDocument();
+        } finally {
+            field.remove();
+        }
+    });
+
     test('starts a new conversation without asking the agent for one', async () => {
         renderApp({withLink: false});
         fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
@@ -259,7 +400,7 @@ describe('the dock of the assistant', () => {
         mocks.client.listConversations.mockImplementation(() => new Promise((resolve) => (listed = resolve)));
         renderApp({withLink: false});
         fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
-        expect(within(dock()).getByRole('heading', {name: 'AI Assistant'})).toHaveFocus();
+        expect(within(dock()).getByRole('heading', {name: /^AI assistant$/i})).toHaveFocus();
         await act(async () => listed([]));
         await waitFor(() => expect(dockBox()).toHaveFocus());
     });

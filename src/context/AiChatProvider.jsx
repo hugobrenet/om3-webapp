@@ -155,7 +155,11 @@ export function AiChatProvider({children}) {
                 ask(text, {send: true});
                 setDock('open');
             },
-            open: () => setDock('open'),
+            // Opened by its button or its key: no link to give the focus back to.
+            open: () => {
+                origin.current = null;
+                setDock('open');
+            },
             fold: () => setDock('folded'),
             origin: () => (origin.current?.isConnected === true ? origin.current : null),
         }),
