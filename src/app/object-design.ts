@@ -247,6 +247,21 @@ export function strategyRequirements(groups: KeywordGroup[], section: DesignSect
   return needs;
 }
 
+/**
+ * The entries a strategy chosen leaves behind in its group: those of the other
+ * strategies of the group, their keywords used or required, the strategy chosen not
+ * using nor requiring them, left without a value, as a former choice added them to
+ * fill in. Those given a value stay: what the user wrote is not dropped by a choice.
+ */
+export function strategyLeftovers(group: KeywordGroup, strategy: string, section: DesignSection): string[] {
+  const of = (s: KeywordStrategy) => [...(s.uses ?? []), ...(s.requires ?? [])];
+  const kept = new Set((group.strategies ?? []).filter((s) => s.id === strategy).flatMap(of));
+  const others = new Set((group.strategies ?? []).filter((s) => s.id !== strategy).flatMap(of).filter((o) => !kept.has(o)));
+  return section.entries
+    .filter((e) => others.has(e.key.split("@")[0]) && e.value.trim() === "")
+    .map((e) => e.key);
+}
+
 /** Whether the strategy of a group is chosen by a selector keyword rather than by a choice. */
 export const strategyBySelector = (group: KeywordGroup) => (group.strategies ?? []).some((s) => (s.when ?? []).length > 0);
 

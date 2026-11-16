@@ -3596,7 +3596,8 @@
       "text": "Texte"
     },
     "viewLabel": "Modifier en",
-    "type": "Type"
+    "type": "Type",
+    "strategyShowsRoot": "Ses mots-clés sont réservés à root : le choisir les affiche."
   },
   "driverSupport": {
     "lacking_one": "Non utilisable sur {{nodes}} : son pilote ne figure pas parmi les capacités du nœud.",

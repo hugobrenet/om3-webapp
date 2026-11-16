@@ -3596,7 +3596,8 @@
       "text": "Text"
     },
     "viewLabel": "Edit as",
-    "type": "Type"
+    "type": "Type",
+    "strategyShowsRoot": "Its keywords are only root's: choosing it shows them."
   },
   "driverSupport": {
     "lacking_one": "Not usable on {{nodes}}: its driver is not among the capabilities of the node.",

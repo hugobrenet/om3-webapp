@@ -45,6 +45,7 @@ import {
     referenceWords,
     referenceRid,
     strategyRequirements,
+    strategyLeftovers,
     strategyReason,
     followedStrategies,
     strategiesClash,
@@ -342,7 +343,7 @@ function KeywordHelp({keyword}) {
  * one picked by `onChoose(group, strategy)`. A strategy none of whose keywords is
  * offered here, root's with those hidden, is left aside, said why.
  */
-function StrategyBar({groups, section, lookup, chosen, offered, onChoose, writesOf, onWrites, valueOf}) {
+function StrategyBar({groups, section, lookup, chosen, offered, rootOffered, onShowRoot, onChoose, writesOf, onWrites, valueOf}) {
     const {t} = useTranslation();
     const set = new Set(section.entries.map((e) => e.key.split("@")[0]));
     const withStrategies = groups.filter((g) => (g.strategies ?? []).length > 0);
@@ -364,6 +365,8 @@ function StrategyBar({groups, section, lookup, chosen, offered, onChoose, writes
                             </span>
                             {group.strategies.map((st) => {
                                 const usable = (st.uses ?? []).length === 0 || (st.uses ?? []).some((o) => offered.has(o) || set.has(o));
+                                // Its keywords only root's, held back for root by its choice: chosen, they are shown.
+                                const unlocks = !usable && (st.uses ?? []).some((o) => rootOffered?.has(o));
                                 // Chosen by its selector keyword: not by a click.
                                 const bySelector = (st.when ?? []).length > 0;
                                 const isFollowed = followed.some((f) => f.id === st.id);
@@ -374,7 +377,7 @@ function StrategyBar({groups, section, lookup, chosen, offered, onChoose, writes
                                     && (bySelector ? strategyReason(f, section) === "keywords" : strategyReason(f, section) !== "default"));
                                 // Chosen by its selector: a click writes the selector, `quiesce = pause` say, when it can.
                                 const writes = bySelector && !isFollowed ? writesOf?.(st) : undefined;
-                                const disabled = !isFollowed && (Boolean(clash) || (bySelector && writes === undefined) || (!bySelector && !usable));
+                                const disabled = !isFollowed && (Boolean(clash) || (bySelector && writes === undefined) || (!bySelector && !usable && !unlocks));
                                 const why = isFollowed
                                     ? st.text?.trim()
                                     : bySelector
@@ -383,7 +386,8 @@ function StrategyBar({groups, section, lookup, chosen, offered, onChoose, writes
                                             : st.text?.trim()
                                         : clash
                                             ? t(strategyReason(clash, section) === "selector" ? "objectDesigner.strategyBySelectorOther" : "objectDesigner.strategyOther", {strategy: clash.name ?? clash.id})
-                                            : !usable ? t("objectDesigner.strategyUnavailable") : st.text?.trim();
+                                            : unlocks ? t("objectDesigner.strategyShowsRoot")
+                                                : !usable ? t("objectDesigner.strategyUnavailable") : st.text?.trim();
                                 return (
                                     <button
                                         key={st.id}
@@ -392,7 +396,15 @@ function StrategyBar({groups, section, lookup, chosen, offered, onChoose, writes
                                         aria-pressed={isFollowed}
                                         disabled={disabled}
                                         title={why}
-                                        onClick={() => (isFollowed ? undefined : bySelector ? onWrites?.(writes ?? []) : onChoose(group.id, st.id))}
+                                        onClick={() => {
+                                            if (isFollowed) return;
+                                            if (bySelector) {
+                                                onWrites?.(writes ?? []);
+                                                return;
+                                            }
+                                            if (unlocks) onShowRoot?.(true);
+                                            onChoose(group.id, st.id);
+                                        }}
                                         className="h-7 rounded-(--radius-control) border border-line px-2 text-data hover:border-line-strong disabled:cursor-default disabled:opacity-60 aria-pressed:border-accent aria-pressed:bg-accent-soft aria-pressed:text-accent"
                                     >
                                         {st.name ?? st.id}
@@ -1086,11 +1098,16 @@ export function ObjectDesigner({kind, namespace = "", sections, onChange, keywor
         .map((g) => g.id));
     const chooseStrategy = (group, strategy) => {
         setStrategyChoice((c) => ({...c, [`${section.name}:${group}`]: strategy}));
+        // What a former choice added to fill in, left empty, gone: the choices do not add up.
+        const groupDef = keywordGroups.find((g) => g.id === group);
+        const drop = new Set(groupDef ? strategyLeftovers(groupDef, strategy, section) : []);
+        const entries = section.entries.filter((e) => !drop.has(e.key));
+        const kept = {...section, entries};
         // What the strategy picked needs, added to fill in.
-        const add = strategyRequirements(keywordGroups, section, lookup, {...chosen, [group]: strategy})
-            .filter((n) => n.option && n.group.id === group && !section.entries.some((e) => e.key.split("@")[0] === n.option))
+        const add = strategyRequirements(keywordGroups, kept, lookup, {...chosen, [group]: strategy})
+            .filter((n) => n.option && n.group.id === group && !entries.some((e) => e.key.split("@")[0] === n.option))
             .map((n) => n.option);
-        if (add.length > 0) update({...section, entries: [...section.entries, ...add.map((key) => ({key, value: ""}))]});
+        if (add.length > 0 || drop.size > 0) update({...kept, entries: [...entries, ...add.map((key) => ({key, value: ""}))]});
     };
     const renderStrategyBar = (groups) => (
         <StrategyBar
@@ -1099,6 +1116,9 @@ export function ObjectDesigner({kind, namespace = "", sections, onChange, keywor
             lookup={lookup}
             chosen={chosen}
             offered={new Set(offeredKeywords(known, section, hideRoot).map((k) => k.option))}
+            // Root's keywords held back by root's choice: those a strategy picked shows.
+            rootOffered={isRoot && hideRoot ? new Set(offeredKeywords(known, section, false).map((k) => k.option)) : undefined}
+            onShowRoot={(on) => (onShowRoot ? onShowRoot(on) : setOwnShowRoot(on))}
             onChoose={chooseStrategy}
             writesOf={writesOf}
             onWrites={applyWrites}
