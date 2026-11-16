@@ -360,9 +360,10 @@ export function SlideOver({
           : ({ "--panel-width": `${String(width)}px` } as CSSProperties)
       }
       // As wide as its two zones, within the window: the record zone gives way first.
+      // Under the navbar, which stays in sight: its search, its actions tray, its menus.
       // Its shadow when open only: slid away, it would still fall over the window's edge,
       // a grey bar down the side of the page or of the panel open over it.
-      className={`fixed inset-y-0 z-10 flex max-w-full border-line bg-surface-raised transition-transform duration-200 ease-out ${
+      className={`fixed top-(--navbar-height) bottom-0 z-10 flex max-w-full border-line bg-surface-raised transition-transform duration-200 ease-out ${
         left ? "left-0 flex-row-reverse border-r" : "right-0 border-l"
       } ${open ? "translate-x-0 shadow-lg" : left ? "-translate-x-full" : "translate-x-full"}`}
     >

@@ -10,7 +10,6 @@ import { recordKey } from "./panel-history";
 import { isPeekStep, stepIcon, type PeekKind } from "./peek";
 import { rememberLastRecord, useRecordHistory } from "./record-history";
 import { PanelHeaderContext } from "./panel-header";
-import { ActionTray } from "./ActionTray";
 import { TableCardsContext } from "../ui/components/table-cards";
 
 /**
@@ -137,14 +136,7 @@ export function RecordPanel({
       }}
       expandLabels={{ expand: t("panel.expand"), collapse: t("panel.collapse") }}
       newTab={{ href: newTabHref, label: t("panel.newTab") }}
-      actions={
-        <>
-          <div ref={setActionsSlot} className="flex items-center gap-2" />
-          {/* The actions asked, as in the header the panel covers: the open panel's only,
-              the closed ones staying mounted. */}
-          {open && <ActionTray />}
-        </>
-      }
+      actions={<div ref={setActionsSlot} className="flex items-center gap-2" />}
       subheader={
         open && items.length > 1 ? (
           <TabList

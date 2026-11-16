@@ -70,6 +70,9 @@ describe("SlideOver", () => {
     expect(panel).toHaveAttribute("aria-modal", "false");
     expect(panel).not.toHaveAttribute("inert");
     expect(panel).toHaveClass("translate-x-0", "shadow-lg");
+    // Under the navbar, which stays in sight, down to the bottom of the window.
+    expect(panel).toHaveClass("fixed", "top-(--navbar-height)", "bottom-0");
+    expect(panel).not.toHaveClass("inset-y-0");
     expect(screen.getByRole("heading", { name: "node-1" })).toBeInTheDocument();
   });
 

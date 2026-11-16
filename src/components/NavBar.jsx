@@ -130,7 +130,7 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
     }, [location.pathname, storedClusterName, loading]);
 
     return (
-        <header className="brand-bar flex h-11 shrink-0 items-center gap-4 border-b border-line px-3 text-ink">
+        <header className="brand-bar flex h-(--navbar-height) shrink-0 items-center gap-4 border-b border-line px-3 text-ink">
             {showSidebarToggle && (
                 <button
                     type="button"
