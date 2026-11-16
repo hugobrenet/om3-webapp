@@ -2394,7 +2394,8 @@
       "overview": "Overview",
       "executions": "Executions",
       "orchestrations": "Orchestrations",
-      "dns": "DNS"
+      "dns": "DNS",
+      "audit": "Audit"
     },
     "summary": {
       "overview": "{{up}} of {{components}} components running, {{beating}} of {{streams}} heartbeat streams beating",
@@ -2402,7 +2403,8 @@
       "orchestrations": "{{count}} orchestrations, {{running}} in progress",
       "dns": "{{count}} records of {{names}} names",
       "running_one": "{{count}} running",
-      "running_other": "{{count}} running"
+      "running_other": "{{count}} running",
+      "audit": "The logs of the daemon up to debug and trace, streamed on demand"
     },
     "logs": {
       "show": "Logs",
@@ -2411,6 +2413,34 @@
       "copyId": "Copy the id",
       "nodes_one": "on {{nodes}}",
       "nodes_other": "on {{count}} nodes: {{nodes}}"
+    },
+    "audit": {
+      "intro": "Streams the log records of the daemon subsystems, up to debug and trace, as om daemon audit does. One audit at a time on a daemon; it stops as you leave this view.",
+      "rootOnly": "Auditing the daemon needs the root grant.",
+      "level": "From level",
+      "subsystems": "Subsystems",
+      "subsystemsPlaceholder": "All of them; type to search",
+      "suffixHint": "Type to search the known subsystems. Glob patterns too: imon:* for every object monitor, imon:prod/svc/web for one, hb:1 for a heartbeat.",
+      "start": "Start",
+      "stop": "Stop",
+      "running": "Auditing",
+      "runningOf": "Auditing {{subsystems}}, from {{level}}",
+      "conflict": "Another audit is running on this daemon: {{detail}}",
+      "takeOver": "Take over",
+      "preempted": "Another session took the audit over. Start again to take it back.",
+      "ended": "The daemon ended the audit, restarted or no longer answering. Start again to resume.",
+      "failed": "The audit could not run: {{detail}}",
+      "noStream": "the daemon sent nothing to read",
+      "search": "Search the records",
+      "lines": "Audit records",
+      "empty": "Choose the subsystems and the level, then Start.",
+      "remove": "Remove {{subsystem}}",
+      "suffix": {
+        "icfg": "an object configuration",
+        "imon": "an object instance monitor",
+        "omon": "an object monitor",
+        "hb": "a heartbeat id"
+      }
     }
   },
   "resource": {

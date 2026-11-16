@@ -2394,7 +2394,8 @@
       "overview": "Vue d'ensemble",
       "executions": "Exécutions",
       "orchestrations": "Orchestrations",
-      "dns": "DNS"
+      "dns": "DNS",
+      "audit": "Audit"
     },
     "summary": {
       "overview": "{{up}} composants sur {{components}} en marche, {{beating}} flux de heartbeat sur {{streams}} actifs",
@@ -2402,7 +2403,8 @@
       "orchestrations": "{{count}} orchestrations, {{running}} en cours",
       "dns": "{{count}} enregistrements pour {{names}} noms",
       "running_one": "{{count}} en cours",
-      "running_other": "{{count}} en cours"
+      "running_other": "{{count}} en cours",
+      "audit": "Les journaux du démon jusqu'au debug et au trace, à la demande"
     },
     "logs": {
       "show": "Journaux",
@@ -2411,6 +2413,34 @@
       "copyId": "Copier l'identifiant",
       "nodes_one": "sur {{nodes}}",
       "nodes_other": "sur {{count}} nœuds : {{nodes}}"
+    },
+    "audit": {
+      "intro": "Diffuse les journaux des sous-systèmes du démon, jusqu'au debug et au trace, comme om daemon audit. Un audit à la fois sur un démon ; il s'arrête quand vous quittez cette vue.",
+      "rootOnly": "Auditer le démon demande le droit root.",
+      "level": "À partir du niveau",
+      "subsystems": "Sous-systèmes",
+      "subsystemsPlaceholder": "Tous ; tapez pour chercher",
+      "suffixHint": "Tapez pour chercher parmi les sous-systèmes connus. Les motifs glob aussi : imon:* pour tous les moniteurs d'objet, imon:prod/svc/web pour un seul, hb:1 pour un heartbeat.",
+      "start": "Démarrer",
+      "stop": "Arrêter",
+      "running": "Audit en cours",
+      "runningOf": "Audit de {{subsystems}}, à partir de {{level}}",
+      "conflict": "Un autre audit tourne sur ce démon : {{detail}}",
+      "takeOver": "Prendre la main",
+      "preempted": "Une autre session a pris la main sur l'audit. Démarrez à nouveau pour la reprendre.",
+      "ended": "Le démon a mis fin à l'audit, redémarré ou ne répondant plus. Démarrez à nouveau pour reprendre.",
+      "failed": "L'audit n'a pas pu démarrer : {{detail}}",
+      "noStream": "le démon n'a rien envoyé à lire",
+      "search": "Rechercher dans les enregistrements",
+      "lines": "Enregistrements de l'audit",
+      "empty": "Choisissez les sous-systèmes et le niveau, puis Démarrer.",
+      "remove": "Retirer {{subsystem}}",
+      "suffix": {
+        "icfg": "la configuration d'un objet",
+        "imon": "le moniteur d'une instance d'objet",
+        "omon": "le moniteur d'un objet",
+        "hb": "l'id d'un heartbeat"
+      }
     }
   },
   "resource": {

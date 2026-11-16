@@ -700,6 +700,16 @@ describe('NodeDetailPanel', () => {
             expect(await within(panel()).findByRole('table', {name: 'Components'})).toBeInTheDocument();
         });
 
+        test('the audit on a view of its own, for root, nothing asked of the daemon until started', async () => {
+            mockGrants.value = {root: null};
+            await openDaemon();
+            fireEvent.click(chip('Audit'));
+            expect(screen.getByTestId('location')).toHaveTextContent('view=audit');
+            expect(within(panel()).getByRole('log', {name: 'Audit records'})).toBeInTheDocument();
+            expect(within(panel()).getByRole('button', {name: 'Start'})).toBeInTheDocument();
+            expect(requests.some((req) => req.url.includes('daemon/audit'))).toBe(false);
+        });
+
         test('the heartbeats kept current by their events, without a reload', async () => {
             await openDaemon();
             expect(mockRetain).toHaveBeenCalledWith('tok', ['DaemonHeartbeatUpdated']);
