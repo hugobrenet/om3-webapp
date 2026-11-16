@@ -72,7 +72,7 @@ describe('NetworkDetails Component', () => {
         vi.useRealTimers?.();
     });
 
-    test('renders the Network Details title with network name and type', async () => {
+    test('renders the Network details title with network name and type', async () => {
         axios.get.mockResolvedValueOnce({data: {items: mockIpDetails}});
 
         render(
@@ -84,14 +84,14 @@ describe('NetworkDetails Component', () => {
         );
 
         await waitFor(() => {
-            const titleElements = screen.getAllByText(/Network Details:/i);
+            const titleElements = screen.getAllByText(/Network details:/i);
             const matchingTitle = titleElements.find(el =>
-                el.textContent.includes('Network Details: default') &&
+                el.textContent.includes('Network details: default') &&
                 el.textContent.includes('(N/A)')
             );
             expect(matchingTitle).toBeInTheDocument();
         });
-        expect(screen.getByRole('heading', {level: 1})).toHaveTextContent('Network Details: default (N/A)');
+        expect(screen.getByRole('heading', {level: 1})).toHaveTextContent('Network details: default (N/A)');
         expect(screen.getByRole('table', {name: 'Network details'})).toBeInTheDocument();
     });
 
@@ -103,7 +103,7 @@ describe('NetworkDetails Component', () => {
                 </Routes>
             </MemoryRouter>
         );
-        expect(screen.getByText(/Network Details: N\/A \(N\/A\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/Network details: N\/A \(N\/A\)/i)).toBeInTheDocument();
     });
 
     test('speaks French to a French browser', async () => {
@@ -399,7 +399,7 @@ describe('NetworkDetails Component', () => {
         await waitFor(() => {
             expect(screen.getByRole('alert')).toHaveTextContent('Failed to load network details. Please try again.');
             expect(screen.getByText('No IP details available for this network.')).toBeInTheDocument();
-            expect(screen.getByText(/Network Details: default \(N\/A\)/i)).toBeInTheDocument();
+            expect(screen.getByText(/Network details: default \(N\/A\)/i)).toBeInTheDocument();
             expect(screen.queryByText('192.168.1.1')).not.toBeInTheDocument();
         });
 
@@ -421,7 +421,7 @@ describe('NetworkDetails Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('No IP details available for this network.')).toBeInTheDocument();
-            expect(screen.getByText(/Network Details: unknown \(N\/A\)/i)).toBeInTheDocument();
+            expect(screen.getByText(/Network details: unknown \(N\/A\)/i)).toBeInTheDocument();
             expect(screen.queryByText('192.168.1.1')).not.toBeInTheDocument();
             expect(screen.queryByText('127.0.0.1')).not.toBeInTheDocument();
         });
@@ -440,7 +440,7 @@ describe('NetworkDetails Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('No IP details available for this network.')).toBeInTheDocument();
-            expect(screen.getByText(/Network Details: default \(N\/A\)/i)).toBeInTheDocument();
+            expect(screen.getByText(/Network details: default \(N\/A\)/i)).toBeInTheDocument();
             expect(screen.queryByText('192.168.1.1')).not.toBeInTheDocument();
         });
     });
@@ -458,7 +458,7 @@ describe('NetworkDetails Component', () => {
 
         await waitFor(() => {
             expect(screen.getByText('No IP details available for this network.')).toBeInTheDocument();
-            expect(screen.getByText(/Network Details: default \(N\/A\)/i)).toBeInTheDocument();
+            expect(screen.getByText(/Network details: default \(N\/A\)/i)).toBeInTheDocument();
         });
     });
 
@@ -538,7 +538,7 @@ describe('NetworkDetails Component', () => {
         );
 
         expect(axios.get).not.toHaveBeenCalled();
-        expect(screen.getByText(/Network Details: N\/A \(N\/A\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/Network details: N\/A \(N\/A\)/i)).toBeInTheDocument();
     });
 
     test('shows loading indicator while fetching data', async () => {

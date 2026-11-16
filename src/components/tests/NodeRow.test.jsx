@@ -173,7 +173,7 @@ describe('NodeRow Component', () => {
         expect(screen.getByText('0%')).toBeInTheDocument();
         expect(screen.getAllByText('0')).toHaveLength(2);
         // Its bars drawn, empty, in the colour of their state: no memory left is red.
-        const mem = screen.getByRole('progressbar', {name: 'Mem Avail'});
+        const mem = screen.getByRole('progressbar', {name: 'Memory available'});
         expect(mem).toHaveAttribute('aria-valuenow', '0');
         expect(mem).toHaveAttribute('data-state', 'down');
         expect(screen.getByRole('progressbar', {name: 'Load (15m)'})).toHaveAttribute('aria-valuenow', '0');
@@ -210,7 +210,7 @@ describe('NodeRow Component', () => {
     test('renders the mem bar beside its value, with value and state', () => {
         render(<NodeRow {...defaultProps} stats={{mem_avail: 10}}/>);
         const cell = screen.getByText('10%').closest('td');
-        const progress = within(cell).getByRole('progressbar', {name: 'Mem Avail'});
+        const progress = within(cell).getByRole('progressbar', {name: 'Memory available'});
         expect(progress).toHaveAttribute('aria-valuenow', '10');
         expect(progress).toHaveAttribute('data-state', 'down');
         expect(progress.firstChild).toHaveStyle({width: '10%'});
@@ -321,13 +321,13 @@ describe('NodeRow Component', () => {
     test('renders mem_avail progress bar with different states based on value', () => {
         const {rerender} = render(<NodeRow {...defaultProps} stats={{mem_avail: 10}}/>);
         expect(screen.getByText('10%')).toBeInTheDocument();
-        expect(screen.getByRole('progressbar', {name: 'Mem Avail'})).toHaveAttribute('data-state', 'down');
+        expect(screen.getByRole('progressbar', {name: 'Memory available'})).toHaveAttribute('data-state', 'down');
         rerender(<NodeRow {...defaultProps} stats={{mem_avail: 30}}/>);
         expect(screen.getByText('30%')).toBeInTheDocument();
-        expect(screen.getByRole('progressbar', {name: 'Mem Avail'})).toHaveAttribute('data-state', 'warn');
+        expect(screen.getByRole('progressbar', {name: 'Memory available'})).toHaveAttribute('data-state', 'warn');
         rerender(<NodeRow {...defaultProps} stats={{mem_avail: 80}}/>);
         expect(screen.getByText('80%')).toBeInTheDocument();
-        expect(screen.getByRole('progressbar', {name: 'Mem Avail'})).toHaveAttribute('data-state', 'up');
+        expect(screen.getByRole('progressbar', {name: 'Memory available'})).toHaveAttribute('data-state', 'up');
     });
 
     test('renders "-" when nodename is empty', () => {

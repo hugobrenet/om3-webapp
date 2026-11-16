@@ -178,7 +178,7 @@ describe('NavBar', () => {
             // Named as the menu names them, else by their own title, not by their address.
             ['/heartbeats', ['Cluster', 'Links']],
             ['/whoami', ['Cluster', 'Account']],
-            ['/ai', ['Cluster', 'AI Assistant']],
+            ['/ai', ['Cluster', 'AI assistant']],
             ['/token', ['Cluster', 'Token']],
             ['/auth/login', ['Cluster', 'Login']],
         ];

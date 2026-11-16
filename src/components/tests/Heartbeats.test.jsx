@@ -283,12 +283,12 @@ describe("Heartbeats Component", () => {
 
         const table = screen.getByRole("table");
         expect(table).toBeInTheDocument();
-        const headerRow = within(table).getByRole("row", {name: /Heartbeat Type Node Direction Peer Desc Routine Beating Since Last Beat/i});
-        ["Heartbeat", "Type", "Node", "Direction", "Peer", "Desc", "Routine", "Beating", "Since", "Last Beat"].forEach(text =>
+        const headerRow = within(table).getByRole("row", {name: /Heartbeat Type Node Direction Peer Desc Routine Beating Since Last beat/i});
+        ["Heartbeat", "Type", "Node", "Direction", "Peer", "Desc", "Routine", "Beating", "Since", "Last beat"].forEach(text =>
             expect(within(headerRow).getByText(text)).toBeInTheDocument()
         );
 
-        ["Heartbeat", "Type", "Node", "Direction", "Peer", "Desc", "Routine", "Beating", "Since", "Last Beat"].forEach(name =>
+        ["Heartbeat", "Type", "Node", "Direction", "Peer", "Desc", "Routine", "Beating", "Since", "Last beat"].forEach(name =>
             expect(within(headerRow).getByRole("button", {name})).toBeInTheDocument()
         );
         // Sorted by node, ascending, at first.
@@ -850,7 +850,7 @@ describe("Heartbeats Component", () => {
         ["type", "Type", "a_type", "b_type"],
         ["desc", "Desc", "a_desc", "b_desc"],
         ["changed_at", "Since", "2024-01-01", "2024-02-01"],
-        ["last_beating_at", "Last Beat", "2024-01-01", "2024-02-01"],
+        ["last_beating_at", "Last beat", "2024-01-01", "2024-02-01"],
     ];
 
     test.each(sortTestData)("sorts by %s column", async (key, headerText, ascValue, descValue) => {

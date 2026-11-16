@@ -88,7 +88,7 @@ vi.mock('../ConfigSection', () => ({
         return (
             <div>
                 <button onClick={() => setConfigDialogOpen(true)} data-testid="open-config-dialog">
-                    View Configuration
+                    View configuration
                 </button>
                 {configDialogOpen && (
                     <div role="dialog" data-testid="config-dialog">
@@ -368,7 +368,7 @@ const findActionDialog = () =>
         expect(dialogs).toHaveLength(1);
         return dialogs[0];
     });
-const logsPanel = () => screen.getByRole('dialog', {name: /Logs/});
+const logsPanel = () => screen.getByRole('dialog', {name: /logs/i});
 // Feedback messages: errors are alerts, the others status messages.
 const feedbackWith = (text) =>
     [...screen.queryAllByRole('alert'), ...screen.queryAllByRole('status')].find((a) => a.textContent?.includes(text));
@@ -612,7 +612,7 @@ describe('ObjectDetail Component', () => {
 
     test('renders keys section for cfg', async () => {
         renderComponent('root/cfg/cfg1');
-        expect(await screen.findByRole('heading', {name: /Object Keys/})).toBeInTheDocument();
+        expect(await screen.findByRole('heading', {name: /Object keys/})).toBeInTheDocument();
         expect(await screen.findByText('key1')).toBeInTheDocument();
         expect(screen.getByText('key2')).toBeInTheDocument();
     });
@@ -1061,9 +1061,9 @@ describe('ObjectDetail Component', () => {
 
         await user.click(screen.getByRole('button', {name: 'View logs for instance svc1 on node node1'}));
 
-        const panel = await screen.findByRole('dialog', {name: 'Instance Logs - svc1'});
+        const panel = await screen.findByRole('dialog', {name: 'Instance logs - svc1'});
         expect(panel).not.toHaveAttribute('inert');
-        expect(within(panel).getByRole('heading', {name: 'Instance Logs - svc1'})).toBeInTheDocument();
+        expect(within(panel).getByRole('heading', {name: 'Instance logs - svc1'})).toBeInTheDocument();
         expect(within(panel).getByTestId('logs-viewer')).toHaveAttribute('data-nodename', 'node1');
         expect(screen.getByRole('separator', {name: 'Resize drawer'})).toBeInTheDocument();
         // The logs panel is not an action dialog.
@@ -1074,7 +1074,7 @@ describe('ObjectDetail Component', () => {
         await renderReadySvc();
         expect(screen.getAllByRole('button', {name: /View logs for instance/})).toHaveLength(2);
         await user.click(screen.getByRole('button', {name: 'View logs for instance svc1 on node node2'}));
-        const panel = await screen.findByRole('dialog', {name: 'Instance Logs - svc1'});
+        const panel = await screen.findByRole('dialog', {name: 'Instance logs - svc1'});
         expect(within(panel).getByTestId('logs-viewer')).toHaveAttribute('data-nodename', 'node2');
     });
 
@@ -1358,7 +1358,7 @@ describe('ObjectDetail Component', () => {
             act(() => vi.advanceTimersByTime(5000));
             await waitFor(() => expect(screen.queryByText(/Loading object data.../i)).not.toBeInTheDocument());
             expect(screen.queryByText(/Network failure/i)).not.toBeInTheDocument();
-            expect(screen.getByRole('button', {name: 'View Configuration'})).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'View configuration'})).toBeInTheDocument();
         });
 
         test('sets error and stops loading when auth token is missing', async () => {

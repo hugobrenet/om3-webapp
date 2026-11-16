@@ -88,9 +88,9 @@ describe('AuthChoice Component', () => {
 
     test('renders panel with title and description', () => {
         renderComponent();
-        expect(screen.getByRole('heading', {name: 'Authentication Methods'})).toBeInTheDocument();
+        expect(screen.getByRole('heading', {name: 'Authentication methods'})).toBeInTheDocument();
         expect(screen.getByText('Please select one of the authentication methods the cluster advertises.')).toBeInTheDocument();
-        expect(screen.getByRole('region', {name: 'Authentication Methods'})).toBeInTheDocument();
+        expect(screen.getByRole('region', {name: 'Authentication methods'})).toBeInTheDocument();
     });
 
     test('renders a spinner and no buttons when authInfo is null', () => {

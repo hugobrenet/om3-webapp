@@ -103,39 +103,39 @@ describe('ActionDialogs', () => {
     }
 
     // Tests for simple checkbox dialogs
-    testCheckboxDialog(FreezeDialog, 'Confirm Freeze', 'Confirm', {
+    testCheckboxDialog(FreezeDialog, 'Confirm freeze', 'Confirm', {
         checkboxName: 'Confirm failover pause',
         checkboxText: 'I understand that the selected service orchestration will be paused.',
         confirmName: 'Confirm freeze action',
     });
-    testCheckboxDialog(StopDialog, 'Confirm Stop', 'Stop', {
+    testCheckboxDialog(StopDialog, 'Confirm stop', 'Stop', {
         checkboxName: 'Confirm service interruption',
         checkboxText: 'I understand that this may interrupt services.',
         confirmName: 'Confirm stop action',
         danger: true,
     });
-    testCheckboxDialog(RestartDialog, 'Confirm Restart', 'Restart', {
+    testCheckboxDialog(RestartDialog, 'Confirm restart', 'Restart', {
         checkboxName: 'Confirm service interruption',
         checkboxText: 'I understand that this may interrupt services.',
         confirmName: 'Confirm restart action',
         danger: true,
     });
-    testCheckboxDialog(ClearDialog, 'Confirm Clear', 'Confirm', {
+    testCheckboxDialog(ClearDialog, 'Confirm clear', 'Confirm', {
         checkboxName: 'Confirm clear action',
         checkboxText: 'I understand that this will clear node status and logs.',
         confirmName: 'Confirm clear action',
     });
-    testCheckboxDialog(DrainDialog, 'Confirm Drain', 'Confirm', {
+    testCheckboxDialog(DrainDialog, 'Confirm drain', 'Confirm', {
         checkboxName: 'Confirm service migration',
         checkboxText: 'I understand that this will migrate services away from the selected nodes.',
         confirmName: 'Confirm drain action',
     });
-    testCheckboxDialog(SwitchDialog, 'Confirm Switch', 'Confirm', {
+    testCheckboxDialog(SwitchDialog, 'Confirm switch', 'Confirm', {
         checkboxName: 'Confirm service unavailability',
         checkboxText: 'I understand the selected services will be unavailable during move.',
         confirmName: 'Confirm switch action',
     });
-    testCheckboxDialog(GivebackDialog, 'Confirm Giveback', 'Confirm', {
+    testCheckboxDialog(GivebackDialog, 'Confirm giveback', 'Confirm', {
         checkboxName: 'Confirm service unavailability',
         checkboxText: 'I understand the selected services will be unavailable during move.',
         confirmName: 'Confirm giveback action',
@@ -171,7 +171,7 @@ describe('ActionDialogs', () => {
             });
             const {rerender} = render(render2(checkboxes, setCb));
 
-            const dialog = screen.getByRole('dialog', {name: 'Confirm Shutdown'});
+            const dialog = screen.getByRole('dialog', {name: 'Confirm shutdown'});
             expect(within(dialog).getAllByRole('checkbox').map((c) => c.getAttribute('aria-label'))).toEqual([
                 'Confirm instances shutdown', 'Confirm peer takeover',
             ]);
@@ -217,7 +217,7 @@ describe('ActionDialogs', () => {
                                    checkboxes={checkboxes} setCheckboxes={setCb} disabled={false}/>
             );
 
-            const dialog = screen.getByRole('dialog', {name: 'Confirm Unprovision'});
+            const dialog = screen.getByRole('dialog', {name: 'Confirm unprovision'});
             expect(within(dialog).getAllByRole('checkbox').map((c) => c.getAttribute('aria-label'))).toEqual([
                 'Confirm data loss', 'Confirm clusterwide orchestration', 'Confirm service interruption',
             ]);
@@ -319,7 +319,7 @@ describe('ActionDialogs', () => {
                 <PurgeDialog open onClose={onClose} onConfirm={onConfirm}
                              checkboxes={checkboxes} setCheckboxes={setCb} disabled={false}/>
             );
-            expect(screen.getByRole('dialog', {name: 'Confirm Purge'})).toBeInTheDocument();
+            expect(screen.getByRole('dialog', {name: 'Confirm purge'})).toBeInTheDocument();
             expect(screen.getAllByRole('checkbox').map((c) => c.getAttribute('aria-label'))).toEqual([
                 'Confirm data loss', 'Confirm configuration loss', 'Confirm service interruption',
             ]);
@@ -375,7 +375,7 @@ describe('ActionDialogs', () => {
                 <DeleteDialog open onClose={onClose} onConfirm={onConfirm}
                               checkboxes={checkboxes} setCheckboxes={setCb} disabled={false}/>
             );
-            expect(screen.getByRole('dialog', {name: 'Confirm Delete'})).toBeInTheDocument();
+            expect(screen.getByRole('dialog', {name: 'Confirm delete'})).toBeInTheDocument();
             const confirmBtn = screen.getByRole('button', {name: /Confirm delete action/i});
             expect(confirmBtn).toBeDisabled();
             expect(confirmBtn).toHaveTextContent('Delete');
@@ -410,7 +410,7 @@ describe('ActionDialogs', () => {
         test('shows key and calls onConfirm on delete, onClose on cancel', () => {
             render(<DeleteKeyDialog open onClose={onClose} onConfirm={onConfirm}
                                     keyToDelete="MY_SECRET_KEY" disabled={false}/>);
-            expect(screen.getByRole('dialog', {name: 'Confirm Key Deletion'})).toBeInTheDocument();
+            expect(screen.getByRole('dialog', {name: 'Confirm key deletion'})).toBeInTheDocument();
             expect(screen.getByText(/MY_SECRET_KEY/)).toBeInTheDocument();
             expect(screen.getByRole('button', {name: 'Confirm delete key action'})).toHaveClass('bg-state-down');
 
@@ -446,10 +446,10 @@ describe('ActionDialogs', () => {
         test('requires key name and file to enable Create button', () => {
             let props = {...defaultProps};
             const {rerender} = render(<CreateKeyDialog {...props} />);
-            expect(screen.getByRole('dialog', {name: 'Create New Key'})).toBeInTheDocument();
+            expect(screen.getByRole('dialog', {name: 'Create new key'})).toBeInTheDocument();
             expect(screen.getByText('No file selected')).toBeInTheDocument();
-            const nameInput = screen.getByRole('textbox', {name: /Key Name/i});
-            expect(screen.getByLabelText('Key Name')).toBe(nameInput);
+            const nameInput = screen.getByRole('textbox', {name: /Key name/i});
+            expect(screen.getByLabelText('Key name')).toBe(nameInput);
             const createBtn = screen.getByRole('button', {name: /Create/i});
             expect(createBtn).toBeDisabled();
 
@@ -475,18 +475,18 @@ describe('ActionDialogs', () => {
             expect(onConfirm).toHaveBeenCalled();
         });
 
-        test('Choose File opens the hidden file input', () => {
+        test('Choose file opens the hidden file input', () => {
             render(<CreateKeyDialog {...defaultProps} />);
             const fileInput = document.getElementById('create-key-file-upload');
             const click = jest.spyOn(fileInput, 'click');
-            fireEvent.click(screen.getByRole('button', {name: 'Choose File'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Choose file'}));
             expect(click).toHaveBeenCalled();
         });
 
-        test('name input and Choose File are disabled when disabled prop is true', () => {
+        test('name input and Choose file are disabled when disabled prop is true', () => {
             render(<CreateKeyDialog {...defaultProps} disabled={true}/>);
-            expect(screen.getByRole('textbox', {name: /Key Name/i})).toBeDisabled();
-            expect(screen.getByRole('button', {name: 'Choose File'})).toBeDisabled();
+            expect(screen.getByRole('textbox', {name: /Key name/i})).toBeDisabled();
+            expect(screen.getByRole('button', {name: 'Choose file'})).toBeDisabled();
             expect(document.getElementById('create-key-file-upload')).toBeDisabled();
         });
 
@@ -516,7 +516,7 @@ describe('ActionDialogs', () => {
         test('enables Update button only when a file is selected', () => {
             let props = {...defaultProps};
             const {rerender} = render(<UpdateConfigDialog {...props} />);
-            expect(screen.getByRole('dialog', {name: 'Update Configuration'})).toBeInTheDocument();
+            expect(screen.getByRole('dialog', {name: 'Update configuration'})).toBeInTheDocument();
             expect(screen.getByText('No file chosen')).toBeInTheDocument();
             const updateBtn = screen.getByRole('button', {name: /Update/i});
             expect(updateBtn).toBeDisabled();
@@ -535,11 +535,11 @@ describe('ActionDialogs', () => {
             expect(onConfirm).toHaveBeenCalled();
         });
 
-        test('Choose File opens the hidden file input', () => {
+        test('Choose file opens the hidden file input', () => {
             render(<UpdateConfigDialog {...defaultProps} />);
             const fileInput = document.getElementById('update-config-file-upload');
             const click = jest.spyOn(fileInput, 'click');
-            fireEvent.click(screen.getByRole('button', {name: 'Choose File'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Choose file'}));
             expect(click).toHaveBeenCalled();
         });
 
@@ -573,7 +573,7 @@ describe('ActionDialogs', () => {
         test('enables Apply button when any of the three fields has content', () => {
             let props = {...defaultProps};
             const {rerender} = render(<ManageConfigParamsDialog {...props} />);
-            expect(screen.getByRole('dialog', {name: 'Manage Configuration Parameters'})).toBeInTheDocument();
+            expect(screen.getByRole('dialog', {name: 'Manage configuration parameters'})).toBeInTheDocument();
             const applyBtn = screen.getByRole('button', {name: /Apply/i});
             expect(applyBtn).toBeDisabled();
 

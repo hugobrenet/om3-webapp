@@ -61,19 +61,19 @@ const mockStore = (overrides = {}) => ({
 });
 
 const openDrawer = () => {
-    const btn = screen.getByRole('button', {name: /Events|Event Logger/i});
+    const btn = screen.getByRole('button', {name: /Events|Event logger/i});
     act(() => fireEvent.click(btn));
     return btn;
 };
 
-const openDrawerAndWait = async (title = /Event Logger/i) => {
+const openDrawerAndWait = async (title = /Event logger/i) => {
     openDrawer();
     await waitFor(() => expect(screen.getByText(title)).toBeInTheDocument());
 };
 
 // The settings panel is a SlideOver: mounted with the bottom panel, inert while closed.
 const settingsPanel = () =>
-    screen.getByRole('dialog', {name: 'Event Subscriptions', hidden: true});
+    screen.getByRole('dialog', {name: 'Event subscriptions', hidden: true});
 
 const expectSettingsOpen = () => expect(settingsPanel()).not.toHaveAttribute('inert');
 const expectSettingsClosed = () => expect(settingsPanel()).toHaveAttribute('inert');
@@ -90,7 +90,7 @@ const rowButton = (eventType) =>
         .find((b) => b.hasAttribute('aria-expanded') && b.textContent.includes(eventType));
 
 const eventList = () => screen.getByRole('region', {name: 'Event list'});
-const panel = (title = 'Event Logger') => screen.getByRole('region', {name: title});
+const panel = (title = 'Event logger') => screen.getByRole('region', {name: title});
 const loading = () => screen.queryByRole('status', {name: 'Loading events'});
 
 describe('EventLogger Component', () => {
@@ -234,7 +234,7 @@ describe('EventLogger Component', () => {
                 expect(screen.getByText(props.buttonLabel)).toBeInTheDocument();
             } else {
                 expect(
-                    screen.getByRole('button', {name: /Events|Event Logger/i})
+                    screen.getByRole('button', {name: /Events|Event logger/i})
                 ).toBeInTheDocument();
             }
         });
@@ -242,12 +242,12 @@ describe('EventLogger Component', () => {
         test('button hidden when drawer open, reappears on close', async () => {
             renderWithTheme(<EventLogger/>);
             openDrawer();
-            await waitFor(() => expect(screen.getByText(/Event Logger/i)).toBeInTheDocument());
+            await waitFor(() => expect(screen.getByText(/Event logger/i)).toBeInTheDocument());
             expect(screen.queryByRole('button', {name: /^Events$/i})).not.toBeInTheDocument();
 
             act(() => fireEvent.click(screen.getByRole('button', {name: /^Close$/i})));
             await waitFor(() =>
-                expect(screen.getByRole('button', {name: /Events|Event Logger/i})).toBeInTheDocument()
+                expect(screen.getByRole('button', {name: /Events|Event logger/i})).toBeInTheDocument()
             );
         });
 
@@ -341,7 +341,7 @@ describe('EventLogger Component', () => {
             await openDrawerAndWait();
             act(() => fireEvent.click(screen.getByRole('button', {name: /^Close$/})));
             await waitFor(() =>
-                expect(screen.getByRole('button', {name: /Events|Event Logger/i})).toBeInTheDocument()
+                expect(screen.getByRole('button', {name: /Events|Event logger/i})).toBeInTheDocument()
             );
         });
 
@@ -866,8 +866,8 @@ describe('EventLogger Component', () => {
             renderWithTheme(<EventLogger eventTypes={['EVENT1']}/>);
             openDrawer();
             await openSettings();
-            expect(screen.getByText(/Subscribe to All/i)).toBeInTheDocument();
-            expect(screen.getByText(/Unsubscribe from All/i)).toBeInTheDocument();
+            expect(screen.getByText(/Subscribe to all/i)).toBeInTheDocument();
+            expect(screen.getByText(/Unsubscribe from all/i)).toBeInTheDocument();
         });
 
         test('closes via Close button', async () => {
@@ -892,10 +892,10 @@ describe('EventLogger Component', () => {
             );
             renderWithTheme(<EventLogger eventTypes={['EVENT1']}/>);
             openDrawer();
-            await waitFor(() => expect(screen.getByText(/Event Logger/i)).toBeInTheDocument());
+            await waitFor(() => expect(screen.getByText(/Event logger/i)).toBeInTheDocument());
             await openSettings();
             act(() =>
-                fireEvent.click(screen.getByRole('button', {name: /Apply Subscriptions/i}))
+                fireEvent.click(screen.getByRole('button', {name: /Apply subscriptions/i}))
             );
             await waitFor(expectSettingsClosed);
             expect(mockClearLogs).toHaveBeenCalled();
@@ -914,7 +914,7 @@ describe('EventLogger Component', () => {
                 'via Unsubscribe All button',
                 ['EVENT1'],
                 () => {
-                    fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from All/i}));
+                    fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from all/i}));
                 },
             ],
             ['via empty eventTypes prop', [], () => {
@@ -929,34 +929,34 @@ describe('EventLogger Component', () => {
             ).toBeInTheDocument();
         });
 
-        test('"Subscribe to Page Events" works after unsubscribing all', async () => {
+        test('"Subscribe to page events" works after unsubscribing all', async () => {
             renderWithTheme(<EventLogger eventTypes={['EVENT1', 'EVENT2']}/>);
             openDrawer();
             await openSettings();
             act(() =>
-                fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from All/i}))
+                fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from all/i}))
             );
-            const pageBtn = screen.getByRole('button', {name: /Subscribe to Page Events/i});
+            const pageBtn = screen.getByRole('button', {name: /Subscribe to page events/i});
             expect(pageBtn).not.toBeDisabled();
             act(() => fireEvent.click(pageBtn));
             expect(
-                screen.getByRole('button', {name: /Apply Subscriptions \(2\)/i})
+                screen.getByRole('button', {name: /Apply subscriptions \(2\)/i})
             ).toBeInTheDocument();
         });
 
-        test('"Subscribe to Page Events" is disabled when no page events', async () => {
+        test('"Subscribe to page events" is disabled when no page events', async () => {
             renderWithTheme(<EventLogger eventTypes={[]}/>);
             openDrawer();
             await openSettings();
-            const pageBtn = screen.getByRole('button', {name: /Subscribe to Page Events/i});
+            const pageBtn = screen.getByRole('button', {name: /Subscribe to page events/i});
             expect(pageBtn).toBeDisabled();
         });
 
-        test('"Additional Events" section renders for non-page event types', async () => {
+        test('"Additional events" section renders for non-page event types', async () => {
             renderWithTheme(<EventLogger eventTypes={['PAGE_EVENT']}/>);
             openDrawer();
             await openSettings();
-            expect(screen.getByText(/Additional Events/)).toBeInTheDocument();
+            expect(screen.getByText(/Additional events/)).toBeInTheDocument();
         });
 
         test('checkbox toggle changes subscription count', async () => {
@@ -965,13 +965,13 @@ describe('EventLogger Component', () => {
             await openSettings();
             const checkbox = screen.getByRole('checkbox', {name: /EVENT1/});
             expect(checkbox).toBeChecked();
-            expect(screen.getByRole('button', {name: /Apply Subscriptions \(2\)/i})).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: /Apply subscriptions \(2\)/i})).toBeInTheDocument();
             act(() => fireEvent.click(checkbox));
             expect(checkbox).not.toBeChecked();
-            expect(screen.getByRole('button', {name: /Apply Subscriptions \(1\)/i})).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: /Apply subscriptions \(1\)/i})).toBeInTheDocument();
             act(() => fireEvent.click(checkbox));
             expect(checkbox).toBeChecked();
-            expect(screen.getByRole('button', {name: /Apply Subscriptions \(2\)/i})).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: /Apply subscriptions \(2\)/i})).toBeInTheDocument();
         });
 
         test('closeLoggerEventSource called when all unsubscribed and applied', async () => {
@@ -982,8 +982,8 @@ describe('EventLogger Component', () => {
             renderWithTheme(<EventLogger eventTypes={[]}/>);
             openDrawer();
             await openSettings();
-            fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from All/i}));
-            fireEvent.click(screen.getByRole('button', {name: /Apply Subscriptions/i}));
+            fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from all/i}));
+            fireEvent.click(screen.getByRole('button', {name: /Apply subscriptions/i}));
 
             await waitFor(() => expect(closeLoggerEventSource).toHaveBeenCalled());
         });
@@ -996,23 +996,23 @@ describe('EventLogger Component', () => {
             act(() => fireEvent.click(event1Checkbox));
             expect(event1Checkbox).not.toBeChecked();
             act(() =>
-                fireEvent.click(screen.getByRole('button', {name: /Apply Subscriptions/i}))
+                fireEvent.click(screen.getByRole('button', {name: /Apply subscriptions/i}))
             );
             await waitFor(expectSettingsClosed);
         });
 
-        test('Subscribe to All selects all event types', async () => {
+        test('Subscribe to all selects all event types', async () => {
             renderWithTheme(<EventLogger eventTypes={['EVENT1', 'EVENT2']}/>);
             openDrawer();
             await openSettings();
             act(() =>
-                fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from All/i}))
+                fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from all/i}))
             );
             act(() =>
-                fireEvent.click(screen.getByRole('button', {name: /Subscribe to All/i}))
+                fireEvent.click(screen.getByRole('button', {name: /Subscribe to all/i}))
             );
             expect(
-                screen.getByRole('button', {name: /Apply Subscriptions \(9\)/i})
+                screen.getByRole('button', {name: /Apply subscriptions \(9\)/i})
             ).toBeInTheDocument();
         });
 
@@ -1026,13 +1026,13 @@ describe('EventLogger Component', () => {
             );
             renderWithTheme(<EventLogger eventTypes={['EVENT1']}/>);
             openDrawer();
-            await waitFor(() => expect(screen.getByText(/Event Logger/i)).toBeInTheDocument());
+            await waitFor(() => expect(screen.getByText(/Event logger/i)).toBeInTheDocument());
             await openSettings();
             act(() =>
-                fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from All/i}))
+                fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from all/i}))
             );
             act(() =>
-                fireEvent.click(screen.getByRole('button', {name: /Apply Subscriptions/i}))
+                fireEvent.click(screen.getByRole('button', {name: /Apply subscriptions/i}))
             );
             await waitFor(() => {
                 expect(screen.getByText('EVENT1')).toBeInTheDocument();
@@ -1044,9 +1044,9 @@ describe('EventLogger Component', () => {
             renderWithTheme(<EventLogger eventTypes={['NodeStatusUpdated']}/>);
             openDrawer();
             await openSettings();
-            expect(screen.getByText(/Additional Events/)).toBeInTheDocument();
+            expect(screen.getByText(/Additional events/)).toBeInTheDocument();
             const pageSection = screen
-                .getByRole('heading', {name: /^Page Events/})
+                .getByRole('heading', {name: /^Page events/})
                 .closest('section');
             expect(pageSection.textContent).toContain('NodeStatusUpdated');
         });
@@ -1082,11 +1082,11 @@ describe('EventLogger Component', () => {
             act(() => fireEvent.click(nonPageCheckbox));
             expect(nonPageCheckbox).toBeChecked();
 
-            const pageEventsBtn = screen.getByRole('button', {name: /Subscribe to Page Events/i});
+            const pageEventsBtn = screen.getByRole('button', {name: /Subscribe to page events/i});
             expect(pageEventsBtn).not.toBeDisabled();
             act(() => fireEvent.click(pageEventsBtn));
 
-            const applyBtn = screen.getByRole('button', {name: /Apply Subscriptions \(2\)/i});
+            const applyBtn = screen.getByRole('button', {name: /Apply subscriptions \(2\)/i});
             expect(applyBtn).toBeInTheDocument();
         });
     });
@@ -1400,7 +1400,7 @@ describe('EventLogger Component', () => {
             );
             const {rerender} = render(<EventLogger/>);
             act(() =>
-                fireEvent.click(screen.getByRole('button', {name: /Events|Event Logger/i}))
+                fireEvent.click(screen.getByRole('button', {name: /Events|Event logger/i}))
             );
             act(() => vi.advanceTimersByTime(200));
             await waitFor(() => expect(screen.getByText('MEMO_TEST')).toBeInTheDocument());
@@ -1428,7 +1428,7 @@ describe('EventLogger Component', () => {
             });
             renderWithTheme(<EventLogger/>);
             expect(
-                screen.getByRole('button', {name: /Events|Event Logger/i})
+                screen.getByRole('button', {name: /Events|Event logger/i})
             ).toBeInTheDocument();
             delete window.innerWidth;
         });
@@ -1471,10 +1471,10 @@ describe('EventLogger Component', () => {
             openDrawer();
             await openSettings();
             act(() =>
-                fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from All/i}))
+                fireEvent.click(screen.getByRole('button', {name: /Unsubscribe from all/i}))
             );
             act(() =>
-                fireEvent.click(screen.getByRole('button', {name: /Apply Subscriptions/i}))
+                fireEvent.click(screen.getByRole('button', {name: /Apply subscriptions/i}))
             );
             await waitFor(() => expect(screen.getByText('ANY_EVENT')).toBeInTheDocument());
         });
@@ -1482,11 +1482,11 @@ describe('EventLogger Component', () => {
         test('Drawer panel is rendered as a raised bottom panel', async () => {
             renderWithTheme(<EventLogger/>);
             openDrawer();
-            await waitFor(() => expect(screen.getByText(/Event Logger/i)).toBeInTheDocument());
+            await waitFor(() => expect(screen.getByText(/Event logger/i)).toBeInTheDocument());
             const paper = panel();
             expect(paper).toHaveClass('bg-surface-raised', 'border-t', 'border-line');
             expect(paper).toHaveStyle({height: '320px'});
-            expect(screen.getByRole('heading', {name: 'Event Logger'})).toBeInTheDocument();
+            expect(screen.getByRole('heading', {name: 'Event logger'})).toBeInTheDocument();
             expect(screen.getByLabelText(/Resize handle/i)).toBeInTheDocument();
         });
 

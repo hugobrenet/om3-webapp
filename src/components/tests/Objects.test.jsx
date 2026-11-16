@@ -857,14 +857,14 @@ describe('Objects Component', () => {
         test.each(['configs', 'secrets', 'users'])('list=%s has no global state filter, one in the URL filtering nothing', async (tab) => {
             setup(mixed, `?list=${tab}&globalState=up`);
             await waitForLoad();
-            expect(queryFilterGroup('Global State')).not.toBeInTheDocument();
+            expect(queryFilterGroup('Global state')).not.toBeInTheDocument();
             expect(objectNamesInOrder().length).toBeGreaterThan(0);
         });
 
         test.each(['services', 'volumes', 'any'])('list=%s keeps the global state filter', async (tab) => {
             setup(mixed, `?list=${tab}`);
             await waitForLoad();
-            expect(filterGroup('Global State')).toBeInTheDocument();
+            expect(filterGroup('Global state')).toBeInTheDocument();
         });
 
         test('the services keep their status, placement and node columns', async () => {
@@ -951,7 +951,7 @@ describe('Objects Component', () => {
                 visible: ['test-ns/svc/test1', 'test-ns/svc/test2'],
                 hidden: ['root/svc/test3'],
             },
-            {label: 'Global State', option: 'Up', visible: ['test-ns/svc/test1'], hidden: ['test-ns/svc/test2']},
+            {label: 'Global state', option: 'Up', visible: ['test-ns/svc/test1'], hidden: ['test-ns/svc/test2']},
             {label: 'Kind', option: 'svc', visible: ['test-ns/svc/test1'], hidden: []},
             {
                 label: 'Name',
@@ -994,10 +994,10 @@ describe('Objects Component', () => {
             },
         ];
 
-        test.each(globalStateTests)('Global State filter: $option', async ({option, visible, hidden}) => {
+        test.each(globalStateTests)('Global state filter: $option', async ({option, visible, hidden}) => {
             setup();
             await waitForLoad();
-            await selectFilter('Global State', option);
+            await selectFilter('Global state', option);
             await waitFor(() => {
                 visible.forEach((v) =>
                     expect(screen.getByRole('row', {name: new RegExp(v)})).toBeInTheDocument()
@@ -1008,11 +1008,11 @@ describe('Objects Component', () => {
             });
         });
 
-        test('combining multiple Global State selections matches any of them', async () => {
+        test('combining multiple Global state selections matches any of them', async () => {
             setup();
             await waitForLoad();
-            await selectFilter('Global State', 'Up');
-            await selectFilter('Global State', 'Down');
+            await selectFilter('Global state', 'Up');
+            await selectFilter('Global state', 'Down');
             await waitFor(() => {
                 expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
                 expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
@@ -1030,32 +1030,32 @@ describe('Objects Component', () => {
             });
         });
 
-        test('unchecking a Global State option removes that filter', async () => {
+        test('unchecking a Global state option removes that filter', async () => {
             setup();
             await waitForLoad();
-            await selectFilter('Global State', 'Up');
+            await selectFilter('Global state', 'Up');
             await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument());
-            expect(filterSummary('Global State')).toHaveTextContent('Global StateUp');
-            fireEvent.click(filterOption('Global State', 'Up'));
-            await waitFor(() => expect(filterOption('Global State', 'Up')).not.toBeChecked());
-            expect(filterSummary('Global State')).toHaveTextContent('Global StateAll');
+            expect(filterSummary('Global state')).toHaveTextContent('Global stateUp');
+            fireEvent.click(filterOption('Global state', 'Up'));
+            await waitFor(() => expect(filterOption('Global state', 'Up')).not.toBeChecked());
+            expect(filterSummary('Global state')).toHaveTextContent('Global stateAll');
             await waitFor(() => expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument());
         });
 
         test('filter popovers list the global states, namespaces and kinds on offer', async () => {
             setup(TWO_KINDS, '?list=any');
             await waitForLoad();
-            expect(within(filterGroup('Global State')).getAllByRole('checkbox').map(optionText))
+            expect(within(filterGroup('Global state')).getAllByRole('checkbox').map(optionText))
                 .toEqual(['Up', 'Down', 'Warn', 'N/a', 'Unprovisioned']);
             expect(within(filterGroup('Namespace')).getAllByRole('checkbox').map(optionText))
                 .toEqual(['root', 'test-ns']);
             expect(within(filterGroup('Kind')).getAllByRole('checkbox').map(optionText))
                 .toEqual(['nscfg', 'svc']);
             // Each global state carries its mark.
-            expect(filterOption('Global State', 'Up').closest('label').querySelector('[data-state="up"]')).not.toBeNull();
-            expect(filterOption('Global State', 'N/a').closest('label').querySelector('[data-state="na"]')).not.toBeNull();
+            expect(filterOption('Global state', 'Up').closest('label').querySelector('[data-state="up"]')).not.toBeNull();
+            expect(filterOption('Global state', 'N/a').closest('label').querySelector('[data-state="na"]')).not.toBeNull();
             // Unprovisioned: the P of the not-provisioned marks, decorative beside its word.
-            const p = filterOption('Global State', 'Unprovisioned').closest('label').querySelector('[data-mark="not-provisioned"]');
+            const p = filterOption('Global state', 'Unprovisioned').closest('label').querySelector('[data-mark="not-provisioned"]');
             expect(p).toHaveTextContent(/^P$/);
             expect(p).toHaveAttribute('aria-hidden', 'true');
         });
@@ -1118,7 +1118,7 @@ describe('Objects Component', () => {
             await waitForLoad();
             expect(queryFilterGroup('Kind')).not.toBeInTheDocument();
             expect(queryFilterGroup('Namespace')).not.toBeInTheDocument();
-            expect(filterGroup('Global State')).toBeInTheDocument();
+            expect(filterGroup('Global state')).toBeInTheDocument();
         });
 
         test('a filter on a value no object of the tab has stays shown, not to act unseen', async () => {
@@ -1136,7 +1136,7 @@ describe('Objects Component', () => {
         setup();
         await waitForLoad();
         await selectFilter('Namespace', 'test-ns');
-        await selectFilter('Global State', 'Up');
+        await selectFilter('Global state', 'Up');
         await waitFor(() => {
             expect(screen.getByRole('row', {name: /test1/})).toBeInTheDocument();
             expect(screen.queryByRole('row', {name: /test2/})).not.toBeInTheDocument();
@@ -1156,14 +1156,14 @@ describe('Objects Component', () => {
         );
     });
 
-    test('unchecking a Global State option restores filtered objects', async () => {
+    test('unchecking a Global state option restores filtered objects', async () => {
         setup();
         await waitForLoad();
-        await selectFilter('Global State', 'Up');
+        await selectFilter('Global state', 'Up');
         await waitFor(() =>
             expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument()
         );
-        fireEvent.click(filterOption('Global State', 'Up'));
+        fireEvent.click(filterOption('Global state', 'Up'));
         await waitFor(() =>
             expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument()
         );
@@ -1205,9 +1205,9 @@ describe('Objects Component', () => {
         test('beside the table in the place of the popovers, each value counted', async () => {
             setup({}, '', WIDE);
             await waitForLoad();
-            expect(screen.queryByRole('group', {name: 'Global State'})).not.toBeInTheDocument();
-            expect(within(rail()).getAllByRole('region').map((r) => r.getAttribute('data-facet'))).toEqual(['Global State', 'Namespace']);
-            expect(values('Global State')).toEqual([
+            expect(screen.queryByRole('group', {name: 'Global state'})).not.toBeInTheDocument();
+            expect(within(rail()).getAllByRole('region').map((r) => r.getAttribute('data-facet'))).toEqual(['Global state', 'Namespace']);
+            expect(values('Global state')).toEqual([
                 ['Up1', 'false'], ['Down1', 'false'], ['Warn1', 'false'], ['N/a3', 'false'], ['Unprovisioned2', 'false'],
             ]);
             expect(values('Namespace')).toEqual([['root1', 'false'], ['test-ns5', 'false']]);
@@ -1231,14 +1231,14 @@ describe('Objects Component', () => {
         test('a value clicked filters the rows, the other facets counted under it; cleared, all again', async () => {
             setup({}, '', WIDE);
             await waitForLoad();
-            fireEvent.click(within(facet('Global State')).getByRole('button', {name: /^Up/}));
+            fireEvent.click(within(facet('Global state')).getByRole('button', {name: /^Up/}));
             await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument());
             expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
             await waitFor(() => expect(values('Namespace')).toEqual([['root0', 'false'], ['test-ns1', 'false']]));
-            expect(within(facet('Global State')).getByRole('button', {name: /^Up/})).toHaveAttribute('aria-pressed', 'true');
-            fireEvent.click(within(facet('Global State')).getByRole('button', {name: 'Clear the Global State filter'}));
+            expect(within(facet('Global state')).getByRole('button', {name: /^Up/})).toHaveAttribute('aria-pressed', 'true');
+            fireEvent.click(within(facet('Global state')).getByRole('button', {name: 'Clear the Global state filter'}));
             await waitFor(() => expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument());
-            expect(within(facet('Global State')).queryByRole('button', {name: /^Clear/})).not.toBeInTheDocument();
+            expect(within(facet('Global state')).queryByRole('button', {name: /^Clear/})).not.toBeInTheDocument();
         });
 
         test('the name searched from the rail', async () => {
@@ -1779,7 +1779,7 @@ describe('Objects Component', () => {
         setup(TWO_KINDS, '?list=any');
         await waitForLoad();
         expect(filterGroup('Namespace')).toBeInTheDocument();
-        expect(filterGroup('Global State')).toBeInTheDocument();
+        expect(filterGroup('Global state')).toBeInTheDocument();
         expect(filterGroup('Kind')).toBeInTheDocument();
         expect(screen.getByLabelText('Name')).toBeInTheDocument();
     });
@@ -2057,18 +2057,18 @@ describe('Objects Component', () => {
             expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
             expect(screen.queryByRole('row', {name: /root\/svc\/test3/})).not.toBeInTheDocument();
         });
-        expect(filterOption('Global State', 'Up')).toBeChecked();
-        expect(filterOption('Global State', 'Down')).toBeChecked();
-        expect(filterOption('Global State', 'Warn')).not.toBeChecked();
+        expect(filterOption('Global state', 'Up')).toBeChecked();
+        expect(filterOption('Global state', 'Down')).toBeChecked();
+        expect(filterOption('Global state', 'Warn')).not.toBeChecked();
     });
 
     test('unknown globalState URL value is offered as an option without a status mark, and can be removed', async () => {
         setup({}, '?globalState=bogus');
         await waitForLoad();
-        const bogus = filterOption('Global State', 'Bogus');
+        const bogus = filterOption('Global state', 'Bogus');
         expect(bogus).toBeChecked();
         expect(bogus.closest('label').querySelector('[data-state], svg')).toBeNull();
-        expect(filterSummary('Global State')).toHaveTextContent('Global StateBogus');
+        expect(filterSummary('Global state')).toHaveTextContent('Global stateBogus');
         await waitFor(() => expect(screen.getByText(/No objects found/)).toBeInTheDocument());
         fireEvent.click(bogus);
         await waitFor(() => expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument());
@@ -2085,8 +2085,8 @@ describe('Objects Component', () => {
         vi.useFakeTimers();
         try {
             setup(TWO_KINDS, '?list=any');
-            fireEvent.click(filterOption('Global State', 'Up'));
-            fireEvent.click(filterOption('Global State', 'Unprovisioned'));
+            fireEvent.click(filterOption('Global state', 'Up'));
+            fireEvent.click(filterOption('Global state', 'Unprovisioned'));
             fireEvent.click(filterOption('Namespace', 'test-ns'));
             fireEvent.click(filterOption('Kind', 'svc'));
             fireEvent.change(screen.getByLabelText('Name'), {target: {value: ' te '}});
@@ -2267,7 +2267,7 @@ describe('Objects Component', () => {
 
     describe('filter option toggle handlers (add branch coverage)', () => {
         test.each([
-            ['Global State', 'Up'],
+            ['Global state', 'Up'],
             ['Namespace', 'test-ns'],
             ['Kind', 'svc'],
         ])('rapidly toggling a %s option twice re-adds it', async (label, option) => {
