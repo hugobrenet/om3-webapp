@@ -12,7 +12,7 @@ export const ZERO_DATE = "0001-01-01T00:00:00Z";
  */
 export const formatAge = (dateString, language) => {
     if (!dateString || dateString === ZERO_DATE) {
-        return "-";
+        return "–";
     }
     return formatRelativeTime(dateString, language);
 };
@@ -21,7 +21,7 @@ export const formatAge = (dateString, language) => {
 export const AgeTime = ({value}) => {
     const {i18n} = useTranslation();
     if (!value || value === ZERO_DATE) {
-        return "-";
+        return "–";
     }
     return <RelativeTime value={value} locale={i18n.language}/>;
 };

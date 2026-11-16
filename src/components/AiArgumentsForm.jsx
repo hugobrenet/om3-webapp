@@ -187,7 +187,7 @@ export default function AiArgumentsForm({fields, drafts, errors, disabled, onCha
                                 case "enum":
                                     return (
                                         <Select {...common} value={value} onChange={(event) => set(event.target.value)}>
-                                            {!field.required && <option value="">—</option>}
+                                            {!field.required && <option value="">–</option>}
                                             {field.options.map((option) => (
                                                 <option key={option} value={option}>
                                                     {option}

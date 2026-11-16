@@ -91,6 +91,6 @@ describe('formatBytes', () => {
 
     test('says when there is no limit or no value', () => {
         expect(formatBytes(Infinity)).toBe('unlimited');
-        expect(formatBytes(undefined)).toBe('-');
+        expect(formatBytes(undefined)).toBe('–');
     });
 });

@@ -689,8 +689,8 @@ describe("Heartbeats Component", () => {
         expect(cells[4]).toHaveTextContent("N/A");
         expect(cells[1]).toHaveTextContent("unicast");
         expect(cells[5]).toHaveTextContent("N/A");
-        expect(cells[8]).toHaveTextContent(/^-$/);
-        expect(cells[9]).toHaveTextContent(/^-$/);
+        expect(cells[8]).toHaveTextContent(/^–$/);
+        expect(cells[9]).toHaveTextContent(/^–$/);
     });
 
     test("stopped stream with no cache and null type falls back to N/A", () => {
@@ -716,8 +716,8 @@ describe("Heartbeats Component", () => {
         await waitFor(() => {
             const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
             expect(cells[5]).toHaveTextContent("N/A");
-            expect(cells[8]).toHaveTextContent(/^-$/);
-            expect(cells[9]).toHaveTextContent(/^-$/);
+            expect(cells[8]).toHaveTextContent(/^–$/);
+            expect(cells[9]).toHaveTextContent(/^–$/);
         }, {timeout: 2000});
     });
 
@@ -825,8 +825,8 @@ describe("Heartbeats Component", () => {
         renderWithRouter(<Heartbeats/>);
         const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
         expect(cells[5]).toHaveTextContent("N/A");
-        expect(cells[8]).toHaveTextContent(/^-$/);
-        expect(cells[9]).toHaveTextContent(/^-$/);
+        expect(cells[8]).toHaveTextContent(/^–$/);
+        expect(cells[9]).toHaveTextContent(/^–$/);
     });
 
     test("stream without type or state falls back to N/A and unknown", () => {

@@ -146,7 +146,7 @@ const StatusWord = ({status, notProvisioned = false}) => {
             <SymbolHelp meaning={t("statusBoard.details.status", {status: status || t("instance.unknown")})}>
                 <StatusMark state={toObjectState(status)} label={status || t("instance.unknown")}/>
             </SymbolHelp>
-            {status || "-"}
+            {status || "–"}
             {notProvisioned && <NotProvisionedHelp/>}
         </span>
     );
@@ -230,10 +230,10 @@ export function InstanceStatus({path, node}) {
                     <Fact label={<Term term="object">{t("instance.panel.object")}</Term>}><CrossLink kind="object" id={path}>{path}</CrossLink></Fact>
                     <Fact label={<Term term="node">{t("instance.panel.node")}</Term>}><CrossLink kind="node" id={node}>{node}</CrossLink></Fact>
                     <Fact label={<Term term="avail">{t("instance.panel.avail")}</Term>}><StatusWord status={status.avail}/></Fact>
-                    <Fact label={<Term term="overall">{t("instance.panel.overall")}</Term>}>{status.overall || "-"}</Fact>
+                    <Fact label={<Term term="overall">{t("instance.panel.overall")}</Term>}>{status.overall || "–"}</Fact>
                     <Fact label={<Term term="provisioned">{t("instance.panel.provisioned")}</Term>}>
                         <span className="inline-flex items-center gap-1.5">
-                            {String(status.provisioned ?? "-")}
+                            {String(status.provisioned ?? "–")}
                             {notProvisioned && <NotProvisionedHelp/>}
                         </span>
                     </Fact>
@@ -243,7 +243,7 @@ export function InstanceStatus({path, node}) {
                             {frozen ? <SymbolHelp meaning={t("ui.frozen")}><FrozenMark frozen/></SymbolHelp> : <FrozenMark frozen={false}/>}
                         </span>
                     </Fact>
-                    <Fact label={<Term term="monitor">{t("instance.panel.monitor")}</Term>}>{monitor.state || "-"}</Fact>
+                    <Fact label={<Term term="monitor">{t("instance.panel.monitor")}</Term>}>{monitor.state || "–"}</Fact>
                     {datastores.length > 0 && (
                         <Fact label={t("instance.panel.datastores")}><DatastoreLinks paths={datastores}/></Fact>
                     )}
@@ -342,7 +342,7 @@ export function ResourceStatus({path, rid, node: onNode}) {
                         <Fact label={t("resource.panel.instance")}><InstanceLink path={path} node={onNode}/></Fact>
                     )}
                     <Fact label={t("instance.panel.rid")}><span className="font-medium">{rid}</span></Fact>
-                    <Fact label={t("common.type")}>{type ?? "-"}</Fact>
+                    <Fact label={t("common.type")}>{type ?? "–"}</Fact>
                     {datastores.length > 0 && (
                         <Fact label={t("instance.panel.datastores")}><DatastoreLinks paths={datastores}/></Fact>
                     )}
@@ -368,7 +368,7 @@ export function ResourceStatus({path, rid, node: onNode}) {
                             <Cell className="whitespace-nowrap"><InstanceLink path={path} node={node}/></Cell>
                             <Cell><StatusWord status={r.status} notProvisioned={r.provisioned?.state === "false"}/></Cell>
                             <Cell className="text-ink-muted">
-                                {FLAGS.filter((flag) => r[flag]).map((flag) => t(`resource.panel.flag.${flag}`)).join(", ") || "-"}
+                                {FLAGS.filter((flag) => r[flag]).map((flag) => t(`resource.panel.flag.${flag}`)).join(", ") || "–"}
                             </Cell>
                             <Cell className="break-all">{r.label}</Cell>
                         </Row>

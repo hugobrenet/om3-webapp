@@ -43,7 +43,7 @@ function GroupName({node}) {
  * io, bytes a second, "…" until a second reading tells it.
  */
 export function ioFigure(key, value, locale) {
-    if (value === undefined) return "-";
+    if (value === undefined) return "–";
     if (key === "tasks") return value.toLocaleString(locale);
     if (value === null) return "…";
     return `${formatBytes(value, locale) || "0 B"}/s`;
@@ -58,8 +58,8 @@ export function UsageTreeTable({tree, limits = false}) {
     const {t, i18n} = useTranslation();
     const [folded, setFolded] = useState(() => new Set());
     const cpu = (value) => (value === null || value === undefined ? "…" : formatCpu(value, i18n.language));
-    const memory = (value) => formatBytes(value, i18n.language) || "-";
-    const limit = (value) => (value === undefined ? "-" : value === Infinity ? t("clusterUsage.unlimited") : memory(value));
+    const memory = (value) => formatBytes(value, i18n.language) || "–";
+    const limit = (value) => (value === undefined ? "–" : value === Infinity ? t("clusterUsage.unlimited") : memory(value));
     const fold = (key) => setFolded((prev) => {
         const next = new Set(prev);
         if (next.has(key)) next.delete(key);

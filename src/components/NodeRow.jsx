@@ -48,7 +48,7 @@ function NameCell({nodename, env, layout, booted, updated}) {
     return (
         <Cell className="font-medium whitespace-nowrap">
             <span className="inline-flex items-center gap-1.5">
-                {nodename || "-"}
+                {nodename || "–"}
                 {!layout.envColumn && env && <span className={BADGE}>{env}</span>}
             </span>
             {layout.datesInName && (
@@ -143,7 +143,7 @@ const NodeRow = ({
         />
     );
     // A dash rather than a percent of nothing: no value reported, or no swap.
-    const swap = typeof stats?.swap_avail === "number" && stats?.swap_total !== 0 ? `${stats.swap_avail}%` : "-";
+    const swap = typeof stats?.swap_avail === "number" && stats?.swap_total !== 0 ? `${stats.swap_avail}%` : "–";
     const score = has(stats?.score) ? stats.score : notAvailable;
 
     return (
@@ -209,11 +209,11 @@ const NodeRow = ({
                 </>
             )}
             {layout.version && <Cell className="whitespace-nowrap">{status?.agent || notAvailable}</Cell>}
-            {layout.envColumn && <Cell className="whitespace-nowrap">{info?.env || "-"}</Cell>}
+            {layout.envColumn && <Cell className="whitespace-nowrap">{info?.env || "–"}</Cell>}
             {/* Its labels, a tag each, as the node configuration sets them, on one line: not fitting, the column dropped (nodeLayout). */}
             {layout.labels && (
                 <Cell>
-                    {Object.keys(info?.labels ?? {}).length === 0 ? "-" : (
+                    {Object.keys(info?.labels ?? {}).length === 0 ? "–" : (
                         <span className="flex gap-1 whitespace-nowrap" aria-label={t("nodes.columns.labels")}>
                             {Object.entries(info.labels).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => (
                                 <span key={k} className={BADGE}>

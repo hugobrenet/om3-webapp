@@ -206,7 +206,7 @@ function OpensvcUsage({nodes}) {
     const cpuShare = host && share(all.cpu, host.cpu);
     const memoryShare = host && share(all.memory, host.memory);
     const cpu = (value) => (value === null || value === undefined ? "…" : formatCpu(value, i18n.language));
-    const memory = (value) => formatBytes(value, i18n.language) || "-";
+    const memory = (value) => formatBytes(value, i18n.language) || "–";
     if (told.length === 0) {
         return (
             <p className="text-data text-ink-muted">

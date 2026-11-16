@@ -320,7 +320,7 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
         const pct = stats?.[`${kind}_avail`];
         const total = stats?.[`${kind}_total`];
         // A dash rather than a percent of nothing, as in the nodes table: no value reported, or no swap.
-        if (typeof pct !== "number" || total === 0) return "-";
+        if (typeof pct !== "number" || total === 0) return "–";
         const threshold = thresholds?.[kind];
         const min = threshold ? thresholdPct(threshold.text, total, MIN_AVAIL[kind].cap) : null;
         const low = min !== null && min > 0 && pct < min;

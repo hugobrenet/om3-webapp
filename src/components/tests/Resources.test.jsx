@@ -80,8 +80,8 @@ describe('Resources', () => {
         expect(global.fetch.mock.calls[0][1].headers).toEqual({Authorization: 'Bearer tok'});
         expect(rows()).toEqual([
             ['ns1/svc/web', 'n1', 'container#1', 'container.docker', 'upup', 'monitored, 2 restarts left', ''],
-            ['ns1/svc/web', 'n1', 'fs#1', 'fs.flag', 'upup', '-', '/srv/web'],
-            ['ns1/svc/web', 'n2', 'fs#1', 'fs.flag', 'downdown', '-', '/srv/web'],
+            ['ns1/svc/web', 'n1', 'fs#1', 'fs.flag', 'upup', '–', '/srv/web'],
+            ['ns1/svc/web', 'n2', 'fs#1', 'fs.flag', 'downdown', '–', '/srv/web'],
             ['system/svc/dns', 'n2', 'ip#0', 'ip.host', 'warnwarnnot provisioned', 'disabled', ''],
         ]);
         expect(screen.getByText('4 / 4')).toBeInTheDocument();

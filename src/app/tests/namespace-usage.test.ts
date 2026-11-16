@@ -161,8 +161,8 @@ describe("formatCpuPercent", () => {
   });
 
   test("a usage not known yet reads -", () => {
-    expect(formatCpuPercent(null)).toBe("-");
-    expect(formatCpuPercent(undefined)).toBe("-");
+    expect(formatCpuPercent(null)).toBe("–");
+    expect(formatCpuPercent(undefined)).toBe("–");
   });
 });
 

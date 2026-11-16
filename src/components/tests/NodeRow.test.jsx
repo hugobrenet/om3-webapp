@@ -185,7 +185,7 @@ describe('NodeRow Component', () => {
         expect(cells[3]).toHaveTextContent('N/A');
         expect(cells[4]).toHaveTextContent('N/A');
         expect(cells[5]).toHaveTextContent('N/A');
-        expect(cells[6]).toHaveTextContent(/^-$/);
+        expect(cells[6]).toHaveTextContent(/^–$/);
         expect(cells[7]).toHaveTextContent('N/A');
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     });
@@ -194,7 +194,7 @@ describe('NodeRow Component', () => {
         const {rerender} = render(<NodeRow {...defaultProps} stats={{swap_avail: 0, swap_total: 2048}}/>);
         expect(screen.getAllByRole('cell')[6]).toHaveTextContent(/^0%$/);
         rerender(<NodeRow {...defaultProps} stats={{swap_avail: 0, swap_total: 0}}/>);
-        expect(screen.getAllByRole('cell')[6]).toHaveTextContent(/^-$/);
+        expect(screen.getAllByRole('cell')[6]).toHaveTextContent(/^–$/);
     });
 
     test('renders the load bar beside its value, with value and state', () => {
@@ -260,18 +260,18 @@ describe('NodeRow Component', () => {
             expect(screen.getByText('30 seconds ago')).toBeInTheDocument();
         });
 
-        test('renders "-" when booted_at equals the zero-value date', () => {
+        test('renders "–" when booted_at equals the zero-value date', () => {
             render(<NodeRow {...defaultProps} status={{...defaultProps.status, booted_at: '0001-01-01T00:00:00Z'}}/>);
             const cells = screen.getAllByRole('cell');
-            expect(cells[8]).toHaveTextContent(/^-$/);
+            expect(cells[8]).toHaveTextContent(/^–$/);
         });
     });
 
     describe('updated_at column', () => {
-        test('renders "-" when updated_at is null', () => {
+        test('renders "–" when updated_at is null', () => {
             render(<NodeRow {...defaultProps} />);
             const cells = screen.getAllByRole('cell');
-            expect(cells[9]).toHaveTextContent(/^-$/);
+            expect(cells[9]).toHaveTextContent(/^–$/);
         });
 
         test('renders formatted date when updated_at is valid', () => {
@@ -297,11 +297,11 @@ describe('NodeRow Component', () => {
             expect(screen.getByText('30 seconds ago')).toBeInTheDocument();
         });
 
-        test('renders "-" when updated_at equals the zero-value date', () => {
+        test('renders "–" when updated_at equals the zero-value date', () => {
             render(<NodeRow {...defaultProps}
                             monitor={{...defaultProps.monitor, updated_at: '0001-01-01T00:00:00Z'}}/>);
             const cells = screen.getAllByRole('cell');
-            expect(cells[9]).toHaveTextContent(/^-$/);
+            expect(cells[9]).toHaveTextContent(/^–$/);
         });
     });
 
@@ -330,10 +330,10 @@ describe('NodeRow Component', () => {
         expect(screen.getByRole('progressbar', {name: 'Memory available'})).toHaveAttribute('data-state', 'up');
     });
 
-    test('renders "-" when nodename is empty', () => {
+    test('renders "–" when nodename is empty', () => {
         render(<NodeRow {...defaultProps} nodename=""/>);
         const cells = screen.getAllByRole('cell');
-        expect(cells[1]).toHaveTextContent('-');
+        expect(cells[1]).toHaveTextContent('–');
     });
 
     test('its env, and its labels a tag each, by key; none, a dash', () => {
@@ -343,8 +343,8 @@ describe('NodeRow Component', () => {
         expect(within(cells[9]).getByLabelText('Labels').children).toHaveLength(2);
         expect([...within(cells[9]).getByLabelText('Labels').children].map((tag) => tag.textContent)).toEqual(['gpu', 'zone=a']);
         rerender(<NodeRow {...defaultProps} info={{env: '', labels: {}}}/>);
-        expect(screen.getAllByRole('cell')[8]).toHaveTextContent('-');
-        expect(screen.getAllByRole('cell')[9]).toHaveTextContent('-');
+        expect(screen.getAllByRole('cell')[8]).toHaveTextContent('–');
+        expect(screen.getAllByRole('cell')[9]).toHaveTextContent('–');
     });
 
     test('keeps its cells on one line', () => {

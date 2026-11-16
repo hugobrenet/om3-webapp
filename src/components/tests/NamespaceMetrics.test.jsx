@@ -86,8 +86,8 @@ describe('NamespaceMetrics', () => {
         await screen.findByRole('row', {name: /prod\/svc\/web/});
         // web on both nodes, db on n1 only; dev's objects and the one without a cgroup left out.
         expect(paths().sort()).toEqual(['prod/svc/db', 'prod/svc/web']);
-        expect(row('prod/svc/web')).toEqual(['prod/svc/web', '2', '-', '2.0 MiB', 'unlimited']);
-        expect(row('prod/svc/db')).toEqual(['prod/svc/db', '1', '-', '2.0 MiB', '-']);
+        expect(row('prod/svc/web')).toEqual(['prod/svc/web', '2', '–', '2.0 MiB', 'unlimited']);
+        expect(row('prod/svc/db')).toEqual(['prod/svc/db', '1', '–', '2.0 MiB', '–']);
     });
 
     test('the cpu from the second reading of the nodes, read shortly after the first, summed over them', async () => {
@@ -126,7 +126,7 @@ describe('NamespaceMetrics', () => {
         render(<NamespaceMetrics namespace="prod"/>);
         expect(await screen.findByRole('alert')).toHaveTextContent('Failed to fetch metrics: n2: HTTP 503');
         await screen.findByRole('row', {name: /prod\/svc\/web/});
-        expect(row('prod/svc/web')).toEqual(['prod/svc/web', '1', '-', '1.0 MiB', 'unlimited']);
+        expect(row('prod/svc/web')).toEqual(['prod/svc/web', '1', '–', '1.0 MiB', 'unlimited']);
     });
 
     test('says when the namespace has no cgroup, without a total', async () => {

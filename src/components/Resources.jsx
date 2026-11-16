@@ -423,7 +423,7 @@ const Resources = () => {
                             <Cell className="whitespace-nowrap">
                                     <span className="inline-flex items-center gap-1.5">
                                         <StatusMark state={toObjectState(l.status)} label={l.status || t("instance.unknown")} muted={l.quiet !== null}/>
-                                        <span className={l.quiet ? "text-ink-muted" : undefined}>{l.status || "-"}</span>
+                                        <span className={l.quiet ? "text-ink-muted" : undefined}>{l.status || "–"}</span>
                                         {l.quiet && <span className="text-ink-muted">· {t(QUIET_WORDS[l.quiet])}</span>}
                                         {l.notProvisioned && <span className="text-state-warn">{t("resources.notProvisioned")}</span>}
                                     </span>
@@ -433,7 +433,7 @@ const Resources = () => {
                                 {[
                                     ...l.flags.map((f) => t(`resources.flags.${f}`)),
                                     ...(l.restarts === undefined ? [] : [t("resources.restarts", {count: l.restarts})]),
-                                ].join(", ") || "-"}
+                                ].join(", ") || "–"}
                             </Cell>}
                             {layout.label && <Cell className="min-w-40 break-all">{l.label}</Cell>}
                         </Row>

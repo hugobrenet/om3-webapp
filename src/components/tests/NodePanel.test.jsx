@@ -147,7 +147,7 @@ describe('NodeDetailPanel', () => {
         expect(health).toHaveTextContent('Score63');
         expect(health).toHaveTextContent('Memory available42% of 5.8 GiB');
         // No swap: a dash, as in the nodes table, and no minimum to set.
-        expect(health).toHaveTextContent('Swap available-Overloaded');
+        expect(health).toHaveTextContent('Swap available–Overloaded');
         expect(health).toHaveTextContent('OverloadedNo');
         expect(mockRetain).toHaveBeenCalledWith('tok', ['NodeStatusUpdated', 'NodeMonitorUpdated', 'NodeStatsUpdated']);
 

@@ -89,7 +89,7 @@ describe('ClusterUsage', () => {
         expect(within(table()).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Control group', 'CPU', 'Memory', 'Tasks', 'Read/s', 'Write/s']);
         expect(lines()[0]).toEqual(['opensvc.slice', '3 cpu', '8 GiB', '50', '3 KiB/s', '…']);
         // An object telling none: a dash.
-        expect(lines()[2].slice(3)).toEqual(['-', '-', '-']);
+        expect(lines()[2].slice(3)).toEqual(['–', '–', '–']);
         // Ordered by them too.
         expect(within(screen.getByRole('group', {name: 'Order'})).getAllByRole('button').map((b) => b.textContent)).toEqual(['CPU', 'Memory', 'Tasks', 'Read', 'Write', 'Name']);
         fireEvent.click(screen.getByRole('button', {name: 'Tasks'}));
