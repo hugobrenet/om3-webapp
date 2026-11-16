@@ -256,3 +256,21 @@
     right: min(0px, calc((100% - 32px) / 2));
   }
 }
+
+/*
+ * The lines of a stream read as a terminal (useFollowScroll): a line new since those
+ * first shown, a tint fading out, the eye led to what came, wherever it lands.
+ * Animated by the browser alone, as many lines as a burst brings; reduced motion,
+ * the tint gone at once.
+ */
+[data-fresh] {
+  animation: stream-fresh 1.6s ease-out;
+}
+@keyframes stream-fresh {
+  from {
+    background-color: color-mix(in oklab, var(--accent) 22%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
