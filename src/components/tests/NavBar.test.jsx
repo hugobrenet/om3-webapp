@@ -231,7 +231,7 @@ describe('NavBar', () => {
     test('is the oc3 top bar, in the om3 band colour: a 44px header with a breadcrumb navigation', () => {
         renderNavBar();
         const header = screen.getByRole('banner');
-        expect(header).toHaveClass('brand-bar', 'h-11', 'border-b', 'border-line');
+        expect(header).toHaveClass('brand-bar', 'h-(--navbar-height)', 'border-b', 'border-line');
         expect(header).not.toHaveClass('bg-surface-raised');
         expect(screen.getByRole('navigation', {name: 'Breadcrumb'})).toBeInTheDocument();
     });

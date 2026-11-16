@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { RecordPanel } from "../RecordPanel";
@@ -8,6 +8,7 @@ import { PanelReopenKey } from "../PanelReopenKey";
 import { CrossLink } from "../CrossLink";
 import { usePanelSearch } from "../panel-search";
 import { readLastRecord, reloadRecordHistory } from "../record-history";
+import { trackDone, useActionTracker } from "../action-tracker";
 
 function token(claims: Record<string, unknown>): string {
   return `h.${btoa(JSON.stringify(claims)).replace(/=+$/, "")}.s`;
@@ -89,6 +90,19 @@ describe("record panels", () => {
     const panel = screen.getByRole("dialog", { name: "lo" });
     expect(within(panel).getByRole("tab", { name: "Status" })).toHaveAttribute("aria-selected", "true");
     expect(within(panel).getByText("content of status")).toBeInTheDocument();
+  });
+
+  test("no actions tray of its own: the navbar's, under which it opens, says the actions", () => {
+    renderView();
+    fireEvent.click(screen.getByRole("button", { name: "lo" }));
+    act(() => {
+      trackDone({ action: "restart", label: "Restart", subject: "lo" });
+    });
+    const panel = screen.getByRole("dialog", { name: "lo" });
+    expect(within(panel).queryByRole("button", { name: /^Actions: / })).not.toBeInTheDocument();
+    act(() => {
+      useActionTracker.setState({ tracked: [], revealed: 0 });
+    });
   });
 
   test("its tabs named after the record, not the words of a missing translation", () => {
