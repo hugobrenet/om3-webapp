@@ -3,6 +3,16 @@ import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {axe} from 'vitest-axe';
 import AiChat, {groupConversations} from '../AiChat.jsx';
+import {MemoryRouter} from 'react-router-dom';
+import {AiChatProvider} from '../../context/AiChatProvider.jsx';
+
+// The provider reads the page under the dock: the application mounts it in its
+// router. The page of the assistant has none under it.
+const ChatWrapper = ({children}) => (
+    <MemoryRouter initialEntries={['/ai']}>
+        <AiChatProvider>{children}</AiChatProvider>
+    </MemoryRouter>
+);
 import {NARROW_QUERY} from '../../ui/lib/media';
 import {AiAgentError} from '../../services/ai-agent.js';
 import {replayRun} from '../../services/tests/agui-fixtures.js';
@@ -87,7 +97,7 @@ describe('AI chatbot page', () => {
         };
     });
     const renderReady = async (props = {}) => {
-        const view = render(<AiChat {...props} />);
+        const view = render(<AiChat {...props} />, {wrapper: ChatWrapper});
         await waitFor(() =>
             expect(screen.getByRole('button', {name: 'New conversation'})).toBeEnabled()
         );
@@ -106,7 +116,14 @@ describe('AI chatbot page', () => {
         await waitFor(() => expect(mocks.client.run).toHaveBeenCalledTimes(1));
         expect(mocks.client.run).toHaveBeenCalledWith(
             'new',
-            {prompt: 'Keyboard diagnostic', promptId: 'prompt-1', held: []},
+            {
+                prompt: 'Keyboard diagnostic', promptId: 'prompt-1', held: [],
+                // On the page of the assistant, the clock of the user only.
+                context: [
+                    {description: 'time zone', value: expect.any(String)},
+                    {description: 'local time', value: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d$/)},
+                ],
+            },
             expect.any(Object)
         );
         expect(input).toHaveValue('');
@@ -324,17 +341,10 @@ describe('AI chatbot page', () => {
         expect(mocks.client.deleteConversation).toHaveBeenCalledWith('new', expect.any(Object));
         expect(screen.queryByRole('button', {name: 'Rename the conversation'})).not.toBeInTheDocument();
     });
-    test('deletes every conversation after a confirmation', async () => {
+    // As in oc3: one conversation at a time, no button to delete them all.
+    test('offers no deletion of every conversation at once', async () => {
         await renderReady();
-        const button = await screen.findByRole('button', {name: 'Delete all conversations'});
-        mocks.client.listConversations.mockResolvedValueOnce([existing]).mockResolvedValueOnce([]);
-        fireEvent.click(button);
-        expect(screen.getByRole('dialog')).toHaveTextContent('Delete all your conversations (1 loaded)');
-        expect(mocks.client.deleteConversation).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole('button', {name: 'Confirm deletion'}));
-        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-        expect(mocks.client.deleteConversation).toHaveBeenCalledWith('existing', expect.any(Object));
-        expect(screen.queryByRole('button', {name: 'Delete all conversations'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: /delete all/i})).not.toBeInTheDocument();
     });
     test('keeps the title on Escape, an empty title, and saves it on leaving the field', async () => {
         await renderReady();
@@ -439,7 +449,7 @@ describe('AI chatbot page', () => {
             if (reason === 'missing-token') mocks.auth.accessToken = null;
             if (reason === 'missing-target') mocks.clusterId = '';
             if (reason === 'not-openid') mocks.auth.authChoice = 'basic';
-            render(<AiChat />);
+            render(<AiChat />, {wrapper: ChatWrapper});
             // Information strips are announced politely, as a status: one, saying why.
             expect(screen.getByRole('status')).toHaveTextContent(why);
             expect(screen.queryByRole('textbox', {name: 'Message'})).not.toBeInTheDocument();

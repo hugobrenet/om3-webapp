@@ -5,6 +5,11 @@
  */
 
 :root {
+  /* The layers of what floats over the views, low to high: the side panels
+     (z-10); the dock of the assistant, over them; the menu laid over a phone
+     (z-30); the menus and popovers (z-[1200]); the modal dialogs (z-[1300]). */
+  --z-dock: 20;
+
   /* Surfaces and ink: cool neutral, meant for long sessions over dense tables */
   --surface: #f6f7f5;
   --surface-raised: #ffffff;

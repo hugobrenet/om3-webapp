@@ -35,6 +35,7 @@ import ActionDialogManager from "./ActionDialogManager";
 import {CLEAR_ACTION, noteFixAction, postAction} from "./objectActions";
 import {INSTANCE_ACTIONS, OBJECT_ACTIONS, actionLabel} from "../constants/actions";
 import {rangeSelect, withShift} from "../app/range-select";
+import {useShareCheckedRows} from "../app/checked-rows";
 
 // The breakpoints of the MUI theme the view used: below md (900px) the filters fold
 // behind a button, from lg (1200px) the node columns are shown.
@@ -583,6 +584,7 @@ const Objects = () => {
     const objectStatus = useEventStore(selectObjectStatus);
     const objectInstanceStatus = useEventStore(selectObjectInstanceStatus);
     const [selectedObjects, setSelectedObjects] = useState([]);
+    useShareCheckedRows("objects", selectedObjects);
     // The actions on the selection: the Actions menu, its dialog, and the feedback strip.
     const clearSelection = useCallback(() => setSelectedObjects([]), []);
     const {items: bulkActions, feedback, dialog: actionDialog, notify} = useObjectBulkActions({selectedObjects, onDone: clearSelection});

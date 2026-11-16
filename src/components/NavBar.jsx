@@ -1,6 +1,6 @@
 import {Link, useLocation} from "react-router-dom";
 import {useTranslation} from "react-i18next";
-import {ChatIcon, SidebarIcon, UserIcon} from "../ui/icons";
+import {SidebarIcon, UserIcon} from "../ui/icons";
 import {AlertMark} from "../ui/components/AlertMark";
 import {cn} from "../ui/cn";
 import {GlobalSearch} from "../app/GlobalSearch";
@@ -11,8 +11,8 @@ import {useAuth} from "../context/AuthProvider.jsx";
 import {useEffect, useState} from "react";
 import useClusterConfig from "../hooks/useClusterConfig.js";
 import useOnlineStatus from "../hooks/useOnlineStatus";
-import {getAiAgentConfig} from "../config/ai-agent.js";
 import {ActionTray} from "../app/ActionTray";
+import {AiDockButton} from "./AiDock.jsx";
 
 // Header icon buttons: outlined, as every button that neither creates nor deletes; muted ink, darker on hover.
 const HEADER_BUTTON =
@@ -54,17 +54,14 @@ const crumb = (part, index, path) => ({
 const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false, menuAlert = null}) => {
     const auth = useAuth();
     const location = useLocation();
-    // The name of the cluster and its agent, from the event stream of the menu:
-    // no cluster status is read.
-    const {clusterName, agentUrl, loaded} = useClusterConfig();
+    // The name of the cluster, from the event stream of the menu: no cluster
+    // status is read.
+    const {clusterName, loaded} = useClusterConfig();
     const storedClusterName = clusterName || null;
     const loading = Boolean(auth?.authToken || localStorage.getItem("authToken")) && !loaded;
     const [breadcrumb, setBreadcrumb] = useState([]);
     const online = useOnlineStatus();
     const {t} = useTranslation();
-    // The assistant, for a cluster whose configuration names an agent, to an
-    // OpenID session: the agent takes no other.
-    const aiEnabled = getAiAgentConfig(agentUrl).enabled && auth?.authChoice === 'openid';
 
     // The tab names the cluster and the product, as the header does.
     useEffect(() => {
@@ -212,11 +209,8 @@ const NavBar = ({sidebarOpen = false, onToggleSidebar, showSidebarToggle = false
                     </>
                 )}
 
-                {aiEnabled && (
-                    <Link to="/ai" aria-label="Open the AI assistant" className={HEADER_BUTTON}>
-                        <ChatIcon width={16} height={16}/>
-                    </Link>
-                )}
+                {/* The dock of the assistant, over the page on display. */}
+                <AiDockButton/>
 
                 <Link to="/whoami" aria-label={t("nav.viewUser")} className={HEADER_BUTTON}>
                     <UserIcon width={16} height={16}/>

@@ -918,14 +918,36 @@ export function HashIcon(props: IconProps) {
   );
 }
 
-/** AI assistant: a speech bubble holding three dots, the conversations with the agent. */
-export function ChatIcon(props: IconProps) {
+/** A link that opens elsewhere: a box, an arrow leaving it (copied from oc3-frontend). */
+export function ExternalLinkIcon(props: IconProps) {
   return (
     <Svg {...props}>
-      <path
-        fillRule="evenodd"
-        d="M4.5 3.5h15a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8.2l-4.6 3.6a.8.8 0 0 1-1.3-.6v-3h-.9a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2ZM6.2 10.5a1.4 1.4 0 1 0 2.8 0 1.4 1.4 0 1 0-2.8 0Zm4.4 0a1.4 1.4 0 1 0 2.8 0 1.4 1.4 0 1 0-2.8 0Zm4.4 0a1.4 1.4 0 1 0 2.8 0 1.4 1.4 0 1 0-2.8 0Z"
-      />
+      <path d="M5 4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5a1 1 0 1 1 2 0v5a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3h5a1 1 0 1 1 0 2H5Zm9-2h7a1 1 0 0 1 1 1v7a1 1 0 1 1-2 0V5.4l-8.3 8.3a1 1 0 0 1-1.4-1.4L18.6 4H14a1 1 0 1 1 0-2Z" />
+    </Svg>
+  );
+}
+
+/** The AI assistant: a large four-pointed spark and two small ones (copied from oc3-frontend). */
+export function SparklesIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M9.5 3c.6 4.2 2.8 6.4 7 7-4.2.6-6.4 2.8-7 7-.6-4.2-2.8-6.4-7-7 4.2-.6 6.4-2.8 7-7Z" />
+      <path d="M18.5 13.5c.3 1.9 1.2 2.8 3 3-1.8.3-2.7 1.2-3 3-.3-1.8-1.2-2.7-3-3 1.8-.2 2.7-1.1 3-3Z" />
+      <path d="M18 2.5c.2 1.3.8 1.9 2 2-1.2.2-1.8.8-2 2-.2-1.2-.8-1.8-2-2 1.2-.1 1.8-.7 2-2Z" />
+    </Svg>
+  );
+}
+
+/** A handle to move what it holds: two columns of dots. */
+export function GripIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="9" cy="6" r="1.6" />
+      <circle cx="15" cy="6" r="1.6" />
+      <circle cx="9" cy="12" r="1.6" />
+      <circle cx="15" cy="12" r="1.6" />
+      <circle cx="9" cy="18" r="1.6" />
+      <circle cx="15" cy="18" r="1.6" />
     </Svg>
   );
 }

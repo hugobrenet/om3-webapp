@@ -4,6 +4,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {axe} from 'vitest-axe';
 import AiChat from '../AiChat.jsx';
+import {AiChatProvider} from '../../context/AiChatProvider.jsx';
 
 const mocks = vi.hoisted(() => ({auth: null, client: null, ready: true}));
 vi.mock('../../context/AuthProvider.jsx', () => ({useAuth: () => mocks.auth}));
@@ -37,7 +38,9 @@ describe('the tips for writing a request', () => {
     const open = async () => {
         const view = render(
             <MemoryRouter>
-                <AiChat/>
+                <AiChatProvider>
+                    <AiChat/>
+                </AiChatProvider>
             </MemoryRouter>
         );
         await waitFor(() => expect(screen.getByRole('button', {name: 'New conversation'})).toBeEnabled());
@@ -73,7 +76,9 @@ describe('the tips for writing a request', () => {
         expect(screen.getByRole('dialog', {name: 'What the assistant can do'})).toBeInTheDocument();
         const rerender = () => view.rerender(
             <MemoryRouter>
-                <AiChat/>
+                <AiChatProvider>
+                    <AiChat/>
+                </AiChatProvider>
             </MemoryRouter>
         );
         mocks.ready = false;

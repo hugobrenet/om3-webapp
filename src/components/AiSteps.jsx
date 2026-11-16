@@ -210,7 +210,6 @@ export function AiSteps({message, status}) {
     // such as the steps of a turn stored before the times were.
     const timed = steps.every((step) => Number.isFinite(step.startedAt));
     const ordered = timed ? [...steps].sort((left, right) => left.startedAt - right.startedAt) : steps;
-    const current = steps.find((step) => step.status === "running");
     const summary = live
         ? untrustedT(t, "ai.steps.running", {time: clock(now - message.liveSince)})
         : t("ai.steps.summary", {count: steps.length, duration: formatDuration(answerDuration(message), i18n.language)});
@@ -239,9 +238,6 @@ export function AiSteps({message, status}) {
                 <ChevronDownIcon width={12} height={12} className={cn("transition-transform", !open && "-rotate-90")}/>
                 {summary}
             </button>
-            {live && current && !open && (
-                <p className="ml-4 text-data text-ink-muted [overflow-wrap:anywhere]">{stepSentence(current, t, i18n)}</p>
-            )}
             <ol id={listId} hidden={!open} aria-label={t("ai.steps.label")} className="mt-1 space-y-1 border-l border-line pl-3">
                 {rows}
             </ol>

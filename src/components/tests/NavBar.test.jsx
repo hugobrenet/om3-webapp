@@ -55,6 +55,7 @@ vi.mock('../../context/OidcAuthContext.tsx', () => ({
 
 vi.mock('../../context/AuthProvider.jsx', () => ({
     useAuth: mockUseAuth,
+    useAuthSession: mockUseAuth,
     useAuthDispatch: () => mockAuthDispatch,
     Logout: 'LOGOUT',
 }));
@@ -313,18 +314,10 @@ describe('NavBar', () => {
         expect(document.querySelector('[aria-keyshortcuts="?"]')).toBeNull();
     });
 
-    // The cluster status names the agent of the cluster: the entry shows for it,
-    // to an OpenID session, the only one the agent takes.
-    test.each([
-        ['shows for a cluster with an agent, to an OpenID session', 'https://agent.example.com', 'openid', true],
-        ['is hidden for a cluster without agent', '', 'openid', false],
-        ['is hidden for a session not OpenID', 'https://agent.example.com', 'basic', false],
-        ['is hidden for an agent URL not HTTPS', 'http://agent.example.com', 'openid', false],
-    ])('the AI assistant entry of the top bar %s', (_name, agentUrl, authChoice, shown) => {
-        setupMocks({agentUrl, authChoice});
+    // The assistant is an entry of the menu, in its help (Sidebar): none in the top bar.
+    test('has no button for the AI assistant, an entry of the menu', () => {
+        setupMocks({agentUrl: 'https://agent.example.com', authChoice: 'openid'});
         renderNavBar();
-        const link = screen.queryByRole('link', {name: 'Open the AI assistant'});
-        if (shown) expect(link).toHaveAttribute('href', '/ai');
-        else expect(link).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', {name: /assistant/i})).not.toBeInTheDocument();
     });
 });

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {AGENT_TOOLS, AiAgentError} from '../services/ai-agent.js';
 
 const emptyState = (scope) => ({
@@ -289,7 +289,9 @@ const applySnapshot = (previous, snapshot, answerId) => {
 // The bound of a prompt, as the agent takes it.
 const MAX_QUEUED_BYTES = 32 * 1024;
 
-const useAiChat = ({client, ready, scope}) => {
+// interfaceContext gives what the page under the dock shows when a prompt is
+// sent, none on the page of the assistant (interface-context.ts).
+const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     const [state, setState] = useState(() => emptyState(scope));
     // The queued message, {conversationId, text}, and its copy read after an
     // await; release, the conversation whose run just ended normally.
@@ -381,7 +383,8 @@ const useAiChat = ({client, ready, scope}) => {
 
     useEffect(() => {
         epoch.current++;
-        setState(emptyState(scope));
+        // Opened for this scope, ready: what the chat shows is its own from now on.
+        setState({...emptyState(scope), opened: ready});
         // Another identity or cluster: the queue is lost, as it is kept in memory only.
         setQueued(null);
         setRelease(null);
@@ -412,6 +415,18 @@ const useAiChat = ({client, ready, scope}) => {
             }));
             return conversation;
         });
+
+    // Back to no conversation, as the page opens: the next message sent creates
+    // one. Nothing is asked of the agent: a question put in the message box by a
+    // link leaves no empty conversation behind when it is not sent.
+    const leaveConversation = () => {
+        if (!ready || active.current || state.scope !== scope || state.conversation === null) return;
+        setState((previous) => ({
+            ...emptyState(scope),
+            opened: true,
+            conversations: previous.scope === scope ? previous.conversations : [],
+        }));
+    };
 
     const resumeConversation = (id) => {
         if (state.scope === scope && state.conversation?.id === id && !state.partial) return;
@@ -523,47 +538,6 @@ const useAiChat = ({client, ready, scope}) => {
     // Delete every conversation of the user, as the list gives them, page
     // after page: the agent deletes one at a time. Those deleted leave the
     // history as they go, so a failure midway shows what is left.
-    const deleteAllConversations = () => {
-        if (state.scope !== scope) return;
-        return perform('deleting', async ({signal, update}) => {
-            const deleted = new Set();
-            const forget = () =>
-                update((previous) => {
-                    const gone = previous.conversation && deleted.has(previous.conversation.id);
-                    return {
-                        ...previous,
-                        conversations: previous.conversations.filter((item) => !deleted.has(item.id)),
-                        ...(gone ? {
-                            conversation: null,
-                            messages: [],
-                            resumed: false,
-                            historyReady: true,
-                            historyCursor: '',
-                            partial: false,
-                            confirmation: null,
-                            ratings: {},
-                        } : {}),
-                    };
-                });
-            try {
-                // A bound on the pages: a list that does not shrink stops.
-                for (let page = 0; page < 100; page += 1) {
-                    const conversations = (await client.listConversations({signal})).filter((item) => !deleted.has(item.id));
-                    if (!conversations.length) break;
-                    for (const item of conversations) {
-                        await client.deleteConversation(item.id, {signal});
-                        deleted.add(item.id);
-                        if (queuedRef.current?.conversationId === item.id) setQueued(null);
-                    }
-                    forget();
-                }
-            } finally {
-                forget();
-            }
-            return deleted.size;
-        });
-    };
-
     // Give, replace (feedback) or withdraw (null) the feedback of the user on
     // the turn of an answer of the current conversation.
     const rateTurn = async (turnId, feedback) => {
@@ -684,7 +658,9 @@ const useAiChat = ({client, ready, scope}) => {
         }).then(releaseAfter);
     };
 
-    const send = (prompt) => {
+    // The context is the page the prompt is asked from: read when it is
+    // sent, or, for a queued message, when it was queued.
+    const send = (prompt, context = interfaceContext()) => {
         if (!state.historyReady || state.confirmation || typeof prompt !== 'string' || !prompt.trim()) return;
         const current = state.scope === scope ? state.conversation : null;
         // The conversation whose run ended normally, which releases the queue.
@@ -716,7 +692,7 @@ const useAiChat = ({client, ready, scope}) => {
             if (signal.aborted) return;
             const result = await client.run(
                 conversation.id,
-                {prompt, promptId, held},
+                {prompt, promptId, held, context},
                 {signal, onEvent: runEvents(answerId, update)}
             );
             finish(result, conversation.id, answerId, update);
@@ -752,7 +728,8 @@ const useAiChat = ({client, ready, scope}) => {
     // last one replacing it. Its text is the user's, sent as typed.
     const queue = (text) => {
         if (typeof text !== 'string' || !text.trim() || new TextEncoder().encode(text).length > MAX_QUEUED_BYTES) return false;
-        setQueued({conversationId: state.scope === scope ? state.conversation?.id ?? null : null, text});
+        // The page it is asked from goes with it, whatever page the user is on once it is sent.
+        setQueued({conversationId: state.scope === scope ? state.conversation?.id ?? null : null, text, context: interfaceContext()});
         return true;
     };
     const unqueue = () => setQueued(null);
@@ -776,7 +753,7 @@ const useAiChat = ({client, ready, scope}) => {
         if (!item || state.confirmation || conversationId !== release.conversationId) return;
         if (item.conversationId !== null && item.conversationId !== conversationId) return;
         setQueued(null);
-        void send(item.text);
+        void send(item.text, item.context);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [release, state.pending]);
 
@@ -810,14 +787,21 @@ const useAiChat = ({client, ready, scope}) => {
     };
 
     // Never render a transcript belonging to a previous session or target.
-    const visible = ready && state.scope === scope ? state : emptyState(scope);
+    // Ready, the chat is its own once the effect above opened it, the
+    // conversations being read: until then, a render where it would read as open
+    // and idle, `opening` rather, its history not ready, the message box closed.
+    // The states in its place, one per scope: their messages the same array from a
+    // render to the next, which the views watch.
+    const closed = useMemo(() => emptyState(scope), [scope]);
+    const opening = useMemo(() => ({...emptyState(scope), historyReady: false, opening: true}), [scope]);
+    const visible = ready && state.scope === scope && state.opened ? state : ready ? opening : closed;
     return {
         ...visible,
         createConversation,
+        leaveConversation,
         resumeConversation,
         renameConversation,
         deleteConversation,
-        deleteAllConversations,
         refreshConversations,
         loadOlderMessages,
         send,

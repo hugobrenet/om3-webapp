@@ -4,6 +4,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {axe} from 'vitest-axe';
 import AiChat from '../AiChat.jsx';
+import {AiChatProvider} from '../../context/AiChatProvider.jsx';
 import {replayRun} from '../../services/tests/agui-fixtures.js';
 
 const mocks = vi.hoisted(() => ({auth: null, client: null}));
@@ -43,7 +44,9 @@ describe('the message queued while the agent answers', () => {
         mocks.client.run.mockImplementationOnce(run);
         const view = render(
             <MemoryRouter>
-                <AiChat/>
+                <AiChatProvider>
+                    <AiChat/>
+                </AiChatProvider>
             </MemoryRouter>
         );
         await waitFor(() => expect(screen.getByRole('button', {name: 'New conversation'})).toBeEnabled());

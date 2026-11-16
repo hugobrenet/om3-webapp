@@ -2,14 +2,14 @@ import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from
 import {useTranslation} from "react-i18next";
 import {useAuth} from "../context/AuthProvider.jsx";
 import useClusterConfig from "../hooks/useClusterConfig.js";
-import useAiAgent from "../hooks/useAiAgent.js";
 import useAiToolDocs from "../hooks/useAiToolDocs.js";
-import useAiChat from "../hooks/useAiChat.js";
+import useStickToBottom from "../hooks/useStickToBottom.js";
+import {useSharedAiChat} from "../context/AiChatContext.js";
 import {isFrozen, objectAttention, volMonitors} from "../hooks/useSidebarAlerts.js";
-import AiMarkdown from "./AiMarkdown.jsx";
 import AiPromptTips from "./AiPromptTips.jsx";
 import AiToolsDialog from "./AiToolsDialog.jsx";
-import {AiSteps, AnswerFooter} from "./AiSteps.jsx";
+import AiComposer from "./AiComposer.jsx";
+import AiMessages from "./AiMessages.jsx";
 import {ConfigText} from "./ConfigText.jsx";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 import {URL_OBJECT} from "../config/apiPath.js";
@@ -17,10 +17,9 @@ import AiArgumentsForm, {argumentsOf, compileSchema, draftOf, formFields, sameAr
 import {Alert} from "../ui/components/Alert";
 import {Button, IconButton} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
-import {Checkbox, Field, Input, Textarea} from "../ui/components/Field";
-import {FEEDBACK_REASONS, MAX_FEEDBACK_EXPECTED_CHARACTERS} from "../services/ai-agent.js";
+import {Input} from "../ui/components/Field";
 import {Spinner} from "../ui/components/Spinner";
-import {AlertTriangleIcon, ChatIcon, ClockIcon, InfoIcon, PencilIcon, PlusIcon, PuzzleIcon, SearchIcon, SendIcon, SidebarIcon, StopIcon, TrashIcon} from "../ui/icons";
+import {AlertTriangleIcon, InfoIcon, PencilIcon, PlusIcon, PuzzleIcon, SearchIcon, SidebarIcon, SparklesIcon, TrashIcon} from "../ui/icons";
 import {NARROW_QUERY, useMediaQuery} from "../ui/lib/media";
 import {cn} from "../ui/cn";
 import {untrustedT} from "../utils/untrustedText";
@@ -130,148 +129,6 @@ export function starterQuestions(status, t) {
     if (frozen !== undefined) questions.push(untrustedT(t, "ai.starters.frozen", {node: frozen}));
     questions.push(t("ai.starters.stopped"), t("ai.starters.heartbeats"));
     return questions.slice(0, 4);
-}
-
-/**
- * The feedback of the user on the answer of a turn: helpful, or to improve
- * with optional reasons and what they expected. Clicking the active rating
- * again withdraws it.
- */
-function Feedback({rating, onRate, onUnrate}) {
-    const {t} = useTranslation();
-    const current = rating?.feedback || null;
-    const pending = Boolean(rating?.pending);
-    const [form, setForm] = useState(null);
-    const expectedLength = form ? Array.from(form.expected.trim()).length : 0;
-    const tooLong = expectedLength > MAX_FEEDBACK_EXPECTED_CHARACTERS;
-
-    const openForm = () =>
-        setForm({
-            reasons: current?.rating === "down" ? current.reasons : [],
-            expected: current?.rating === "down" ? current.expected : "",
-        });
-    const clickUp = () => {
-        setForm(null);
-        void (current?.rating === "up" ? onUnrate() : onRate({rating: "up"}));
-    };
-    const clickDown = () => {
-        if (current?.rating === "down") {
-            setForm(null);
-            void onUnrate();
-        } else if (form) {
-            setForm(null);
-        } else {
-            openForm();
-        }
-    };
-    const toggleReason = (reason) =>
-        setForm((previous) => ({
-            ...previous,
-            reasons: previous.reasons.includes(reason)
-                ? previous.reasons.filter((item) => item !== reason)
-                : [...previous.reasons, reason],
-        }));
-    const send = async (event) => {
-        event.preventDefault();
-        if (tooLong || pending) return;
-        if (await onRate({rating: "down", reasons: form.reasons, expected: form.expected})) setForm(null);
-    };
-
-    return (
-        <div className="mt-2 space-y-2 text-data">
-            <div role="group" aria-label={t("ai.feedback.rate")} className="flex flex-wrap items-center gap-2">
-                <Button size="sm" aria-pressed={current?.rating === "up"} disabled={pending} onClick={clickUp}>
-                    <span aria-hidden="true">👍</span> {t("ai.feedback.helpful")}
-                </Button>
-                <Button
-                    size="sm"
-                    aria-pressed={current?.rating === "down"}
-                    aria-expanded={Boolean(form)}
-                    disabled={pending}
-                    onClick={clickDown}
-                >
-                    <span aria-hidden="true">👎</span> {t("ai.feedback.improve")}
-                </Button>
-                {current?.rating === "down" && !form && (
-                    <Button size="sm" icon={<PencilIcon width={12} height={12}/>} disabled={pending} onClick={openForm}>
-                        {t("ai.feedback.edit")}
-                    </Button>
-                )}
-                {pending && <Spinner label={t("ai.feedback.saving")}/>}
-                {current && !pending && !form && <span className="text-ink-muted">{t("ai.feedback.thanks")}</span>}
-            </div>
-            {rating?.error && <p role="alert" className="text-state-down">{rating.error}</p>}
-            {form && (
-                <form aria-label={t("ai.feedback.details")} onSubmit={send} className="space-y-2 rounded-(--radius-control) border border-line bg-surface-sunken p-2">
-                    <fieldset className="space-y-1">
-                        <legend className="mb-1 font-medium">{t("ai.feedback.reasonsLegend")}</legend>
-                        {FEEDBACK_REASONS.map((reason) => (
-                            <div key={reason}>
-                                <Checkbox
-                                    label={t(`ai.feedback.reasons.${reason}`)}
-                                    checked={form.reasons.includes(reason)}
-                                    disabled={pending}
-                                    onChange={() => toggleReason(reason)}
-                                />
-                            </div>
-                        ))}
-                    </fieldset>
-                    <Field
-                        label={t("ai.feedback.expected")}
-                        hint={tooLong ? undefined : t("ai.feedback.length", {length: expectedLength, max: MAX_FEEDBACK_EXPECTED_CHARACTERS})}
-                        error={tooLong ? t("ai.feedback.tooLong", {max: MAX_FEEDBACK_EXPECTED_CHARACTERS}) : undefined}
-                    >
-                        {(control) => (
-                            <Textarea
-                                {...control}
-                                rows={3}
-                                className="resize-y"
-                                value={form.expected}
-                                disabled={pending}
-                                onChange={(event) => setForm((previous) => ({...previous, expected: event.target.value}))}
-                            />
-                        )}
-                    </Field>
-                    <p className="text-ink-muted">{t("ai.feedback.privacy")}</p>
-                    <div className="flex justify-end gap-2">
-                        <Button size="sm" disabled={pending} onClick={() => setForm(null)}>
-                            {t("ai.feedback.cancel")}
-                        </Button>
-                        <Button size="sm" type="submit" disabled={pending || tooLong}>
-                            {t("ai.feedback.send")}
-                        </Button>
-                    </div>
-                </form>
-            )}
-        </div>
-    );
-}
-
-/** One message of the transcript: the text, the steps of its tools and the turn state. */
-function Message({message, feedback, status}) {
-    const {t} = useTranslation();
-    const user = message.role === "user";
-    return (
-        <li
-            className={cn(
-                "w-fit max-w-full rounded-(--radius-control) border border-line px-3 py-2",
-                user ? "self-end bg-surface-sunken" : "self-start bg-surface"
-            )}
-        >
-            <p className="mb-1 text-data font-semibold text-ink-muted">{user ? t("ai.message.you") : t("ai.message.assistant")}</p>
-            {!user && <AiSteps message={message} status={status}/>}
-            {message.text && !user && <AiMarkdown text={message.text} objects={status?.objects}/>}
-            {message.text && user && <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.text}</div>}
-            {message.status === "awaiting_confirmation" && (
-                <p className="mt-1 text-data text-state-warn">{t("ai.message.awaiting")}</p>
-            )}
-            {["stopped", "failed"].includes(message.status) && (
-                <p className="mt-1 text-data text-state-warn">{t(`ai.message.${message.status}`)}</p>
-            )}
-            {!user && message.status !== "running" && <AnswerFooter message={message}/>}
-            {feedback}
-        </li>
-    );
 }
 
 /**
@@ -602,25 +459,31 @@ function ConfirmationCard({confirmation, doc, busy, previewing, queued, onApprov
  * is the state of the menu pills, objects by path and node status by node, the
  * first questions offered come from.
  */
+/**
+ * The page of the assistant, on the chat the application holds (AiChatProvider):
+ * a turn goes on while the user looks at another page, and the dock shows the
+ * same conversation over them. `status`, the state of the cluster.
+ */
 const AiChat = ({status}) => {
     const {t} = useTranslation();
     const auth = useAuth();
-    // The configuration of the cluster, from the event stream of the menu,
-    // names the cluster and its agent: no cluster status is read.
-    const {clusterId, agentUrl, clusterName} = useClusterConfig();
-    const {enabled, openid, ready, configurationError, client} = useAiAgent({clusterId, agentUrl});
-    // A conversation belongs to an identity on a cluster: changing either resets the view.
-    const scope = JSON.stringify([auth.authChoice, auth.user, clusterId]);
-    const chat = useAiChat({client, ready, scope});
+    const shared = useSharedAiChat();
+    if (shared === null) throw new Error("AiChat needs an AiChatProvider");
+    const {agent, chat, clusterName, attach} = shared;
+    const {enabled, openid, ready, configurationError, client} = agent;
+    const {clusterId} = useClusterConfig();
     const toolDocs = useAiToolDocs(client, ready && Boolean(chat.confirmation));
     const [conversationsOpen, toggleConversations, {fold: foldConversations}] = useConversationsOpen();
     const [search, setSearch] = useState("");
-    const [draft, setDraft] = useState("");
     const [dialog, setDialog] = useState("");
     const [tipsOpen, setTipsOpen] = useState(false);
     const [toolsOpen, setToolsOpen] = useState(false);
     // The conversation the delete dialog asks about.
     const [deleting, setDeleting] = useState(null);
+    // The dialog of the composer replacing the message queued tells the error.
+    const [replacing, setReplacing] = useState(false);
+    // The page on display: the chat is read, and the turns that end now are seen.
+    useEffect(() => attach(), [attach]);
     // The tools are read as the session: one that ends closes them, and they
     // do not open again by themselves with the next.
     useEffect(() => {
@@ -634,19 +497,9 @@ const AiChat = ({status}) => {
     const renameEnded = useRef(false);
     const transcript = useRef(null);
     const scrollAnchor = useRef(null);
+    const composer = useRef(null);
     const busy = Boolean(chat.pending);
     const waiting = Boolean(chat.confirmation);
-    const promptTooLarge = new TextEncoder().encode(draft).length > 32 * 1024;
-    // The message box stays open while a turn runs and while a confirmation
-    // waits: what is sent then is queued. It closes for the short operations,
-    // loading, resuming, creating, confirming, previewing.
-    // A run resumed after an approval is the rest of its turn: the action
-    // runs, then the model goes on, at times for long.
-    const answering = chat.pending === "turn" || chat.pending === "confirming";
-    const queueing = answering || (waiting && !busy);
-    const composerClosed = !chat.historyReady || (busy && !answering);
-    const composer = useRef(null);
-    const [replacement, setReplacement] = useState("");
     const shownConversation = useRef(null);
     const untitled = t("ai.conversations.untitled");
     const titleOf = (conversation) => conversation.title || untitled;
@@ -658,44 +511,35 @@ const AiChat = ({status}) => {
     const starters =
         chat.historyReady && !busy && !waiting && !chat.messages.length ? starterQuestions(status, t) : [];
 
-    // Another conversation on display, or another identity or cluster: the
-    // message box starts from the message queued, given back, or empty. The
-    // conversation the first turn creates is the one on display: what the
-    // user types meanwhile stays.
-    // A conversation being resumed passes through none, its history not ready:
-    // only the arrival of the conversation it goes to counts. At the commit,
-    // before any click on the view it shows: a dialog opened right after, such
-    // as the rename of the conversation just created, is not closed by it.
+    // Another conversation on display: the dialogs and the title edited go. The
+    // message box starts again from the message queued, or empty, the provider
+    // holding it (AiChatProvider). At the commit, before any click on the view
+    // it shows: a dialog opened right after, such as the rename of the
+    // conversation just created, is not closed by it.
     useLayoutEffect(() => {
         if (!chat.historyReady) return;
-        const key = JSON.stringify([scope, ready, chat.conversation?.id ?? null]);
-        const previous = shownConversation.current;
-        if (previous === key) return;
+        const key = JSON.stringify([shared.ready, chat.conversation?.id ?? null]);
+        if (shownConversation.current === key) return;
         shownConversation.current = key;
-        if (chat.pending === "turn" && previous === JSON.stringify([scope, ready, null])) return;
-        setDraft(chat.takeQueued() ?? "");
         setDialog("");
         setTitle("");
         setRenaming(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [scope, ready, chat.conversation?.id, chat.pending, chat.historyReady]);
+    }, [shared.ready, chat.conversation?.id, chat.historyReady]);
 
-    // The message the dialog would replace went meanwhile: there is nothing
-    // left to replace, and what the user typed stays in the box.
-    useEffect(() => {
-        if (dialog === "replace" && !chat.queued) setDialog("");
-    }, [dialog, chat.queued]);
-
-    // Before paint: prepended messages keep the reading position without a jump.
-    useLayoutEffect(() => {
-        if (!transcript.current) return;
-        const anchor = scrollAnchor.current;
-        transcript.current.scrollTop =
-            anchor && anchor.conversationId === chat.conversation?.id
-                ? anchor.top + transcript.current.scrollHeight - anchor.height
-                : transcript.current.scrollHeight;
-        scrollAnchor.current = null;
-    }, [chat.messages]);
+    // The end of the transcript in sight while the user reads it, not once they
+    // went up; prepended messages keep the reading position without a jump.
+    const onTranscriptScroll = useStickToBottom(transcript, {
+        messages: chat.messages,
+        conversationId: chat.conversation?.id ?? null,
+        restore: (element) => {
+            const anchor = scrollAnchor.current;
+            scrollAnchor.current = null;
+            if (!anchor || anchor.conversationId !== chat.conversation?.id) return false;
+            element.scrollTop = anchor.top + element.scrollHeight - anchor.height;
+            return true;
+        },
+    });
 
     useEffect(() => {
         if (chat.pending !== "history") scrollAnchor.current = null;
@@ -711,43 +555,8 @@ const AiChat = ({status}) => {
         void chat.loadOlderMessages();
     };
 
-    const submit = (event) => {
-        event.preventDefault();
-        if (!ready || composerClosed || !draft.trim() || promptTooLarge) return;
-        if (queueing) {
-            // One message queued at most: replacing it is asked first.
-            if (chat.queued) {
-                setReplacement(draft);
-                setDialog("replace");
-                return;
-            }
-            if (chat.queue(draft)) setDraft("");
-            composer.current?.focus();
-            return;
-        }
-        const prompt = draft;
-        setDraft("");
-        void chat.send(prompt);
-    };
-
-    // After a stop or a failure, nothing goes alone: the user sends the queued
-    // message again, or takes it back.
-    const resend = () => {
-        const text = chat.takeQueued();
-        if (text) void chat.send(text);
-    };
-
     const confirmDialog = async () => {
-        if (dialog === "replace") {
-            if (chat.queue(replacement)) setDraft("");
-            setReplacement("");
-            setDialog("");
-            composer.current?.focus();
-            return;
-        }
-        const result = dialog === "deleteAll"
-            ? await chat.deleteAllConversations()
-            : await chat.deleteConversation(deleting?.id);
+        const result = await chat.deleteConversation(deleting?.id);
         if (result !== undefined && result !== false) setDialog("");
     };
 
@@ -765,14 +574,12 @@ const AiChat = ({status}) => {
         const next = title.trim();
         if (save && next && next !== (chat.conversation?.title || "")) void chat.renameConversation(next);
     };
-    // The replacement of the queued message is asked while a turn runs.
-    const dialogBusy = dialog !== "replace" && busy;
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-3 p-4">
             <div className="flex flex-wrap items-center gap-3">
                 <h1 className="flex items-center gap-2 text-title font-semibold">
-                    <ChatIcon width={18} height={18} className="text-ink-muted"/>
+                    <SparklesIcon width={18} height={18} className="text-accent"/>
                     {t("ai.title")}
                 </h1>
                 {ready && (
@@ -894,17 +701,6 @@ const AiChat = ({status}) => {
                                     </ul>
                                 </div>
                             ))}
-                            {chat.conversations.length > 0 && (
-                                <Button
-                                    size="sm"
-                                    icon={<TrashIcon width={12} height={12}/>}
-                                    disabled={busy}
-                                    className="w-full justify-center text-ink-muted hover:text-state-down"
-                                    onClick={() => setDialog("deleteAll")}
-                                >
-                                    {t("ai.conversations.deleteAll")}
-                                </Button>
-                            )}
                         </div>
                     </section>
 
@@ -968,6 +764,7 @@ const AiChat = ({status}) => {
                         </div>
                         <div
                             ref={transcript}
+                            onScroll={onTranscriptScroll}
                             role="log"
                             aria-label={t("ai.transcript.log")}
                             aria-live="polite"
@@ -981,7 +778,7 @@ const AiChat = ({status}) => {
                             )}
                             {!chat.messages.length && (
                                 <p className="text-ink-muted">
-                                    {chat.pending === "resuming"
+                                    {chat.pending === "resuming" || chat.opening
                                         ? t("ai.transcript.loadingSaved")
                                         : !chat.historyReady
                                             ? t("ai.transcript.reselect")
@@ -1009,33 +806,7 @@ const AiChat = ({status}) => {
                                     ))}
                                 </ul>
                             )}
-                            <ul className="flex flex-col gap-3">
-                                {chat.messages.map((message, index) => {
-                                    // The answer of a turn is its last assistant message, once completed.
-                                    const next = chat.messages[index + 1];
-                                    const rateable =
-                                        message.role === "assistant" &&
-                                        message.status === "completed" &&
-                                        typeof message.turn_id === "string" &&
-                                        !(next?.role === "assistant" && next.turn_id === message.turn_id);
-                                    return (
-                                        <Message
-                                            key={message.id}
-                                            message={message}
-                                            status={status}
-                                            feedback={
-                                                rateable && (
-                                                    <Feedback
-                                                        rating={chat.ratings[message.turn_id]}
-                                                        onRate={(value) => chat.rate(message.turn_id, value)}
-                                                        onUnrate={() => chat.unrate(message.turn_id)}
-                                                    />
-                                                )
-                                            }
-                                        />
-                                    );
-                                })}
-                            </ul>
+                            <AiMessages chat={chat} status={status}/>
                         </div>
                         {chat.confirmation && (
                             <ConfirmationCard
@@ -1051,136 +822,31 @@ const AiChat = ({status}) => {
                                 onPreview={(editedArgs) => void chat.previewAgain(editedArgs)}
                             />
                         )}
-                        {chat.error && <Alert className="mx-3 mb-2">{chat.error}</Alert>}
+                        {chat.error && !replacing && <Alert className="mx-3 mb-2">{chat.error}</Alert>}
                         {chat.notice && <Alert tone="info" className="mx-3 mb-2">{chat.notice}</Alert>}
-                        <form onSubmit={submit} className="space-y-2 border-t border-line p-3">
-                            {/* Always there, so that the first message queued is announced too. */}
-                            <p aria-live="polite" className="sr-only">
-                                {chat.queued ? untrustedT(t, "ai.queue.announce", {text: chat.queued.text}) : ""}
-                            </p>
-                            {chat.queued && (
-                                <div
-                                    role="group"
-                                    aria-label={t("ai.queue.label")}
-                                    className="flex flex-wrap items-center gap-2 rounded-(--radius-control) border border-line bg-surface-sunken px-2 py-1 text-data"
-                                >
-                                    <ClockIcon width={14} height={14} className="shrink-0 text-ink-muted"/>
-                                    <span className="text-ink-muted">{t("ai.queue.label")}</span>
-                                    {/* The text of the user, as typed. */}
-                                    <span className="min-w-0 flex-1 truncate">
-                                        {chat.queued.text}
-                                    </span>
-                                    {!queueing && !busy && (
-                                        <Button size="sm" disabled={!chat.historyReady} onClick={resend}>
-                                            {t("ai.queue.resend")}
-                                        </Button>
-                                    )}
-                                    <Button
-                                        size="sm"
-                                        // Never over what the user types.
-                                        disabled={Boolean(draft.trim())}
-                                        onClick={() => {
-                                            setDraft(chat.takeQueued() ?? "");
-                                            composer.current?.focus();
-                                        }}
-                                    >
-                                        {t("ai.queue.edit")}
-                                    </Button>
-                                    <Button size="sm" onClick={chat.unqueue}>
-                                        {t("ai.queue.remove")}
-                                    </Button>
-                                </div>
-                            )}
-                            <Field
-                                label={t("ai.composer.label")}
-                                hint={
-                                    promptTooLarge
-                                        ? undefined
-                                        : waiting && !busy
-                                            ? t("ai.composer.queuedDuringConfirmation")
-                                            : answering
-                                                ? t("ai.composer.queuedHint")
-                                                : t("ai.composer.hint")
-                                }
-                                error={promptTooLarge ? t("ai.composer.tooLarge") : undefined}
-                            >
-                                {(control) => (
-                                    <Textarea
-                                        {...control}
-                                        ref={composer}
-                                        rows={3}
-                                        className="max-h-48 resize-y"
-                                        value={draft}
-                                        disabled={composerClosed}
-                                        onChange={(event) => setDraft(event.target.value)}
-                                        onKeyDown={(event) => {
-                                            if (
-                                                event.key !== "Enter" ||
-                                                event.shiftKey ||
-                                                event.nativeEvent.isComposing ||
-                                                event.nativeEvent.keyCode === 229
-                                            )
-                                                return;
-                                            event.preventDefault();
-                                            submit(event);
-                                        }}
-                                    />
-                                )}
-                            </Field>
-                            <div className="flex justify-end gap-2">
-                                {/* A turn only: after an approval the action runs on the agent,
-                                    which a stop would not cancel; its result is what to see. */}
-                                {chat.pending === "turn" && (
-                                    <Button icon={<StopIcon/>} onClick={chat.stop}>
-                                        {t("ai.composer.stop")}
-                                    </Button>
-                                )}
-                                <Button
-                                    type="submit"
-                                    variant="create"
-                                    icon={queueing ? <ClockIcon/> : <SendIcon/>}
-                                    disabled={composerClosed || !draft.trim() || promptTooLarge}
-                                >
-                                    {queueing ? t("ai.composer.queue") : t("ai.composer.send")}
-                                </Button>
-                            </div>
-                        </form>
+                        <AiComposer inputRef={composer} onReplacingChange={setReplacing}/>
                     </section>
                 </div>
             )}
 
             <Dialog
                 open={ready && Boolean(dialog)}
-                title={
-                    dialog === "replace"
-                        ? t("ai.dialog.replaceTitle")
-                        : dialog === "deleteAll" ? t("ai.dialog.deleteAllTitle") : t("ai.dialog.deleteTitle")
-                }
+                title={t("ai.dialog.deleteTitle")}
                 onClose={() => {
-                    if (!dialogBusy) setDialog("");
+                    if (!busy) setDialog("");
                 }}
                 footer={
                     <>
-                        <Button disabled={dialogBusy} onClick={() => setDialog("")}>
+                        <Button disabled={busy} onClick={() => setDialog("")}>
                             {t("ai.dialog.cancel")}
                         </Button>
-                        <Button
-                            variant={dialog === "delete" || dialog === "deleteAll" ? "delete" : "secondary"}
-                            disabled={dialogBusy}
-                            onClick={confirmDialog}
-                        >
-                            {dialog === "replace" ? t("ai.dialog.replace") : t("ai.dialog.confirmDelete")}
+                        <Button variant="delete" disabled={busy} onClick={confirmDialog}>
+                            {t("ai.dialog.confirmDelete")}
                         </Button>
                     </>
                 }
             >
-                {dialog === "replace" ? (
-                    <p>{t("ai.dialog.replaceText")}</p>
-                ) : dialog === "deleteAll" ? (
-                    <p>{t("ai.dialog.deleteAllText", {count: chat.conversations.length})}</p>
-                ) : (
-                    <p>{untrustedT(t, "ai.dialog.deleteText", {title: deleting ? titleOf(deleting) : ""})}</p>
-                )}
+                <p>{untrustedT(t, "ai.dialog.deleteText", {title: deleting ? titleOf(deleting) : ""})}</p>
                 {chat.error && <Alert>{chat.error}</Alert>}
             </Dialog>
             <Dialog open={tipsOpen} size="md" title={t("ai.tips.title")} onClose={() => setTipsOpen(false)}>

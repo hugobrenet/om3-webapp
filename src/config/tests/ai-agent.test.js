@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {getAiAgentConfig, parseAiAgentUrl} from '../ai-agent.js';
+import {MAX_LINK_PROMPT, getAiAgentConfig, linkPrompt, parseAiAgentUrl} from '../ai-agent.js';
 
 describe('AI agent build configuration', () => {
     beforeEach(() => vi.stubEnv('VITE_AI_AGENT_URL', ''));
@@ -26,5 +26,15 @@ describe('AI agent build configuration', () => {
         expect(result.url).toBe('');
         expect(result.error).not.toContain(value);
         expect(result.error).not.toContain('secret');
+    });
+});
+
+describe('the question of a link to the assistant', () => {
+    it('is trimmed and bounded', () => {
+        expect(linkPrompt('  Why?  ')).toBe('Why?');
+        expect(linkPrompt('x'.repeat(MAX_LINK_PROMPT + 10))).toHaveLength(MAX_LINK_PROMPT);
+    });
+    it.each([null, undefined, 42, '   '])('is empty for %s', (value) => {
+        expect(linkPrompt(value)).toBe('');
     });
 });

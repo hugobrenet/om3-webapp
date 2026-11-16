@@ -255,6 +255,31 @@ describe('AI agent AG-UI runs', () => {
             }
         );
 
+        it('sends the context of the page with a new prompt only, bounded', async () => {
+            fetchMock.mockResolvedValue(goldenResponse('text_and_tools'));
+            await client.run(GOLDEN_THREAD, {
+                prompt: 'Why is it down?',
+                promptId: 'u-9',
+                context: [
+                    {description: 'page', value: '/objects'},
+                    {description: 'selected object', value: 'test/svc/mcp-store'},
+                    {description: 'bad', value: 'a\nb'},
+                ],
+            });
+            expect(sent().context).toEqual([
+                {description: 'page', value: '/objects'},
+                {description: 'selected object', value: 'test/svc/mcp-store'},
+            ]);
+            fetchMock.mockResolvedValue(goldenResponse('text_and_tools'));
+            await client
+                .run(GOLDEN_THREAD, {
+                    resume: {interruptId: 'confirmation-1', approved: false},
+                    context: [{description: 'page', value: '/objects'}],
+                })
+                .catch(() => {});
+            expect(JSON.parse(fetchMock.mock.calls.at(-1)[1].body).context).toEqual([]);
+        });
+
         it('sends the held messages by their IDs only, then the prompt', async () => {
             fetchMock.mockResolvedValue(goldenResponse('text_and_tools'));
             await client.run(GOLDEN_THREAD, {
