@@ -158,6 +158,28 @@ describe("SlideOver", () => {
     expect(opener).toHaveFocus();
   });
 
+  test("opened and closed, the focus moved without a scroll: the page is not shifted to reveal the panel sliding in", async () => {
+    const user = userEvent.setup();
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    try {
+      render(<Harness />);
+      await user.click(screen.getByRole("button", { name: "Open node" }));
+      const panel = screen.getByRole("dialog", { name: "node-1" });
+      expect(focus.mock.instances.filter((el) => el === panel).length).toBeGreaterThan(0);
+      for (const [i, el] of focus.mock.instances.entries()) {
+        if (el === panel) expect(focus.mock.calls[i][0]).toEqual({ preventScroll: true });
+      }
+      focus.mockClear();
+      await user.keyboard("{Escape}");
+      const opener = screen.getByRole("button", { name: "Open node" });
+      const back = focus.mock.instances.findIndex((el) => el === opener);
+      expect(back).toBeGreaterThanOrEqual(0);
+      expect(focus.mock.calls[back][0]).toEqual({ preventScroll: true });
+    } finally {
+      focus.mockRestore();
+    }
+  });
+
   test("a click on an inert background closes, on a control or inside does not", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

@@ -25,7 +25,7 @@ import {CrossLink} from "../app/CrossLink";
 import {usePeek} from "../app/panel-search";
 import {resourceId} from "../app/peek";
 import {NAMESPACE_LISTS, NamespaceObjects, useNamespaceObjectTabs} from "./NamespaceObjects";
-import {ObjectLogs} from "./ObjectLogs";
+import {ClusterLogs, ObjectLogs} from "./ObjectLogs";
 import {EventLog, OBJECT_EVENT_TYPES} from "./EventLogger";
 import {createPortal} from "react-dom";
 import {usePanelHeader} from "../app/panel-header";
@@ -53,7 +53,8 @@ import {KEY_KINDS} from "../constants/actions";
  * its actions (ObjectStatus), then its usage summed over its instances and node by
  * node (ObjectUsage; the cluster object, what opensvc uses on the nodes, a tree of
  * its cgroups: ClusterUsage), then the tasks scheduled for it on each node (ObjectTabs), then
- * the logs of its instances merged over their nodes (ObjectLogs), then its
+ * the logs of its instances merged over their nodes (ObjectLogs; the cluster object,
+ * those of the daemons of all its nodes, as `om cluster logs`: ClusterLogs), then its
  * configuration (ObjectConfig). What its
  * resources report is in the panels of its instances and of its resources.
  * A configuration, a secret or a user, which om shows no status of, shows its keys
@@ -67,6 +68,8 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
     const keysOnly = KEY_KINDS.includes(kind);
     const instances = useEventStore((s) => (path === undefined ? undefined : s.objectInstanceStatus[path]));
     const nodes = useMemo(() => Object.keys(instances ?? {}).sort(), [instances]);
+    // The nodes of the cluster, in its order: the logs of the cluster are those of their daemons.
+    const clusterNodes = useClusterNodeOrder();
     // A sync resource keeping snapshots on one of its instances: the object restores them.
     const snapshots = useSnapshotNodes(path ?? "").length > 0;
     // In the status board, the names of the nodes and the resources are badges: the
@@ -170,10 +173,11 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
                             <EventLog key={path} eventTypes={OBJECT_EVENT_TYPES} objectName={path} label={t("panel.tabs.events")}/>
                         </div>
                     )}
-                    {active === "logs" && (
+                    {/* The cluster, the logs of every node; an orchestration of it, its own. */}
+                    {active === "logs" && (kind === "ccfg" && !logsOrchestration ? <ClusterLogs nodes={clusterNodes}/> : (
                         <ObjectLogs key={path} path={path} nodes={nodes}
                                     orchestration={logsOrchestration} onClearOrchestration={() => setLogsOrchestration(null)}/>
-                    )}
+                    ))}
                     {active === "config" && <ObjectConfig key={path} path={path}/>}
                 </>
             )}

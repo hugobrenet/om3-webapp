@@ -15,12 +15,18 @@ const AGE_HEIGHT = 22;
  * the end. While scrolled up, the age of the line in the middle of the view, by the
  * scroll handle. The lines are the elements matching `lineSelector`, each with an
  * `id` and its time in `data-at` (milliseconds). `items` null, nothing followed.
+ *
+ * The lines come in sight: each line new since the first ones shown is marked
+ * `data-fresh`, a tint fading out (index.css), wherever it lands: one a stream merged
+ * by time places above lines shown before it, as one of a node come late, too.
  */
 export function useFollowScroll({containerRef, items, lineSelector, locale}) {
     const [following, setFollowing] = useState(true);
     const followingRef = useRef(true);
     const [newCount, setNewCount] = useState(0);
     const anchorRef = useRef(null);
+    // The ids of the lines shown, null before the first ones.
+    const seenRef = useRef(null);
     const [scrollAge, setScrollAge] = useState(null);
     const ageTimerRef = useRef(null);
 
@@ -42,6 +48,14 @@ export function useFollowScroll({containerRef, items, lineSelector, locale}) {
         const container = containerRef.current;
         // Not a stream (`items` null): its view left alone.
         if (!container || items === null) return;
+        // The lines new since those first shown, marked.
+        const lines = [...container.querySelectorAll(lineSelector)];
+        if (seenRef.current === null) {
+            if (lines.length > 0) seenRef.current = new Set(lines.map((line) => line.id));
+        } else {
+            for (const line of lines) if (!seenRef.current.has(line.id)) line.setAttribute("data-fresh", "");
+            seenRef.current = new Set(lines.map((line) => line.id));
+        }
         if (followingRef.current) {
             container.scrollTop = container.scrollHeight;
             return;
@@ -49,7 +63,7 @@ export function useFollowScroll({containerRef, items, lineSelector, locale}) {
         const anchor = anchorRef.current;
         const element = anchor && document.getElementById(anchor.id);
         if (element) container.scrollTop = element.offsetTop - anchor.offset;
-    }, [containerRef, items]);
+    }, [containerRef, items, lineSelector]);
 
     // At the end, following; scrolled up, not, the line at the top of the view noted.
     const handleScroll = useCallback(() => {
