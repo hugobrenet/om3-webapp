@@ -1345,6 +1345,7 @@
       "pools": "Pools",
       "resources": "Resources",
       "stores": "Stores",
+      "ai": "AI assistant",
       "glossary": "Glossary",
       "about": "About"
     },
@@ -3824,7 +3825,6 @@
       "noMatch": "No conversation matches.",
       "untitled": "Untitled conversation",
       "delete": "Delete {{title}}",
-      "deleteAll": "Delete all conversations",
       "groups": {
         "today": "Today",
         "yesterday": "Yesterday",
@@ -3943,8 +3943,6 @@
       "confirmDelete": "Confirm deletion",
       "titleLabel": "Conversation title",
       "deleteText": "Delete \"{{title}}\" and its saved context? This cannot be undone.",
-      "deleteAllTitle": "Delete all conversations",
-      "deleteAllText": "Delete all your conversations ({{count}} loaded) and their stored context? This cannot be undone.",
       "replaceTitle": "Replace the queued message",
       "replace": "Replace",
       "replaceText": "A message is already queued. Replace it with the one you typed?"
@@ -4126,6 +4124,31 @@
       "remove": "Remove",
       "resend": "Send again",
       "announce": "Message queued: {{text}}"
+    },
+    "ask": "Analyze with the assistant",
+    "askAbout": {
+      "failedAction": "Explain why the action {{action}} on {{subject}} failed, and suggest a fix.",
+      "refusedAction": "Explain why the daemon refused the action {{action}} on {{subject}}: it did not run. Say what to do about it.",
+      "actionNode": "Node: {{node}}.",
+      "actionId": "{{kind}}: {{id}}.",
+      "actionError": "Error: “{{error}}”.",
+      "actionReason": "Reason given: “{{error}}”."
+    },
+    "promptDropped": "The question prepared was not taken: a turn runs, or an action waits for your decision. Ask it again from the action once done.",
+    "dock": {
+      "open": "Open the assistant",
+      "expand": "Open in the assistant page",
+      "fold": "Fold",
+      "empty": "Ask a question about the cluster, or about what the page shows: the record open on it, the rows ticked.",
+      "waitingLabel": "Action waiting for a decision",
+      "waiting": "The assistant waits for your decision on the action “{{action}}”.",
+      "destructive": "A destructive action.",
+      "detail": "See the details to decide"
+    },
+    "activity": {
+      "answering": "The assistant is answering",
+      "ended": "The assistant has finished",
+      "waiting": "An action of the assistant waits for your decision"
     }
   }
 }

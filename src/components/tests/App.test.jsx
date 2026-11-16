@@ -9,6 +9,9 @@ import {decodeToken, hasRefreshToken, refreshToken} from '../Login';
 import {__setMockRecreateUserManager, __setMockIsInitialized} from '../../context/OidcAuthContext.tsx';
 
 // --- Mocks ---
+// The chat of the assistant and its dock, tested on their own.
+vi.mock('../../context/AiChatProvider.jsx', () => ({AiChatProvider: ({children}) => children}));
+vi.mock('../AiDock.jsx', () => ({default: () => null}));
 vi.mock('../../styles/main.css', () => ({}));
 vi.mock('../../utils/logger.js', () => ({
     default: {
@@ -26,6 +29,8 @@ vi.mock('../../app/record-history', async (importOriginal) => ({
 }));
 vi.mock('../NavBar', () => ({default: ({anchor}) => <div data-testid="navbar">NavBar{anchor}</div>}));
 vi.mock('../../hooks/useSidebarAlerts', () => ({useSidebarState: () => ({}), useSidebarAlertsOf: () => ({})}));
+// The configuration of the cluster, the menu reading its agent: none.
+vi.mock('../../hooks/useClusterConfig.js', () => ({default: () => ({clusterId: '', clusterName: '', agentUrl: '', loaded: false})}));
 vi.mock('../ClusterView', () => ({default: () => <div data-testid="cluster">ClusterView</div>}));
 vi.mock('../NodesTable', () => ({default: () => <div data-testid="nodes">NodesTable</div>}));
 vi.mock('../Heartbeats', () => ({default: () => <div data-testid="heartbeats">Heartbeats</div>}));
@@ -75,6 +80,7 @@ vi.mock('../../config/oidcConfiguration.js', () => ({
 vi.mock('../../context/AuthProvider', () => ({
     AuthProvider: ({children}) => <div>{children}</div>,
     useAuth: () => mockAuthState,
+    useAuthSession: () => mockAuthState,
     useAuthDispatch: () => mockAuthDispatch,
     SetAccessToken: 'SetAccessToken',
     SetAuthChoice: 'SetAuthChoice',

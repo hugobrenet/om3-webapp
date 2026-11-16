@@ -4,6 +4,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import {axe} from 'vitest-axe';
 import AiChat from '../AiChat.jsx';
+import {AiChatProvider} from '../../context/AiChatProvider.jsx';
 import {formatDuration} from '../AiSteps.jsx';
 import {GOLDEN_RUN, GOLDEN_THREAD, replayEvents} from '../../services/tests/agui-fixtures.js';
 
@@ -89,7 +90,9 @@ describe('the steps of an answer', () => {
     const ask = async (prompt) => {
         const view = render(
             <MemoryRouter>
-                <AiChat status={status}/>
+                <AiChatProvider>
+                    <AiChat status={status}/>
+                </AiChatProvider>
             </MemoryRouter>
         );
         await waitFor(() => expect(screen.getByRole('button', {name: 'New conversation'})).toBeEnabled());
@@ -230,8 +233,8 @@ describe('the steps of an answer', () => {
         );
         await ask('How is the cluster?');
         const live = await screen.findByRole('button', {name: /^Running · 00:0\d$/});
-        // The step running, under the folded summary.
-        expect(screen.getAllByText('Read the cluster status')[0]).toBeVisible();
+        // Folded, the summary alone: a tool answers too fast for a line of its own.
+        expect(screen.getByText('Read the cluster status')).not.toBeVisible();
         fireEvent.click(screen.getByRole('button', {name: 'Stop'}));
         await screen.findByText(/Incomplete response — stopped/);
         expect(live).not.toHaveTextContent(/Running/);
@@ -256,7 +259,9 @@ describe('the steps of a thread given again', () => {
     const ask = async (prompt) => {
         render(
             <MemoryRouter>
-                <AiChat status={status}/>
+                <AiChatProvider>
+                    <AiChat status={status}/>
+                </AiChatProvider>
             </MemoryRouter>
         );
         await waitFor(() => expect(screen.getByRole('button', {name: 'New conversation'})).toBeEnabled());
@@ -332,7 +337,9 @@ describe('the steps of a conversation reloaded', () => {
         mocks.client.getMessages.mockResolvedValue({messages, next_cursor: ''});
         const view = render(
             <MemoryRouter>
-                <AiChat status={status}/>
+                <AiChatProvider>
+                    <AiChat status={status}/>
+                </AiChatProvider>
             </MemoryRouter>
         );
         await waitFor(() => expect(screen.getByRole('button', {name: 'Stop web'})).toBeEnabled());

@@ -30,6 +30,7 @@ import {FilterRail, FilterToolbar} from "./FilterRail";
 import {InstanceLink, ResourceSessionLinks} from "./RecordLinks";
 import {BADGE} from "./ObjectCells";
 import {rangeSelect, withShift} from "../app/range-select";
+import {useShareCheckedRows} from "../app/checked-rows";
 
 
 /*
@@ -221,6 +222,8 @@ const Resources = () => {
         setSelected((prev) => ([...prev].every((key) => kept.has(key)) ? prev : new Set([...prev].filter((key) => kept.has(key)))));
     }, [shown]);
     const selectedLines = useMemo(() => shown.filter((l) => selected.has(l.key)), [shown, selected]);
+    const checkedIds = useMemo(() => selectedLines.map((l) => resourceId(l.object, l.rid, l.hostNode)), [selectedLines]);
+    useShareCheckedRows("resources", checkedIds);
     const allSelected = shown.length > 0 && selectedLines.length === shown.length;
     const clearSelection = () => setSelected(new Set());
     // All, every resource the filters keep, drawn yet or not; unticked, none.

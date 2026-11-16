@@ -2,6 +2,16 @@ import React from 'react';
 import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import AiChat from '../AiChat.jsx';
+import {MemoryRouter} from 'react-router-dom';
+import {AiChatProvider} from '../../context/AiChatProvider.jsx';
+
+// The provider reads the page under the dock: the application mounts it in its
+// router. The page of the assistant has none under it.
+const ChatWrapper = ({children}) => (
+    <MemoryRouter initialEntries={['/ai']}>
+        <AiChatProvider>{children}</AiChatProvider>
+    </MemoryRouter>
+);
 
 const mocks = vi.hoisted(() => ({auth: null, client: null}));
 vi.mock('../../context/AuthProvider.jsx', () => ({useAuth: () => mocks.auth}));
@@ -44,7 +54,7 @@ describe('AI chatbot feedback', () => {
         };
     });
     const resume = async () => {
-        render(<AiChat />);
+        render(<AiChat />, {wrapper: ChatWrapper});
         fireEvent.click(await screen.findByRole('button', {name: 'Previous diagnostic'}));
         await screen.findByText('There are 484 nodes.');
     };
@@ -102,7 +112,7 @@ describe('AI chatbot feedback', () => {
         expect(mocks.client.setFeedback).not.toHaveBeenCalled();
     });
     test('rates an answer just streamed with the turn of its completion', async () => {
-        render(<AiChat />);
+        render(<AiChat />, {wrapper: ChatWrapper});
         await waitFor(() => expect(screen.getByRole('button', {name: 'New conversation'})).toBeEnabled());
         fireEvent.change(screen.getByRole('textbox', {name: 'Message'}), {target: {value: 'hello'}});
         fireEvent.click(screen.getByRole('button', {name: 'Send'}));

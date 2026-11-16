@@ -27,6 +27,7 @@ import {useMediaQuery} from "../ui/lib/media";
 import {facetCounts, matches, toggled} from "../app/facets";
 import {FilterRail, FilterToolbar} from "./FilterRail";
 import {rangeSelect, withShift} from "../app/range-select";
+import {useShareCheckedRows} from "../app/checked-rows";
 
 const ZERO_DATE = "0001-01-01T00:00:00Z";
 
@@ -72,6 +73,7 @@ const NodesTable = () => {
     const nodeMonitor = useEventStore((state) => state.nodeMonitor);
 
     const [selectedNodes, setSelectedNodes] = useState([]);
+    useShareCheckedRows("nodes", selectedNodes);
     const [snackbar, setSnackbar] = useState({open: false, message: "", severity: "info"});
     // A node enrolled into the cluster, as om cluster enroll: root only, as the api asks.
     const mayEnroll = Object.prototype.hasOwnProperty.call(useGrants(), "root");

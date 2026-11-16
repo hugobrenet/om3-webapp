@@ -7,6 +7,12 @@ import i18n from '../../i18n';
 
 const {mockPills} = vi.hoisted(() => ({mockPills: {current: {}}}));
 vi.mock('../../hooks/useSidebarAlerts', () => ({default: () => mockPills.current}));
+// The agent of the cluster, and the session: the entry of the assistant shows for them.
+const mockAi = vi.hoisted(() => ({agentUrl: '', authChoice: 'openid'}));
+vi.mock('../../hooks/useClusterConfig.js', () => ({
+    default: () => ({clusterId: 'cluster-id', clusterName: 'lab', agentUrl: mockAi.agentUrl, loaded: true}),
+}));
+vi.mock('../../context/AuthProvider.jsx', () => ({useAuthSession: () => ({authChoice: mockAi.authChoice, accessToken: 'token'})}));
 
 function renderSidebar(open = true, path = '/cluster', onNavigate) {
     return render(
@@ -36,6 +42,31 @@ describe('Sidebar', () => {
     beforeEach(() => {
         localStorage.clear();
         mockPills.current = {};
+        mockAi.agentUrl = '';
+        mockAi.authChoice = 'openid';
+    });
+
+    // The cluster names its agent: the entry shows for it, to an OpenID session,
+    // the only one the agent takes, first of the help.
+    test.each([
+        ['shows for a cluster with an agent, to an OpenID session', 'https://agent.example.com', 'openid', true],
+        ['is hidden for a cluster without agent', '', 'openid', false],
+        ['is hidden for a session not OpenID', 'https://agent.example.com', 'basic', false],
+        ['is hidden for an agent URL not HTTPS', 'http://agent.example.com', 'openid', false],
+    ])('the entry of the AI assistant in the help %s', (_name, agentUrl, authChoice, shown) => {
+        mockAi.agentUrl = agentUrl;
+        mockAi.authChoice = authChoice;
+        renderSidebar();
+        const help = section('Help');
+        const link = within(help).queryByRole('link', {name: 'AI assistant'});
+        if (!shown) {
+            expect(link).toBeNull();
+            return;
+        }
+        expect(link).toHaveAttribute('href', '/ai');
+        expect(linkNames(help)[0]).toBe('AI assistant');
+        // Its logo, the only icon of the menu.
+        expect(link.querySelector('svg')).not.toBeNull();
     });
 
     test('three sections: the cluster, its links, nodes, namespaces, networks, pools, stores and resources; the objects, their title all of them, then by kind; the help, its glossary and its about', () => {
@@ -65,12 +96,15 @@ describe('Sidebar', () => {
     });
 
     test('each entry where it leads: the heartbeats are the links, each list of objects its tab of the Objects page', () => {
+        // A cluster with an agent: the entry of the assistant too.
+        mockAi.agentUrl = 'https://agent.example.com';
         renderSidebar();
         const hrefs = Object.fromEntries(screen.getAllByRole('link').map((link) => [link.textContent, link.getAttribute('href')]));
         expect(hrefs).toEqual({
             Cluster: '/cluster', Relay: '/relay', Links: '/heartbeats', Nodes: '/nodes', Namespaces: '/namespaces', Networks: '/network', Pools: '/pools', Stores: '/stores', Resources: '/resources',
             Objects: '/objects?list=any', Services: '/objects', Volumes: '/objects?list=volumes',
             Configurations: '/objects?list=configs', Secrets: '/objects?list=secrets', Users: '/objects?list=users',
+            'AI assistant': '/ai',
             Glossary: '/glossary',
             About: '/about',
         });

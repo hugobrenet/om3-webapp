@@ -6,6 +6,9 @@ import { AlertTriangleIcon, BanIcon, BoltIcon, CheckIcon, CloseIcon, FileIcon, T
 import { Button } from "../ui/components/Button";
 import { Dialog } from "../ui/components/Dialog";
 import { DaemonIdLogs } from "../components/DaemonIdLogs";
+import AskAssistantLink from "../components/AskAssistantLink";
+import { untrustedT } from "../utils/untrustedText";
+import { MAX_LINK_PROMPT } from "../config/ai-agent.js";
 import useEventStore from "../hooks/useEventStore.js";
 import { type TrackState, type TrackStep, type Tracked, useActionTracker } from "./action-tracker";
 
@@ -102,7 +105,40 @@ function useMonitorStates(path: string | undefined, active: boolean): [string, s
     .filter(([, state]) => state !== "" && state !== "idle");
 }
 
-function Entry({ entry, now }: { entry: Tracked; now: number }) {
+/** The longest error a question to the assistant quotes: the logs tell the rest. */
+const MAX_ASKED_ERROR = 200;
+
+/**
+ * The question to the assistant about an action failed, or refused: the daemon
+ * declined it, nothing ran, there is no run to look into. What, on what, then
+ * what is known only: the node answering for it, the id its logs, or its refusal,
+ * are recorded under, and the error said, last, cut to what the bound of a link
+ * leaves it (MAX_LINK_PROMPT), the sentence kept whole. Every value goes as it
+ * is, never read as a placeholder.
+ */
+export function failedActionQuestion(t: (key: string, options?: Record<string, unknown>) => string, entry: Tracked): string {
+  const refused = entry.state === "refused";
+  const parts = [
+    untrustedT(t, refused ? "ai.askAbout.refusedAction" : "ai.askAbout.failedAction", {
+      action: entry.label ?? actionLabel(entry.action),
+      subject: entry.subject,
+    }),
+  ];
+  if (entry.node !== "") parts.push(untrustedT(t, "ai.askAbout.actionNode", { node: entry.node }));
+  if (entry.followedId !== undefined) parts.push(untrustedT(t, "ai.askAbout.actionId", { kind: entry.kind, id: entry.followedId }));
+  const error = entry.error !== undefined && entry.error !== "gone" && entry.error !== "queued" ? entry.error.trim() : "";
+  if (error !== "") {
+    const key = refused ? "ai.askAbout.actionReason" : "ai.askAbout.actionError";
+    const room = MAX_LINK_PROMPT - parts.join(" ").length - 1 - untrustedT(t, key, { error: "" }).length;
+    const length = Math.min(MAX_ASKED_ERROR, room);
+    // Too little room left, no error rather than a few letters of it.
+    if (length >= 20) parts.push(untrustedT(t, key, { error: error.length > length ? `${error.slice(0, length - 1)}…` : error }));
+  }
+  return parts.join(" ");
+}
+
+/** `onLeave`, called as a link of the entry leaves for another page: the dialog closes. */
+function Entry({ entry, now, onLeave }: { entry: Tracked; now: number; onLeave: () => void }) {
   const { t } = useTranslation();
   const dismiss = useActionTracker((s) => s.dismiss);
   // Its logs in a modal: an orchestration's on every node, an exec's on its node.
@@ -146,6 +182,9 @@ function Entry({ entry, now }: { entry: Tracked; now: number }) {
           </p>
         </div>
         <span className="shrink-0 pt-0.5 text-data text-ink-muted tabular-nums">{formatDuration(took)}</span>
+        {(entry.state === "failed" || entry.state === "refused") && (
+          <AskAssistantLink prompt={failedActionQuestion(t, entry)} onClick={onLeave} />
+        )}
         {entry.followedId !== undefined && (
           <button
             type="button"
@@ -287,7 +326,14 @@ export function ActionTray() {
       >
         <ol aria-label={t("actionTray.label")} className="-m-3 divide-y divide-line">
           {tracked.map((entry) => (
-            <Entry key={entry.id} entry={entry} now={now} />
+            <Entry
+              key={entry.id}
+              entry={entry}
+              now={now}
+              onLeave={() => {
+                setOpen(false);
+              }}
+            />
           ))}
         </ol>
       </Dialog>

@@ -5,6 +5,7 @@ import {vi} from 'vitest';
 import NodesTable from '../NodesTable.jsx';
 import i18n from '../../i18n';
 import {useActionTracker} from '../../app/action-tracker';
+import {checkedRows} from '../../app/checked-rows';
 
 /** The actions posted, not the reads of the view (its node info). */
 const actionPosts = () => global.fetch.mock.calls.filter(([, options]) => options?.method === 'POST');
@@ -288,6 +289,17 @@ describe('NodesTable', () => {
         fireEvent.click(checkboxes[1]);
         fireEvent.click(checkboxes[2], {shiftKey: true});
         expect(screen.getByText('2 selected')).toBeInTheDocument();
+    });
+
+    test('the nodes ticked go with a question to the assistant, none once the list leaves', async () => {
+        const {unmount} = renderWithRouter(<NodesTable/>);
+        const checkboxes = await tableCheckboxes();
+        fireEvent.click(checkboxes[1]);
+        fireEvent.click(checkboxes[2]);
+        await waitFor(() => expect(checkedRows()?.kind).toBe('nodes'));
+        expect(checkedRows().ids).toHaveLength(2);
+        unmount();
+        expect(checkedRows()).toBeNull();
     });
 
     test('wide, the filters beside the table as facets, the tools at their head', async () => {

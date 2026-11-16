@@ -10,6 +10,9 @@ import NavBar from './NavBar';
 import {Sidebar, menuAlert, useSidebarOpen} from './Sidebar';
 import {NARROW_QUERY, useMediaQuery} from '../ui/lib/media';
 import {useSidebarAlertsOf, useSidebarState} from '../hooks/useSidebarAlerts';
+import {AiChatProvider} from '../context/AiChatProvider.jsx';
+import useAddressPrompt from '../hooks/useAddressPrompt.js';
+import AiDock from './AiDock.jsx';
 import {OidcProvider, useOidc} from "../context/OidcAuthContext.tsx";
 import {
     AuthProvider,
@@ -93,6 +96,12 @@ const InstanceRedirect = () => {
     return <Navigate to={`/objects?${new URLSearchParams({sel: decodeURIComponent(objectName)})}`} replace/>;
 };
 const AiChat = lazy(() => import("./AiChat"));
+
+/** The page of the assistant, with the question its address opens it with. */
+const AiRoute = ({status}) => {
+    useAddressPrompt();
+    return <AiChat status={status}/>;
+};
 const SessionPage = lazy(() => import("./SessionPage"));
 
 // Loading component for Suspense fallback
@@ -481,68 +490,73 @@ const App = () => {
         <AuthProvider>
             <OidcProvider>
                 <OidcInitializer authInfo={authInfo}>
-                    <div id="app-root-container" style={appContainerStyle}>
-                        {!bare && (
-                            <NavBar
-                                sidebarOpen={sidebarOpen}
-                                onToggleSidebar={toggleSidebar}
-                                menuAlert={sidebarOpen ? null : menuAlert(sidebarAlerts)}
-                                showSidebarToggle={showSidebar}
-                            />
-                        )}
-                        <div style={{display: 'flex', flex: 1, minHeight: 0, position: 'relative'}}>
-                            {/* Short of room, the menu folds once an entry is chosen; on a phone,
-                                it lies over the page rather than squeezing it. */}
-                            {showSidebar && <Sidebar open={sidebarOpen} alerts={sidebarAlerts} onNavigate={compactMenu ? foldSidebar : undefined}
-                                                     overlay={narrowWindow} onClose={foldSidebar}/>}
-                            <main id="app-scroll-container" ref={mainRef} style={mainStyle}>
-                                {/* What the page is about, for someone new to OpenSVC. */}
-                                {!bare && <PageIntro/>}
-                                <Suspense fallback={<Loading/>}>
-                                    <Routes>
-                                        <Route path="/" element={<Navigate to="/cluster" replace/>}/>
-                                        <Route path="/cluster" element={<ProtectedRoute><ClusterView/></ProtectedRoute>}/>
-                                        {/* Tabs of the Objects page now: an old link lands there. */}
-                                        <Route path="/namespaces" element={<ProtectedRoute><Namespaces/></ProtectedRoute>}/>
-                                        <Route path="/kinds" element={<ObjectsTab list="any"/>}/>
-                                        <Route path="/heartbeats" element={<ProtectedRoute><Heartbeats/></ProtectedRoute>}/>
-                                        <Route path="/nodes" element={<ProtectedRoute><NodesTable/></ProtectedRoute>}/>
-                                        <Route path="/pools" element={<ProtectedRoute><Pools/></ProtectedRoute>}/>
-                                        <Route path="/stores" element={<ProtectedRoute><Stores/></ProtectedRoute>}/>
-                                        <Route path="/resources" element={<ProtectedRoute><Resources/></ProtectedRoute>}/>
-                                        <Route path="/network" element={<ProtectedRoute><Network/></ProtectedRoute>}/>
-                                        <Route path="/network/:networkName" element={<NetworkRedirect/>}/>
-                                        <Route path="/objects" element={<ProtectedRoute><ObjectsRoute/></ProtectedRoute>}/>
-                                        <Route path="/create" element={<ProtectedRoute><CreateObjectPage/></ProtectedRoute>}/>
-                                        <Route path="/objects/:objectName" element={<ObjectRedirect/>}/>
-                                        <Route path="/nodes/:node/objects/:objectName" element={<InstanceRedirect/>}/>
-                                        <Route path="/whoami" element={<ProtectedRoute><WhoAmI/></ProtectedRoute>}/>
-                                        <Route path="/glossary" element={<ProtectedRoute><Glossary/></ProtectedRoute>}/>
-                                        <Route path="/relay" element={<ProtectedRoute><Relay/></ProtectedRoute>}/>
-                                        {/* The legal information read by all, signed in or not. */}
-                                        <Route path="/about" element={<About/>}/>
-                                        <Route path="/token" element={<TokenPage/>}/>
-                                        <Route path="/ai" element={<ProtectedRoute><AiChat status={sidebarState}/></ProtectedRoute>}/>
-                                        <Route path="/session/:kind" element={<ProtectedRoute once><SessionPage/></ProtectedRoute>}/>
-                                        <Route path="/silent-renew" element={<SilentRenew/>}/>
-                                        <Route path="/auth-callback" element={<OidcCallback/>}/>
-                                        <Route path="/auth-choice" element={<AuthChoice authInfo={authInfo}/>}/>
-                                        <Route path="/auth/login" element={<Login/>}/>
-                                        <Route path="*" element={<Navigate to="/"/>}/>
-                                    </Routes>
-                                    {/* The record opened from a badge or the search palette, whatever
-                                        the view, and the key that brings it back once closed. */}
-                                    {showSidebar && localStorage.getItem("authToken") && (
-                                        <>
-                                            <PeekPanel/>
-                                            <PanelReopenKey/>
-                                            <ShortcutsHelp/>
-                                        </>
-                                    )}
-                                </Suspense>
-                            </main>
+                    {/* The chat of the assistant, held over the pages: a turn goes on from one to the other. */}
+                    <AiChatProvider>
+                        <div id="app-root-container" style={appContainerStyle}>
+                            {!bare && (
+                                <NavBar
+                                    sidebarOpen={sidebarOpen}
+                                    onToggleSidebar={toggleSidebar}
+                                    menuAlert={sidebarOpen ? null : menuAlert(sidebarAlerts)}
+                                    showSidebarToggle={showSidebar}
+                                />
+                            )}
+                            <div style={{display: 'flex', flex: 1, minHeight: 0, position: 'relative'}}>
+                                {/* Short of room, the menu folds once an entry is chosen; on a phone,
+                                    it lies over the page rather than squeezing it. */}
+                                {showSidebar && <Sidebar open={sidebarOpen} alerts={sidebarAlerts} onNavigate={compactMenu ? foldSidebar : undefined}
+                                                         overlay={narrowWindow} onClose={foldSidebar}/>}
+                                <main id="app-scroll-container" ref={mainRef} style={mainStyle}>
+                                    {/* What the page is about, for someone new to OpenSVC. */}
+                                    {!bare && <PageIntro/>}
+                                    <Suspense fallback={<Loading/>}>
+                                        <Routes>
+                                            <Route path="/" element={<Navigate to="/cluster" replace/>}/>
+                                            <Route path="/cluster" element={<ProtectedRoute><ClusterView/></ProtectedRoute>}/>
+                                            {/* Tabs of the Objects page now: an old link lands there. */}
+                                            <Route path="/namespaces" element={<ProtectedRoute><Namespaces/></ProtectedRoute>}/>
+                                            <Route path="/kinds" element={<ObjectsTab list="any"/>}/>
+                                            <Route path="/heartbeats" element={<ProtectedRoute><Heartbeats/></ProtectedRoute>}/>
+                                            <Route path="/nodes" element={<ProtectedRoute><NodesTable/></ProtectedRoute>}/>
+                                            <Route path="/pools" element={<ProtectedRoute><Pools/></ProtectedRoute>}/>
+                                            <Route path="/stores" element={<ProtectedRoute><Stores/></ProtectedRoute>}/>
+                                            <Route path="/resources" element={<ProtectedRoute><Resources/></ProtectedRoute>}/>
+                                            <Route path="/network" element={<ProtectedRoute><Network/></ProtectedRoute>}/>
+                                            <Route path="/network/:networkName" element={<NetworkRedirect/>}/>
+                                            <Route path="/objects" element={<ProtectedRoute><ObjectsRoute/></ProtectedRoute>}/>
+                                            <Route path="/create" element={<ProtectedRoute><CreateObjectPage/></ProtectedRoute>}/>
+                                            <Route path="/objects/:objectName" element={<ObjectRedirect/>}/>
+                                            <Route path="/nodes/:node/objects/:objectName" element={<InstanceRedirect/>}/>
+                                            <Route path="/whoami" element={<ProtectedRoute><WhoAmI/></ProtectedRoute>}/>
+                                            <Route path="/glossary" element={<ProtectedRoute><Glossary/></ProtectedRoute>}/>
+                                            <Route path="/relay" element={<ProtectedRoute><Relay/></ProtectedRoute>}/>
+                                            {/* The legal information read by all, signed in or not. */}
+                                            <Route path="/about" element={<About/>}/>
+                                            <Route path="/token" element={<TokenPage/>}/>
+                                            <Route path="/ai" element={<ProtectedRoute><AiRoute status={sidebarState}/></ProtectedRoute>}/>
+                                            <Route path="/session/:kind" element={<ProtectedRoute once><SessionPage/></ProtectedRoute>}/>
+                                            <Route path="/silent-renew" element={<SilentRenew/>}/>
+                                            <Route path="/auth-callback" element={<OidcCallback/>}/>
+                                            <Route path="/auth-choice" element={<AuthChoice authInfo={authInfo}/>}/>
+                                            <Route path="/auth/login" element={<Login/>}/>
+                                            <Route path="*" element={<Navigate to="/"/>}/>
+                                        </Routes>
+                                        {/* The record opened from a badge or the search palette, whatever
+                                            the view, and the key that brings it back once closed. */}
+                                        {showSidebar && localStorage.getItem("authToken") && (
+                                            <>
+                                                <PeekPanel/>
+                                                <PanelReopenKey/>
+                                                <ShortcutsHelp/>
+                                            </>
+                                        )}
+                                    </Suspense>
+                                </main>
+                            </div>
+                            {/* The assistant over the page on display, folded to its button at first. */}
+                            {!bare && <AiDock status={sidebarState}/>}
                         </div>
-                    </div>
+                    </AiChatProvider>
                 </OidcInitializer>
             </OidcProvider>
         </AuthProvider>

@@ -4,16 +4,22 @@ import {useTranslation} from "react-i18next";
 import {cn} from "../ui/cn";
 import {useMediaQuery} from "../ui/lib/media";
 import {AlertMark} from "../ui/components/AlertMark";
-import {CaretRightIcon} from "../ui/icons";
+import {CaretRightIcon, SparklesIcon} from "../ui/icons";
 import {ALL_LIST, OBJECT_LISTS, listUrl} from "../utils/objectLists";
+import {getAiAgentConfig} from "../config/ai-agent.js";
+import {useAuthSession} from "../context/AuthProvider.jsx";
+import useClusterConfig from "../hooks/useClusterConfig.js";
+import AiActivityBadge from "./AiActivityBadge.jsx";
 
 /**
  * The menu, in two sections. The cluster: its links (the heartbeats), nodes,
  * namespaces, networks, pools and the resources of all its objects. The objects: their title opens all of them, then
- * a list per kind. Names alone, no icon. The cluster overview and the user page
- * are reached from the top bar: the logo and the user button. `id` keys the alert
- * of an entry; `labelKey` is the catalog key of its name; `list`, the list of the
- * Objects page it opens. A section with `to` is an entry itself, its title the link.
+ * a list per kind. Names alone, no icon, but the assistant's, as oc3 shows it. The
+ * cluster overview and the user page are reached from the top bar: the logo and
+ * the user button. `id` keys the alert of an entry; `labelKey` is the catalog key
+ * of its name; `list`, the list of the Objects page it opens; `assistant`, the
+ * entry of the assistant, shown to whom can use it. A section with `to` is an
+ * entry itself, its title the link.
  */
 export const NAV_SECTIONS = [
     {
@@ -54,10 +60,11 @@ export const NAV_SECTIONS = [
         })),
     },
     {
-        // The words of OpenSVC, said plainly.
+        // The assistant, then the words of OpenSVC, said plainly.
         key: "help",
         labelKey: "nav.sections.help",
         entries: [
+            {id: "ai", to: "/ai", labelKey: "nav.routes.ai", assistant: true},
             {id: "glossary", to: "/glossary", labelKey: "nav.routes.glossary"},
             {id: "about", to: "/about", labelKey: "nav.routes.about"},
         ],
@@ -157,7 +164,7 @@ function shownList(location) {
  * their title, is current when its list is the one shown, the page being the same
  * for all of them.
  */
-function NavSection({section, alerts, onNavigate}) {
+function NavSection({section, alerts, onNavigate, assistant}) {
     const {t} = useTranslation();
     const location = useLocation();
     const shown = shownList(location);
@@ -187,14 +194,18 @@ function NavSection({section, alerts, onNavigate}) {
             )}
             {/* Its entries indented under its title, along a line that ties them to it; none, no line. */}
             {section.entries.length > 0 && <ul className="ml-2 border-l border-line pl-1">
-                {section.entries.map(({id, to, labelKey, list}) => {
+                {section.entries.filter((entry) => assistant || !entry.assistant).map(({id, to, labelKey, list, assistant: isAssistant}) => {
                     const link = list === undefined ? (
                         <NavLink
                             to={to}
                             onClick={onNavigate}
-                            className={({isActive}) => cn(LINK, isActive && CURRENT)}
+                            className={({isActive}) => cn(LINK, isAssistant && "flex items-center gap-1.5", isActive && CURRENT)}
                         >
+                            {/* Its logo keeps its tint: it names the assistant, as in oc3. */}
+                            {isAssistant && <SparklesIcon width={14} height={14} className="shrink-0 text-accent"/>}
                             {t(labelKey)}
+                            {/* A turn of the assistant goes on while the user is on another page. */}
+                            {isAssistant && <AiActivityBadge/>}
                         </NavLink>
                     ) : (
                         <Link to={to} onClick={onNavigate} aria-current={shown === list ? "page" : undefined} className={cn(LINK, shown === list && CURRENT)}>
@@ -248,6 +259,11 @@ function onMenuKeyDown(event) {
  */
 export function Sidebar({open, alerts = {}, onNavigate, overlay = false, onClose}) {
     const {t} = useTranslation();
+    // The assistant, for a cluster whose configuration names an agent, to an
+    // OpenID session: the agent takes no other.
+    const auth = useAuthSession();
+    const {agentUrl} = useClusterConfig();
+    const assistant = getAiAgentConfig(agentUrl).enabled && auth?.authChoice === "openid";
     const shown = overlay && open;
     useEffect(() => {
         if (!shown || !onClose) return undefined;
@@ -277,7 +293,7 @@ export function Sidebar({open, alerts = {}, onNavigate, overlay = false, onClose
                 )}
             >
                 <nav aria-label={t("nav.main")} aria-keyshortcuts="n" onKeyDown={onMenuKeyDown} className="w-60 p-2">
-                    {NAV_SECTIONS.map((section) => <NavSection key={section.key} section={section} alerts={alerts} onNavigate={onNavigate}/>)}
+                    {NAV_SECTIONS.map((section) => <NavSection key={section.key} section={section} alerts={alerts} onNavigate={onNavigate} assistant={assistant}/>)}
                 </nav>
             </aside>
         </>

@@ -1,4 +1,5 @@
 import {parseAiAgentUrl} from '../config/ai-agent.js';
+import {boundContext} from '../app/interface-context';
 
 const MAX_PROMPT_BYTES = 32 * 1024;
 const MAX_STREAM_BYTES = 16 * 1024 * 1024;
@@ -1113,8 +1114,10 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
         // answer to the confirmation it waits on. held are the messages the
         // webapp holds, by their IDs, for the agent to tell whether it is in
         // phase: it keeps the history itself and reads no other message, so
-        // their texts are not sent. A run resolves with its RUN_FINISHED.
-        run: (id, {prompt, promptId, held = [], resume} = {}, {signal, onEvent} = {}) => {
+        // their texts are not sent. context is what the page under the dock
+        // shows (interface-context.ts), sent with a new prompt only: a resumed
+        // turn keeps the one of its prompt. A run resolves with its RUN_FINISHED.
+        run: (id, {prompt, promptId, held = [], resume, context = []} = {}, {signal, onEvent} = {}) => {
             const path = conversationPath(id);
             if (
                 !Array.isArray(held) ||
@@ -1178,7 +1181,7 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                 protocolVersion: AGUI_PROTOCOL_VERSION,
                 messages,
                 tools: [],
-                context: [],
+                context: answer || !Array.isArray(context) ? [] : boundContext(context),
                 state: {},
                 forwardedProps: {},
                 ...(answer ? {resume: answer} : {}),
