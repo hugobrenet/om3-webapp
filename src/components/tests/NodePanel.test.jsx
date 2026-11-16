@@ -162,7 +162,7 @@ describe('NodeDetailPanel', () => {
         expect(within(panel()).getByRole('region', {name: 'OS'})).toHaveTextContent('reported by the node');
         // A section with no value, its enclosure not probed: one line, together with the others so.
         const hardware = within(panel()).getByRole('region', {name: 'Hardware'});
-        expect(hardware).toHaveTextContent(/^Hardware:not set$/);
+        expect(hardware).toHaveTextContent(/^Hardwarenot set$/);
         expect(hardware.parentElement).toHaveAttribute('data-folded', 'organisation');
         expect(within(panel()).queryByText('Enclosure')).toBeNull();
         expect(within(panel()).queryByRole('table', {name: /properties/i})).toBeNull();
@@ -182,7 +182,7 @@ describe('NodeDetailPanel', () => {
         expect(location).toHaveTextContent('set by you');
         expect(within(location).getByRole('button', {name: 'Edit the organisation properties'})).toBeInTheDocument();
         const hardware = within(panel()).getByRole('region', {name: 'Hardware'});
-        expect(hardware).toHaveTextContent('Hardware:not set');
+        expect(hardware).toHaveTextContent('Hardwarenot set');
         fireEvent.click(within(hardware).getByRole('button', {name: 'Edit the organisation properties'}));
         await waitFor(() => expect(within(panel()).queryAllByRole('button', {name: 'Edit the organisation properties'})).toEqual([]));
         // Unfolded for its fields, the first of the one whose pencil was clicked focused.
