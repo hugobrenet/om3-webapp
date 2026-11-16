@@ -2,6 +2,7 @@ import React, {useEffect, useMemo} from "react";
 import {useLocation, useNavigate, useSearchParams} from "react-router-dom";
 import CreateObject from "./CreateObject";
 import useEventStore from "../hooks/useEventStore.js";
+import {retainEventReception} from "../eventSourceManager";
 import {extractNamespace, parseObjectPath} from "../utils/objectUtils.jsx";
 import {ALL_LIST, OBJECT_LISTS, listOfKind} from "../utils/objectLists";
 import {CREATABLE_KINDS} from "../app/object-create";
@@ -52,6 +53,17 @@ export default function CreateObjectPage() {
             return out;
         }, {replace: true});
     }, [draft, location.state, setParams]);
+
+    // The objects of the cluster, as they come: the namespaces offered, the paths copied
+    // from and refused, the instance a deployment waits for. Opened in a tab of its own,
+    // the page holds the stream itself, released once left.
+    useEffect(() => {
+        const token = localStorage.getItem("authToken");
+        const release = token ? retainEventReception(token) : null;
+        return () => {
+            release?.();
+        };
+    }, []);
 
     const objectStatus = useEventStore((s) => s.objectStatus);
     const paths = useMemo(
