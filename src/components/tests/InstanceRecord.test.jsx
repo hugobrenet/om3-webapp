@@ -127,18 +127,18 @@ describe('ObjectUsage', () => {
         const rows = within(table).getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell').map((c) => c.textContent));
         // The opensvc slice and the namespace slice over its nodes; the object, its line marked; n3 has no cgroup for it: dashes.
         expect(rows).toEqual([
-            ['opensvc.slice', '…', '30 MiB', '-'],
-            ['prodopensvc-ns.prod.slice', '…', '6 MiB', '-'],
+            ['opensvc.slice', '…', '30 MiB', '–'],
+            ['prodopensvc-ns.prod.slice', '…', '6 MiB', '–'],
             ['prod/svc/web', '…', '3 MiB', 'unlimited'],
             ['on n1', '…', '1 MiB', '64 MiB'],
-            ['frontsubset', '…', '512 KiB', '-'],
-            ['app#1', '…', '512 KiB', '-'],
-            ['fs#1', '…', '256 KiB', '-'],
+            ['frontsubset', '…', '512 KiB', '–'],
+            ['app#1', '…', '512 KiB', '–'],
+            ['fs#1', '…', '256 KiB', '–'],
             ['on n2', '…', '2 MiB', 'unlimited'],
-            ['frontsubset', '…', '1 MiB', '-'],
-            ['app#1', '…', '1 MiB', '-'],
-            ['fs#1', '…', '512 KiB', '-'],
-            ['on n3', '…', '-', '-'],
+            ['frontsubset', '…', '1 MiB', '–'],
+            ['app#1', '…', '1 MiB', '–'],
+            ['fs#1', '…', '512 KiB', '–'],
+            ['on n3', '…', '–', '–'],
         ]);
         expect(within(table).getAllByRole('row')[3]).toHaveAttribute('aria-current', 'true');
         expect(tile('Memory')).toHaveTextContent('3.0 MiB');
@@ -380,7 +380,7 @@ describe('ResourceStatus', () => {
             .map((row) => within(row).getAllByRole('cell').map((c) => c.textContent));
         expect(rows).toEqual([
             ['on n1', 'downdownP', 'optional', 'run'],
-            ['on n4', 'upup', '-', 'run'],
+            ['on n4', 'upup', '–', 'run'],
         ]);
         // All it logged, not the last message only: errors first, by the nodes they are on.
         const notes = within(screen.getByRole('region', {name: 'Notes (2)'})).getAllByRole('listitem').map((li) => li.textContent);
@@ -464,7 +464,7 @@ describe('ResourceStatus', () => {
         render(<MemoryRouter><ResourceDetailPanel id="prod/svc/web:container#1" tab="container" onTabChange={vi.fn()} onClose={vi.fn()}/></MemoryRouter>);
         const panel = screen.getByRole('dialog', {name: 'container#1 of prod/svc/web'});
         expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent))
-            .toEqual(['Status', 'Info', 'Logs', 'Container logs', 'Configuration']);
+            .toEqual(['Status', 'Info', 'Configuration', 'Logs', 'Container logs']);
         expect(screen.getByTestId('container-logs')).toHaveTextContent('prod/svc/web container#1 on n1+n2, up on n2');
     });
 
@@ -488,7 +488,7 @@ describe('ResourceStatus', () => {
             await open('console');
             const panel = screen.getByRole('dialog', {name: 'container#1 of prod/svc/web'});
             expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent))
-                .toEqual(['Status', 'Info', 'Logs', 'Container logs', 'Console', 'Display', 'Configuration']);
+                .toEqual(['Status', 'Info', 'Console', 'Display', 'Configuration', 'Logs', 'Container logs']);
             // Running on a standby node counts: that node at first.
             expect(within(panel).getByRole('combobox', {name: 'Node of the session'})).toHaveValue('n2');
         });
@@ -540,7 +540,7 @@ describe('ResourceStatus', () => {
     test('its info tab: what the resource alone reports on each node, its table without title nor filter', async () => {
         render(<MemoryRouter><ResourceDetailPanel id="prod/svc/web:app#1" tab="info" onTabChange={vi.fn()} onClose={vi.fn()}/></MemoryRouter>);
         const panel = screen.getByRole('dialog', {name: 'app#1 of prod/svc/web'});
-        expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Status', 'Info', 'Logs', 'Configuration']);
+        expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Status', 'Info', 'Configuration', 'Logs']);
         const table = await within(panel).findByRole('table', {name: 'Resource information'});
         expect(within(panel).getAllByRole('table')).toHaveLength(1);
         expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Key', 'on n1', 'on n2']);
@@ -569,7 +569,7 @@ describe('ResourceStatus', () => {
             const panel = screen.getByRole('dialog', {name: 'app#1 of prod/svc/web on n4'});
             const rows = within(within(panel).getByRole('table', {name: 'The resource on each node'})).getAllByRole('row').slice(1)
                 .map((row) => within(row).getAllByRole('cell').map((c) => c.textContent));
-            expect(rows).toEqual([['on n4', 'upup', '-', 'run']]);
+            expect(rows).toEqual([['on n4', 'upup', '–', 'run']]);
             // No note there: no section.
             expect(screen.queryByRole('region', {name: /^Notes/})).toBeNull();
             const instance = within(panel).getByText('Instance', {selector: 'dt'}).nextElementSibling;

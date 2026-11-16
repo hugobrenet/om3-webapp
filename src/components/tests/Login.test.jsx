@@ -57,7 +57,7 @@ const setupLogin = () => {
     const getUsernameInput = () => screen.getByLabelText('Username');
     const getPasswordInput = () => screen.getByLabelText('Password');
     const getSubmitButton = () => screen.getByRole('button', {name: 'Submit'});
-    const getChangeMethodButton = () => screen.getByRole('button', {name: 'Change Method'});
+    const getChangeMethodButton = () => screen.getByRole('button', {name: 'Change method'});
 
     const fillForm = (username, password) => {
         fireEvent.change(getUsernameInput(), {target: {value: username}});
@@ -90,7 +90,7 @@ describe('Login Component', () => {
         expect(screen.getByLabelText('Username')).toBeInTheDocument();
         expect(screen.getByLabelText('Password')).toBeInTheDocument();
         expect(screen.getByRole('button', {name: 'Submit'})).toBeInTheDocument();
-        expect(screen.getByRole('button', {name: 'Change Method'})).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Change method'})).toBeInTheDocument();
     });
 
     test('handles form input changes and disables submit when empty', () => {
@@ -201,7 +201,7 @@ describe('Login Component', () => {
         expect(loadingButton).toBeDisabled();
         expect(getUsernameInput()).toBeDisabled();
         expect(getPasswordInput()).toBeDisabled();
-        expect(screen.getByRole('button', {name: 'Change Method'})).toBeDisabled();
+        expect(screen.getByRole('button', {name: 'Change method'})).toBeDisabled();
 
         resolveFetch({ok: false});
         await waitFor(() => {

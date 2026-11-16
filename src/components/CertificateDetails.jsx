@@ -70,8 +70,8 @@ const Certificate = ({certificate, index, total}) => {
                 {basicConstraints?.ca && <span className="font-normal text-ink-muted">· {t("keys.certificate.authority")}</span>}
             </h3>
             <dl className="grid grid-cols-[minmax(8rem,max-content)_1fr] gap-x-4 gap-y-1 text-data">
-                <Line label={t("keys.certificate.subject")}>{formatName(certificate.subject) || "—"}</Line>
-                <Line label={t("keys.certificate.issuer")}>{formatName(certificate.issuer) || "—"}</Line>
+                <Line label={t("keys.certificate.subject")}>{formatName(certificate.subject) || "–"}</Line>
+                <Line label={t("keys.certificate.issuer")}>{formatName(certificate.issuer) || "–"}</Line>
                 <Line label={t("keys.certificate.validity")}>
                     <span className={cn("font-medium", validity.tone)}>{validity.text}</span>
                 </Line>

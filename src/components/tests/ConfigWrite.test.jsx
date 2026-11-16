@@ -196,7 +196,7 @@ describe('the force of a configuration write', () => {
         await act(() => user.click(within(alert).getByRole('button', {name: 'Write anyway (--force)'})));
         await waitFor(() => expect(writes()).toHaveLength(2));
         expect(writes()[1].url).toBe(`${OBJ}/config/file?wait=30s&force=true`);
-        await waitFor(() => expect(screen.queryByRole('heading', {name: 'Update Configuration'})).toBeNull());
+        await waitFor(() => expect(screen.queryByRole('heading', {name: 'Update configuration'})).toBeNull());
     });
 });
 

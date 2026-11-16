@@ -262,7 +262,7 @@ describe("VolumeFiles", () => {
             const dialog = await open("haproxy.cfg", {blob: text("global\n  x 1\n"), total: 12, partial: false});
             expect(await within(dialog).findByDisplayValue(/global/)).toHaveAttribute("readonly");
             expect(readFileHead).toHaveBeenCalledWith(PATH, "n1", "haproxy.cfg", "etc", 1048576);
-            expect(within(dialog).getByText(/Type: Text/)).toBeInTheDocument();
+            expect(within(dialog).getByText(/Type: text/)).toBeInTheDocument();
             await userEvent.click(within(dialog).getByRole("button", {name: "Download the file"}));
             expect(downloadFile).toHaveBeenCalledWith(PATH, "n1", "haproxy.cfg", "etc");
         });
@@ -308,7 +308,7 @@ describe("VolumeFiles", () => {
 
         test("binary shown in hex, not edited", async () => {
             const dialog = await open("logo.png", {blob: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x00])]), total: 5, partial: false});
-            expect(await within(dialog).findByText(/Type: Binary/)).toBeInTheDocument();
+            expect(await within(dialog).findByText(/Type: binary/)).toBeInTheDocument();
             expect(within(dialog).getByRole("textbox", {name: "File content"}).value).toMatch(/^00000000 {2}89 50 4e 47 00/);
             expect(within(dialog).queryByRole("button", {name: "Edit"})).toBeNull();
         });
@@ -327,7 +327,7 @@ describe("VolumeFiles", () => {
 
         test("removed from its dialog as from its row: an uploaded one said so", async () => {
             const dialog = await open("logo.png", {blob: new Blob([new Uint8Array([0])]), total: 1, partial: false});
-            await within(dialog).findByText(/Type: Binary/);
+            await within(dialog).findByText(/Type: binary/);
             await userEvent.click(within(dialog).getByRole("button", {name: "Delete"}));
             expect(screen.getByRole("dialog", {name: "Delete logo.png?"})).toHaveTextContent("It was uploaded here.");
         });

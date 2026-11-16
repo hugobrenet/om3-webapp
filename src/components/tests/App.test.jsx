@@ -48,7 +48,7 @@ vi.mock('../../app/PanelReopenKey', () => ({PanelReopenKey: () => <div data-test
 vi.mock('../../app/ShortcutsHelp', () => ({ShortcutsHelp: () => <div data-testid="shortcuts-help"/>}));
 vi.mock('../WhoAmI', () => ({default: () => <div data-testid="whoami">WhoAmI</div>}));
 vi.mock('../SessionPage', () => ({default: () => <div data-testid="session-page">SessionPage</div>}));
-vi.mock('../AiChat', () => ({default: () => <div data-testid="ai-chat">AI Assistant</div>}));
+vi.mock('../AiChat', () => ({default: () => <div data-testid="ai-chat">AI assistant</div>}));
 vi.mock('../SilentRenew.jsx', () => ({default: () => <div data-testid="silent-renew">SilentRenew</div>}));
 vi.mock('../AuthChoice.jsx', () => ({default: () => <div data-testid="auth-choice">AuthChoice</div>}));
 vi.mock('../OidcCallback', () => ({default: () => <div data-testid="auth-callback">OidcCallback</div>}));

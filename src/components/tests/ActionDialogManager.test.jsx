@@ -274,8 +274,8 @@ describe('ActionDialogManager', () => {
 
     test('opens SimpleConfirmDialog for unknown action', async () => {
         render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'other'}}/>);
-        expect(await screen.findByRole('dialog', {name: 'Confirm Other'})).toBeInTheDocument();
-        expect(await screen.findByText('Confirm Other')).toBeInTheDocument();
+        expect(await screen.findByRole('dialog', {name: 'Confirm other'})).toBeInTheDocument();
+        expect(await screen.findByText('Confirm other')).toBeInTheDocument();
         expect(screen.getByRole('button', {name: 'Confirm'})).toBeEnabled();
         expect(screen.getByRole('button', {name: 'Cancel'})).toBeEnabled();
         expect(screen.getByText(/Are you sure you want to other on test-target\?/)).toBeInTheDocument();
@@ -394,7 +394,7 @@ describe('ActionDialogManager', () => {
 
     test('handles simpleConfirm fallback dialog', async () => {
         render(<ActionDialogManager {...defaultProps} pendingAction={{action: 'other'}}/>);
-        expect(await screen.findByText('Confirm Other')).toBeInTheDocument();
+        expect(await screen.findByText('Confirm other')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
         expect(defaultProps.handleConfirm).toHaveBeenCalledWith('other', {});
     });
@@ -526,7 +526,7 @@ describe('ActionDialogManager', () => {
         let {unmount} = render(
             <ActionDialogManager {...defaultProps} pendingAction={{action: 'other'}}/>
         );
-        await screen.findByText('Confirm Other');
+        await screen.findByText('Confirm other');
         fireEvent.click(screen.getByText('Cancel'));
         expect(defaultProps.onClose).toHaveBeenCalled();
         unmount();
@@ -535,7 +535,7 @@ describe('ActionDialogManager', () => {
         ({unmount} = render(
             <ActionDialogManager {...defaultProps} pendingAction={{action: 'other'}}/>
         ));
-        await screen.findByText('Confirm Other');
+        await screen.findByText('Confirm other');
         fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
         expect(defaultProps.onClose).toHaveBeenCalled();
         unmount();
@@ -544,14 +544,14 @@ describe('ActionDialogManager', () => {
         ({unmount} = render(
             <ActionDialogManager {...propsNoClose} pendingAction={{action: 'other'}}/>
         ));
-        await screen.findByText('Confirm Other');
+        await screen.findByText('Confirm other');
         fireEvent.click(screen.getByText('Cancel'));
         unmount();
 
         ({unmount} = render(
             <ActionDialogManager {...propsNoClose} pendingAction={{action: 'other'}}/>
         ));
-        await screen.findByText('Confirm Other');
+        await screen.findByText('Confirm other');
         fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
         unmount();
     });
@@ -611,7 +611,7 @@ describe('SimpleConfirmDialog', () => {
         const onConfirm = vi.fn();
         render(<SimpleConfirmDialog open onClose={onClose} onConfirm={onConfirm} action="start" target="t"
                                     disabled={false} cancelDisabled={false}/>);
-        const dialog = screen.getByRole('dialog', {name: 'Confirm Start'});
+        const dialog = screen.getByRole('dialog', {name: 'Confirm start'});
         fireEvent.click(within(dialog).getByRole('button', {name: 'Confirm'}));
         expect(onConfirm).toHaveBeenCalledTimes(1);
         fireEvent.click(within(dialog).getByRole('button', {name: 'Cancel'}));
@@ -639,7 +639,7 @@ describe('SimpleConfirmDialog', () => {
                 cancelDisabled={false}
             />
         );
-        expect(screen.getByText('Confirm Action')).toBeInTheDocument();
+        expect(screen.getByText('Confirm action')).toBeInTheDocument();
         expect(screen.getByText(/Are you sure you want to perform this action on test-target\?/)).toBeInTheDocument();
     });
 
@@ -655,7 +655,7 @@ describe('SimpleConfirmDialog', () => {
                 cancelDisabled={false}
             />
         );
-        expect(screen.getByText('Confirm Action')).toBeInTheDocument();
+        expect(screen.getByText('Confirm action')).toBeInTheDocument();
         expect(screen.getByText(/Are you sure you want to perform this action on test-target\?/)).toBeInTheDocument();
     });
 
@@ -671,7 +671,7 @@ describe('SimpleConfirmDialog', () => {
                 cancelDisabled={false}
             />
         );
-        expect(screen.getByText('Confirm Delete')).toBeInTheDocument();
+        expect(screen.getByText('Confirm delete')).toBeInTheDocument();
         expect(screen.getByText(/Are you sure you want to delete on test-target\?/)).toBeInTheDocument();
     });
 });

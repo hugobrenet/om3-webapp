@@ -11,6 +11,7 @@ import {Alert} from "../ui/components/Alert";
 import {Button} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
 import {DaemonIdLogs} from "./DaemonIdLogs";
+import {DaemonAudit} from "./DaemonAudit";
 import {MenuButton} from "../ui/components/MenuButton";
 import {RelativeTime} from "../ui/components/RelativeTime";
 import {StatusMark} from "../ui/components/StatusMark";
@@ -38,17 +39,17 @@ import {
 /*
  * The daemon of a node, as `om daemon` shows and drives it: its components and
  * their state, its listener, its heartbeats, the orchestrations it
- * runs and the commands it executes, and the DNS zone it serves. Read from the API
- * of om3 main (daemon/*), each action confirmed first.
+ * runs and the commands it executes, the DNS zone it serves, and its audit. Read
+ * from the API of om3 main (daemon/*), each action confirmed first.
  *
  * A view at a time, chosen from a strip of chips that sums each up: the overview
  * (the components, the listener among them, and the heartbeats), the executions,
- * the orchestrations and the DNS records, the long lists paged. The view is in the
- * URL (`view`), as the tab is.
+ * the orchestrations, the DNS records, the long lists paged, and the audit, the logs
+ * of the daemon streamed on demand. The view is in the URL (`view`), as the tab is.
  */
 
 /** The views of the tab, the overview first. */
-const VIEWS = ["overview", "executions", "orchestrations", "dns"];
+const VIEWS = ["overview", "executions", "orchestrations", "dns", "audit"];
 
 /** The components of the daemon the node status reports, in the order of `om daemon status`. */
 const COMPONENTS = ["listener", "dns", "scheduler", "runner_imon", "collector", "daemondata"];
@@ -324,6 +325,13 @@ export function NodeDaemon({node}) {
             description: t("nodeDaemon.summary.dns", {count: dnsRecords.length, names: dnsNames}),
             tone: dns.error ? "error" : "muted",
         },
+        {
+            key: "audit",
+            label: t("nodeDaemon.views.audit"),
+            mark: null,
+            description: t("nodeDaemon.summary.audit"),
+            tone: "muted",
+        },
     ];
 
     /** An object of the daemon's work, a badge opening it; the node's own, said so. */
@@ -519,7 +527,8 @@ export function NodeDaemon({node}) {
         </div>
     );
 
-    const views = {overview, executions, orchestrations: orchestrationsView, dns: dnsView};
+    // The audit mounted while shown alone: left, it stops.
+    const views = {overview, executions, orchestrations: orchestrationsView, dns: dnsView, audit: <DaemonAudit node={node}/>};
 
     return (
         <div className="space-y-4">

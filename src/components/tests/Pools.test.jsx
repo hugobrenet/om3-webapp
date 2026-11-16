@@ -100,7 +100,7 @@ describe('Pools Component', () => {
 
         await waitFor(() => {
             const headers = screen.getAllByRole('columnheader').map((h) => h.textContent.replace(/[▲▼]/g, '').trim());
-            expect(headers).toEqual(['Name', 'Type', 'Volume Count', 'Usage', 'Head']);
+            expect(headers).toEqual(['Name', 'Type', 'Volume count', 'Usage', 'Head']);
         });
         // Default sort: name ascending, the other columns unsorted
         expect(header('Name')).toHaveAttribute('aria-sort', 'ascending');
@@ -367,21 +367,21 @@ describe('Pools Component', () => {
         });
 
         // volume_count asc
-        fireEvent.click(sortButton('Volume Count'));
+        fireEvent.click(sortButton('Volume count'));
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool2')).toBeInTheDocument(); // 3
             expect(within(rows[1]).getByText('pool1')).toBeInTheDocument(); // 5
             expect(within(rows[2]).getByText('pool3')).toBeInTheDocument(); // 10
-            expect(header('Volume Count')).toHaveAttribute('aria-sort', 'ascending');
+            expect(header('Volume count')).toHaveAttribute('aria-sort', 'ascending');
         });
 
         // volume_count desc
-        fireEvent.click(sortButton('Volume Count'));
+        fireEvent.click(sortButton('Volume count'));
         await waitFor(() => {
             const rows = getRows();
             expect(within(rows[0]).getByText('pool3')).toBeInTheDocument(); // 10
-            expect(header('Volume Count')).toHaveAttribute('aria-sort', 'descending');
+            expect(header('Volume count')).toHaveAttribute('aria-sort', 'descending');
         });
 
         // usage asc
@@ -532,7 +532,7 @@ describe('Pools Component', () => {
         render(<Pools/>, {wrapper: MemoryRouter});
         await waitFor(() => expect(screen.getByText('pool1')).toBeInTheDocument());
 
-        fireEvent.click(sortButton('Volume Count'));
+        fireEvent.click(sortButton('Volume count'));
         await waitFor(() => {
             const rows = screen.getAllByRole('row', {name: /pool[1-3]/});
             // null volume_count treated as 0, so order: pool2 (0), pool1 (5), pool3 (10)

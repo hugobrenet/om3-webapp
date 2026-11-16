@@ -9,7 +9,7 @@ import {Spinner} from "../ui/components/Spinner";
 import {CrossLink} from "../app/CrossLink";
 import {Alert} from "../ui/components/Alert";
 
-/** A cpu in cpus as a percentage of one, "-" until a second reading tells it. */
+/** A cpu in cpus as a percentage of one, "–" until a second reading tells it. */
 export const cpuText = (cpus) => formatCpuPercent(cpus === null || cpus === undefined ? null : cpus * 100);
 
 /** The value a column sorts a row by; none, a figure not read yet, goes last. */

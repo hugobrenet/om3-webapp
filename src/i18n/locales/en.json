@@ -1,6 +1,6 @@
 {
   "actionDialogs": {
-    "chooseFile": "Choose File",
+    "chooseFile": "Choose file",
     "noFileSelected": "No file selected",
     "noFileChosen": "No file chosen",
     "acknowledge": {
@@ -18,18 +18,18 @@
       "unavailableDuringMove": "I understand the selected services will be unavailable during move."
     },
     "freeze": {
-      "title": "Confirm Freeze",
+      "title": "Confirm freeze",
       "checkboxAria": "Confirm failover pause",
       "checkbox": "I understand that the selected service orchestration will be paused.",
       "confirmAria": "Confirm freeze action"
     },
     "stop": {
-      "title": "Confirm Stop",
+      "title": "Confirm stop",
       "confirmAria": "Confirm stop action",
       "confirm": "Stop"
     },
     "shutdown": {
-      "title": "Confirm Shutdown",
+      "title": "Confirm shutdown",
       "confirmAria": "Confirm shutdown action",
       "confirm": "Shutdown",
       "instancesDownAria": "Confirm instances shutdown",
@@ -44,32 +44,32 @@
       }
     },
     "restart": {
-      "title": "Confirm Restart",
+      "title": "Confirm restart",
       "confirmAria": "Confirm restart action",
       "confirm": "Restart"
     },
     "clear": {
-      "title": "Confirm Clear",
+      "title": "Confirm clear",
       "checkboxAria": "Confirm clear action",
       "checkbox": "I understand that this will clear node status and logs.",
       "confirmAria": "Confirm clear action"
     },
     "drain": {
-      "title": "Confirm Drain",
+      "title": "Confirm drain",
       "checkboxAria": "Confirm service migration",
       "checkbox": "I understand that this will migrate services away from the selected nodes.",
       "confirmAria": "Confirm drain action"
     },
     "unprovision": {
-      "title": "Confirm Unprovision",
+      "title": "Confirm unprovision",
       "confirmAria": "Confirm unprovision action"
     },
     "purge": {
-      "title": "Confirm Purge",
+      "title": "Confirm purge",
       "confirmAria": "Confirm purge action"
     },
     "delete": {
-      "title": "Confirm Delete",
+      "title": "Confirm delete",
       "confirmAria": "Confirm delete action",
       "instance": {
         "configLossAria": "Confirm instance configuration loss",
@@ -79,32 +79,32 @@
       }
     },
     "switch": {
-      "title": "Confirm Switch",
+      "title": "Confirm switch",
       "confirmAria": "Confirm switch action"
     },
     "giveback": {
-      "title": "Confirm Giveback",
+      "title": "Confirm giveback",
       "confirmAria": "Confirm giveback action"
     },
     "deleteKey": {
-      "title": "Confirm Key Deletion",
+      "title": "Confirm key deletion",
       "confirmAria": "Confirm delete key action",
       "message": "Are you sure you want to delete the key <strong>{{key}}</strong>?"
     },
     "createKey": {
-      "title": "Create New Key",
+      "title": "Create new key",
       "confirmAria": "Confirm create key action",
       "confirm": "Create",
-      "keyName": "Key Name",
+      "keyName": "Key name",
       "keyNameAria": "Key name input"
     },
     "updateConfig": {
-      "title": "Update Configuration",
+      "title": "Update configuration",
       "confirmAria": "Confirm update config action",
       "confirm": "Update"
     },
     "manageParams": {
-      "title": "Manage Configuration Parameters",
+      "title": "Manage configuration parameters",
       "confirmAria": "Apply configuration changes",
       "confirm": "Apply",
       "set": "Parameters to set",
@@ -123,8 +123,8 @@
       "title": "Confirm {{action}}",
       "confirmAria": "Confirm {{action}} action",
       "message": "Are you sure you want to <strong>{{action}}</strong> on {{target}}?",
-      "titleAction": "Confirm {{label}}",
-      "titleGeneric": "Confirm Action",
+      "titleAction": "Confirm {{action}}",
+      "titleGeneric": "Confirm action",
       "messageAction": "Are you sure you want to {{action}} on {{target}}?",
       "messageGeneric": "Are you sure you want to perform this action on {{target}}?"
     }
@@ -321,7 +321,7 @@
       "title": "Login",
       "username": "Username",
       "password": "Password",
-      "changeMethod": "Change Method",
+      "changeMethod": "Change method",
       "submit": "Submit",
       "loading": "Loading...",
       "incorrect": "Incorrect username or password",
@@ -329,7 +329,7 @@
       "missingFields": "Please enter both username and password"
     },
     "choice": {
-      "title": "Authentication Methods",
+      "title": "Authentication methods",
       "prompt": "Please select one of the authentication methods the cluster advertises.",
       "loading": "Loading authentication methods",
       "openid": "OpenID",
@@ -390,16 +390,16 @@
       "timeout": "Request timed out after 60 seconds"
     },
     "filePicker": {
-      "choose": "Choose File",
+      "choose": "Choose file",
       "noFile": "No file chosen"
     },
     "update": {
-      "title": "Update Configuration",
+      "title": "Update configuration",
       "submit": "Update",
       "updating": "Updating"
     },
     "view": {
-      "button": "View Configuration",
+      "button": "View configuration",
       "title": "Configuration",
       "saving": "Saving",
       "editNotice": "Editing the file as stored: secret values are shown in clear. Saving uploads the whole file.",
@@ -563,7 +563,7 @@
     "tabTitle": "{{rid}} @ {{node}} · {{path}}"
   },
   "events": {
-    "title": "Event Logger",
+    "title": "Event logger",
     "button": "Events",
     "count": "{{visible}}/{{total}} events",
     "paused": "PAUSED",
@@ -583,18 +583,18 @@
     "resizeHandle": "Resize handle",
     "dragToResize": "Drag to resize",
     "subscriptions": {
-      "title": "Event Subscriptions",
+      "title": "Event subscriptions",
       "close": "Close subscriptions",
       "intro": "Select which event types you want to SUBSCRIBE to (future events only):",
-      "subscribeAll": "Subscribe to All",
-      "subscribePage": "Subscribe to Page Events",
-      "unsubscribeAll": "Unsubscribe from All",
-      "pageEvents": "Page Events ({{total}})",
-      "additionalEvents": "Additional Events ({{total}})",
+      "subscribeAll": "Subscribe to all",
+      "subscribePage": "Subscribe to page events",
+      "unsubscribeAll": "Unsubscribe from all",
+      "pageEvents": "Page events ({{total}})",
+      "additionalEvents": "Additional events ({{total}})",
       "received_one": "{{count}} events received",
       "received_other": "{{count}} events received",
       "noneSelected": "No event types selected. You won't receive any events.",
-      "apply": "Apply Subscriptions ({{total}})"
+      "apply": "Apply subscriptions ({{total}})"
     },
     "following": "Following",
     "follow": "Follow",
@@ -625,7 +625,7 @@
       "routine": "Routine",
       "beating": "Beating",
       "since": "Since",
-      "lastBeat": "Last Beat"
+      "lastBeat": "Last beat"
     },
     "filters": {
       "routine": "Routine",
@@ -807,7 +807,7 @@
   },
   "instance": {
     "unknown": "unknown",
-    "notProvisionedTitle": "Not Provisioned",
+    "notProvisionedTitle": "Not provisioned",
     "card": {
       "group": "Instance on node {{node}}",
       "selectNode": "Select node {{node}}",
@@ -850,23 +850,23 @@
     },
     "flags": {
       "running": "Running",
-      "notRunning": "Not Running",
+      "notRunning": "Not running",
       "monitored": "Monitored",
-      "notMonitored": "Not Monitored",
+      "notMonitored": "Not monitored",
       "enabled": "Enabled",
       "disabled": "Disabled",
       "optional": "Optional",
-      "notOptional": "Not Optional",
+      "notOptional": "Not optional",
       "encap": "Encap",
-      "notEncap": "Not Encap",
+      "notEncap": "Not encap",
       "provisioned": "Provisioned",
-      "notProvisioned": "Not Provisioned",
+      "notProvisioned": "Not provisioned",
       "standby": "Standby",
-      "notStandby": "Not Standby",
-      "noRestart": "No Restart",
-      "moreThan10Restarts": "More than 10 Restarts",
-      "restartsRemaining_one": "{{count}} Restart Remaining",
-      "restartsRemaining_other": "{{count}} Restarts Remaining"
+      "notStandby": "Not standby",
+      "noRestart": "No restart",
+      "moreThan10Restarts": "More than 10 restarts",
+      "restartsRemaining_one": "{{count}} restart remaining",
+      "restartsRemaining_other": "{{count}} restarts remaining"
     },
     "feedback": {
       "authTokenNotFound": "Auth token not found.",
@@ -878,15 +878,15 @@
       "error": "Error: {{message}}"
     },
     "dialogs": {
-      "confirmFreeze": "Confirm Freeze",
+      "confirmFreeze": "Confirm freeze",
       "freezeAck": "I understand that the selected service orchestration will be paused.",
-      "confirmStop": "Confirm Stop",
+      "confirmStop": "Confirm stop",
       "stop": "Stop",
       "stopAck": "I understand that this may interrupt services.",
-      "confirmUnprovision": "Confirm Unprovision",
+      "confirmUnprovision": "Confirm unprovision",
       "dataLossAck": "I understand data will be lost.",
       "serviceInterruptionAck": "I understand the selected services may be temporarily interrupted during failover, or durably interrupted if no failover is configured.",
-      "confirmPurge": "Confirm Purge",
+      "confirmPurge": "Confirm purge",
       "configLossAck": "I understand the configuration will be lost.",
       "confirmAction": "Confirm {{action}}",
       "action": "Action",
@@ -895,11 +895,11 @@
       "questionInstance": "Are you sure you want to <strong>{{action}}</strong> on this instance?"
     },
     "events": {
-      "title": "Instance Events - {{node}}/{{name}}",
-      "button": "Instance Events"
+      "title": "Instance events - {{node}}/{{name}}",
+      "button": "Instance events"
     },
     "logs": {
-      "title": "Instance Logs - {{node}}/{{name}}",
+      "title": "Instance logs - {{node}}/{{name}}",
       "close": "Close instance logs",
       "resize": "Resize drawer"
     },
@@ -927,7 +927,7 @@
     "on": "on {{node}}"
   },
   "keys": {
-    "title": "Object Keys ({{total}})",
+    "title": "Object keys ({{total}})",
     "add": "Add new key",
     "loading": "Loading keys",
     "loadingContent": "Loading key content",
@@ -939,9 +939,9 @@
     "deleteAction": "Delete key {{key}}",
     "view": {
       "action": "View key {{key}}",
-      "title": "View Key: {{key}}",
-      "typeText": "Type: Text",
-      "typeBinary": "Type: Binary (Hex View)",
+      "title": "View key: {{key}}",
+      "typeText": "Type: text",
+      "typeBinary": "Type: binary (hex view)",
       "maskedAgain_one": "Masked again in {{count}} second.",
       "maskedAgain_other": "Masked again in {{count}} seconds.",
       "hide": "Hide secret",
@@ -984,19 +984,19 @@
       "invalid": "Certificate {{index}} could not be decoded: {{message}}"
     },
     "deleteDialog": {
-      "title": "Confirm Key Deletion",
+      "title": "Confirm key deletion",
       "message": "Are you sure you want to delete the key <strong>{{key}}</strong>?",
       "messageMany": "Are you sure you want to delete the {{count}} keys <strong>{{list}}</strong>?"
     },
     "form": {
-      "createTitle": "Create New Key",
-      "updateTitle": "Update Key",
+      "createTitle": "Create new key",
+      "updateTitle": "Update key",
       "create": "Create",
       "update": "Update",
-      "name": "Key Name",
+      "name": "Key name",
       "fullScreen": "Full screen",
       "exitFullScreen": "Exit full screen",
-      "content": "Key Content",
+      "content": "Key content",
       "contentPlaceholder": "Empty: the key is empty.",
       "dropHint": "Type or paste the content, or drop a file here —",
       "browse": "browse…",
@@ -1362,22 +1362,7 @@
       "navigateTo": "Navigate to {{name}}",
       "cluster": "Cluster",
       "loading": "Loading...",
-      "segments": {
-        "heartbeats": "links",
-        "kinds": "kinds",
-        "namespaces": "namespaces",
-        "network": "network",
-        "nodes": "nodes",
-        "objects": "objects",
-        "pools": "pools",
-        "whoami": "whoami",
-        "resources": "resources",
-        "stores": "stores",
-        "cluster": "cluster",
-        "glossary": "glossary",
-        "about": "About",
-        "relay": "Relay"
-      }
+      "token": "Token"
     },
     "sections": {
       "cluster": "Cluster",
@@ -1395,7 +1380,7 @@
     "usageOf": "Usage of {{name}}",
     "empty": "No networks available.",
     "details": {
-      "title": "Network Details: {{name}} ({{type}})",
+      "title": "Network details: {{name}} ({{type}})",
       "loadError": "Failed to load network details. Please try again.",
       "showFilters": "Show filters",
       "hideFilters": "Hide filters",
@@ -1505,11 +1490,11 @@
     "columns": {
       "score": "Score",
       "load15m": "Load (15m)",
-      "memAvail": "Mem Avail",
-      "swapAvail": "Swap Avail",
+      "memAvail": "Memory available",
+      "swapAvail": "Swap available",
       "version": "Version",
-      "bootedAt": "Booted At",
-      "updatedAt": "Updated At",
+      "bootedAt": "Booted at",
+      "updatedAt": "Updated at",
       "env": "Env",
       "labels": "Labels",
       "metrics": "Metrics"
@@ -1533,12 +1518,6 @@
       "versionDiff": "Agent {{version}}, most nodes run {{common}}",
       "booted": "booted",
       "updated": "updated"
-    },
-    "time": {
-      "justNow": "Just now",
-      "minutesAgo": "{{count}}m ago",
-      "hoursAgo": "{{count}}h ago",
-      "daysAgo": "{{count}}d ago"
     },
     "selectHint": "Select nodes to act on them, or open one",
     "noMatch": "No node matches.",
@@ -1739,8 +1718,8 @@
       "configUpdated": "Instance configuration updated"
     },
     "logs": {
-      "instanceTitle": "Instance Logs - {{name}}",
-      "nodeTitle": "Node Logs - {{node}}",
+      "instanceTitle": "Instance logs - {{name}}",
+      "nodeTitle": "Node logs - {{node}}",
       "title": "Logs",
       "close": "Close logs",
       "resize": "Resize drawer"
@@ -1885,7 +1864,7 @@
     "filters": {
       "show": "Show filters",
       "hide": "Hide filters",
-      "globalState": "Global State",
+      "globalState": "Global state",
       "namespace": "Namespace",
       "kind": "Kind",
       "unprovisioned": "Unprovisioned",
@@ -1904,7 +1883,7 @@
     "header": {
       "statusTitle": "Object status: {{status}}",
       "unknown": "unknown",
-      "notProvisionedTitle": "Not Provisioned",
+      "notProvisionedTitle": "Not provisioned",
       "notProvisionedLabel": "Object is not provisioned",
       "actionsMenu": "Object actions"
     },
@@ -1923,7 +1902,7 @@
   },
   "pools": {
     "columns": {
-      "volumeCount": "Volume Count",
+      "volumeCount": "Volume count",
       "usage": "Usage",
       "head": "Head"
     },
@@ -2051,13 +2030,13 @@
     "loadError": "Failed to load user information",
     "myInfo": "Account",
     "username": "Username",
-    "authMethod": "Auth Method",
-    "permissions": "Permission Details",
-    "server": "Server Information",
-    "connectedNode": "Connected Node",
+    "authMethod": "Auth method",
+    "permissions": "Permission details",
+    "server": "Server information",
+    "connectedNode": "Connected node",
     "nodeLoading": "Loading...",
     "nodeUnknown": "Unknown",
-    "webappVersion": "WebApp Version",
+    "webappVersion": "Webapp version",
     "versionLoading": "vLoading...",
     "versionUnknown": "vUnknown",
     "lightMode": "Light",
@@ -2078,7 +2057,7 @@
     "resetIntros_other": "Show the {{count}} hidden introductions again",
     "resetIntros_zero": "No introduction hidden",
     "grants": "Grants",
-    "latestRelease": "Latest Release",
+    "latestRelease": "Latest release",
     "thisVersion": "this version"
   },
   "panel": {
@@ -2415,7 +2394,8 @@
       "overview": "Overview",
       "executions": "Executions",
       "orchestrations": "Orchestrations",
-      "dns": "DNS"
+      "dns": "DNS",
+      "audit": "Audit"
     },
     "summary": {
       "overview": "{{up}} of {{components}} components running, {{beating}} of {{streams}} heartbeat streams beating",
@@ -2423,7 +2403,8 @@
       "orchestrations": "{{count}} orchestrations, {{running}} in progress",
       "dns": "{{count}} records of {{names}} names",
       "running_one": "{{count}} running",
-      "running_other": "{{count}} running"
+      "running_other": "{{count}} running",
+      "audit": "The logs of the daemon up to debug and trace, streamed on demand"
     },
     "logs": {
       "show": "Logs",
@@ -2432,6 +2413,34 @@
       "copyId": "Copy the id",
       "nodes_one": "on {{nodes}}",
       "nodes_other": "on {{count}} nodes: {{nodes}}"
+    },
+    "audit": {
+      "intro": "Streams the log records of the daemon subsystems, up to debug and trace, as om daemon audit does. One audit at a time on a daemon; it stops as you leave this view.",
+      "rootOnly": "Auditing the daemon needs the root grant.",
+      "level": "From level",
+      "subsystems": "Subsystems",
+      "subsystemsPlaceholder": "All of them; type to search",
+      "suffixHint": "Type to search the known subsystems. Glob patterns too: imon:* for every object monitor, imon:prod/svc/web for one, hb:1 for a heartbeat.",
+      "start": "Start",
+      "stop": "Stop",
+      "running": "Auditing",
+      "runningOf": "Auditing {{subsystems}}, from {{level}}",
+      "conflict": "Another audit is running on this daemon: {{detail}}",
+      "takeOver": "Take over",
+      "preempted": "Another session took the audit over. Start again to take it back.",
+      "ended": "The daemon ended the audit, restarted or no longer answering. Start again to resume.",
+      "failed": "The audit could not run: {{detail}}",
+      "noStream": "the daemon sent nothing to read",
+      "search": "Search the records",
+      "lines": "Audit records",
+      "empty": "Choose the subsystems and the level, then Start.",
+      "remove": "Remove {{subsystem}}",
+      "suffix": {
+        "icfg": "an object configuration",
+        "imon": "an object instance monitor",
+        "omon": "an object monitor",
+        "hb": "a heartbeat id"
+      }
     }
   },
   "resource": {
@@ -3797,7 +3806,7 @@
     "webapp": "Webapp"
   },
   "ai": {
-    "title": "AI Assistant",
+    "title": "AI assistant",
     "cluster": "Cluster",
     "notConfigured": "No AI agent is configured on this cluster: an administrator sets ai.agent_url in the cluster configuration.",
     "openidRequired": "The assistant needs a single sign-on session: sign in with the identity provider.",

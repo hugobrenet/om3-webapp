@@ -728,8 +728,8 @@ describe('NodesTable', () => {
             ['State', /node-2/],
             ['Score', /node-3/],
             ['Load (15m)', /node-3/],
-            ['Mem Avail', /node-3/],
-            ['Swap Avail', /node-3/],
+            ['Memory available', /node-3/],
+            ['Swap available', /node-3/],
             ['Version', /node-1/],
         ])('ascending sort by %s', async (header, expectedFirst) => {
             renderWithRouter(<NodesTable/>);
@@ -767,7 +767,7 @@ describe('NodesTable', () => {
 
         test('sort by booted_at', async () => {
             renderWithRouter(<NodesTable/>);
-            fireEvent.click(screen.getByRole('button', {name: 'Booted At'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Booted at'}));
             await waitFor(() => {
                 const rows = screen.getAllByTestId(/row-/);
                 expect(rows[0]).toHaveTextContent('node-1');
@@ -784,7 +784,7 @@ describe('NodesTable', () => {
                 },
             });
             renderWithRouter(<NodesTable/>);
-            fireEvent.click(screen.getByRole('button', {name: 'Updated At'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Updated at'}));
             await waitFor(() => {
                 const rows = screen.getAllByTestId(/row-/);
                 expect(rows[0]).toHaveTextContent('node-2');
@@ -874,11 +874,11 @@ describe('NodesTable', () => {
             ['State', 'node-1', 'node-2'],
             ['Score', 'node-1', 'node-3'],
             ['Load (15m)', 'node-2', 'node-3'],
-            ['Mem Avail', 'node-2', 'node-3'],
-            ['Swap Avail', 'node-2', 'node-3'],
+            ['Memory available', 'node-2', 'node-3'],
+            ['Swap available', 'node-2', 'node-3'],
             ['Version', 'node-3', 'node-1'],
-            ['Booted At', 'node-3', 'node-1'],
-            ['Updated At', 'node-1', 'node-3'],
+            ['Booted at', 'node-3', 'node-1'],
+            ['Updated at', 'node-1', 'node-3'],
         ])('descending sort by %s', async (header, expectedFirst, expectedLast) => {
             renderWithRouter(<NodesTable/>);
             fireEvent.click(screen.getByRole('button', {name: header}));
@@ -901,7 +901,7 @@ describe('NodesTable', () => {
                 nodeMonitor: {},
             });
             renderWithRouter(<NodesTable/>);
-            fireEvent.click(screen.getByRole('button', {name: 'Booted At'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Booted at'}));
             await waitFor(() => {
                 const rows = screen.getAllByTestId(/row-/);
                 expect(rows[0]).toHaveTextContent('node-3');
@@ -912,7 +912,7 @@ describe('NodesTable', () => {
 
         test('sort by updated_at with missing updated_at', async () => {
             renderWithRouter(<NodesTable/>);
-            fireEvent.click(screen.getByRole('button', {name: 'Updated At'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Updated at'}));
             await waitFor(() => {
                 const rows = screen.getAllByTestId(/row-/);
                 expect(rows[0]).toHaveTextContent('node-3');

@@ -283,12 +283,12 @@ describe("Heartbeats Component", () => {
 
         const table = screen.getByRole("table");
         expect(table).toBeInTheDocument();
-        const headerRow = within(table).getByRole("row", {name: /Heartbeat Type Node Direction Peer Desc Routine Beating Since Last Beat/i});
-        ["Heartbeat", "Type", "Node", "Direction", "Peer", "Desc", "Routine", "Beating", "Since", "Last Beat"].forEach(text =>
+        const headerRow = within(table).getByRole("row", {name: /Heartbeat Type Node Direction Peer Desc Routine Beating Since Last beat/i});
+        ["Heartbeat", "Type", "Node", "Direction", "Peer", "Desc", "Routine", "Beating", "Since", "Last beat"].forEach(text =>
             expect(within(headerRow).getByText(text)).toBeInTheDocument()
         );
 
-        ["Heartbeat", "Type", "Node", "Direction", "Peer", "Desc", "Routine", "Beating", "Since", "Last Beat"].forEach(name =>
+        ["Heartbeat", "Type", "Node", "Direction", "Peer", "Desc", "Routine", "Beating", "Since", "Last beat"].forEach(name =>
             expect(within(headerRow).getByRole("button", {name})).toBeInTheDocument()
         );
         // Sorted by node, ascending, at first.
@@ -689,8 +689,8 @@ describe("Heartbeats Component", () => {
         expect(cells[4]).toHaveTextContent("N/A");
         expect(cells[1]).toHaveTextContent("unicast");
         expect(cells[5]).toHaveTextContent("N/A");
-        expect(cells[8]).toHaveTextContent(/^-$/);
-        expect(cells[9]).toHaveTextContent(/^-$/);
+        expect(cells[8]).toHaveTextContent(/^–$/);
+        expect(cells[9]).toHaveTextContent(/^–$/);
     });
 
     test("stopped stream with no cache and null type falls back to N/A", () => {
@@ -716,8 +716,8 @@ describe("Heartbeats Component", () => {
         await waitFor(() => {
             const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
             expect(cells[5]).toHaveTextContent("N/A");
-            expect(cells[8]).toHaveTextContent(/^-$/);
-            expect(cells[9]).toHaveTextContent(/^-$/);
+            expect(cells[8]).toHaveTextContent(/^–$/);
+            expect(cells[9]).toHaveTextContent(/^–$/);
         }, {timeout: 2000});
     });
 
@@ -811,7 +811,7 @@ describe("Heartbeats Component", () => {
         }]));
         renderWithRouter(<Heartbeats/>);
         const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
-        expect(cells[8]).toHaveTextContent("2h ago");
+        expect(cells[8]).toHaveTextContent("2 hours ago");
     });
 
     test("peer without desc/changed_at/last_beating_at shows N/A", () => {
@@ -825,8 +825,8 @@ describe("Heartbeats Component", () => {
         renderWithRouter(<Heartbeats/>);
         const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell");
         expect(cells[5]).toHaveTextContent("N/A");
-        expect(cells[8]).toHaveTextContent(/^-$/);
-        expect(cells[9]).toHaveTextContent(/^-$/);
+        expect(cells[8]).toHaveTextContent(/^–$/);
+        expect(cells[9]).toHaveTextContent(/^–$/);
     });
 
     test("stream without type or state falls back to N/A and unknown", () => {
@@ -850,7 +850,7 @@ describe("Heartbeats Component", () => {
         ["type", "Type", "a_type", "b_type"],
         ["desc", "Desc", "a_desc", "b_desc"],
         ["changed_at", "Since", "2024-01-01", "2024-02-01"],
-        ["last_beating_at", "Last Beat", "2024-01-01", "2024-02-01"],
+        ["last_beating_at", "Last beat", "2024-01-01", "2024-02-01"],
     ];
 
     test.each(sortTestData)("sorts by %s column", async (key, headerText, ascValue, descValue) => {
@@ -888,18 +888,17 @@ describe("Heartbeats Component", () => {
         };
         mockHeartbeatStore(status);
         renderWithRouter(<Heartbeats/>);
-        // A time older than a week shows as its date, as the nodes table shows it.
-        const shown = (v) => key.endsWith("_at") ? new Date(v).toLocaleDateString(i18n.language) : v;
-        ascValue = shown(ascValue);
-        descValue = shown(descValue);
 
         const header = screen.getByRole("button", {name: headerText});
         await userEvent.click(header);
         expect(header.closest("th")).toHaveAttribute("aria-sort", "ascending");
         // The id is the heartbeat and the side of the row, in two cells.
+        // A time by the instant it stands for: said from now, two may read the same.
         const shows = (row, value) => key === "id"
             ? expect(streamOf(row)).toBe(value)
-            : expect(within(row).getByText(value)).toBeInTheDocument();
+            : key.endsWith("_at")
+                ? expect(row.querySelector(`time[datetime="${new Date(value).toISOString()}"]`)).not.toBeNull()
+                : expect(within(row).getByText(value)).toBeInTheDocument();
         let rows = getDataRows();
         shows(rows[0], ascValue);
         shows(rows[1], descValue);

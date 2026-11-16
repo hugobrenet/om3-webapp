@@ -320,7 +320,7 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
         const pct = stats?.[`${kind}_avail`];
         const total = stats?.[`${kind}_total`];
         // A dash rather than a percent of nothing, as in the nodes table: no value reported, or no swap.
-        if (typeof pct !== "number" || total === 0) return "-";
+        if (typeof pct !== "number" || total === 0) return "–";
         const threshold = thresholds?.[kind];
         const min = threshold ? thresholdPct(threshold.text, total, MIN_AVAIL[kind].cap) : null;
         const low = min !== null && min > 0 && pct < min;
@@ -477,15 +477,17 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
                                     : [p.name, labelOf(p), valueOf(p)]))}/>
                             </Section>
                         )),
-                        // The sections with nothing to show, a line each, together after the others of their family.
+                        // The sections with nothing to show, a line each, together after the others of their family:
+                        // laid out as the facts, the name of the section in the column of the labels.
                         ...(folded.length === 0 ? [] : [(
                             <div key={`${family}-folded`} data-folded={family} className="space-y-1">
                                 {folded.map(({group}) => (
-                                    <section key={group} aria-labelledby={sectionId(group)} className="flex flex-wrap items-center gap-x-1.5">
-                                        <h3 id={sectionId(group)} className="font-semibold">{t(`nodePanel.properties.${group}`)}</h3>
-                                        <span aria-hidden="true" className="-ml-1.5">:</span>
-                                        <span className="text-ink-muted">{t(`nodePanel.status.${family}Unset`)}</span>
-                                        {pencil(group)}
+                                    <section key={group} aria-labelledby={sectionId(group)} className={`grid items-baseline ${FACT_COLUMNS}`}>
+                                        <h3 id={sectionId(group)} className="break-words text-ink-muted">{t(`nodePanel.properties.${group}`)}</h3>
+                                        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5">
+                                            <span className="text-ink-muted">{t(`nodePanel.status.${family}Unset`)}</span>
+                                            {pencil(group)}
+                                        </div>
                                     </section>
                                 ))}
                             </div>
@@ -508,12 +510,14 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
     );
 }
 
+// The labels in a column of one width in every block: the values aligned from one block to the next.
+// Narrow, a narrower one: the room to the values, a version or an id on its line.
+const FACT_COLUMNS = "grid-cols-[minmax(0,11rem)_minmax(0,1fr)] gap-x-6 max-md:grid-cols-[minmax(0,8rem)_minmax(0,1fr)] max-md:gap-x-3";
+
 /** Facts of the node, a label and its value a line: named by the section holding them. */
 function Facts({facts}) {
     return (
-        // The labels in a column of one width in every block: the values aligned from one block to the next.
-        // Narrow, a narrower one: the room to the values, a version or an id on its line.
-        <dl className="grid grid-cols-[minmax(0,11rem)_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1 max-md:grid-cols-[minmax(0,8rem)_minmax(0,1fr)] max-md:gap-x-3">
+        <dl className={`grid items-baseline gap-y-1 ${FACT_COLUMNS}`}>
             {facts.map(([key, label, value]) => (
                 <React.Fragment key={key}>
                     <dt className="break-words text-ink-muted">{label}</dt>
@@ -1126,7 +1130,8 @@ export function NodeDetailPanel({node, tab, onTabChange, onClose}) {
         setLogsOrchestration(id);
         onTabChange("logs");
     };
-    const tabs = ["status", "inventory", "config", "schedules", "drivers", "daemon", "events", "logs"]
+    // As every panel: its own views, then its configuration, its logs, its events (RecordPanel).
+    const tabs = ["status", "inventory", "schedules", "drivers", "daemon", "config", "logs", "events"]
         .map((key) => ({key, label: t(`nodePanel.tabs.${key}`)}));
     return (
         <RecordPanel

@@ -116,7 +116,7 @@ describe('NodeDetailPanel', () => {
     test('opens on its monitor, its health, then its properties in groups, discovered then organisation, kept current by the node events', async () => {
         renderPanel();
         expect(within(panel()).getAllByRole('tab').map((tab) => tab.textContent))
-            .toEqual(['Overview', 'Inventory', 'Configuration', 'Schedules', 'Drivers', 'Daemon', 'Events', 'Logs']);
+            .toEqual(['Overview', 'Inventory', 'Schedules', 'Drivers', 'Daemon', 'Configuration', 'Logs', 'Events']);
         const monitor = within(panel()).getByRole('region', {name: 'Monitor'});
         expect(monitor).toHaveTextContent('Stateidle');
         // Idle, quiet: no mark, no emphasis; running, bold; failed, red.
@@ -147,7 +147,7 @@ describe('NodeDetailPanel', () => {
         expect(health).toHaveTextContent('Score63');
         expect(health).toHaveTextContent('Memory available42% of 5.8 GiB');
         // No swap: a dash, as in the nodes table, and no minimum to set.
-        expect(health).toHaveTextContent('Swap available-Overloaded');
+        expect(health).toHaveTextContent('Swap available–Overloaded');
         expect(health).toHaveTextContent('OverloadedNo');
         expect(mockRetain).toHaveBeenCalledWith('tok', ['NodeStatusUpdated', 'NodeMonitorUpdated', 'NodeStatsUpdated']);
 
@@ -162,7 +162,7 @@ describe('NodeDetailPanel', () => {
         expect(within(panel()).getByRole('region', {name: 'OS'})).toHaveTextContent('reported by the node');
         // A section with no value, its enclosure not probed: one line, together with the others so.
         const hardware = within(panel()).getByRole('region', {name: 'Hardware'});
-        expect(hardware).toHaveTextContent(/^Hardware:not set$/);
+        expect(hardware).toHaveTextContent(/^Hardwarenot set$/);
         expect(hardware.parentElement).toHaveAttribute('data-folded', 'organisation');
         expect(within(panel()).queryByText('Enclosure')).toBeNull();
         expect(within(panel()).queryByRole('table', {name: /properties/i})).toBeNull();
@@ -182,7 +182,7 @@ describe('NodeDetailPanel', () => {
         expect(location).toHaveTextContent('set by you');
         expect(within(location).getByRole('button', {name: 'Edit the organisation properties'})).toBeInTheDocument();
         const hardware = within(panel()).getByRole('region', {name: 'Hardware'});
-        expect(hardware).toHaveTextContent('Hardware:not set');
+        expect(hardware).toHaveTextContent('Hardwarenot set');
         fireEvent.click(within(hardware).getByRole('button', {name: 'Edit the organisation properties'}));
         await waitFor(() => expect(within(panel()).queryAllByRole('button', {name: 'Edit the organisation properties'})).toEqual([]));
         // Unfolded for its fields, the first of the one whose pencil was clicked focused.
@@ -698,6 +698,16 @@ describe('NodeDetailPanel', () => {
             fireEvent.click(chip('Overview'));
             expect(screen.getByTestId('location')).not.toHaveTextContent('view=');
             expect(await within(panel()).findByRole('table', {name: 'Components'})).toBeInTheDocument();
+        });
+
+        test('the audit on a view of its own, for root, nothing asked of the daemon until started', async () => {
+            mockGrants.value = {root: null};
+            await openDaemon();
+            fireEvent.click(chip('Audit'));
+            expect(screen.getByTestId('location')).toHaveTextContent('view=audit');
+            expect(within(panel()).getByRole('log', {name: 'Audit records'})).toBeInTheDocument();
+            expect(within(panel()).getByRole('button', {name: 'Start'})).toBeInTheDocument();
+            expect(requests.some((req) => req.url.includes('daemon/audit'))).toBe(false);
         });
 
         test('the heartbeats kept current by their events, without a reload', async () => {

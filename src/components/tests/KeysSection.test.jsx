@@ -58,7 +58,7 @@ const renderAndWait = async (objectName, expectedCount) => {
     if (expectedCount !== null) {
         await waitFor(() => {
             expect(screen.getByText((content) =>
-                content.includes('Object Keys') && content.includes(String(expectedCount))
+                content.includes('Object keys') && content.includes(String(expectedCount))
             )).toBeInTheDocument();
         }, {timeout: 15000});
     }
@@ -76,13 +76,13 @@ const openDialog = async (action, keyName = 'key1', {onViewShown} = {}) => {
         await act(async () => {
             await user.click(row);
         });
-        const view = await screen.findByRole('dialog', {name: `View Key: ${keyName}`});
+        const view = await screen.findByRole('dialog', {name: `View key: ${keyName}`});
         await waitFor(() => expect(within(view).queryByRole('status', {name: 'Loading key content'})).not.toBeInTheDocument());
         onViewShown?.();
         await act(async () => {
             await user.click(within(view).getByRole('button', {name: action === 'edit' ? 'Edit' : 'Remove'}));
         });
-        return screen.findByRole('dialog', {name: action === 'edit' ? 'Update Key' : 'Confirm Key Deletion'});
+        return screen.findByRole('dialog', {name: action === 'edit' ? 'Update key' : 'Confirm key deletion'});
     }
     const btnMap = {
         create: () => screen.getByRole('button', {name: /add new key/i}),
@@ -107,7 +107,7 @@ const uploadFileInDialog = async (dialog) => {
 };
 
 const fillNameAndSubmit = async (dialog, name, btnName) => {
-    const nameInput = within(dialog).getByRole('textbox', {name: /Key Name/i});
+    const nameInput = within(dialog).getByRole('textbox', {name: /Key name/i});
     // An update keeps the name of its key: renamed, it is from the key view.
     if (nameInput.readOnly) {
         expect(nameInput).toHaveValue(name);
@@ -138,7 +138,7 @@ describe('KeysSection', () => {
         ['invalid kind', 'root/invalid/test'],
     ])('does not render for %s', async (_, objectName) => {
         render(<KeysSection decodedObjectName={objectName} openSnackbar={openSnackbar}/>);
-        await waitFor(() => expect(screen.queryByText(/Object Keys/i)).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByText(/Object keys/i)).not.toBeInTheDocument());
     });
 
     test('the keys are on all the nodes: no node column; a line clicked shows its key, no tool on it', async () => {
@@ -161,7 +161,7 @@ describe('KeysSection', () => {
     test('narrow, the title and its buttons on a line, the help on the next, the title whole', async () => {
         mockFetch({keys: [{name: 'k', node: 'n', size: 100}]});
         await renderAndWait('root/sec/sec1', 1);
-        const title = screen.getByRole('heading', {name: /Object Keys/});
+        const title = screen.getByRole('heading', {name: /Object keys/});
         expect(title).toHaveClass('whitespace-nowrap', 'max-md:mr-auto');
         expect(title.parentElement).toHaveClass('flex-wrap');
         const help = screen.getByText('Check keys to select them.').parentElement;
@@ -172,14 +172,14 @@ describe('KeysSection', () => {
         mockFetch({keys: [{name: 'k', node: 'n', size: 5}], keyBlob: makeMockBlob(encodeText('hello'))});
         await renderAndWait('root/cfg/cfg1', 1);
         let view = await openDialog('view', 'k');
-        expect(view).toHaveAccessibleName('View Key: k');
+        expect(view).toHaveAccessibleName('View key: k');
         const remove = within(view).getByRole('button', {name: 'Remove'});
         expect(remove).toHaveClass('bg-state-down');
         await act(async () => {
             await user.click(within(view).getByRole('button', {name: 'Edit'}));
         });
-        const update = await screen.findByRole('dialog', {name: 'Update Key'});
-        expect(screen.queryByRole('dialog', {name: 'View Key: k'})).not.toBeInTheDocument();
+        const update = await screen.findByRole('dialog', {name: 'Update key'});
+        expect(screen.queryByRole('dialog', {name: 'View key: k'})).not.toBeInTheDocument();
         await waitFor(() => expect(within(update).getByDisplayValue('hello')).toBeInTheDocument());
         await act(async () => {
             await user.click(within(update).getByRole('button', {name: 'Cancel'}));
@@ -189,9 +189,9 @@ describe('KeysSection', () => {
         await act(async () => {
             await user.click(within(view).getByRole('button', {name: 'Remove'}));
         });
-        const confirm = await screen.findByRole('dialog', {name: 'Confirm Key Deletion'});
+        const confirm = await screen.findByRole('dialog', {name: 'Confirm key deletion'});
         expect(confirm).toHaveTextContent('k');
-        expect(screen.queryByRole('dialog', {name: 'View Key: k'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('dialog', {name: 'View key: k'})).not.toBeInTheDocument();
     });
 
     test('of the keys removed together, one refused: the others still go, each said in the tray', async () => {
@@ -213,7 +213,7 @@ describe('KeysSection', () => {
         await act(async () => {
             await user.click(screen.getByRole('button', {name: 'Remove 2 keys'}));
         });
-        const confirm = await screen.findByRole('dialog', {name: 'Confirm Key Deletion'});
+        const confirm = await screen.findByRole('dialog', {name: 'Confirm key deletion'});
         await act(async () => {
             await user.click(within(confirm).getByRole('button', {name: /Delete/}));
         });
@@ -244,7 +244,7 @@ describe('KeysSection', () => {
             await user.click(screen.getByRole('checkbox', {name: 'Select key k3'}));
         });
         // A checkbox checks: it does not show the key.
-        expect(screen.queryByRole('dialog', {name: /View Key/})).not.toBeInTheDocument();
+        expect(screen.queryByRole('dialog', {name: /View key/})).not.toBeInTheDocument();
         const remove = screen.getByRole('button', {name: 'Remove 2 keys'});
         expect(remove).toHaveClass('bg-state-down');
         expect(remove.parentElement.nextElementSibling).toBe(add);
@@ -252,7 +252,7 @@ describe('KeysSection', () => {
         await act(async () => {
             await user.click(remove);
         });
-        const confirm = await screen.findByRole('dialog', {name: 'Confirm Key Deletion'});
+        const confirm = await screen.findByRole('dialog', {name: 'Confirm key deletion'});
         expect(confirm).toHaveTextContent('delete the 2 keys k1, k3?');
         await act(async () => {
             await user.click(within(confirm).getByRole('button', {name: /Delete/}));
@@ -274,9 +274,9 @@ describe('KeysSection', () => {
         await act(async () => {
             await user.click(remove);
         });
-        const confirm = await screen.findByRole('dialog', {name: 'Confirm Key Deletion'});
+        const confirm = await screen.findByRole('dialog', {name: 'Confirm key deletion'});
         expect(confirm).toHaveTextContent('delete the key k?');
-        expect(screen.queryByRole('dialog', {name: 'Update Key'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('dialog', {name: 'Update key'})).not.toBeInTheDocument();
     });
 
     test('all the keys selected at once by the checkbox of the header, mixed when some are', async () => {
@@ -441,7 +441,7 @@ describe('KeysSection', () => {
         await renderAndWait('root/cfg/cfg1', 0);
         const dialog = await openDialog('create');
         await act(async () => {
-            await user.type(within(dialog).getByRole('textbox', {name: /Key Name/i}), 'emptyKey');
+            await user.type(within(dialog).getByRole('textbox', {name: /Key name/i}), 'emptyKey');
         });
         expect(within(dialog).getByRole('button', {name: /Create/i})).not.toBeDisabled();
         await act(async () => {
@@ -550,10 +550,10 @@ describe('KeysSection', () => {
         await renderAndWait('root/cfg/cfg1', 0);
         const dialog = await openDialog('create');
         expect(within(dialog).queryByRole('radio')).toBeNull();
-        expect(within(dialog).getByRole('textbox', {name: 'Key Content'})).toHaveValue('');
+        expect(within(dialog).getByRole('textbox', {name: 'Key content'})).toHaveValue('');
         expect(within(dialog).getByRole('button', {name: /Create/i})).toBeDisabled();
         await act(async () => {
-            await user.type(within(dialog).getByRole('textbox', {name: /Key Name/i}), 'test');
+            await user.type(within(dialog).getByRole('textbox', {name: /Key name/i}), 'test');
         });
         expect(within(dialog).getByRole('button', {name: /Create/i})).toBeEnabled();
     });
@@ -700,7 +700,7 @@ describe('KeysSection', () => {
         };
         const puts = () => global.fetch.mock.calls.filter(([, o]) => o?.method === 'PUT').map(([url]) => url);
         const editAndUpdate = async (dialog) => {
-            const content = within(dialog).getByRole('textbox', {name: 'Key Content'});
+            const content = within(dialog).getByRole('textbox', {name: 'Key content'});
             await waitFor(() => expect(content).toHaveValue('hello'));
             fireEvent.change(content, {target: {value: 'hello you'}});
             await act(async () => {
@@ -728,7 +728,7 @@ describe('KeysSection', () => {
             await editAndUpdate(dialog);
             expect(await within(dialog).findByText(/changed by someone else since you opened it/)).toBeInTheDocument();
             expect(puts()).toEqual([]);
-            expect(within(dialog).getByRole('textbox', {name: 'Key Content'})).toHaveValue('hello you');
+            expect(within(dialog).getByRole('textbox', {name: 'Key content'})).toHaveValue('hello you');
         });
 
         test('written by someone else between the check and the write (412): said, the dialog kept', async () => {
@@ -746,7 +746,7 @@ describe('KeysSection', () => {
         mockFetch({keys: [{name: 'b', node: 'n', size: 2}], keyBlob: makeMockBlob(new Uint8Array([0x00, 0x01]))});
         await renderAndWait('root/cfg/cfg1', 1);
         const dialog = await openDialog('edit', 'b');
-        const content = await within(dialog).findByRole('textbox', {name: 'Key Content'});
+        const content = await within(dialog).findByRole('textbox', {name: 'Key content'});
         await waitFor(() => expect(content).toHaveAttribute('placeholder', expect.stringMatching(/content is binary/)));
         expect(within(dialog).getByRole('button', {name: 'Update'})).toBeDisabled();
         await uploadFileInDialog(dialog);
@@ -764,7 +764,7 @@ describe('KeysSection', () => {
         const dialog = await openDialog('edit', 'key1');
         await waitFor(() => expect(openSnackbar).toHaveBeenCalledWith('Error: fail', 'error'));
         // Not read, the key is not shown empty: an update would empty it.
-        const content = await within(dialog).findByRole('textbox', {name: 'Key Content'});
+        const content = await within(dialog).findByRole('textbox', {name: 'Key content'});
         expect(content).toHaveValue('');
         expect(content).toHaveAttribute('placeholder', expect.stringMatching(/could not be read/));
         expect(within(dialog).getByRole('button', {name: 'Update'})).toBeDisabled();
@@ -798,9 +798,9 @@ describe('KeysSection', () => {
             await user.click(within(first).getByRole('button', {name: 'Cancel'}));
         });
         const second = await openDialog('edit', 'key2');
-        await waitFor(() => expect(within(second).getByRole('textbox', {name: 'Key Content'})).toHaveValue('two'));
+        await waitFor(() => expect(within(second).getByRole('textbox', {name: 'Key content'})).toHaveValue('two'));
         await act(async () => resolveFirst(makeMockBlob(encodeText('one'))));
-        expect(within(screen.getByRole('dialog', {name: 'Update Key'})).getByRole('textbox', {name: 'Key Content'})).toHaveValue('two');
+        expect(within(screen.getByRole('dialog', {name: 'Update key'})).getByRole('textbox', {name: 'Key content'})).toHaveValue('two');
     });
 
     test('view: the content of a key read late shows not under another', async () => {
@@ -821,17 +821,17 @@ describe('KeysSection', () => {
         await act(async () => {
             await user.click((await screen.findByRole('rowheader', {name: 'key1'})).closest('tr'));
         });
-        const first = await screen.findByRole('dialog', {name: 'View Key: key1'});
+        const first = await screen.findByRole('dialog', {name: 'View key: key1'});
         await act(async () => {
             await user.click(within(first).getAllByRole('button', {name: 'Close'}).at(-1));
         });
         await act(async () => {
             await user.click((await screen.findByRole('rowheader', {name: 'key2'})).closest('tr'));
         });
-        const second = await screen.findByRole('dialog', {name: 'View Key: key2'});
+        const second = await screen.findByRole('dialog', {name: 'View key: key2'});
         await waitFor(() => expect(second).toHaveTextContent('two'));
         await act(async () => resolveFirst(makeMockBlob(encodeText('one'))));
-        const shown = screen.getByRole('dialog', {name: 'View Key: key2'});
+        const shown = screen.getByRole('dialog', {name: 'View key: key2'});
         expect(shown).toHaveTextContent('two');
         expect(shown).not.toHaveTextContent('one');
     });
@@ -853,16 +853,16 @@ describe('KeysSection', () => {
         await act(async () => {
             await user.click((await screen.findByRole('rowheader', {name: 'key1'})).closest('tr'));
         });
-        const first = await screen.findByRole('dialog', {name: 'View Key: key1'});
+        const first = await screen.findByRole('dialog', {name: 'View key: key1'});
         await act(async () => {
             await user.click(within(first).getAllByRole('button', {name: 'Close'}).at(-1));
         });
         await act(async () => {
             await user.click((await screen.findByRole('rowheader', {name: 'key2'})).closest('tr'));
         });
-        await waitFor(() => expect(screen.getByRole('dialog', {name: 'View Key: key2'})).toHaveTextContent('two'));
+        await waitFor(() => expect(screen.getByRole('dialog', {name: 'View key: key2'})).toHaveTextContent('two'));
         await act(async () => failFirst());
-        expect(screen.getByRole('dialog', {name: 'View Key: key2'})).toHaveTextContent('two');
+        expect(screen.getByRole('dialog', {name: 'View key: key2'})).toHaveTextContent('two');
     });
 
     test('fullscreen toggles', async () => {
@@ -873,12 +873,12 @@ describe('KeysSection', () => {
             await user.click(within(dialog).getByRole('button', {name: 'Full screen'}));
         });
         await waitFor(() => expect(within(screen.getByRole('dialog')).getByRole('button', {name: 'Exit full screen'})).toBeInTheDocument());
-        expect(within(screen.getByRole('dialog')).getByRole('textbox', {name: 'Key Content'})).toBeInTheDocument();
+        expect(within(screen.getByRole('dialog')).getByRole('textbox', {name: 'Key content'})).toBeInTheDocument();
         await act(async () => {
             await user.click(within(screen.getByRole('dialog')).getByRole('button', {name: 'Exit full screen'}));
         });
         expect(within(screen.getByRole('dialog')).queryByRole('button', {name: 'Exit full screen'})).not.toBeInTheDocument();
-        expect(within(screen.getByRole('dialog')).getByRole('textbox', {name: /Key Name/i})).toBeInTheDocument();
+        expect(within(screen.getByRole('dialog')).getByRole('textbox', {name: /Key name/i})).toBeInTheDocument();
     });
 
     test('fullscreen keeps the typed text', async () => {
@@ -886,10 +886,10 @@ describe('KeysSection', () => {
         await renderAndWait('root/cfg/cfg1', 0);
         const dialog = await openDialog('create');
         await act(async () => {
-            await user.type(within(dialog).getByRole('textbox', {name: 'Key Content'}), 'abc');
+            await user.type(within(dialog).getByRole('textbox', {name: 'Key content'}), 'abc');
             await user.click(within(dialog).getByRole('button', {name: 'Full screen'}));
         });
-        expect(within(screen.getByRole('dialog')).getByRole('textbox', {name: 'Key Content'})).toHaveValue('abc');
+        expect(within(screen.getByRole('dialog')).getByRole('textbox', {name: 'Key content'})).toHaveValue('abc');
     });
 
     test('fullscreen hides fields', async () => {
@@ -900,7 +900,7 @@ describe('KeysSection', () => {
             await user.click(within(dialog).getByRole('button', {name: 'Full screen'}));
         });
         const fullDlg = screen.getByRole('dialog');
-        expect(within(fullDlg).queryByRole('textbox', {name: /Key Name/i})).not.toBeInTheDocument();
+        expect(within(fullDlg).queryByRole('textbox', {name: /Key name/i})).not.toBeInTheDocument();
     });
 
     test('cancel after fullscreen resets', async () => {
@@ -916,7 +916,7 @@ describe('KeysSection', () => {
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
         const newDialog = await openDialog('create');
         expect(within(newDialog).queryByRole('button', {name: 'Exit full screen'})).not.toBeInTheDocument();
-        expect(within(newDialog).getByRole('textbox', {name: /Key Name/i})).toBeInTheDocument();
+        expect(within(newDialog).getByRole('textbox', {name: /Key name/i})).toBeInTheDocument();
     });
 
     test('a text file loaded in place to edit, its name the key name; a binary one by its name, sent as is, dropped back to typing', async () => {
@@ -928,19 +928,19 @@ describe('KeysSection', () => {
         await act(async () => {
             await user.upload(input, new File(['host = db1\n'], 'app.conf', {type: 'text/plain'}));
         });
-        const content = within(dialog).getByRole('textbox', {name: 'Key Content'});
+        const content = within(dialog).getByRole('textbox', {name: 'Key content'});
         await waitFor(() => expect(content).toHaveValue('host = db1\n'));
-        expect(within(dialog).getByRole('textbox', {name: /Key Name/i})).toHaveValue('app.conf');
+        expect(within(dialog).getByRole('textbox', {name: /Key name/i})).toHaveValue('app.conf');
         expect(within(dialog).getByText('11 bytes')).toBeInTheDocument();
 
         await uploadFileInDialog(dialog);
-        expect(within(dialog).queryByRole('textbox', {name: 'Key Content'})).toBeNull();
+        expect(within(dialog).queryByRole('textbox', {name: 'Key content'})).toBeNull();
         // The name typed or set first is kept.
-        expect(within(dialog).getByRole('textbox', {name: /Key Name/i})).toHaveValue('app.conf');
+        expect(within(dialog).getByRole('textbox', {name: /Key name/i})).toHaveValue('app.conf');
         await act(async () => {
             await user.click(within(dialog).getByRole('button', {name: 'Drop the file, type the content'}));
         });
-        expect(within(dialog).getByRole('textbox', {name: 'Key Content'})).toBeInTheDocument();
+        expect(within(dialog).getByRole('textbox', {name: 'Key content'})).toBeInTheDocument();
     });
 
     test('a file dropped on the content is loaded, the zone said while dragged over', async () => {
@@ -954,7 +954,7 @@ describe('KeysSection', () => {
         await act(async () => {
             fireEvent.drop(zone, {dataTransfer: {files: [file]}});
         });
-        await waitFor(() => expect(within(dialog).getByRole('textbox', {name: 'Key Content'})).toHaveValue('dropped'));
+        await waitFor(() => expect(within(dialog).getByRole('textbox', {name: 'Key content'})).toHaveValue('dropped'));
         expect(within(dialog).queryByText('Drop to load the file')).toBeNull();
     });
 
@@ -971,9 +971,9 @@ describe('KeysSection', () => {
         const dialog = await openDialog('create');
         expect(await within(dialog).findByText('0 bytes of up to 2 KiB')).toBeInTheDocument();
         await act(async () => {
-            await user.type(within(dialog).getByRole('textbox', {name: /Key Name/i}), 'big');
+            await user.type(within(dialog).getByRole('textbox', {name: /Key name/i}), 'big');
         });
-        fireEvent.change(within(dialog).getByRole('textbox', {name: 'Key Content'}), {target: {value: 'x'.repeat(3000)}});
+        fireEvent.change(within(dialog).getByRole('textbox', {name: 'Key content'}), {target: {value: 'x'.repeat(3000)}});
         expect(within(dialog).getByText('3000 bytes: too large, a key holds up to 2 KiB')).toHaveClass('text-state-down');
         expect(within(dialog).getByRole('button', {name: /Create/i})).toBeDisabled();
         resetMaxKeySize();
@@ -1002,15 +1002,15 @@ describe('KeysSection', () => {
         await renderAndWait('root/cfg/cfg1', 0);
         const dialog = await openDialog('create');
         await act(async () => {
-            await user.type(within(dialog).getByRole('textbox', {name: /Key Name/i}), 'cert');
-            await user.type(within(dialog).getByRole('textbox', {name: 'Key Content'}), 'BEGIN CERTIFICATE');
+            await user.type(within(dialog).getByRole('textbox', {name: /Key name/i}), 'cert');
+            await user.type(within(dialog).getByRole('textbox', {name: 'Key content'}), 'BEGIN CERTIFICATE');
         });
         await act(async () => {
             await user.click(within(dialog).getByRole('button', {name: /Create/i}));
         });
         await waitFor(() => expect(within(dialog).getByText(/key exists/)).toBeInTheDocument());
         expect(screen.getByRole('dialog')).toBe(dialog);
-        expect(within(dialog).getByRole('textbox', {name: 'Key Content'})).toHaveValue('BEGIN CERTIFICATE');
+        expect(within(dialog).getByRole('textbox', {name: 'Key content'})).toHaveValue('BEGIN CERTIFICATE');
         expect(tray()[0]).toEqual([expect.any(String), expect.any(String), 'refused', expect.stringMatching(/key exists/)]);
         refuse = false;
         await act(async () => {
@@ -1024,14 +1024,14 @@ describe('KeysSection', () => {
         await renderAndWait('root/cfg/cfg1', 0);
         const dialog = await openDialog('create');
         await act(async () => {
-            await user.type(within(dialog).getByRole('textbox', {name: /Key Name/i}), 'temp');
+            await user.type(within(dialog).getByRole('textbox', {name: /Key name/i}), 'temp');
         });
         await act(async () => {
             await user.click(within(dialog).getByRole('button', {name: /Create/i}));
         });
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
         const dialog2 = await openDialog('create');
-        expect(within(dialog2).getByRole('textbox', {name: /Key Name/i}).value).toBe('');
+        expect(within(dialog2).getByRole('textbox', {name: /Key name/i}).value).toBe('');
     });
 
     test('token lost after delete triggers error', async () => {
@@ -1065,9 +1065,9 @@ describe('KeysSection', () => {
 
         let dialog = await openDialog('create');
         await act(async () => {
-            await user.type(within(dialog).getByRole('textbox', {name: /Key Name/i}), 'blobKey');
+            await user.type(within(dialog).getByRole('textbox', {name: /Key name/i}), 'blobKey');
         });
-        const textArea = within(dialog).getByRole('textbox', {name: 'Key Content'});
+        const textArea = within(dialog).getByRole('textbox', {name: 'Key content'});
         await act(async () => {
             await user.type(textArea, 'data');
         });
@@ -1270,7 +1270,7 @@ describe('KeysSection', () => {
         }});
 
         // The form says it: new content, typed or from a file, to replace the hidden one.
-        await waitFor(() => expect(within(dialog).getByRole('textbox', {name: 'Key Content'}))
+        await waitFor(() => expect(within(dialog).getByRole('textbox', {name: 'Key content'}))
             .toHaveAttribute('placeholder', expect.stringMatching(/content of a secret is hidden/)));
         // No GET request to /data/key to fetch the content
         expect(fetchKeyCalled).toBe(false);
@@ -1305,7 +1305,7 @@ describe('KeysSection', () => {
         }});
 
         // The form says it: new content, typed or from a file, to replace the hidden one.
-        await waitFor(() => expect(within(dialog).getByRole('textbox', {name: 'Key Content'}))
+        await waitFor(() => expect(within(dialog).getByRole('textbox', {name: 'Key content'}))
             .toHaveAttribute('placeholder', expect.stringMatching(/content of a secret is hidden/)));
 
         await uploadFileInDialog(dialog, 'update');
@@ -1339,9 +1339,9 @@ describe('KeysSection', () => {
         await renderAndWait('root/sec/sec1', 0);
         const dialog = await openDialog('create');
         await act(async () => {
-            await user.type(within(dialog).getByRole('textbox', {name: /Key Name/i}), 'newSecret');
+            await user.type(within(dialog).getByRole('textbox', {name: /Key name/i}), 'newSecret');
         });
-        const textArea = within(dialog).getByRole('textbox', {name: 'Key Content'});
+        const textArea = within(dialog).getByRole('textbox', {name: 'Key content'});
         await act(async () => {
             await user.type(textArea, 'mySecretValue');
         });
@@ -1394,10 +1394,10 @@ describe('KeysSection', () => {
         await renderAndWait('root/sec/sec1', 1);
         const dialog = await openDialog('edit', 'sk');
         // The form says it: new content, typed or from a file, to replace the hidden one.
-        await waitFor(() => expect(within(dialog).getByRole('textbox', {name: 'Key Content'}))
+        await waitFor(() => expect(within(dialog).getByRole('textbox', {name: 'Key content'}))
             .toHaveAttribute('placeholder', expect.stringMatching(/content of a secret is hidden/)));
 
-        const textArea = within(dialog).getByRole('textbox', {name: 'Key Content'});
+        const textArea = within(dialog).getByRole('textbox', {name: 'Key content'});
         await act(async () => {
             await user.type(textArea, 'newsecret');
         });
@@ -1428,10 +1428,10 @@ describe('KeysSection', () => {
 
         let dialog = await openDialog('edit', 'sk');
         // The form says it: new content, typed or from a file, to replace the hidden one.
-        await waitFor(() => expect(within(dialog).getByRole('textbox', {name: 'Key Content'}))
+        await waitFor(() => expect(within(dialog).getByRole('textbox', {name: 'Key content'}))
             .toHaveAttribute('placeholder', expect.stringMatching(/content of a secret is hidden/)));
         await act(async () => {
-            await user.type(within(dialog).getByRole('textbox', {name: 'Key Content'}), 'leaked');
+            await user.type(within(dialog).getByRole('textbox', {name: 'Key content'}), 'leaked');
         });
         await act(async () => {
             await user.click(within(dialog).getByRole('button', {name: /Cancel/i}));
@@ -1439,7 +1439,7 @@ describe('KeysSection', () => {
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
         dialog = await openDialog('edit', 'sk');
-        expect(within(dialog).getByRole('textbox', {name: 'Key Content'})).toHaveValue('');
+        expect(within(dialog).getByRole('textbox', {name: 'Key content'})).toHaveValue('');
         expect(within(dialog).queryByDisplayValue('leaked')).not.toBeInTheDocument();
     });
 
@@ -1549,7 +1549,7 @@ describe('KeysSection keyboard', () => {
         fireEvent.keyDown(row('c'), {key: 'ArrowUp'});
         expect(row('b')).toHaveFocus();
         fireEvent.keyDown(row('b'), {key: 'Enter'});
-        expect(await screen.findByRole('dialog', {name: 'View Key: b'})).toBeInTheDocument();
+        expect(await screen.findByRole('dialog', {name: 'View key: b'})).toBeInTheDocument();
     });
 });
 
@@ -1586,7 +1586,7 @@ describe('KeysSection, a key alone', () => {
 
     test('its dialog and nothing of the list, which is not read', async () => {
         alone('dev/cfg/oc3', 'conf.yaml', 'its content');
-        const dialog = await screen.findByRole('dialog', {name: 'View Key: conf.yaml'});
+        const dialog = await screen.findByRole('dialog', {name: 'View key: conf.yaml'});
         expect(await within(dialog).findByDisplayValue('its content')).toBeInTheDocument();
         expect(screen.queryByRole('table')).not.toBeInTheDocument();
         expect(global.fetch.mock.calls.filter(([url]) => url.includes('/data/keys'))).toEqual([]);
@@ -1594,13 +1594,13 @@ describe('KeysSection, a key alone', () => {
 
     test('a secret, asked for by a click, shows as from the list', async () => {
         alone('dev/sec/oc3', 'token', 's3cret');
-        const dialog = await screen.findByRole('dialog', {name: 'View Key: token'});
+        const dialog = await screen.findByRole('dialog', {name: 'View key: token'});
         expect(await within(dialog).findByDisplayValue('s3cret')).toBeInTheDocument();
     });
 
     test('closed, it ends', async () => {
         const onKeyClosed = alone('dev/cfg/oc3', 'conf.yaml', 'its content');
-        const dialog = await screen.findByRole('dialog', {name: 'View Key: conf.yaml'});
+        const dialog = await screen.findByRole('dialog', {name: 'View key: conf.yaml'});
         await within(dialog).findByDisplayValue('its content');
         expect(onKeyClosed).not.toHaveBeenCalled();
         await user.click(within(dialog).getAllByRole('button', {name: 'Close'})[0]);
@@ -1609,10 +1609,10 @@ describe('KeysSection, a key alone', () => {
 
     test('edited from there, it goes on in the form, not ended', async () => {
         const onKeyClosed = alone('dev/cfg/oc3', 'conf.yaml', 'its content');
-        const dialog = await screen.findByRole('dialog', {name: 'View Key: conf.yaml'});
+        const dialog = await screen.findByRole('dialog', {name: 'View key: conf.yaml'});
         await within(dialog).findByDisplayValue('its content');
         await user.click(within(dialog).getByRole('button', {name: 'Edit'}));
-        expect(await screen.findByRole('dialog', {name: 'Update Key'})).toBeInTheDocument();
+        expect(await screen.findByRole('dialog', {name: 'Update key'})).toBeInTheDocument();
         expect(onKeyClosed).not.toHaveBeenCalled();
     });
 

@@ -79,7 +79,7 @@ export const namespaceTotals = (rows) => {
 const UNITS = ["B", "KiB", "MiB", "GiB", "TiB"];
 
 export const formatBytes = (bytes) => {
-    if (bytes === undefined || Number.isNaN(bytes)) return "-";
+    if (bytes === undefined || Number.isNaN(bytes)) return "–";
     if (bytes === Infinity) return "unlimited";
     let value = bytes;
     let unit = 0;

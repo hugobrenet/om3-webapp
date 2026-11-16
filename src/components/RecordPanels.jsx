@@ -377,14 +377,15 @@ function NamespaceActions({namespace}) {
  */
 export function NamespaceDetailPanel({name, tab, onTabChange, onClose}) {
     const {t} = useTranslation();
-    // Its objects by kind after its usage and claims, its configuration last.
+    // Its objects by kind after its usage and claims; as every panel, then its
+    // configuration, then its events (RecordPanel).
     const kindTabs = useNamespaceObjectTabs(name);
     const tabs = [
         {key: "usage", label: t("namespaces.panel.tabs.usage")},
         {key: "claims", label: t("namespaces.panel.tabs.claims")},
         ...kindTabs,
-        {key: "events", label: t("namespaces.panel.tabs.events")},
         {key: "config", label: t("namespaces.panel.tabs.config")},
+        {key: "events", label: t("namespaces.panel.tabs.events")},
     ];
     return (
         <RecordPanel

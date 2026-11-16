@@ -185,11 +185,11 @@ describe('WhoAmI', () => {
         await waitFor(() => {
             expect(screen.getAllByText('Account')[0]).toBeInTheDocument();
             expect(screen.getByText('testuser')).toBeInTheDocument();
-            expect(screen.getByText('Auth Method')).toBeInTheDocument();
+            expect(screen.getByText('Auth method')).toBeInTheDocument();
             expect(screen.getByText('user')).toBeInTheDocument();
             expect(screen.getByText('Grants')).toBeInTheDocument();
             expect(screen.getByText('root')).toBeInTheDocument();
-            expect(screen.getByText('Server Information')).toBeInTheDocument();
+            expect(screen.getByText('Server information')).toBeInTheDocument();
             expect(screen.getByText('test-node')).toBeInTheDocument();
             expect(screen.getByText('v1.2.3')).toBeInTheDocument();
             expect(screen.getByRole('button', {name: 'Dark'})).toBeInTheDocument();
@@ -496,7 +496,7 @@ describe('WhoAmI', () => {
                 const preferences = screen.getByRole('region', {name: 'Preferences'});
                 expect(within(preferences).getByRole('combobox', {name: 'Language'})).toBeInTheDocument();
                 expect(within(preferences).getByRole('group', {name: 'Theme'})).toBeInTheDocument();
-                expect(screen.getByRole('region', {name: 'Server Information'})).toHaveTextContent('test-node');
+                expect(screen.getByRole('region', {name: 'Server information'})).toHaveTextContent('test-node');
             });
         });
 

@@ -51,7 +51,7 @@ const defaultProps = {
 const renderConfig = (props = {}) => render(<ConfigSection {...defaultProps} {...props} />);
 /** A line of the file shown by its whole text, its key a button of its own; any other element by its own text. */
 const fileLine = (re) => (content, element) => (element?.hasAttribute?.('data-line') ? re.test(element.textContent) : re.test(content));
-const getViewConfigButton = () => screen.getByRole('button', {name: 'View Configuration'});
+const getViewConfigButton = () => screen.getByRole('button', {name: 'View configuration'});
 const getUploadButton = () => screen.getByRole('button', {name: /Upload new configuration file/i});
 const getManageButton = () => screen.getByRole('button', {name: 'Design the configuration'});
 const getKeywordsButton = () => screen.getByRole('button', {name: /View configuration keywords/i});
@@ -60,7 +60,7 @@ const queryLoading = () => screen.queryByRole('status', {name: /^Loading/i});
 const openUpdateDialogWithFile = async (user, fileName = 'config.ini', content = '[DEFAULT]\nnodes = node2') => {
     await waitFor(() => expect(screen.getAllByRole('dialog').length).toBeGreaterThan(0));
     await act(() => user.click(getUploadButton()));
-    await waitFor(() => expect(screen.getByRole('heading', {name: 'Update Configuration'})).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', {name: 'Update configuration'})).toBeInTheDocument());
     const file = new File([content], fileName);
     await act(() => user.upload(document.querySelector('#update-config-file-upload'), file));
     return file;
@@ -193,7 +193,7 @@ describe('ConfigSection Component', () => {
 
     test('inline, the file and its tools are in place: no button, no dialog', async () => {
         renderConfig({configDialogOpen: false, inline: true});
-        expect(screen.queryByRole('button', {name: 'View Configuration'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'View configuration'})).not.toBeInTheDocument();
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
         expect(getUploadButton()).toBeInTheDocument();
         expect(getManageButton()).toBeInTheDocument();
@@ -210,7 +210,7 @@ describe('ConfigSection Component', () => {
         }
     });
 
-    test('clicking View Configuration calls setConfigDialogOpen(true)', async () => {
+    test('clicking View configuration calls setConfigDialogOpen(true)', async () => {
         const setConfigDialogOpen = vi.fn();
         renderConfig({configDialogOpen: false, setConfigDialogOpen});
         await act(() => user.click(getViewConfigButton()));
@@ -813,13 +813,13 @@ describe('ConfigSection Component', () => {
                 }),
             })
         );
-        await waitFor(() => expect(screen.queryByRole('heading', {name: 'Update Configuration'})).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByRole('heading', {name: 'Update configuration'})).not.toBeInTheDocument());
     });
 
     test('update config: Update button disabled without file', async () => {
         renderConfig();
         await act(() => user.click(getUploadButton()));
-        await waitFor(() => expect(screen.getByRole('heading', {name: 'Update Configuration'})).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByRole('heading', {name: 'Update configuration'})).toBeInTheDocument());
         expect(screen.getByRole('button', {name: /Update/i})).toBeDisabled();
     });
 
@@ -853,9 +853,9 @@ describe('ConfigSection Component', () => {
         // Refused, in the tray; no token, nothing written.
         await waitFor(() => expect(tray()).toEqual(expectedWrite ? [expectedWrite] : []));
         if (shouldClose) {
-            await waitFor(() => expect(screen.queryByRole('heading', {name: 'Update Configuration'})).not.toBeInTheDocument());
+            await waitFor(() => expect(screen.queryByRole('heading', {name: 'Update configuration'})).not.toBeInTheDocument());
         } else {
-            expect(screen.getByRole('heading', {name: 'Update Configuration'})).toBeInTheDocument();
+            expect(screen.getByRole('heading', {name: 'Update configuration'})).toBeInTheDocument();
         }
     });
 
@@ -879,9 +879,9 @@ describe('ConfigSection Component', () => {
     test('update config dialog: cancel closes it', async () => {
         renderConfig();
         await openUpdateDialogWithFile(user);
-        const dlg = getDialogByTitle('Update Configuration');
+        const dlg = getDialogByTitle('Update configuration');
         await act(() => user.click(within(dlg).getByRole('button', {name: /Cancel/i})));
-        await waitFor(() => expect(screen.queryByRole('heading', {name: 'Update Configuration'})).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByRole('heading', {name: 'Update configuration'})).not.toBeInTheDocument());
     });
 
     // ── The designer, on the file as stored ──────────────────────────────

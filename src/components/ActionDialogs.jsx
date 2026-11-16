@@ -89,7 +89,7 @@ const SingleCheckDialog = ({
     </Dialog>
 );
 
-// Hidden file input behind a "Choose File" button, the chosen file name beside it
+// Hidden file input behind a "Choose file" button, the chosen file name beside it
 const FilePicker = ({id, onChange, disabled, file, emptyText}) => {
     const {t} = useTranslation();
     const input = useRef(null);

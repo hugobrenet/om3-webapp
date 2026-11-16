@@ -47,7 +47,7 @@ const openRename = async (user, name) => {
     render(<KeysSection decodedObjectName="ns1/cfg/settings" openSnackbar={vi.fn()}/>);
     const row = await screen.findByRole('rowheader', {name});
     await act(() => user.click(row.closest('tr')));
-    const view = await screen.findByRole('dialog', {name: `View Key: ${name}`});
+    const view = await screen.findByRole('dialog', {name: `View key: ${name}`});
     await act(() => user.click(within(view).getByRole('button', {name: 'Rename'})));
     return screen.findByRole('dialog', {name: `Rename the key ${name}`});
 };
@@ -100,9 +100,9 @@ describe('a key renamed', () => {
         render(<KeysSection decodedObjectName="ns1/cfg/settings" openSnackbar={vi.fn()}/>);
         const row = await screen.findByRole('rowheader', {name: 'a'});
         await act(() => user.click(row.closest('tr')));
-        const view = await screen.findByRole('dialog', {name: 'View Key: a'});
+        const view = await screen.findByRole('dialog', {name: 'View key: a'});
         await act(() => user.click(within(view).getByRole('button', {name: 'Edit'})));
-        const form = await screen.findByRole('dialog', {name: 'Update Key'});
-        await waitFor(() => expect(within(form).getByRole('textbox', {name: /Key Name/i})).toHaveAttribute('readonly'));
+        const form = await screen.findByRole('dialog', {name: 'Update key'});
+        await waitFor(() => expect(within(form).getByRole('textbox', {name: /Key name/i})).toHaveAttribute('readonly'));
     });
 });

@@ -273,10 +273,10 @@ export function kindCounts(objectStatus: Record<string, { avail?: string } | und
 /**
  * A cpu usage as a percentage of one cpu, the notation of the om3 cpu limits (800%
  * is eight cpus), to one decimal: 0.002 cpu reads 0.2 %. A usage not known yet
- * (no rate before a second reading) reads "-".
+ * (no rate before a second reading) reads "–".
  */
 export function formatCpuPercent(percent: number | null | undefined): string {
-  return percent === null || percent === undefined ? "-" : `${percent.toFixed(1)} %`;
+  return percent === null || percent === undefined ? "–" : `${percent.toFixed(1)} %`;
 }
 
 /**
