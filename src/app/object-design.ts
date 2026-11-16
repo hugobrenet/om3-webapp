@@ -565,9 +565,10 @@ export const isResource = (kind: string, section: { group?: string }) => !!secti
 /**
  * The sections of the cluster configuration a design may hold several of, each by a
  * name (`pool#ceph`, `hb#1`): those choosing a driver by a type, and the arbitrators,
- * the hooks and the stonith of a node, as om reads them.
+ * the hooks and the stonith of a node, and the unix groups granted (`uxgroup#ops`), as
+ * om reads them. The keywords do not say it: kept here, as om's code knows it.
  */
-const INDEXED_CLUSTER_SECTIONS = ["array", "arbitrator", "hb", "hook", "network", "pool", "stonith", "store", "switch"];
+const INDEXED_CLUSTER_SECTIONS = ["array", "arbitrator", "hb", "hook", "network", "pool", "stonith", "store", "switch", "uxgroup"];
 
 export interface ClusterSectionChoice {
   /** The section, `ai`; for those of several, the kind of them, `pool`. */
