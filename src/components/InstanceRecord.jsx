@@ -21,6 +21,8 @@ import {ReadErrors, TotalTile, cpuText} from "./NamespaceMetrics";
 import {ObjectResources} from "./ObjectTabs";
 import {ContainerLogs} from "./ContainerLogs";
 import {ResourceConsole} from "./ResourceConsole";
+import {ResourceDevices, ResourceFiles} from "./ResourceDevices";
+import {hasDevices, resourceFiles} from "../app/resource-devices";
 import {isContainerResource, isRunning, mayOpenSession, sessionKinds} from "../app/resource-sessions";
 import {InstanceLink, ResourceLink, ResourceSessionLinks} from "./RecordLinks";
 import {ObjectLogs} from "./ObjectLogs";
@@ -33,7 +35,7 @@ import {NotesList} from "../app/StatusBoard";
 import {MenuButton} from "../ui/components/MenuButton";
 import {Button} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
-import {useGrants} from "../hooks/useGrants";
+import {useGrants, useIsRoot} from "../hooks/useGrants";
 import {Checkbox} from "../ui/components/Field";
 import {BoltIcon, CloseIcon} from "../ui/icons";
 import {INSTANCE_ACTIONS, RESOURCE_ACTIONS, actionLabel} from "../constants/actions";
@@ -490,7 +492,9 @@ export function InstanceDetailPanel({id, tab, onTabChange, onClose}) {
  * then its logs on all of them, merged, then its section of the configuration of
  * the object; a container, what it writes too (ContainerLogs), on the nodes it is
  * on, and for who may a session on it (ResourceConsole), kept open from a tab to
- * another, closing the panel on one asked first. By `path:rid@node`, the same on the instance of that node alone. It closes
+ * another, closing the panel on one asked first; a disk, a filesystem, a volume or
+ * a virtual machine, its devices on each node (ResourceDevices); for root, the files
+ * it lists in its status, read from their node (ResourceFiles). By `path:rid@node`, the same on the instance of that node alone. It closes
  * once the object, or that instance, is gone.
  */
 export function ResourceDetailPanel({id, tab, onTabChange, onClose}) {
@@ -514,6 +518,10 @@ export function ResourceDetailPanel({id, tab, onTabChange, onClose}) {
     const container = rid !== undefined && isContainerResource(rid, type);
     const grants = useGrants();
     const sessions = parsed !== null && mayOpenSession(grants, parsed.path) ? sessionKinds(parsed.rid, type) : [];
+    const devices = rid !== undefined && hasDevices(rid, type);
+    // Its files read by root alone, as the daemon serves them.
+    const isRoot = useIsRoot();
+    const files = isRoot && rid !== undefined && resourceFiles(instances, rid, resourceNodes).length > 0;
     // The sessions open, and the panel asked to close on them.
     const [liveSessions, setLiveSessions] = useState([]);
     const [closing, setClosing] = useState(false);
@@ -525,6 +533,8 @@ export function ResourceDetailPanel({id, tab, onTabChange, onClose}) {
     const tabs = [
         {key: "status", label: t("panel.tabs.status")},
         {key: "info", label: t("panel.tabs.info")},
+        ...(devices ? [{key: "devices", label: t("panel.tabs.devices")}] : []),
+        ...(files ? [{key: "files", label: t("panel.tabs.files")}] : []),
         ...sessions.map((session) => ({key: session, label: t(`panel.tabs.${session}`)})),
         {key: "config", label: t("panel.tabs.config")},
         {key: "logs", label: t("panel.tabs.logs")},
@@ -574,6 +584,10 @@ export function ResourceDetailPanel({id, tab, onTabChange, onClose}) {
                         ? <ObjectLogs key={id} path={parsed.path} nodes={nodes} filters={[`RID=${parsed.rid}`]}/>
                         : active === "container" && container
                         ? <ContainerLogs key={id} path={parsed.path} rid={parsed.rid} nodes={resourceNodes.length > 0 ? resourceNodes : nodes} upNodes={upNodes}/>
+                        : active === "devices" && devices
+                        ? <ResourceDevices key={id} path={parsed.path} rid={parsed.rid} nodes={resourceNodes}/>
+                        : active === "files" && files
+                        ? <ResourceFiles key={id} path={parsed.path} rid={parsed.rid} nodes={resourceNodes}/>
                         : active === "info"
                         ? <ObjectResources key={id} path={parsed.path} rid={parsed.rid} node={onNode}/>
                         : <ResourceStatus key={id} path={parsed.path} rid={parsed.rid} node={onNode}/>}

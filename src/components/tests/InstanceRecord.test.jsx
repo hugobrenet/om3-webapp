@@ -488,7 +488,7 @@ describe('ResourceStatus', () => {
             await open('console');
             const panel = screen.getByRole('dialog', {name: 'container#1 of prod/svc/web'});
             expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent))
-                .toEqual(['Status', 'Info', 'Console', 'Display', 'Configuration', 'Logs', 'Container logs']);
+                .toEqual(['Status', 'Info', 'Devices', 'Console', 'Display', 'Configuration', 'Logs', 'Container logs']);
             // Running on a standby node counts: that node at first.
             expect(within(panel).getByRole('combobox', {name: 'Node of the session'})).toHaveValue('n2');
         });
@@ -549,6 +549,55 @@ describe('ResourceStatus', () => {
         expect(within(table).getByRole('row', {name: /pid/})).toHaveTextContent('pid4243');
         // The full text filter kept.
         expect(within(panel).getByRole('searchbox', {name: 'Filter the resources'})).toBeInTheDocument();
+    });
+
+    test('a filesystem: its devices in a tab of their own, read on the nodes holding it', async () => {
+        render(<MemoryRouter><ResourceDetailPanel id="prod/svc/web:fs#1" tab="devices" onTabChange={vi.fn()} onClose={vi.fn()}/></MemoryRouter>);
+        const panel = screen.getByRole('dialog', {name: 'fs#1 of prod/svc/web'});
+        expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Status', 'Info', 'Devices', 'Configuration', 'Logs']);
+        expect(await within(panel).findByTestId('resource-devices')).toBeInTheDocument();
+        // n1 alone holds it.
+        await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/node/name/n1/instance/path/prod/svc/web/device', expect.anything()));
+        expect(global.fetch).not.toHaveBeenCalledWith('/api/node/name/n2/instance/path/prod/svc/web/device', expect.anything());
+    });
+
+    describe('the files it lists', () => {
+        const withFiles = () => useEventStore.setState((state) => ({objectInstanceStatus: {'prod/svc/web': {
+            ...state.objectInstanceStatus['prod/svc/web'],
+            n1: {avail: 'up', resources: {'disk#1': {status: 'up', type: 'disk.md', files: [{name: '/var/lib/opensvc/web/disk#1/disks', csum: 'ab12', mtime: '2026-11-16T10:00:00Z'}]}}},
+        }}}));
+        const as = (grant) => {
+            localStorage.setItem('authToken', `files-${Object.keys(grant).join('-') || 'none'}`);
+            global.fetch = vi.fn(() => Promise.resolve({ok: true, status: 200, json: () => Promise.resolve({grant, items: []})}));
+        };
+
+        test('a tab for root, after its devices', async () => {
+            withFiles();
+            as({root: null});
+            render(<MemoryRouter><ResourceDetailPanel id="prod/svc/web:disk#1" tab="files" onTabChange={vi.fn()} onClose={vi.fn()}/></MemoryRouter>);
+            await screen.findByRole('tab', {name: 'Files'});
+            const panel = screen.getByRole('dialog', {name: 'disk#1 of prod/svc/web'});
+            expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Status', 'Info', 'Devices', 'Files', 'Configuration', 'Logs']);
+            expect(within(panel).getByTestId('resource-files')).toBeInTheDocument();
+        });
+
+        test('none for the others: the daemon serves them to root alone', async () => {
+            withFiles();
+            as({admin: ['prod']});
+            render(<MemoryRouter><ResourceDetailPanel id="prod/svc/web:disk#1" tab="files" onTabChange={vi.fn()} onClose={vi.fn()}/></MemoryRouter>);
+            await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/auth/whoami', expect.anything()));
+            await act(async () => {});
+            expect(screen.queryByRole('tab', {name: 'Files'})).toBeNull();
+            expect(screen.queryByTestId('resource-files')).toBeNull();
+        });
+
+        test('none for root either when it lists none', async () => {
+            as({root: null});
+            render(<MemoryRouter><ResourceDetailPanel id="prod/svc/web:fs#1" onTabChange={vi.fn()} onClose={vi.fn()}/></MemoryRouter>);
+            await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/auth/whoami', expect.anything()));
+            await act(async () => {});
+            expect(screen.queryByRole('tab', {name: 'Files'})).toBeNull();
+        });
     });
 
     test('its panel titled by the resource and its object, closed once the object is gone', () => {

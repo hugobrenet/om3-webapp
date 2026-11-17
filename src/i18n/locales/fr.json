@@ -2077,6 +2077,7 @@
       "keys": "Clés",
       "config": "Configuration",
       "info": "Infos",
+      "devices": "Périphériques",
       "containerLogs": "Journaux du conteneur",
       "locks": "Verrous",
       "snapshots": "Instantanés",
@@ -2463,6 +2464,48 @@
         "encap": "encapsulée"
       },
       "actions": "Actions sur la ressource"
+    },
+    "devices": {
+      "table": "Les périphériques de la ressource sur chaque nœud",
+      "loading": "Lecture des périphériques",
+      "reload": "Relire",
+      "readFailed": "Impossible de lire les périphériques sur {{node}} : {{message}}",
+      "noNode": "Aucun nœud ne porte cette ressource.",
+      "none": "Aucun périphérique : la ressource n'en porte aucun sur ses nœuds, ou y est arrêtée.",
+      "role": "Rôle",
+      "device": "Périphérique",
+      "driver": "Pilote",
+      "roles": {
+        "exposed": "Exposé",
+        "sub": "Sous-jacent",
+        "base": "Base",
+        "claimed": "Réservé"
+      },
+      "help": {
+        "exposed": "les périphériques que la ressource crée, un volume logique ou un périphérique loop par exemple.",
+        "sub": "les périphériques sur lesquels elle repose directement, celui d'où un système de fichiers est monté par exemple.",
+        "base": "les périphériques physiques tout en bas de ceux sur lesquels elle repose.",
+        "claimed": "les périphériques qu'elle réserve pour elle seule, qu'aucune autre ressource ne doit utiliser."
+      }
+    },
+    "files": {
+      "intro": "Les fichiers que la ressource liste dans son statut. Les nœuds les copient depuis celui où la ressource est démarrée.",
+      "table": "Les fichiers de la ressource sur chaque nœud",
+      "none": "La ressource ne liste aucun fichier.",
+      "name": "Fichier",
+      "changed": "Modifié",
+      "csum": "Somme de contrôle",
+      "show": "Afficher",
+      "hide": "Masquer",
+      "showOf": "Afficher {{name}} sur {{node}}",
+      "hideOf": "Masquer {{name}} sur {{node}}",
+      "reading": "Lecture du fichier",
+      "missing": "Le fichier n'est pas sur {{node}}.",
+      "readFailed": "Impossible de lire le fichier : {{message}}",
+      "stat": "Propriétaire {{user}}:{{group}}, mode {{perm}}",
+      "empty": "Le fichier est vide.",
+      "content": "Contenu de {{name}}",
+      "cut": "Les {{shown}} premiers caractères sur {{size}} affichés."
     }
   },
   "actionTray": {

@@ -2077,6 +2077,7 @@
       "keys": "Keys",
       "config": "Configuration",
       "info": "Info",
+      "devices": "Devices",
       "containerLogs": "Container logs",
       "locks": "Locks",
       "snapshots": "Snapshots",
@@ -2463,6 +2464,48 @@
         "encap": "encapsulated"
       },
       "actions": "Resource actions"
+    },
+    "devices": {
+      "table": "The devices of the resource on each node",
+      "loading": "Reading the devices",
+      "reload": "Read again",
+      "readFailed": "Could not read the devices on {{node}}: {{message}}",
+      "noNode": "No node holds this resource.",
+      "none": "No device: the resource holds none on its nodes, or is down there.",
+      "role": "Role",
+      "device": "Device",
+      "driver": "Driver",
+      "roles": {
+        "exposed": "Exposed",
+        "sub": "Sub",
+        "base": "Base",
+        "claimed": "Claimed"
+      },
+      "help": {
+        "exposed": "the devices the resource makes, a logical volume or a loop device for example.",
+        "sub": "the devices it stands on directly, the device a filesystem is mounted from for example.",
+        "base": "the physical devices at the bottom of those it stands on.",
+        "claimed": "the devices it holds for itself, no other resource to use them."
+      }
+    },
+    "files": {
+      "intro": "The files the resource lists in its status. The nodes copy them from the one where the resource is up.",
+      "table": "The files of the resource on each node",
+      "none": "The resource lists no file.",
+      "name": "File",
+      "changed": "Changed",
+      "csum": "Checksum",
+      "show": "Show",
+      "hide": "Hide",
+      "showOf": "Show {{name}} on {{node}}",
+      "hideOf": "Hide {{name}} on {{node}}",
+      "reading": "Reading the file",
+      "missing": "The file is not on {{node}}.",
+      "readFailed": "Could not read the file: {{message}}",
+      "stat": "Owner {{user}}:{{group}}, mode {{perm}}",
+      "empty": "The file is empty.",
+      "content": "Content of {{name}}",
+      "cut": "The first {{shown}} characters of {{size}} shown."
     }
   },
   "actionTray": {
