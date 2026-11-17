@@ -545,6 +545,10 @@ export default function ClusterView() {
         quiet: resourcesQuiet,
         ok: resourceLines.length - resourcesDown - resourcesWarn - resourcesQuiet,
     };
+    // The others, neither down nor in warn: the statuses they are in (up, n/a, stdby up…), which the
+    // resources page filters on together.
+    const okStatuses = [...new Set(resourceLines.map((l) => l.status).filter((s) => s && s !== "down" && s !== "warn"))].sort();
+    const okUrl = `/resources?${new URLSearchParams({status: okStatuses.join(",")})}`;
 
     return (
         <div className="@container p-4">
@@ -740,8 +744,8 @@ export default function ClusterView() {
                             label={t("clusterView.resources.operational")}
                             words="clusterView.resources"
                             // The problems on the resources page, down or in warn; those down of no issue alone, by
-                            // their reasons; the others, of many states, no filter says.
-                            link={(state) => (state === "ok" ? undefined : state === "quiet" ? QUIET_URL : `/resources?status=${state}&problems=1`)}
+                            // their reasons; the others, by the statuses they are in.
+                            link={(state) => (state === "ok" ? okUrl : state === "quiet" ? QUIET_URL : `/resources?status=${state}&problems=1`)}
                         />
                     )}
                 </Card>
