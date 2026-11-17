@@ -2,6 +2,7 @@ import {
   AlertTriangleIcon,
   AsteriskIcon,
   CodeIcon,
+  ColumnsIcon,
   PieChartIcon,
   LineChartIcon,
   CpuIcon,
@@ -62,6 +63,7 @@ export type ObjectKind =
   | "kind"
   | "pool"
   | "store"
+  | "array"
   | "heartbeat"
   | "config"
   | "secret"
@@ -130,6 +132,8 @@ const KINDS: Record<ObjectKind, { Icon: typeof ServerIcon; className: string }> 
   pool: { Icon: DatabaseIcon, className: "text-icon-disk" },
   // A store keeps the backups, the copies of the past: the history arrow, in the disk tint.
   store: { Icon: HistoryIcon, className: "text-icon-disk" },
+  // A storage array, its bays of disks side by side: the columns, in the disk tint.
+  array: { Icon: ColumnsIcon, className: "text-icon-disk" },
   // Heartbeats are streams between the nodes: the broadcast waves, in the network tint.
   heartbeat: { Icon: RssIcon, className: "text-icon-network" },
   // Configuration objects: the file, in the network teal; secrets: the lock, and

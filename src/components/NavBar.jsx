@@ -40,6 +40,7 @@ const PAGE_NAMES = {
     relay: "nav.sections.relay",
     resources: "nav.routes.resources",
     stores: "nav.routes.stores",
+    arrays: "nav.routes.arrays",
     token: "nav.breadcrumb.token",
     whoami: "user.myInfo",
 };

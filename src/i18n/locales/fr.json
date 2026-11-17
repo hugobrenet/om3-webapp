@@ -1345,6 +1345,7 @@
       "pools": "Pools",
       "resources": "Ressources",
       "stores": "Dépôts",
+      "arrays": "Baies de stockage",
       "ai": "Assistant IA",
       "glossary": "Glossaire",
       "about": "À propos"
@@ -2092,7 +2093,8 @@
       "instance": "instance",
       "resource": "ressource",
       "pool": "pool",
-      "store": "dépôt"
+      "store": "dépôt",
+      "array": "baie"
     },
     "logs": {
       "noNode": "Aucune instance pour lire les journaux."
@@ -3191,6 +3193,81 @@
       "noneAfter": "aucun après"
     }
   },
+  "arrays": {
+    "caption": "Baies de stockage",
+    "loading": "Lecture des baies",
+    "loadError": "Impossible de lire les baies : {{message}}",
+    "empty": "Aucune baie : la configuration du cluster n'en déclare aucune.",
+    "add": "Ajouter une baie",
+    "open": "Ouvrir la baie {{name}}",
+    "rootOnly": "Lister les baies de stockage demande le droit root : leurs sections contiennent les identifiants des baies.",
+    "noEndpoint": "Aucune adresse définie",
+    "poolsOn_one": "{{count}} pool l'utilise",
+    "poolsOn_other": "{{count}} pools l'utilisent",
+    "noPool": "Aucun pool ne l'utilise.",
+    "facts": {
+      "endpoint": "Adresse",
+      "user": "Utilisateur",
+      "pools": "Pools qui l'utilisent"
+    },
+    "panel": {
+      "tabs": {
+        "overview": "Vue d'ensemble",
+        "config": "Configuration"
+      },
+      "loading": "Lecture de la baie",
+      "none": "Aucune baie {{name}}.",
+      "readFailed": "Impossible de lire la baie : {{message}}",
+      "builtIn": "Aucune section de la configuration du cluster ne définit {{name}}.",
+      "configOf": "Configuration de la baie {{name}}",
+      "edit": "Modifier la configuration de la baie {{name}}",
+      "modify": "Modifier la baie {{name}} dans l'assistant",
+      "editHint": "Une ligne clé = valeur par clé, clé@nœud = valeur pour un seul nœud ; retirer une ligne supprime la clé. Seules les clés modifiées sont écrites, le reste de la configuration du cluster est inchangé.",
+      "invalidLines": "Pas une ligne clé = valeur : {{lines}}",
+      "trayEdit": "Mettre à jour la baie {{name}}",
+      "delete": "Supprimer la baie",
+      "deleting": "Suppression…",
+      "confirmTitle": "Supprimer la baie {{name}} ?",
+      "confirmText": "La section array#{{name}} est retirée de la configuration du cluster, que chaque nœud applique. Les disques sur la baie restent tels quels.",
+      "inUse_one": "{{count}} pool la nomme encore : ses volumes ne peuvent plus obtenir de disques.",
+      "inUse_other": "{{count}} pools la nomment encore : leurs volumes ne peuvent plus obtenir de disques.",
+      "deleteFailed": "Non supprimée : {{message}}",
+      "tray": "Supprimer la baie {{name}}"
+    },
+    "wizard": {
+      "title": "Nouvelle baie {{name}}",
+      "editTitle": "Modifier la baie {{name}}",
+      "steps": "Étapes de l'assistant",
+      "step": {
+        "type": "Nom et type",
+        "settings": "Réglages",
+        "review": "Vérification"
+      },
+      "name": "Nom",
+      "nameHint": "Lettres, chiffres, tiret ou tiret bas : la section array#<nom> de la configuration du cluster.",
+      "nameKept": "Une baie garde son nom.",
+      "nameInvalid": "Lettres, chiffres, tiret ou tiret bas uniquement.",
+      "nameTaken": "Une baie {{name}} existe déjà.",
+      "typeQuestion": "Quel type de baie ?",
+      "required": "{{key}} (requis)",
+      "onNode": "{{key}} sur {{node}}",
+      "byDefault": "Par défaut : {{value}}",
+      "unset": "Non défini",
+      "listHint": "Plusieurs valeurs séparées par des espaces.",
+      "written": "Écrit dans la configuration du cluster, que chaque nœud applique :",
+      "back": "Retour",
+      "next": "Suivant",
+      "save": "Ajouter la baie",
+      "update": "Modifier la baie",
+      "saving": "Écriture…",
+      "readFailed": "Impossible de lire les mots-clés d'une baie : {{message}}",
+      "saveFailed": "Non écrit : {{message}}",
+      "tray": "Ajouter la baie {{name}}",
+      "trayEdit": "Modifier la baie {{name}}",
+      "unchanged": "Rien n'a changé.",
+      "rewrite": "Son type passe de {{from}} à {{to}} : sa section est réécrite et les clés de {{from}} supprimées."
+    }
+  },
   "clusterView": {
     "title": "Cluster",
     "cards": "Résumé du cluster",
@@ -3493,6 +3570,7 @@
       "networks": "Voici les réseaux que le cluster utilise pour donner automatiquement des adresses IP aux conteneurs et aux services.",
       "pools": "Les pools de stockage fournissent aux volumes leur espace disque : un répertoire, un groupe de volumes LVM, un pool ZFS ou une baie de stockage, par exemple.",
       "stores": "Les dépôts de sauvegarde conservent des copies (instantanés) des données et de la configuration de vos services, pour les restaurer plus tard, même sur un autre nœud.",
+      "arrays": "Les baies de stockage sur lesquelles le cluster crée les disques de ses pools Pure, Symmetrix, TrueNAS… Chaque baie est déclarée dans la configuration du cluster, avec l'adresse par laquelle les nœuds la joignent et les identifiants à utiliser.",
       "resources": "Cette page liste chaque ressource de chaque service et volume, sur chaque nœud : systèmes de fichiers, adresses IP, disques, conteneurs, applications. « Problèmes seulement » ne garde que ce qui est down ou en warn, hors nœuds passifs d'un service failover, down comme prévu.",
       "objects-services": "Les services (svc) sont les applications que le cluster maintient en marche. Chacun est composé de ressources, comme une adresse IP, un système de fichiers et un conteneur. Un service a une instance sur chaque nœud où il est autorisé à tourner.",
       "objects-volumes": "Les volumes (vol) sont l'espace de stockage demandé par un service. Le cluster crée chaque volume dans un pool de stockage quand le service est provisionné.",
@@ -3561,6 +3639,10 @@
       "pool": {
         "term": "Pool",
         "definition": "L'espace où les volumes puisent leur capacité disque : un répertoire, un groupe de volumes LVM, ZFS, DRBD ou une baie de stockage."
+      },
+      "array": {
+        "term": "Baie de stockage",
+        "definition": "Une baie de stockage (Pure, Hitachi, TrueNAS, 3PAR…) que le cluster pilote par son API ou sa ligne de commande. Un pool du type de la baie y crée les disques de ses volumes."
       },
       "store": {
         "term": "Dépôt",

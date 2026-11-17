@@ -24,6 +24,8 @@ export const URL_NODES = '/api/node';
 export const URL_NETWORK = "/api/network";
 export const URL_NETWORK_IP = "/api/network/ip";
 export const URL_STORE = "/api/store";
+// The storage arrays of the cluster configuration, root only.
+export const URL_ARRAY = "/api/array";
 export const URL_STORE_SNAPSHOT = "/api/store/snapshot";
 export const URL_STORE_OBJECT = "/api/store/object";
 // Not under /api: the per cgroup metrics, served unauthenticated by the node listener.

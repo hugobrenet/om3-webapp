@@ -1345,6 +1345,7 @@
       "pools": "Pools",
       "resources": "Resources",
       "stores": "Stores",
+      "arrays": "Arrays",
       "ai": "AI assistant",
       "glossary": "Glossary",
       "about": "About"
@@ -2092,7 +2093,8 @@
       "instance": "instance",
       "resource": "resource",
       "pool": "pool",
-      "store": "store"
+      "store": "store",
+      "array": "array"
     },
     "logs": {
       "noNode": "No instance to read the logs of."
@@ -3191,6 +3193,81 @@
       "noneAfter": "none after"
     }
   },
+  "arrays": {
+    "caption": "Arrays",
+    "loading": "Reading the arrays",
+    "loadError": "Could not read the arrays: {{message}}",
+    "empty": "No array: the cluster configuration declares none.",
+    "add": "Add array",
+    "open": "Open the array {{name}}",
+    "rootOnly": "Listing the storage arrays needs the root grant: their sections hold the credentials of the arrays.",
+    "noEndpoint": "No endpoint set",
+    "poolsOn_one": "{{count}} pool on it",
+    "poolsOn_other": "{{count}} pools on it",
+    "noPool": "No pool makes its disks on it.",
+    "facts": {
+      "endpoint": "Reached at",
+      "user": "As",
+      "pools": "Pools on it"
+    },
+    "panel": {
+      "tabs": {
+        "overview": "Overview",
+        "config": "Configuration"
+      },
+      "loading": "Reading the array",
+      "none": "No array {{name}}.",
+      "readFailed": "Could not read the array: {{message}}",
+      "builtIn": "No section of the cluster configuration defines {{name}}.",
+      "configOf": "Configuration of the array {{name}}",
+      "edit": "Edit the configuration of the array {{name}}",
+      "modify": "Modify the array {{name}} in the wizard",
+      "editHint": "A key = value a line, key@node = value for one node; a key removed is unset. Written as the keys changed, the rest of the cluster configuration left as it is.",
+      "invalidLines": "Not a key = value line: {{lines}}",
+      "trayEdit": "Update the array {{name}}",
+      "delete": "Delete the array",
+      "deleting": "Deleting…",
+      "confirmTitle": "Delete the array {{name}}?",
+      "confirmText": "The section array#{{name}} is removed from the cluster configuration, which every node applies. The disks on the array stay as they are.",
+      "inUse_one": "{{count}} pool still names it: its volumes can no longer get disks.",
+      "inUse_other": "{{count}} pools still name it: their volumes can no longer get disks.",
+      "deleteFailed": "Not deleted: {{message}}",
+      "tray": "Delete the array {{name}}"
+    },
+    "wizard": {
+      "title": "New array {{name}}",
+      "editTitle": "Modify the array {{name}}",
+      "steps": "Steps of the wizard",
+      "step": {
+        "type": "Name and type",
+        "settings": "Settings",
+        "review": "Review"
+      },
+      "name": "Name",
+      "nameHint": "Letters, digits, dash or underscore: the section array#<name> of the cluster configuration.",
+      "nameKept": "An array keeps its name.",
+      "nameInvalid": "Letters, digits, dash or underscore only.",
+      "nameTaken": "An array {{name}} exists already.",
+      "typeQuestion": "What type of array?",
+      "required": "{{key}} (required)",
+      "onNode": "{{key}} on {{node}}",
+      "byDefault": "Default: {{value}}",
+      "unset": "Not set",
+      "listHint": "Several values separated by spaces.",
+      "written": "Written to the cluster configuration, which every node applies:",
+      "back": "Back",
+      "next": "Next",
+      "save": "Add the array",
+      "update": "Modify the array",
+      "saving": "Writing…",
+      "readFailed": "Could not read the keywords of an array: {{message}}",
+      "saveFailed": "Not written: {{message}}",
+      "tray": "Add the array {{name}}",
+      "trayEdit": "Modify the array {{name}}",
+      "unchanged": "Nothing changed.",
+      "rewrite": "Its type changes from {{from}} to {{to}}: its section is written anew, the keys of {{from}} dropped."
+    }
+  },
   "clusterView": {
     "title": "Cluster",
     "cards": "Summary of the cluster",
@@ -3493,6 +3570,7 @@
       "networks": "These are the networks the cluster uses to give IP addresses to containers and services automatically.",
       "pools": "Storage pools are where volumes get their disk space: a directory, an LVM volume group, a ZFS pool or a storage array, for example.",
       "stores": "Backup stores hold copies (snapshots) of your services' data and configuration, so you can restore them later, even on another node.",
+      "arrays": "The storage arrays on which the cluster creates the disks of its Pure, Symmetrix, TrueNAS… pools. Each one is declared in the cluster configuration, with the address the nodes reach it at and the credentials to use.",
       "resources": "This lists every resource of every service and volume, on every node: filesystems, IP addresses, disks, containers, applications. Problems only keeps what is down or in warn, leaving out the passive nodes of a failover service, down as they should be.",
       "objects-services": "Services (svc) are the applications the cluster keeps running. Each one is built from resources, such as an IP address, a filesystem and a container. A service has one instance on each node it is allowed to run on.",
       "objects-volumes": "Volumes (vol) are storage that a service asks for. The cluster creates each volume in a storage pool when the service is provisioned.",
@@ -3561,6 +3639,10 @@
       "pool": {
         "term": "Pool",
         "definition": "A place volumes get their disk space from: a directory, an LVM volume group, ZFS, DRBD or a storage array."
+      },
+      "array": {
+        "term": "Array",
+        "definition": "A storage array (Pure, Hitachi, TrueNAS, 3PAR…) the cluster drives through its API or its command line. A pool of the array's type makes its volumes' disks on it."
       },
       "store": {
         "term": "Store",

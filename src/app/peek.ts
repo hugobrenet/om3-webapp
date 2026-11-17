@@ -19,12 +19,13 @@ export interface PeekStep {
  * - `network`: a network, by its name;
  * - `pool`: a pool, by its name;
  * - `store`: a store, by its reference (`store-config.ts`);
+ * - `array`: a storage array, by its name;
  * - `namespace`: the usage of a namespace, by its name;
  * - `instance`: the instance of an object on a node, by `path@node` (`instanceId`);
  * - `resource`: a resource of an object on all its nodes, by `path:rid`, or on
  *   the instance of one node, by `path:rid@node` (`resourceId`).
  */
-export type PeekKind = "node" | "object" | "network" | "pool" | "store" | "namespace" | "instance" | "resource";
+export type PeekKind = "node" | "object" | "network" | "pool" | "store" | "array" | "namespace" | "instance" | "resource";
 
 const PEEK_KINDS: ReadonlySet<string> = new Set<PeekKind>([
   "node",
@@ -32,6 +33,7 @@ const PEEK_KINDS: ReadonlySet<string> = new Set<PeekKind>([
   "network",
   "pool",
   "store",
+  "array",
   "namespace",
   "instance",
   "resource",
@@ -103,6 +105,8 @@ export function stepIcon(step: PeekStep): ObjectKind {
       return "pool";
     case "store":
       return "store";
+    case "array":
+      return "array";
     case "namespace":
       return "namespace";
     case "instance":

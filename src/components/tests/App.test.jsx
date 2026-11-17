@@ -35,6 +35,7 @@ vi.mock('../ClusterView', () => ({default: () => <div data-testid="cluster">Clus
 vi.mock('../NodesTable', () => ({default: () => <div data-testid="nodes">NodesTable</div>}));
 vi.mock('../Heartbeats', () => ({default: () => <div data-testid="heartbeats">Heartbeats</div>}));
 vi.mock('../Pools', () => ({default: () => <div data-testid="pools">Pools</div>}));
+vi.mock('../Arrays', () => ({default: () => <div data-testid="arrays">Arrays</div>}));
 // The lists show the query of their address: the panel state they were given.
 vi.mock('../Objects', async () => {
     const {useLocation} = await vi.importActual('react-router-dom');
@@ -241,6 +242,7 @@ describe('App Component', () => {
     test.each([
         ['/nodes', 'nodes'],
         ['/pools', 'pools'],
+        ['/arrays', 'arrays'],
         ['/network', 'network'],
         ['/objects', 'objects'],
         ['/namespaces', 'namespaces'],

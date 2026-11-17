@@ -32,7 +32,7 @@ const setCompact = (compact) => {
     }));
 };
 
-const CLUSTER = ['Links', 'Nodes', 'Namespaces', 'Networks', 'Pools', 'Stores', 'Resources'];
+const CLUSTER = ['Links', 'Nodes', 'Namespaces', 'Networks', 'Pools', 'Stores', 'Arrays', 'Resources'];
 const OBJECTS = ['Services', 'Volumes', 'Configurations', 'Secrets', 'Users'];
 const section = (name) => screen.getByRole('region', {name});
 /** The entries of a section: the links of its list, not its title. */
@@ -69,7 +69,7 @@ describe('Sidebar', () => {
         expect(link.querySelector('svg')).not.toBeNull();
     });
 
-    test('three sections: the cluster, its links, nodes, namespaces, networks, pools, stores and resources; the objects, their title all of them, then by kind; the help, its glossary and its about', () => {
+    test('three sections: the cluster, its links, nodes, namespaces, networks, pools, stores, arrays and resources; the objects, their title all of them, then by kind; the help, its glossary and its about', () => {
         renderSidebar();
         expect(screen.getAllByRole('heading').map((h) => h.textContent)).toEqual(['Cluster', 'Relay', 'Objects', 'Help']);
         expect(linkNames(section('Help'))).toEqual(['Glossary', 'About']);
@@ -101,7 +101,7 @@ describe('Sidebar', () => {
         renderSidebar();
         const hrefs = Object.fromEntries(screen.getAllByRole('link').map((link) => [link.textContent, link.getAttribute('href')]));
         expect(hrefs).toEqual({
-            Cluster: '/cluster', Relay: '/relay', Links: '/heartbeats', Nodes: '/nodes', Namespaces: '/namespaces', Networks: '/network', Pools: '/pools', Stores: '/stores', Resources: '/resources',
+            Cluster: '/cluster', Relay: '/relay', Links: '/heartbeats', Nodes: '/nodes', Namespaces: '/namespaces', Networks: '/network', Pools: '/pools', Stores: '/stores', Arrays: '/arrays', Resources: '/resources',
             Objects: '/objects?list=any', Services: '/objects', Volumes: '/objects?list=volumes',
             Configurations: '/objects?list=configs', Secrets: '/objects?list=secrets', Users: '/objects?list=users',
             'AI assistant': '/ai',
