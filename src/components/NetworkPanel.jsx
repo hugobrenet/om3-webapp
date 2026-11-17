@@ -5,6 +5,9 @@ import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
 import {useClusterNodes} from "../hooks/usePgUsage";
 import {useMenuState} from "../hooks/useSidebarAlerts";
+import useEventStore from "../hooks/useEventStore.js";
+import {retainEventReception} from "../eventSourceManager";
+import {addressesSignature} from "../app/network-addresses";
 import {NetworkSketch} from "./NetworkSketch";
 import {NetworkWizard} from "./NetworkWizard";
 import {SectionConfig, read, readNodes, useClusterSection} from "./SectionConfig";
@@ -32,23 +35,46 @@ export function UsageRing({used, size, free, label}) {
     );
 }
 
+/** How long the addresses are let settle before the networks are read again: a start reports a burst. */
+export const ADDRESSES_SETTLE_MS = 1000;
+
+/** The events the addresses of the instances come with: their status, and its delete. */
+const ADDRESS_EVENTS = ["InstanceStatusUpdated", "InstanceStatusDeleted"];
+
 /**
- * A count of the changes of the network lists the menu polls and of the cluster
- * configuration its stream reads: what a view of the networks reads again on. A
- * subnet the daemon chose for a node of a routed bridge is written to the cluster
- * configuration (`subnet@<node>`); an address handed out shows in the usage polled.
+ * A count of the changes a view of the networks reads again on: of the cluster
+ * configuration the menu stream reads, a subnet the daemon chose for a node of a
+ * routed bridge written there (`subnet@<node>`); of the addresses the ip resources
+ * report in the status of their instances, once a burst of them is over
+ * (ADDRESSES_SETTLE_MS), the daemon matching and counting them its own way; of the
+ * network lists the menu polls, what an event missed.
  */
 export function useNetworkChanges() {
     const polled = useMenuState((s) => s.networks);
     const config = useMenuState((s) => s.clusterConfig);
+    // The status of the instances, carried by the stream while a view of the networks is shown.
+    useEffect(() => {
+        const token = localStorage.getItem("authToken");
+        const release = token ? retainEventReception(token, ADDRESS_EVENTS) : null;
+        return () => release?.();
+    }, []);
+    const addresses = useEventStore((s) => addressesSignature(s.objectInstanceStatus));
     const [changes, setChanges] = useState(0);
     // What was there at first is what the view reads at first: a change is from it on.
-    const seen = useRef({polled, config});
+    const seen = useRef({polled, config, addresses});
     useEffect(() => {
         if (seen.current.polled === polled && seen.current.config === config) return;
-        seen.current = {polled, config};
+        seen.current = {...seen.current, polled, config};
         setChanges((n) => n + 1);
     }, [polled, config]);
+    useEffect(() => {
+        if (seen.current.addresses === addresses) return undefined;
+        const timer = setTimeout(() => {
+            seen.current = {...seen.current, addresses};
+            setChanges((n) => n + 1);
+        }, ADDRESSES_SETTLE_MS);
+        return () => clearTimeout(timer);
+    }, [addresses]);
     return changes;
 }
 
