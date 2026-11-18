@@ -49,10 +49,10 @@
       "confirm": "Redémarrer"
     },
     "clear": {
-      "title": "Confirmer l'effacement",
-      "checkboxAria": "Confirmer l'effacement",
-      "checkbox": "Je comprends que cela effacera l'état et les journaux du nœud.",
-      "confirmAria": "Confirmer l'effacement"
+      "title": "Confirmer la réinitialisation",
+      "checkboxAria": "Confirmer la réinitialisation",
+      "checkbox": "Je comprends que cela réinitialisera l'état et les journaux du nœud.",
+      "confirmAria": "Confirmer la réinitialisation"
     },
     "drain": {
       "title": "Confirmer le drainage",
@@ -291,7 +291,7 @@
       "pgUpdate": "Mettre à jour les pg",
       "info": "Infos",
       "status": "Statut",
-      "clear": "Effacer",
+      "clear": "Réinitialiser",
       "drain": "Drainer",
       "scsiScan": "Scan SCSI",
       "asset": "Inventaire",
@@ -632,7 +632,7 @@
       "beating": "Actif",
       "id": "ID",
       "driver": "Pilote",
-      "clearAll": "Effacer tous les filtres"
+      "clearAll": "Réinitialiser tous les filtres"
     },
     "marks": {
       "healthySingleNode": "Sain (nœud unique)",
@@ -1055,7 +1055,7 @@
     "levels": "Niveaux",
     "allLevels": "Tous les niveaux",
     "levelsGroup": "Niveaux de journal",
-    "filtersActive": "Filtres actifs - Cliquez sur une ligne pour les effacer",
+    "filtersActive": "Filtres actifs - Cliquez sur une ligne pour les réinitialiser",
     "resetFilters": "Réinitialiser les filtres",
     "count": "{{shown}} / {{total}} lignes",
     "lines": "Lignes de journal",
@@ -1873,8 +1873,8 @@
       "kind": "Type",
       "unprovisioned": "Non provisionné",
       "rail": "Filtres",
-      "clear": "Effacer",
-      "clearOf": "Effacer le filtre {{filter}}",
+      "clear": "Réinitialiser",
+      "clearOf": "Réinitialiser le filtre {{filter}}",
       "active_one": "{{count}} actif",
       "active_other": "{{count}} actifs"
     },
@@ -1904,7 +1904,7 @@
     "openNamespaceConfig": "Ouvrir la configuration de {{namespace}}",
     "count_one": "{{count}} objet",
     "count_other": "{{count}} objets",
-    "clearSelection": "Effacer"
+    "clearSelection": "Désélectionner"
   },
   "pools": {
     "columns": {
@@ -2652,7 +2652,7 @@
       "description": "Envoyer au collecteur le rapport système (modifications des fichiers suivis)."
     },
     "clear": {
-      "label": "Effacer le moniteur",
+      "label": "Réinitialiser le moniteur",
       "description": "Réinitialiser l'état d'échec du moniteur du nœud."
     },
     "restartDaemon": {
@@ -2753,7 +2753,7 @@
       "startStandby": "Activer les ressources destinées à rester actives sur un nœud de secours.",
       "freeze": "Bloquer les démarrages automatiques et les actions du moniteur sur ce nœud.",
       "unfreeze": "Débloquer les démarrages automatiques et les actions du moniteur sur ce nœud.",
-      "clear": "Effacer l'état en échec de son moniteur, pour que le démon agisse à nouveau dessus.",
+      "clear": "Réinitialiser l'état en échec de son moniteur, pour que le démon agisse à nouveau dessus.",
       "provision": "Allouer les ressources système de ses ressources sur ce nœud.",
       "unprovision": "Libérer les ressources système de ses ressources sur ce nœud : leurs données sont perdues.",
       "install": "Réinstaller ce que déclarent ses volumes et systèmes de fichiers, sans rien démarrer.",
@@ -3036,7 +3036,7 @@
       "all": "Sélectionner toutes les ressources",
       "one": "Sélectionner {{rid}} de {{path}} sur {{node}}",
       "hint": "Sélectionnez des ressources pour agir dessus",
-      "clear": "Effacer",
+      "clear": "Désélectionner",
       "actions": "Actions sur les ressources sélectionnées",
       "subject_one": "{{count}} ressource, sur {{instances}}",
       "subject_other": "{{count}} ressources, sur {{instances}}",
@@ -3177,7 +3177,7 @@
       "selection": "Instantanés sélectionnés",
       "selected_one": "{{count}} sélectionné",
       "selected_other": "{{count}} sélectionnés",
-      "clear": "Effacer",
+      "clear": "Désélectionner",
       "deleteSelected_one": "Supprimer {{count}} instantané",
       "deleteSelected_other": "Supprimer {{count}} instantanés",
       "confirmManyTitle_one": "Supprimer {{count}} instantané ?",
@@ -3235,7 +3235,7 @@
         "all": "Tout"
       },
       "around": "Autour du",
-      "clear": "Effacer la période",
+      "clear": "Réinitialiser la période",
       "before": "Dernier avant : {{id}}, {{date}}",
       "after": "premier après : {{id}}, {{date}}",
       "noneBefore": "Aucun avant",
@@ -3855,7 +3855,7 @@
         "definition": "Annuler l'action en cours sur tout le cluster : les étapes qu'il lui reste. Une exécution déjà lancée sur un nœud, un démarrage ou un arrêt, va à son terme."
       },
       "actionClear": {
-        "term": "Effacer",
+        "term": "Réinitialiser",
         "definition": "Réinitialiser un état d'échec (comme start failed) pour que le cluster agisse de nouveau dessus."
       }
     }
