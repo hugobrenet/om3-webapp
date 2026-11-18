@@ -10,6 +10,7 @@ import {actionKeywords, impactBadges, keyOf} from "./action-menu";
 import {trackPending, trackRefused, trackResponse} from "./action-tracker";
 import {refusalReason} from "../components/objectActions";
 import {getResponseErrorMessage} from "../services/api.jsx";
+import {pacedFetch} from "../services/paced-fetch.js";
 
 /** The definition of a node action, by its name. */
 export const nodeAction = (name) => NODE_ACTIONS.find((action) => action.name === name);
@@ -42,7 +43,7 @@ export async function postNodeAction(node, name, headers, {names, subject = node
         else trackRefused({action: name, subject, reason});
     };
     try {
-        const response = await fetch(url, {
+        const response = await pacedFetch(url, {
             method: "POST",
             headers: {...headers, "Content-Type": "application/json"},
             ...(body === undefined ? {} : {body}),

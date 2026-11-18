@@ -381,3 +381,56 @@ describe("formatDuration", () => {
     expect(formatDuration(ms)).toBe(text);
   });
 });
+
+describe("the orchestrations followed at once, a selection's", () => {
+  const ids = ["aaaaaaaa-0000-0000-0000-000000000001", "aaaaaaaa-0000-0000-0000-000000000002", "aaaaaaaa-0000-0000-0000-000000000003"];
+  const paths = ["ns/svc/s1", "ns/svc/s2", "ns/svc/s3"];
+
+  /** dev3, its lists by object: the third orchestration not in the list of dev3n1, read by its id. */
+  function listingDaemon() {
+    return vi.fn((url: string) => {
+      if (url === "/api/cluster/status?selector=cluster") {
+        return json(200, { cluster: { config: { nodes: ["dev3n1", "dev3n2"] }, node: { dev3n1: {}, dev3n2: {} } } });
+      }
+      if (url.includes("/daemon/orchestration?selector=")) {
+        return json(200, {
+          items: ids.slice(0, 2).map((id, i) => ({ orchestration_id: id, path: paths[i], state: "succeeded" })),
+        });
+      }
+      if (url.includes(`/daemon/orchestration/id/${ids[2]}`)) return json(200, { orchestration_id: ids[2], state: "succeeded" });
+      if (url.includes("/daemon/exec?selector=")) {
+        const node = url.includes("/dev3n1/") ? "dev3n1" : "dev3n2";
+        return json(200, {
+          items: [
+            ...ids.map((id, i) => ({ exec_id: `${node}-${String(i)}`, orchestration_id: id, node, title: "delete", state: "succeeded", path: paths[i] })),
+            // A run of one of them under no orchestration (the scheduler's): of none of them.
+            { exec_id: `${node}-status`, node, title: "status", state: "succeeded", path: paths[0] },
+          ],
+        });
+      }
+      return json(404, {});
+    }) as unknown as typeof fetch;
+  }
+
+  test("read together, a list of their objects a node, not a read each", async () => {
+    globalThis.fetch = listingDaemon();
+    ids.forEach((id, i) => {
+      trackAccepted({ orchestration_id: id, node: "dev3n1" }, { action: "delete", subject: paths[i], path: paths[i] });
+    });
+    await waitFor(() => {
+      expect(tracked().map((t) => t.state)).toEqual(["succeeded", "succeeded", "succeeded"]);
+    }, { timeout: 3000 });
+    const urls = vi.mocked(globalThis.fetch).mock.calls.map(([url]) => decodeURIComponent(String(url)));
+    expect(urls).toContain(`/api/node/name/dev3n1/daemon/orchestration?selector=${paths.join(",")}`);
+    expect(urls).toContain(`/api/node/name/dev3n2/daemon/exec?selector=${paths.join(",")}`);
+    // Read by its id alone: the one the list said nothing of.
+    expect(urls.filter((url) => url.includes("/orchestration/id/"))).toEqual(
+      urls.filter((url) => url.includes(`/orchestration/id/${ids[2]}`)),
+    );
+    expect(urls.some((url) => url.includes("exec?orchestration_id="))).toBe(false);
+    // Each its own runs, on each node; the scheduler's of none.
+    for (const [i, entry] of [...tracked()].reverse().entries()) {
+      expect(entry.steps.map((s) => s.execId).sort()).toEqual([`dev3n1-${String(i)}`, `dev3n2-${String(i)}`]);
+    }
+  });
+});

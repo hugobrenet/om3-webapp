@@ -37,6 +37,8 @@ describe("network setup", () => {
         }));
         const posted = postNodeAction("dev2n1", "network setup", {Authorization: "Bearer x"});
         expect(tracked()[0]).toMatchObject({action: "network setup", subject: "dev2n1", node: "dev2n1", state: "running"});
+        // Sent on its turn (paced-fetch): a tick later.
+        await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
         const [url, init] = vi.mocked(globalThis.fetch).mock.calls[0];
         expect(url).toMatch(/\/network\/setup$/);
         expect(init).toMatchObject({method: "POST", headers: {Authorization: "Bearer x"}});
