@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, screen, waitFor, fireEvent, within} from '@testing-library/react';
+import {render, screen, waitFor, fireEvent, within, act} from '@testing-library/react';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import '@testing-library/jest-dom';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
@@ -14,6 +14,10 @@ vi.mock('axios', () => ({
         get: vi.fn(),
     },
 }));
+
+// The changes of the networks, tested with the panel: here, a count the test raises.
+const mockChanges = vi.hoisted(() => ({value: 0}));
+vi.mock('../NetworkPanel', () => ({useNetworkChanges: () => mockChanges.value}));
 
 // Mock localStorage
 const mockLocalStorage = {
@@ -65,6 +69,7 @@ const mockIpDetails = [
 describe('NetworkDetails Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockChanges.value = 0;
         mockLocalStorage.getItem.mockReturnValue('mock-token');
     });
 
@@ -644,5 +649,50 @@ describe('NetworkDetails Component', () => {
         expect(consoleWarnSpy).not.toHaveBeenCalled();
         consoleWarnSpy.mockRestore();
         consoleErrorSpy.mockRestore();
+    });
+
+    describe('read again as the networks change', () => {
+        const ui = () => (
+            <MemoryRouter initialEntries={['/network/default']}>
+                <Routes>
+                    <Route path="/network/:networkName" element={<NetworkDetails/>}/>
+                </Routes>
+            </MemoryRouter>
+        );
+
+        test('an address taken elsewhere shown, no spinner meanwhile, the filters kept', async () => {
+            axios.get.mockResolvedValueOnce({data: {items: mockIpDetails}});
+            const {rerender} = render(ui());
+            await screen.findByText('192.168.1.2');
+            fireEvent.change(screen.getAllByRole('textbox')[0], {target: {value: 'node1'}});
+            await waitFor(() => expect(screen.queryByText('192.168.1.2')).toBeNull());
+            let answer;
+            axios.get.mockReturnValueOnce(new Promise((resolve) => {
+                answer = resolve;
+            }));
+            mockChanges.value = 1;
+            rerender(ui());
+            expect(axios.get).toHaveBeenCalledTimes(2);
+            expect(screen.queryByText('Loading network details')).toBeNull();
+            expect(screen.getByText('192.168.1.1')).toBeInTheDocument();
+            const taken = {ip: '192.168.1.9', network: {name: 'default', type: 'bridge'}, node: 'node1', path: '/p9', rid: 'ip#9'};
+            await act(async () => answer({data: {items: [...mockIpDetails, taken]}}));
+            expect(await screen.findByText('192.168.1.9')).toBeInTheDocument();
+            expect(screen.queryByText('192.168.1.2')).toBeNull();
+            expect(screen.getAllByRole('textbox')[0]).toHaveValue('node1');
+        });
+
+        test('a failed read again keeps the addresses shown, no error', async () => {
+            axios.get.mockResolvedValueOnce({data: {items: mockIpDetails}});
+            const {rerender} = render(ui());
+            await screen.findByText('192.168.1.2');
+            axios.get.mockRejectedValueOnce(new Error('down'));
+            mockChanges.value = 1;
+            rerender(ui());
+            await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(2));
+            await act(async () => {});
+            expect(screen.getByText('192.168.1.2')).toBeInTheDocument();
+            expect(screen.queryByText('Failed to load network details. Please try again.')).toBeNull();
+        });
     });
 });

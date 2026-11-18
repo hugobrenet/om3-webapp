@@ -8,6 +8,7 @@ import {DataTable, FilterField, Loaded, isSet, matches, useApiResource} from "./
 import {InstanceLink, ResourceLink} from "./RecordLinks";
 import useEventStore from "../hooks/useEventStore.js";
 import {retainEventReception} from "../eventSourceManager.jsx";
+import {anyOf, useInstanceConfigChanges, useInstanceStatusChanges, usePollTicks} from "../hooks/useLiveChanges";
 
 /*
  * Tabs of the object panel, read from the daemon API as om reads them: the daemon
@@ -22,10 +23,15 @@ const objectUrl = (path, suffix) => {
 /** A list long enough to need a filter. */
 const FILTER_FROM = 10;
 
+/** The runs of a schedule, which no event says: polled as often. */
+const SCHEDULE_POLL_MS = 30_000;
+
 /** The tasks the daemon schedules for the object, on each node (`om <path> schedule list`). */
 export function ObjectSchedules({path}) {
     const {t, i18n} = useTranslation();
-    const schedules = useApiResource(objectUrl(path, "schedule"));
+    // Its tasks changing with the configuration, their runs with time.
+    const changes = anyOf(useInstanceConfigChanges(path), usePollTicks(SCHEDULE_POLL_MS));
+    const schedules = useApiResource(objectUrl(path, "schedule"), {changes});
     const [filter, setFilter] = useState("");
     const when = (value) => (isSet(value) ? <RelativeTime value={value} locale={i18n.language}/> : "–");
     const requirements = (s) => [
@@ -83,11 +89,14 @@ export function ObjectSchedules({path}) {
  * The daemon reads these from a cache of each instance, which a change of its
  * configuration does not refresh: a resource deleted stays in it. The resources
  * configured on a node, as its instance configuration says (InstanceConfigUpdated),
- * are the ones shown there; a change of a configuration reads the key-values again.
+ * are the ones shown there; a change of a configuration, or of the status of the
+ * resources (of `rid` alone when given), reads the key-values again.
  */
 export function ObjectResources({path, rid: only, node: onNode}) {
     const {t} = useTranslation();
-    const info = useApiResource(objectUrl(path, "resource/info"));
+    const [reconfigured, setReconfigured] = useState(0);
+    const statusChanges = useInstanceStatusChanges(path, only);
+    const info = useApiResource(objectUrl(path, "resource/info"), {changes: anyOf(reconfigured, statusChanges)});
     const [filter, setFilter] = useState("");
 
     // The configurations of the instances, carried by the stream while shown.
@@ -100,12 +109,11 @@ export function ObjectResources({path, rid: only, node: onNode}) {
     // Their checksums, one string: it changes with a configuration, not with each render.
     const checksums = Object.entries(configs ?? {}).map(([node, c]) => `${node}=${c?.csum ?? ""}`).sort().join(",");
     const seen = useRef(checksums);
-    const {reload} = info;
     useEffect(() => {
         // The first configurations known are those of the key-values just read.
-        if (seen.current !== "" && seen.current !== checksums) reload();
+        if (seen.current !== "" && seen.current !== checksums) setReconfigured((n) => n + 1);
         seen.current = checksums;
-    }, [checksums, reload]);
+    }, [checksums]);
 
     const items = useMemo(
         () => (info.data?.items ?? []).filter((item) =>

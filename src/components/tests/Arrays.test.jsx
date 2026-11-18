@@ -1,10 +1,11 @@
 import React from 'react';
-import {render, screen, fireEvent, waitFor, within} from '@testing-library/react';
+import {render, screen, fireEvent, waitFor, within, act} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import {MemoryRouter} from 'react-router-dom';
 import Arrays from '../Arrays';
 import {ArrayOverview} from '../ArrayPanel';
+import {useMenuState} from '../../hooks/useSidebarAlerts';
 
 const mockGrants = vi.hoisted(() => ({value: {root: null}}));
 vi.mock('../../hooks/useGrants', () => ({
@@ -48,16 +49,22 @@ array@n1 = pure1
 
 describe('Arrays', () => {
     let items;
+    // The configuration as read now, or a failure to read it.
+    let config;
+    let fails;
 
     beforeEach(() => {
         mockGrants.value = {root: null};
         items = [{name: 'emc1', type: 'symmetrix'}, {name: 'pure1', type: 'pure'}];
+        config = CONFIG;
+        fails = false;
         vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
             const u = String(url);
             const json = (body) => new Response(JSON.stringify(body), {status: 200, headers: {'Content-Type': 'application/json'}});
             if (u === '/api/node') return json({items: [{meta: {node: 'n1'}}, {meta: {node: 'n2'}}]});
+            if (fails) return new Response('down', {status: 500});
             if (u === '/api/array') return json({kind: 'ArrayList', items});
-            if (u === '/api/cluster/config/file?redact-secrets=true') return new Response(CONFIG, {status: 200});
+            if (u === '/api/cluster/config/file?redact-secrets=true') return new Response(config, {status: 200});
             return new Response('not found', {status: 404});
         });
     });
@@ -120,5 +127,46 @@ describe('Arrays', () => {
     test('its overview, an array gone: said', async () => {
         render(<ArrayOverview name="gone"/>, {wrapper: MemoryRouter});
         expect(await screen.findByText('No array gone.')).toBeInTheDocument();
+    });
+
+    // The cluster configuration changed, as the stream of the menu says it.
+    const changed = () => act(() => useMenuState.setState({clusterConfig: {changed: Math.random()}}));
+    const configReads = () => fetch.mock.calls.filter(([url]) => String(url).startsWith('/api/cluster/config/file')).length;
+
+    test('read again as the cluster configuration changes: an array and a pool added elsewhere shown', async () => {
+        render(<Arrays/>, {wrapper: MemoryRouter});
+        const list = await screen.findByRole('list', {name: 'Arrays'});
+        items = [...items, {name: 'xt1', type: 'xtremio'}];
+        config = CONFIG.concat('\n[pool#bronze]\ntype = pure\narray = pure1\n');
+        changed();
+        await waitFor(() => expect(cards(list).map((c) => c.getAttribute('data-array'))).toEqual(['emc1', 'pure1', 'xt1']));
+        expect(cards(list)[1]).toHaveTextContent('3 pools on it');
+    });
+
+    test('a failed read again keeps the cards shown, no error', async () => {
+        render(<Arrays/>, {wrapper: MemoryRouter});
+        const list = await screen.findByRole('list', {name: 'Arrays'});
+        fails = true;
+        const before = configReads();
+        changed();
+        await waitFor(() => expect(configReads()).toBeGreaterThan(before));
+        await act(async () => {});
+        expect(cards(list).map((c) => c.getAttribute('data-array'))).toEqual(['emc1', 'pure1']);
+        expect(screen.queryByText(/Could not read the arrays/)).toBeNull();
+    });
+
+    test('its overview read again as the cluster configuration changes, kept on a failure', async () => {
+        render(<ArrayOverview name="pure1"/>, {wrapper: MemoryRouter});
+        await screen.findByRole('button', {name: 'gold'});
+        config = CONFIG.replace('api = https://pure1.example.com/api', 'api = https://pure2.example.com/api');
+        changed();
+        expect(await screen.findByText('https://pure2.example.com/api')).toBeInTheDocument();
+        fails = true;
+        const before = configReads();
+        changed();
+        await waitFor(() => expect(configReads()).toBeGreaterThan(before));
+        await act(async () => {});
+        expect(screen.getByText('https://pure2.example.com/api')).toBeInTheDocument();
+        expect(screen.queryByText(/Could not read the arrays/)).toBeNull();
     });
 });

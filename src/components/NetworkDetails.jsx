@@ -14,6 +14,7 @@ import {ChevronDownIcon} from "../ui/icons";
 import {cn} from "../ui/cn";
 import {filtersOnClass} from "./FilterRail";
 import {CrossLink} from "../app/CrossLink";
+import {useNetworkChanges} from "./NetworkPanel";
 
 /**
  * The addresses of a network. A page of its own under its route, or, `embedded`, the
@@ -34,6 +35,7 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
     const params = useParams();
     const networkName = name ?? params.networkName;
     const containerRef = useRef(null);
+    const changes = useNetworkChanges();
 
     // Scroll to top on component mount and when networkName changes
     useEffect(() => {
@@ -45,9 +47,13 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
 
     useEffect(() => {
         let isMounted = true;
+        // Read again: no spinner, a failure keeping what was read, said only when nothing was.
+        const again = changes > 0;
         const fetchIpDetails = async () => {
-            setIsLoading(true);
-            setError(false);
+            if (!again) {
+                setIsLoading(true);
+                setError(false);
+            }
             try {
                 const token = localStorage.getItem("authToken");
                 const res = await axios.get(URL_NETWORK_IP, {
@@ -60,6 +66,7 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
                     (item) => item.network?.name === networkName
                 );
                 if (isMounted) {
+                    setError(false);
                     setIpDetails(filteredItems);
                     setNetworkType(
                         filteredItems.length > 0
@@ -69,7 +76,7 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
                 }
             } catch (err) {
                 logger.error("Error retrieving network IP details", err);
-                if (isMounted) {
+                if (isMounted && !again) {
                     setError(true);
                     setIpDetails([]);
                     setNetworkType(null);
@@ -92,7 +99,7 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
         return () => {
             isMounted = false;
         };
-    }, [networkName]);
+    }, [networkName, changes]);
 
     // Debounced filter handlers
     const debouncedSetNodeFilter = useMemo(

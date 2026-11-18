@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from "react";
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {URL_POOL} from "../config/apiPath.js";
 import {poolSketchLayout} from "../app/pool-sketch";
@@ -14,6 +14,7 @@ import {PoolWizard} from "./PoolWizard";
 import {SectionConfig, read, readNodes, useClusterSection} from "./SectionConfig";
 import {Sketch} from "./Sketch";
 import {UsageRing} from "./UsageRing";
+import {anyOf, useClusterConfigChanges, usePoolChanges} from "../hooks/useLiveChanges";
 
 const URL_POOL_VOLUME = `${URL_POOL}/volume`;
 
@@ -23,20 +24,25 @@ const useBytes = () => {
     return (n) => formatBytes(n, i18n.language) || "0";
 };
 
-/** The volumes of a pool (GET /api/pool/volume), undefined while read. */
-function usePoolVolumes(name) {
+/**
+ * The volumes of a pool (GET /api/pool/volume), undefined while read; read again on
+ * `changes`, a failure then keeping those read.
+ */
+function usePoolVolumes(name, changes) {
     const [volumes, setVolumes] = useState(undefined);
     const [error, setError] = useState(null);
+    const shown = useRef(false);
     useEffect(() => {
         let live = true;
+        const again = changes > 0 && shown.current;
         read(`${URL_POOL_VOLUME}?name=${encodeURIComponent(name)}`).then(
-            (data) => live && setVolumes((data.items ?? []).filter((v) => v.pool === name)),
-            (err) => live && (setError(err.message), setVolumes([])),
+            (data) => live && (shown.current = true, setError(null), setVolumes((data.items ?? []).filter((v) => v.pool === name))),
+            (err) => live && !again && (setError(err.message), setVolumes([])),
         );
         return () => {
             live = false;
         };
-    }, [name]);
+    }, [name, changes]);
     return {volumes, error};
 }
 
@@ -84,26 +90,30 @@ export function PoolOverview({name}) {
     const [perNode, setPerNode] = useState(null);
     const [nodes, setNodes] = useState(null);
     const [error, setError] = useState(null);
-    const {volumes} = usePoolVolumes(name);
+    const changes = anyOf(usePoolChanges(), useClusterConfigChanges());
+    const {volumes} = usePoolVolumes(name, changes);
     const {section} = useClusterSection("pool", name);
+    const shown = useRef(false);
 
     useEffect(() => {
         let live = true;
+        // Read again: a failure keeps what was read, said only when nothing was.
+        const again = changes > 0 && shown.current;
         const query = `name=${encodeURIComponent(name)}`;
         read(`${URL_POOL}?${query}`).then(
-            (data) => live && setPool((data.items ?? []).find((p) => p.name === name) ?? null),
-            (err) => live && (setError(err.message), setPool(null)),
+            (data) => live && (shown.current = true, setError(null), setPool((data.items ?? []).find((p) => p.name === name) ?? null)),
+            (err) => live && !again && (setError(err.message), setPool(null)),
         );
         // The pool as each node reports it: its head and its use there.
         read(`${URL_POOL}?${query}&node=*`).then(
             (data) => live && setPerNode(Object.fromEntries((data.items ?? []).filter((p) => p.name === name && p.node).map((p) => [p.node, p]))),
-            () => live && setPerNode({}),
+            () => live && setPerNode((p) => (again && p !== null ? p : {})),
         );
-        readNodes().then((list) => live && setNodes(list), () => live && setNodes([]));
+        readNodes().then((list) => live && setNodes(list), () => live && setNodes((n) => (again && n !== null ? n : [])));
         return () => {
             live = false;
         };
-    }, [name]);
+    }, [name, changes]);
 
     if (pool === undefined) return <Spinner label={t("pools.panel.loading")}/>;
     if (pool === null) return <Alert tone="error">{error ? t("pools.panel.readFailed", {message: error}) : t("pools.panel.none", {name})}</Alert>;
@@ -140,7 +150,7 @@ export function PoolOverview({name}) {
 export function PoolVolumes({name}) {
     const {t} = useTranslation();
     const bytes = useBytes();
-    const {volumes, error} = usePoolVolumes(name);
+    const {volumes, error} = usePoolVolumes(name, usePoolChanges());
     if (volumes === undefined) return <Spinner label={t("pools.panel.loading")}/>;
     const rows = [...volumes].sort((a, b) => a.path.localeCompare(b.path));
     return (

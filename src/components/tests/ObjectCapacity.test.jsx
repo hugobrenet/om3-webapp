@@ -1,11 +1,20 @@
 import React from 'react';
-import {render, screen, fireEvent, waitFor, within} from '@testing-library/react';
+import {act, render, screen, fireEvent, waitFor, within} from '@testing-library/react';
 import {vi} from 'vitest';
 import {ObjectCapacity, SIZE} from '../ObjectCapacity';
 
 // The actions tray is tested on its own: here, what is said to it.
 const {mockTrackResponse, mockTrackRefused} = vi.hoisted(() => ({mockTrackResponse: vi.fn(), mockTrackRefused: vi.fn()}));
 vi.mock('../../app/action-tracker', () => ({trackResponse: mockTrackResponse, trackRefused: mockTrackRefused}));
+
+// The changes of the configuration, moved by the tests.
+const live = vi.hoisted(() => ({store: null}));
+vi.mock('../../hooks/useLiveChanges', async () => {
+    const {create} = await import('zustand');
+    live.store = create(() => ({config: 0}));
+    return {useInstanceConfigChanges: () => live.store((s) => s.config)};
+});
+const reconfigured = () => act(() => live.store.setState((s) => ({config: s.config + 1})));
 
 const KEYWORDS = [
     {option: 'pg_mem_limit', section: '', example: '512m', text: 'The memory the group may use. More text.'},
@@ -79,6 +88,22 @@ describe('the capacity of an object', () => {
             await waitFor(() => expect(posts()).toEqual([['/api/object/path/ns1/vol/data/action/resize', '{}']]));
         });
 
+        test('the configuration changing: the size read again, kept on a failure, the size asked kept', async () => {
+            render(<ObjectCapacity path="ns1/vol/data"/>);
+            expect(await within(size()).findByText('10g')).toBeInTheDocument();
+            fireEvent.change(within(size()).getByLabelText('New size'), {target: {value: '+2g'}});
+            config.size = '12g';
+            reconfigured();
+            expect(await within(size()).findByText('12g')).toBeInTheDocument();
+            const read = global.fetch;
+            global.fetch = vi.fn(async () => new Response('{}', {status: 500}));
+            reconfigured();
+            await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+            expect(within(size()).getByText('12g')).toBeInTheDocument();
+            expect(within(size()).getByLabelText('New size')).toHaveValue('+2g');
+            global.fetch = read;
+        });
+
         test('a size the daemon could not parse is refused before it is posted', () => {
             render(<ObjectCapacity path="ns1/vol/data"/>);
             fireEvent.change(within(size()).getByLabelText('New size'), {target: {value: 'big'}});
@@ -109,6 +134,22 @@ describe('the capacity of an object', () => {
                 ['pg_mem_limitThe memory the group may use.', '–'],
             ]));
             expect(within(caps()).getByLabelText('New value of pg_mem_limit')).toHaveAttribute('placeholder', '512m');
+        });
+
+        test('the configuration changing: the values configured read again, kept on a failure, the values asked kept', async () => {
+            render(<ObjectCapacity path="ns1/svc/web"/>);
+            await waitFor(() => expect(rows()[0]).toEqual(['pg_cpusThe cpus the group runs on.', '0-1']));
+            fireEvent.change(within(caps()).getByLabelText('New value of pg_mem_limit'), {target: {value: '1g'}});
+            config.pg_cpus = '0-3';
+            reconfigured();
+            await waitFor(() => expect(rows()[0]).toEqual(['pg_cpusThe cpus the group runs on.', '0-3']));
+            global.fetch = vi.fn(async () => new Response('{}', {status: 500}));
+            reconfigured();
+            await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+            await new Promise((r) => setTimeout(r, 20));
+            expect(rows()[0]).toEqual(['pg_cpusThe cpus the group runs on.', '0-3']);
+            expect(within(caps()).getByLabelText('New value of pg_mem_limit')).toHaveValue('1g');
+            expect(within(caps()).queryByRole('alert')).toBeNull();
         });
 
         test('a value changed is white on the grey of the others, until set', async () => {

@@ -39,6 +39,27 @@ vi.mock('../../hooks/useGrants', () => ({
     useIsRoot: () => Object.prototype.hasOwnProperty.call(mockGrants.value, 'root'),
 }));
 
+// The changes the views read again on, counted here: a test makes them go up.
+const mockLive = vi.hoisted(() => ({counts: {node: 0, cluster: 0, poll: {}}, listeners: new Set()}));
+const bump = (change) => act(() => {
+    change(mockLive.counts);
+    mockLive.listeners.forEach((listener) => listener());
+});
+vi.mock('../../hooks/useLiveChanges', async (importOriginal) => {
+    const {useSyncExternalStore} = await import('react');
+    const subscribe = (listener) => {
+        mockLive.listeners.add(listener);
+        return () => mockLive.listeners.delete(listener);
+    };
+    const use = (read) => useSyncExternalStore(subscribe, () => read(mockLive.counts));
+    return {
+        ...(await importOriginal()),
+        useNodeConfigChanges: () => use((c) => c.node),
+        useClusterConfigChanges: () => use((c) => c.cluster),
+        usePollTicks: (ms) => use((c) => c.poll[ms] ?? 0),
+    };
+});
+
 vi.mock('../NodeActionDialog', () => ({
     NodeActionDialog: ({pending: pendingAction, onConfirm: handleConfirm, target}) => (pendingAction === null ? null : (
         <div role="alertdialog" aria-label={`${pendingAction.action} ${target}`}>
@@ -75,6 +96,7 @@ describe('NodeDetailPanel', () => {
         sessionStorage.clear();
         reloadRecordHistory();
         requests = [];
+        mockLive.counts = {node: 0, cluster: 0, poll: {}};
         config = CONFIG;
         api = structuredClone({...node, ...daemon});
         global.fetch = vi.fn(async (url, options = {}) => {
@@ -630,6 +652,136 @@ describe('NodeDetailPanel', () => {
         expect(field).toHaveAttribute('placeholder', label);
         expect(field.style.width).toBe(`calc(${label.length}ch + 3.5rem)`);
         expect(field).toHaveClass('min-w-56', 'max-w-full');
+    });
+
+    describe('read again as it changes, the user doing nothing', () => {
+        const reads = (path) => requests.filter((r) => r.method === 'GET' && r.url.split('?')[0] === `/api/node/name/dev3n1/${path}`).length;
+        const tick = (ms) => bump((c) => {
+            c.poll[ms] = (c.poll[ms] ?? 0) + 1;
+        });
+        /** The daemon refusing every read from now on. */
+        const failReads = () => {
+            const answer = global.fetch.getMockImplementation();
+            global.fetch.mockImplementation(async (url, options = {}) => ((options.method ?? 'GET') === 'GET'
+                ? new Response(JSON.stringify({detail: 'down'}), {status: 500})
+                : answer(url, options)));
+        };
+
+        /** A read refused, and what came of it rendered. */
+        const failed = async () => {
+            await waitFor(() => expect(global.fetch.mock.calls.length).toBeGreaterThan(requests.length));
+            await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+        };
+
+        test('the schedules, polled every 30s: their runs read again; a failed read keeps them', async () => {
+            renderPanel('?peek=node:dev3n1&peektab=schedules');
+            await within(panel()).findByRole('table', {name: 'Schedules'});
+            expect(reads('schedule')).toBe(1);
+            api.schedule.items[0].data.action = 'renamed_task';
+            tick(30_000);
+            expect(await within(panel()).findByRole('row', {name: /renamed_task/})).toBeInTheDocument();
+            expect(within(panel()).queryByRole('status')).toBeNull();
+            failReads();
+            tick(30_000);
+            await failed();
+            expect(within(panel()).getByRole('row', {name: /renamed_task/})).toBeInTheDocument();
+            expect(within(panel()).queryByRole('alert')).toBeNull();
+        });
+
+        test('the inventory, polled every 30s and on a change of the node configuration, its filter kept', async () => {
+            renderPanel('?peek=node:dev3n1&peektab=inventory&view=packages');
+            const packages = await within(panel()).findByRole('table', {name: 'Packages'});
+            const search = within(panel()).getByRole('searchbox', {name: 'Filter the packages'});
+            fireEvent.change(search, {target: {value: 'new-pkg'}});
+            api['system/package'] = {items: [...api['system/package'].items, {data: {name: 'new-pkg', version: '2', arch: 'all', type: 'deb'}}]};
+            tick(30_000);
+            await waitFor(() => expect(within(packages).getAllByRole('row').slice(1).map((row) => row.cells[0].textContent)).toEqual(['new-pkg']));
+            expect(search).toHaveValue('new-pkg');
+            const before = reads('system/hardware');
+            bump((c) => {
+                c.node += 1;
+            });
+            await waitFor(() => expect(reads('system/hardware')).toBe(before + 1));
+            failReads();
+            tick(30_000);
+            await failed();
+            expect(within(packages).getAllByRole('row').slice(1).map((row) => row.cells[0].textContent)).toEqual(['new-pkg']);
+        });
+
+        test('the daemon, polled: its zone every 10s, its orchestrations and executions every 30s; a failed read keeps them', async () => {
+            renderPanel('?peek=node:dev3n1&peektab=daemon&view=dns');
+            const zone = await within(panel()).findByRole('table', {name: 'DNS zone'});
+            const before = ['daemon/orchestration', 'daemon/exec', 'daemon/dns/dump'].map(reads);
+            api['daemon/dns/dump'] = {items: [{qname: 'fresh.svc.cluster1.', qtype: 'A', ttl: 60, content: '10.0.0.9'}]};
+            tick(10_000);
+            await waitFor(() => expect(within(zone).getByText('fresh.svc.cluster1.')).toBeInTheDocument());
+            expect(['daemon/orchestration', 'daemon/exec', 'daemon/dns/dump'].map(reads)).toEqual([before[0], before[1], before[2] + 1]);
+            tick(30_000);
+            await waitFor(() => expect(['daemon/orchestration', 'daemon/exec'].map(reads)).toEqual([before[0] + 1, before[1] + 1]));
+            failReads();
+            tick(10_000);
+            await failed();
+            expect(within(zone).getByText('fresh.svc.cluster1.')).toBeInTheDocument();
+            expect(within(panel()).queryByText(/down/)).toBeNull();
+        });
+
+        test('the configuration file, written elsewhere: read again on a change of the node or the cluster configuration, a draft kept', async () => {
+            renderPanel('?peek=node:dev3n1&peektab=config');
+            expect(await within(panel()).findByLabelText('Node configuration file')).toHaveTextContent('env = TST');
+            config = CONFIG.replace('env = TST', 'env = PRD');
+            bump((c) => {
+                c.node += 1;
+            });
+            await waitFor(() => expect(within(panel()).getByLabelText('Node configuration file')).toHaveTextContent('env = PRD'));
+            failReads();
+            bump((c) => {
+                c.cluster += 1;
+            });
+            await failed();
+            expect(within(panel()).getByLabelText('Node configuration file')).toHaveTextContent('env = PRD');
+            expect(within(panel()).queryByRole('alert')).toBeNull();
+        });
+
+        test('an edit of the configuration file keeps its draft while the file changes elsewhere', async () => {
+            renderPanel('?peek=node:dev3n1&peektab=config');
+            await within(panel()).findByLabelText('Node configuration file');
+            fireEvent.click(within(panel()).getByRole('button', {name: 'Edit the configuration file'}));
+            const editor = await within(panel()).findByRole('textbox', {name: 'Node configuration file'});
+            fireEvent.change(editor, {target: {value: `${CONFIG}max_parallel = 4\n`}});
+            config = CONFIG.replace('env = TST', 'env = PRD');
+            const before = reads('config/file');
+            bump((c) => {
+                c.node += 1;
+                c.cluster += 1;
+            });
+            await waitFor(() => expect(reads('config/file')).toBe(before + 1));
+            expect(within(panel()).getByRole('textbox', {name: 'Node configuration file'})).toHaveValue(`${CONFIG}max_parallel = 4\n`);
+        });
+
+        test('the properties and the minimums of the health, read again on a change of the configuration, an edit of the organisation kept', async () => {
+            api.config = {items: [{keyword: 'node.enclosure', value: ''}]};
+            mockGrants.value = {root: null};
+            renderPanel();
+            const hardware = await within(panel()).findByRole('region', {name: 'Hardware'});
+            const properties = reads('system/property');
+            const thresholds = reads('config');
+            api['system/property'].items.push({data: {name: 'loc_city', source: 'config', title: 'loc, city', value: 'Lyon', error: ''}});
+            bump((c) => {
+                c.cluster += 1;
+            });
+            expect(await within(panel()).findByRole('region', {name: 'Location'})).toHaveTextContent('Lyon');
+            await waitFor(() => expect(reads('config')).toBe(thresholds + 1));
+            expect(reads('system/property')).toBe(properties + 1);
+            fireEvent.click(within(hardware).getByRole('button', {name: 'Edit the organisation properties'}));
+            const enclosure = await within(panel()).findByRole('textbox', {name: 'Enclosure'});
+            fireEvent.change(enclosure, {target: {value: 'rack 12'}});
+            bump((c) => {
+                c.node += 1;
+            });
+            await waitFor(() => expect(reads('system/property')).toBe(properties + 2));
+            expect(within(panel()).getByRole('textbox', {name: 'Enclosure'})).toHaveValue('rack 12');
+            expect(within(panel()).getByRole('region', {name: 'Changes of the organisation properties'})).toHaveTextContent('1 change');
+        });
     });
 
     describe('daemon tab', () => {

@@ -9,7 +9,7 @@ import {Button} from "../ui/components/Button";
 import {Spinner} from "../ui/components/Spinner";
 import {ObjectIcon} from "../ui/components/ObjectIcon";
 import {AgeTime} from "./AgeTime";
-import {useBytes} from "./StorePanel";
+import {useBytes, useStoreChanges} from "./StorePanel";
 import {PlusIcon} from "../ui/icons";
 import {StoreDetailPanel} from "./RecordPanels";
 import {StoreWizard} from "./StoreWizard";
@@ -133,6 +133,20 @@ export default function Stores() {
     useEffect(() => {
         void refresh();
     }, [refresh]);
+
+    // Read again as runs and prunes change them: a failure keeps the cards shown.
+    const changes = useStoreChanges();
+    useEffect(() => {
+        if (changes === 0) return undefined;
+        let live = true;
+        read(URL_STORE).then(
+            (data) => live && (setStores(data.items ?? []), setError(null)),
+            () => {},
+        );
+        return () => {
+            live = false;
+        };
+    }, [changes]);
 
     /** The list read until `settled` says the store is there, or gone. */
     const settle = async (settled) => {

@@ -131,6 +131,26 @@ vi.mock('../../eventSourceManager', () => ({
     closeLoggerEventSource: mockCloseLoggerEventSource,
 }));
 
+// The changes of the configurations of the nodes and the cluster, counted here: a test makes them go up.
+const mockLive = vi.hoisted(() => ({counts: {node: 0, cluster: 0}, listeners: new Set()}));
+const bump = (change) => act(() => {
+    change(mockLive.counts);
+    mockLive.listeners.forEach((listener) => listener());
+});
+vi.mock('../../hooks/useLiveChanges', async (importOriginal) => {
+    const {useSyncExternalStore} = await import('react');
+    const subscribe = (listener) => {
+        mockLive.listeners.add(listener);
+        return () => mockLive.listeners.delete(listener);
+    };
+    const use = (read) => useSyncExternalStore(subscribe, () => read(mockLive.counts));
+    return {
+        ...(await importOriginal()),
+        useNodeConfigChanges: () => use((c) => c.node),
+        useClusterConfigChanges: () => use((c) => c.cluster),
+    };
+});
+
 vi.mock('../../utils/logger', () => ({
     default: mockLogger,
 }));
@@ -175,6 +195,7 @@ describe('NodesTable', () => {
         });
 
         localStorage.setItem('authToken', 'test-token');
+        mockLive.counts = {node: 0, cluster: 0};
         useActionTracker.setState({tracked: [], revealed: 0});
         vi.clearAllMocks();
     });
@@ -334,6 +355,36 @@ describe('NodesTable', () => {
         await waitFor(() => expect(order()).toEqual(['node-2', 'node-1', 'node-3']));
         fireEvent.click(screen.getByRole('button', {name: /^Labels/}));
         await waitFor(() => expect(order()).toEqual(['node-2', 'node-3', 'node-1']));
+    });
+
+    test('the env and the labels read again as the configuration of a node or of the cluster changes, the filters kept; a failed read keeps them', async () => {
+        let info = {
+            'node-1': {env: 'PRD', labels: {zone: 'b'}},
+            'node-2': {env: 'DEV', labels: {}},
+            'node-3': {env: 'PRD', labels: {}},
+        };
+        let refuse = false;
+        global.fetch = vi.fn(async () => (refuse ? {ok: false, status: 500, json: async () => ({})} : {ok: true, json: async () => structuredClone(info)}));
+        renderWithRouter(<NodesTable/>);
+        await screen.findByText('node-1');
+        await waitFor(() => expect(screen.getByRole('checkbox', {name: /^PRD/})).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('checkbox', {name: /^PRD/}));
+        const shown = () => screen.queryAllByTestId(/^row-/).map((row) => row.dataset.testid);
+        await waitFor(() => expect(shown()).toEqual(['row-node-1', 'row-node-3']));
+        info = {...info, 'node-3': {env: 'DEV', labels: {zone: 'a'}}};
+        bump((c) => {
+            c.node += 1;
+        });
+        await waitFor(() => expect(shown()).toEqual(['row-node-1']));
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(screen.getByRole('checkbox', {name: /^PRD/})).toBeChecked();
+        refuse = true;
+        bump((c) => {
+            c.cluster += 1;
+        });
+        await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
+        await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+        expect(shown()).toEqual(['row-node-1']);
     });
 
     test('renders all node names', async () => {

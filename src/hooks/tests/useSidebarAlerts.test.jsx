@@ -81,6 +81,14 @@ describe('objectsAlert', () => {
 });
 
 describe('applySidebarEvent', () => {
+    test('keeps the configuration of each node, for the views of the nodes to read again as it changes', () => {
+        const state = {objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null, nodeConfig: {}};
+        applySidebarEvent(state, 'NodeConfigUpdated', {node: 'n1', node_config: {env: 'TST', labels: {}}});
+        applySidebarEvent(state, 'NodeConfigUpdated', {labels: {node: 'n2'}, node_config: {env: 'PRD'}});
+        applySidebarEvent(state, 'NodeConfigUpdated', {node: 'n3'});
+        expect(state.nodeConfig).toEqual({n1: {env: 'TST', labels: {}}, n2: {env: 'PRD'}});
+    });
+
     test('applies object, node and heartbeat events, and object deletions', () => {
         const state = {objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null};
         applySidebarEvent(state, 'ObjectStatusUpdated', {path: 'a', object_status: {avail: 'up'}});

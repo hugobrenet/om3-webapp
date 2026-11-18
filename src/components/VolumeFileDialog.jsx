@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {Trans, useTranslation} from "react-i18next";
 import {Alert} from "../ui/components/Alert";
 import {Button, IconButton} from "../ui/components/Button";
@@ -60,7 +60,7 @@ export const withEnding = (text, noTrailingLineFeed) =>
  * its key, shown by `onKey`, is what changes it. Removed from here as from its row
  * (`onDelete`).
  */
-export function VolumeFileDialog({path, node, dir, name, origin = null, onKey, onClose, onDelete, onSaved}) {
+export function VolumeFileDialog({path, node, dir, name, origin = null, stamp = "", onKey, onClose, onDelete, onSaved}) {
     const {t} = useTranslation();
     const [read, setRead] = useState(null);
     const [error, setError] = useState(null);
@@ -69,22 +69,35 @@ export function VolumeFileDialog({path, node, dir, name, origin = null, onKey, o
     // Whether the text written ends without a line feed: as the file read, then as asked.
     const [noTrailingLineFeed, setNoTrailingLineFeed] = useState(false);
     const [saving, setSaving] = useState(false);
+    // Read again as the listing says it changed (`stamp`), unless edited: what was read
+    // kept on a failure.
+    const [changes, setChanges] = useState(0);
+    const readStamp = useRef(stamp);
+    const busy = useRef(false);
+    const idle = editing === null && !saving;
+    busy.current = !idle;
+    useEffect(() => {
+        if (!idle || stamp === readStamp.current) return;
+        readStamp.current = stamp;
+        setChanges((n) => n + 1);
+    }, [stamp, idle]);
 
     useEffect(() => {
         let live = true;
+        const quiet = changes > 0;
         readFileHead(path, node, name, dir, SHOWN)
             .then(async ({blob, total, partial}) => {
                 const content = await parseBlobContent(blob, {hexLimit: HEX_SHOWN});
-                if (live) {
+                if (live && !(quiet && busy.current)) {
                     setRead({...content, total, partial, hexPartial: content.type === "binary" && blob.size > HEX_SHOWN});
                     setNoTrailingLineFeed(content.type === "text" && !content.content.endsWith("\n"));
                 }
             })
-            .catch((err) => live && setError(err));
+            .catch((err) => live && !quiet && setError(err));
         return () => {
             live = false;
         };
-    }, [path, node, dir, name]);
+    }, [path, node, dir, name, changes]);
 
     const text = read?.type === "text";
     const installed = origin?.kind === "installed";

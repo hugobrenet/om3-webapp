@@ -7,6 +7,7 @@ import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
 import {SectionConfig, read} from "./SectionConfig";
 import {SectionWizard} from "./SectionWizard";
+import {useClusterConfigChanges} from "../hooks/useLiveChanges";
 
 /**
  * The arrays of the cluster (GET /api/array, root only), and its configuration, its
@@ -16,17 +17,20 @@ import {SectionWizard} from "./SectionWizard";
 export function useArrays(enabled = true) {
     const [state, setState] = useState({data: undefined, error: null});
     const [version, setVersion] = useState(0);
+    // The arrays and the pools on them, sections of the cluster configuration: read again as it changes.
+    const changes = useClusterConfigChanges();
     useEffect(() => {
         if (!enabled) return undefined;
         let live = true;
         Promise.all([read(URL_ARRAY), read(`${URL_CLUSTER}/config/file?redact-secrets=true`, "text")]).then(
             ([list, config]) => live && setState({data: {items: list.items ?? [], config}, error: null}),
-            (err) => live && setState((s) => ({data: s.data ?? {items: [], config: ""}, error: err.message})),
+            // A failure keeps what was read, said only when nothing was.
+            (err) => live && setState((s) => (s.data && !s.error ? s : {data: s.data ?? {items: [], config: ""}, error: err.message})),
         );
         return () => {
             live = false;
         };
-    }, [enabled, version]);
+    }, [enabled, version, changes]);
     return {...state, reload: () => setVersion((v) => v + 1)};
 }
 

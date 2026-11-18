@@ -1,10 +1,31 @@
 import React from 'react';
-import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
-import {vi} from 'vitest';
+import {vi, afterEach, beforeEach, describe, expect, test} from 'vitest';
 import {ObjectSnapshots} from '../ObjectSnapshots';
 import useEventStore from '../../hooks/useEventStore.js';
 import {useActionTracker} from '../../app/action-tracker';
+
+// The changes the views read again on, counted here: a test makes them go up.
+const mockLive = vi.hoisted(() => ({counts: {pool: 0, cluster: 0, poll: {}}, listeners: new Set()}));
+const bump = (change) => act(() => {
+    change(mockLive.counts);
+    mockLive.listeners.forEach((listener) => listener());
+});
+vi.mock('../../hooks/useLiveChanges', async (importOriginal) => {
+    const {useSyncExternalStore} = await import('react');
+    const subscribe = (listener) => {
+        mockLive.listeners.add(listener);
+        return () => mockLive.listeners.delete(listener);
+    };
+    const use = (read) => useSyncExternalStore(subscribe, () => read(mockLive.counts));
+    return {
+        ...(await importOriginal()),
+        usePoolChanges: () => use((c) => c.pool),
+        useClusterConfigChanges: () => use((c) => c.cluster),
+        usePollTicks: (ms) => use((c) => c.poll[ms] ?? 0),
+    };
+});
 
 /** What the actions tray holds, the latest first: action, subject, state, reason. */
 const tray = () => useActionTracker.getState().tracked.map((e) => [e.action, e.subject, e.state, e.error ?? null]);
@@ -23,6 +44,7 @@ describe('ObjectSnapshots', () => {
     let answers;
 
     beforeEach(() => {
+        mockLive.counts = {pool: 0, cluster: 0, poll: {}};
         useActionTracker.setState({tracked: []});
         localStorage.setItem('authToken', 'tok');
         requests = [];
@@ -160,5 +182,29 @@ describe('ObjectSnapshots', () => {
         answers.snapshots = {status: 200, body: {kind: 'SyncSnapshotList', items: []}};
         renderSnapshots();
         expect(await screen.findByText('No snapshot kept.')).toBeInTheDocument();
+    });
+
+    test('read again on each poll from the node asked, the dialog open kept; a failure keeping them, no error', async () => {
+        renderSnapshots();
+        await waitFor(() => expect(rows()).toHaveLength(2));
+        fireEvent.change(screen.getByLabelText('Read from'), {target: {value: 'n1'}});
+        await waitFor(() => expect(requests).toHaveLength(2));
+        const dialog = await openRestore('7c0e41d2');
+        fireEvent.change(within(dialog).getByLabelText('Directory'), {target: {value: '/var/tmp/r'}});
+
+        const NEWEST = {...NEW, id: '9d9d9d9d-0000-4000-8000-000000000000', created_at: '2026-10-23T10:00:00Z'};
+        answers.snapshots = {status: 200, body: {kind: 'SyncSnapshotList', items: [OLD, NEW, NEWEST].map(item)}};
+        await bump((c) => { c.poll[30_000] = 1; });
+        await waitFor(() => expect(rows()).toHaveLength(3));
+        expect(rows()[0][0]).toBe('9d9d9d9d');
+        expect(requests.at(-1)).toBe('GET /api/node/name/n1/instance/path/ns1/svc/web/sync/snapshots');
+        expect(screen.getByRole('dialog', {name: 'Restore 7c0e41d2 of sync#1'})).toBeInTheDocument();
+        expect(within(dialog).getByLabelText('Directory')).toHaveValue('/var/tmp/r');
+
+        answers.snapshots = {status: 500, body: {detail: 'down'}};
+        await bump((c) => { c.poll[30_000] += 1; });
+        await waitFor(() => expect(requests).toHaveLength(4));
+        expect(rows()).toHaveLength(3);
+        expect(screen.queryByText(/The snapshots could not be read/)).toBeNull();
     });
 });

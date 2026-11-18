@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, screen, fireEvent, waitFor, within} from '@testing-library/react';
+import {act, render, screen, fireEvent, waitFor, within} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import {MemoryRouter, useLocation} from 'react-router-dom';
@@ -10,6 +10,27 @@ import KEYWORDS from '../../app/tests/store-keywords.fixture.json';
 // The grants of the user: root edits a store of the cluster configuration.
 const mockGrants = vi.hoisted(() => ({value: {}}));
 vi.mock('../../hooks/useGrants', () => ({useGrants: () => mockGrants.value}));
+
+// The changes the views read again on, counted here: a test makes them go up.
+const mockLive = vi.hoisted(() => ({counts: {pool: 0, cluster: 0, poll: {}}, listeners: new Set()}));
+const bump = (change) => act(() => {
+    change(mockLive.counts);
+    mockLive.listeners.forEach((listener) => listener());
+});
+vi.mock('../../hooks/useLiveChanges', async (importOriginal) => {
+    const {useSyncExternalStore} = await import('react');
+    const subscribe = (listener) => {
+        mockLive.listeners.add(listener);
+        return () => mockLive.listeners.delete(listener);
+    };
+    const use = (read) => useSyncExternalStore(subscribe, () => read(mockLive.counts));
+    return {
+        ...(await importOriginal()),
+        usePoolChanges: () => use((c) => c.pool),
+        useClusterConfigChanges: () => use((c) => c.cluster),
+        usePollTicks: (ms) => use((c) => c.poll[ms] ?? 0),
+    };
+});
 vi.mock('../ConfigText', () => ({
     ConfigText: ({text, label}) => <pre aria-label={label}>{text}</pre>,
 }));
@@ -67,6 +88,7 @@ describe('the store panel', () => {
     let requests;
 
     beforeEach(() => {
+        mockLive.counts = {pool: 0, cluster: 0, poll: {}};
         requests = [];
         mockGrants.value = {};
         vi.spyOn(global, 'fetch').mockImplementation(async (url, options = {}) => {
@@ -386,4 +408,86 @@ describe('the store panel', () => {
             '/api/cluster/config?set=store%23tar2.type%3Dtar&set=store%23tar2.url%3D%2Fsrv%2Fbackups',
         ]);
     });
+
+    /** The answers from now on: `override(u)` a Response, or undefined for the usual one. */
+    const answer = (override) => {
+        const usual = global.fetch.getMockImplementation();
+        global.fetch.mockImplementation(async (url, options = {}) => {
+            const response = await override(String(url));
+            if (!response) return usual(url, options);
+            requests.push({url: String(url), method: options.method ?? 'GET'});
+            return response;
+        });
+    };
+    const json = (body, status = 200) => new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}});
+    const failed = () => json({detail: 'down'}, 500);
+    const reads = (prefix) => requests.filter((r) => r.url.startsWith(prefix)).length;
+    const POLL = 30_000;
+
+    test('the overview read again on each poll, kept shown; a failure keeping it', async () => {
+        renderIn(<StoreOverview name="tar1"/>);
+        const snapshots = await screen.findByRole('region', {name: 'Snapshots'});
+        await screen.findByRole('table', {name: 'Snapshots by object'});
+        const runs = () => snapshots.querySelector('[data-figure=runs]');
+        expect(runs()).toHaveTextContent('3snapshots');
+        answer((u) => {
+            if (u === '/api/store') return json({items: STORES.map((s) => (s.ref === 'tar1' ? {...s, stats: {...s.stats, runs: 4}} : s))});
+            if (u.startsWith('/api/store/object')) return json({items: [...OBJECTS, {...OBJECTS[1], object_id: 'o3', path: 'ns/svc/db'}]});
+            return undefined;
+        });
+        await bump((c) => { c.poll[POLL] = 1; });
+        await waitFor(() => expect(runs()).toHaveTextContent('4snapshots'));
+        await waitFor(() => expect(document.querySelector('[data-object="ns/svc/db"]')).not.toBeNull());
+        expect(screen.queryByText('Reading the store')).toBeNull();
+
+        answer((u) => (u.startsWith('/api/store') ? failed() : undefined));
+        const before = reads('/api/store');
+        await bump((c) => { c.poll[POLL] += 1; });
+        await waitFor(() => expect(reads('/api/store')).toBe(before + 2));
+        expect(runs()).toHaveTextContent('4snapshots');
+        expect(document.querySelector('[data-object="ns/svc/db"]')).not.toBeNull();
+        expect(screen.queryByText(/Could not read/)).toBeNull();
+    });
+
+    test('the snapshots read again as many as read, older pages and the selection kept; a failure keeping them', async () => {
+        const module = await import('../StorePanel');
+        const at = (i) => new Date(Date.UTC(2026, 9, 22) - i * 60000).toISOString();
+        const many = Array.from({length: module.SNAPSHOT_PAGE + 5}, (_, i) => ({
+            id: `m${String(i).padStart(3, '0')}`, store: 'tar1', path: 'big', created_at: at(i), node: 'n1', members: ['config'],
+        }));
+        SORTED.splice(0, SORTED.length, ...many);
+        try {
+            renderIn(<StoreSnapshots name="tar1"/>);
+            const table = await screen.findByRole('table', {name: 'Snapshots of the store tar1'});
+            const ids = () => [...table.querySelectorAll('[data-snapshot]')].map((r) => r.getAttribute('data-snapshot'));
+            fireEvent.click(screen.getByRole('button', {name: 'Read 100 older'}));
+            await waitFor(() => expect(ids()).toHaveLength(105));
+            fireEvent.click(within(table).getByRole('checkbox', {name: 'Select the snapshot m002 of big'}));
+            fireEvent.click(within(table).getByRole('checkbox', {name: 'Select the snapshot m103 of big'}));
+            fireEvent.click(within(table).getByRole('checkbox', {name: 'Select the snapshot m104 of big'}));
+            fireEvent.change(screen.getByRole('searchbox', {name: 'Filter the snapshots'}), {target: {value: 'big'}});
+
+            // A run done, the oldest pruned: the latest first, every page read again.
+            SORTED.splice(0, SORTED.length, {...many[0], id: 'new', created_at: at(-1)}, ...many.slice(0, -1));
+            const pages = reads('/api/store/snapshot?');
+            await bump((c) => { c.poll[POLL] = 1; });
+            await waitFor(() => expect(ids()[0]).toBe('new'));
+            expect(reads('/api/store/snapshot?') - pages).toBe(2);
+            expect(ids()).toHaveLength(105);
+            expect(ids().at(-1)).toBe('m103');
+            expect(screen.getByRole('searchbox', {name: 'Filter the snapshots'})).toHaveValue('big');
+            expect(within(table).getByRole('checkbox', {name: 'Select the snapshot m002 of big'})).toBeChecked();
+            expect(within(table).getByRole('checkbox', {name: 'Select the snapshot m103 of big'})).toBeChecked();
+            expect(screen.getByRole('toolbar', {name: 'Selected snapshots'})).toHaveTextContent('2 selected');
+            expect(screen.queryByText('Reading the store')).toBeNull();
+
+            answer((u) => (u.startsWith('/api/store') ? failed() : undefined));
+            await bump((c) => { c.poll[POLL] += 1; });
+            await waitFor(() => expect(reads('/api/store/snapshot?') - pages).toBe(3));
+            expect(ids()).toHaveLength(105);
+            expect(screen.queryByText(/Could not read the snapshots/)).toBeNull();
+        } finally {
+            SORTED.splice(0, SORTED.length, ...[...SNAPSHOTS].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)));
+        }
+    }, 60_000);
 });

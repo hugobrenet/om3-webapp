@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from "react";
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {URL_OBJECT} from "../config/apiPath.js";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
@@ -13,6 +13,7 @@ import {Table, HeaderRow, HeaderCell, Row, Cell} from "../ui/components/Table";
 import {Section} from "./NodePanel";
 import {cn} from "../ui/cn";
 import {setOp} from "../app/keyop";
+import {useInstanceConfigChanges} from "../hooks/useLiveChanges";
 
 /*
  * The capacity of an object, a tab of its panel: the size of a volume, resized
@@ -102,8 +103,9 @@ function ResizeForm({path}) {
     const [current, setCurrent] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
-    // Read again once a resize is accepted: the size it wrote.
+    // Read again once a resize is accepted: the size it wrote; and as the configuration changes.
     const [read, setRead] = useState(0);
+    const changes = useInstanceConfigChanges(path);
 
     useEffect(() => {
         let live = true;
@@ -113,7 +115,7 @@ function ResizeForm({path}) {
         return () => {
             live = false;
         };
-    }, [path, read]);
+    }, [path, read, changes]);
 
     const value = size.trim();
     const invalid = value !== "" && !SIZE.test(value);
@@ -186,8 +188,9 @@ function CapForm({path, nodes}) {
     const [values, setValues] = useState({});
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
-    // Read again once caps are accepted: the values they wrote.
+    // Read again once caps are accepted: the values they wrote; and as the configuration changes.
     const [read, setRead] = useState(0);
+    const changes = useInstanceConfigChanges(path);
 
     // The pg_* keywords the object takes, with their example and help.
     useEffect(() => {
@@ -218,20 +221,24 @@ function CapForm({path, nodes}) {
         return (option) => `${prefix}${option}${suffix}`;
     }, [section, node]);
 
-    // What the configuration holds for the section and the node chosen.
+    // What the configuration holds for the section and the node chosen; read again on
+    // a change of the configuration, a failure keeps what was read.
+    const asked = useRef(null);
     useEffect(() => {
         if (keywords === null || keywords.length === 0) return undefined;
         let live = true;
-        const asked = keywords.map((k) => address(k.option));
-        readKeywords(path, asked).then((read) => {
-            if (live) setCurrent(Object.fromEntries(keywords.map((k) => [k.option, read[address(k.option)] ?? ""])));
+        const quiet = asked.current?.address === address && asked.current?.read === read;
+        asked.current = {address, read};
+        const addresses = keywords.map((k) => address(k.option));
+        readKeywords(path, addresses).then((values) => {
+            if (live) setCurrent(Object.fromEntries(keywords.map((k) => [k.option, values[address(k.option)] ?? ""])));
         }).catch(() => {
-            if (live) setCurrent({});
+            if (live && !quiet) setCurrent({});
         });
         return () => {
             live = false;
         };
-    }, [path, keywords, address, read]);
+    }, [path, keywords, address, read, changes]);
 
     const sets = (keywords ?? [])
         .filter((k) => (values[k.option] ?? "").trim() !== "")

@@ -7,6 +7,7 @@ import {trackRefused, trackWrite} from "../app/action-tracker";
 import {opsQuery} from "../app/namespace-claims";
 import {bodyOps, parseBody, sectionBody} from "../app/section-config";
 import {useGrants} from "../hooks/useGrants";
+import {useClusterConfigChanges} from "../hooks/useLiveChanges";
 import {refusalReason} from "./objectActions";
 import {ConfigText} from "./ConfigText";
 import {Alert} from "../ui/components/Alert";
@@ -33,22 +34,26 @@ export const readNodes = async () => ((await read(URL_NODES)).items ?? []).map((
 /**
  * A section of the cluster configuration, `[<section>#<name>]`: its text, null for one
  * of none (one built in, as the network `lo`), undefined while read; `reload`, read again.
+ * Read again as the cluster configuration changes, what was read kept shown meanwhile.
  */
 export function useClusterSection(section, name) {
-    const [state, setState] = useState({section: undefined, error: null});
+    const [state, setState] = useState({section: undefined, error: null, of: undefined});
     const [version, setVersion] = useState(0);
+    const changes = useClusterConfigChanges();
     useEffect(() => {
         let live = true;
+        const of = `${section}#${name}`;
         read(`${URL_CLUSTER}/config/file?redact-secrets=true`, "text").then(
-            (text) => live && setState({section: extractSection(text, `${section}#${name}`), error: null}),
-            (err) => live && setState({section: null, error: err.message}),
+            (text) => live && setState({section: extractSection(text, of), error: null, of}),
+            // A failure keeps the section read, said only when none was.
+            (err) => live && setState((s) => (s.of === of ? s : {section: null, error: err.message, of: undefined})),
         );
         return () => {
             live = false;
         };
-    }, [section, name, version]);
+    }, [section, name, version, changes]);
     const reload = useCallback(() => setVersion((v) => v + 1), []);
-    return {...state, reload};
+    return {section: state.section, error: state.error, reload};
 }
 
 /**
@@ -136,6 +141,7 @@ export function SectionConfig({section, name, prefix, listUrl, renderWizard, inU
     const {t} = useTranslation();
     const p = (key, options) => t(`${prefix}.${key}`, options);
     const isRoot = Object.prototype.hasOwnProperty.call(useGrants(), "root");
+    // Read again as it changes; an edit open keeps its draft, checked against the stored section on save.
     const {section: text, error, reload} = useClusterSection(section, name);
     const [edit, setEdit] = useState(null);
     const [saving, setSaving] = useState(false);

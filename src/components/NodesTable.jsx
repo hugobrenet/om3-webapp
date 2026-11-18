@@ -28,6 +28,7 @@ import {facetCounts, matches, toggled} from "../app/facets";
 import {FilterRail, FilterToolbar} from "./FilterRail";
 import {rangeSelect, withShift} from "../app/range-select";
 import {useShareCheckedRows} from "../app/checked-rows";
+import {anyOf, useClusterConfigChanges, useNodeConfigChanges} from "../hooks/useLiveChanges";
 
 const ZERO_DATE = "0001-01-01T00:00:00Z";
 
@@ -104,9 +105,10 @@ const NodesTable = () => {
     const panel = usePanelSearch();
 
     // What each node says of itself beyond its status (GET /node/info): its env and
-    // its labels, read once, and again as the nodes of the cluster change.
+    // its labels, read once, and again as the nodes of the cluster or their configurations change.
     const [nodeInfo, setNodeInfo] = useState({});
     const nodeNames = Object.keys(nodeStatus).sort().join(",");
+    const configChanges = anyOf(useNodeConfigChanges(), useClusterConfigChanges());
     useEffect(() => {
         let live = true;
         // Not read, the columns stay empty: a failure to read it never fails the view.
@@ -123,7 +125,7 @@ const NodesTable = () => {
         return () => {
             live = false;
         };
-    }, [nodeNames]);
+    }, [nodeNames, configChanges]);
 
     const nodeEventTypes = useMemo(() => [
         "NodeStatusUpdated",

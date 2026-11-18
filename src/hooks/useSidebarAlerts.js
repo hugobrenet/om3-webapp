@@ -51,6 +51,9 @@ const SIDEBAR_EVENTS = [
     // The cluster configuration: its name, id, nodes and ai.agent_url, the nodes
     // gone out of the cluster dropped.
     "ClusterConfigUpdated",
+    // The configuration of each node (node.conf and the cluster's for it): its env,
+    // labels, min_avail…, for the views of the nodes to read again as it changes.
+    "NodeConfigUpdated",
     ...ORCHESTRATION_EVENTS,
 ];
 
@@ -62,7 +65,7 @@ const ZERO_TIME = "0001-01-01T00:00:00Z";
 /** Whether a node status says the node is frozen. */
 export const isFrozen = (status) => !!status?.frozen_at && status.frozen_at !== ZERO_TIME;
 
-const emptyState = () => ({objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null});
+const emptyState = () => ({objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null, nodeConfig: {}});
 
 /**
  * The entries of a map by node, of the nodes of the cluster configuration only: the
@@ -111,6 +114,9 @@ export function applySidebarEvent(state, type, data) {
         case "DaemonHeartbeatUpdated":
             if (node && data.heartbeat) state.heartbeatStatus[node] = data.heartbeat;
             break;
+        case "NodeConfigUpdated":
+            if (node && data.node_config && typeof data.node_config === "object") state.nodeConfig[node] = data.node_config;
+            break;
         case "ClusterConfigUpdated":
             // Its ID, its name and the AI agent it names: some hundred bytes,
             // where the whole cluster status grows with the cluster.
@@ -153,6 +159,7 @@ function useSidebarEventState(enabled) {
                 heartbeatStatus: {...ofClusterNodes(working.heartbeatStatus, working.clusterConfig)},
                 volChildren: {...working.volChildren},
                 clusterConfig: working.clusterConfig,
+                nodeConfig: {...ofClusterNodes(working.nodeConfig, working.clusterConfig)},
             };
             setState(snapshot);
         };
@@ -290,7 +297,7 @@ function useUsageLists(enabled) {
  * state read.
  */
 export const useMenuState = create(() => ({
-    objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null,
+    objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null, nodeConfig: {},
     pools: [], networks: [], ready: false,
 }));
 
@@ -378,13 +385,13 @@ const ofKind = (objects, kind) =>
  * pools and the networks.
  */
 export function useSidebarState({enabled = true} = {}) {
-    const {objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig} = useSidebarEventState(enabled);
+    const {objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, nodeConfig} = useSidebarEventState(enabled);
     const {pools, networks} = useUsageLists(enabled);
     // Shared with the overview of the cluster, the header and the assistant: one
     // stream, one poll, for all.
     useEffect(() => {
-        useMenuState.setState({objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, pools, networks, ready: true});
-    }, [objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, pools, networks]);
+        useMenuState.setState({objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, nodeConfig, pools, networks, ready: true});
+    }, [objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, nodeConfig, pools, networks]);
     // The nodes gone out of the cluster: what the views keep of them goes.
     useEffect(() => {
         if (Array.isArray(clusterConfig?.nodes) && clusterConfig.nodes.length > 0) {

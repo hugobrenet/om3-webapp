@@ -21,6 +21,8 @@ import {SectionConfig, read, useClusterSection} from "./SectionConfig";
 import {sectionValues} from "../app/heartbeat-config";
 import {AgeTime, formatAge} from "./AgeTime";
 import {StoreWizard} from "./StoreWizard";
+import {OVERVIEW_REFRESH_MS} from "./ClusterView";
+import {anyOf, useClusterConfigChanges, usePollTicks} from "../hooks/useLiveChanges";
 
 const headers = () => ({Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`});
 
@@ -34,42 +36,56 @@ export const useBytes = () => {
 };
 
 /**
+ * A count of the changes of the stores: no event says a sync run or a prune, so a
+ * poll, at the period of the overview of the cluster; their configuration too.
+ */
+export const useStoreChanges = () => anyOf(usePollTicks(OVERVIEW_REFRESH_MS), useClusterConfigChanges());
+
+/**
  * A store as the store list gives it, by its reference, its figures in `stats` (and
  * `node_stats`, a store of each node's own); null, none of it, undefined while read.
+ * Read again on `changes`, a failure then keeping what was read.
  */
-export function useStore(ref) {
+export function useStore(ref, changes = 0) {
     const [store, setStore] = useState(undefined);
     const [error, setError] = useState(null);
+    const shown = useRef(false);
     useEffect(() => {
         let live = true;
+        const again = changes > 0 && shown.current;
         read(URL_STORE).then(
-            (data) => live && setStore((data.items ?? []).find((s) => s.ref === ref) ?? null),
-            (err) => live && (setError(err.message), setStore(null)),
+            (data) => live && (shown.current = true, setError(null), setStore((data.items ?? []).find((s) => s.ref === ref) ?? null)),
+            (err) => live && !again && (setError(err.message), setStore(null)),
         );
         return () => {
             live = false;
         };
-    }, [ref]);
+    }, [ref, changes]);
     return {store, error};
 }
 
-/** The objects a store holds snapshots of, summed up by the daemon, the latest first; undefined while read. */
-export function useStoreObjects(ref) {
+/**
+ * The objects a store holds snapshots of, summed up by the daemon, the latest first;
+ * undefined while read. Read again on `changes`, a failure then keeping those read.
+ */
+export function useStoreObjects(ref, changes = 0) {
     const [state, setState] = useState({objects: undefined, error: null});
+    const shown = useRef(false);
     useEffect(() => {
         if (!ref) {
             setState({objects: [], error: null});
             return undefined;
         }
         let live = true;
+        const again = changes > 0 && shown.current;
         read(`${URL_STORE_OBJECT}?store=${encodeURIComponent(ref)}`).then(
-            (data) => live && setState({objects: data.items ?? [], error: null}),
-            (err) => live && setState({objects: [], error: err.message}),
+            (data) => live && (shown.current = true, setState({objects: data.items ?? [], error: null})),
+            (err) => live && !again && setState({objects: [], error: err.message}),
         );
         return () => {
             live = false;
         };
-    }, [ref]);
+    }, [ref, changes]);
     return state;
 }
 
@@ -89,30 +105,68 @@ const snapshotQuery = ({objectId, path, since, until} = {}) => [
  * thousands. Of an object (`objectId`), of a period (`since`, `until`, ms), as the
  * daemon filters them. `more`, the next page, older, while the last answer said there
  * is one (`next`); `drop(id)`, one deleted out of those read. The rows read are kept
- * while others come: the controls stay where they are.
+ * while others come: the controls stay where they are. On `changes`, as many pages as
+ * read are read again, quietly, the older ones read meanwhile kept after them; a
+ * failure keeps those shown.
  */
-export function useSnapshotPages(ref, filters = {}) {
+export function useSnapshotPages(ref, filters = {}, changes = 0) {
     const [state, setState] = useState({items: undefined, next: null, error: null, loading: true});
     const query = snapshotQuery(filters);
+    // A store's, or, none given, every store's.
+    const pageUrl = useCallback((before) => `${URL_STORE_SNAPSHOT}?${ref ? `store=${encodeURIComponent(ref)}&` : ""}limit=${SNAPSHOT_PAGE}${query}${before ? `&before=${encodeURIComponent(before)}` : ""}`, [ref, query]);
     const load = useCallback(async (before) => {
         setState((s) => ({...s, loading: true}));
-        // A store's, or, none given, every store's.
-        const url = `${URL_STORE_SNAPSHOT}?${ref ? `store=${encodeURIComponent(ref)}&` : ""}limit=${SNAPSHOT_PAGE}${query}${before ? `&before=${encodeURIComponent(before)}` : ""}`;
         try {
-            const data = await read(url);
-            setState((s) => ({
-                items: [...(before ? s.items ?? [] : []), ...(data.items ?? [])],
-                next: data.next || null,
-                error: null,
-                loading: false,
-            }));
+            const data = await read(pageUrl(before));
+            setState((s) => {
+                const head = before ? s.items ?? [] : [];
+                const ids = new Set(head.map((x) => x.id));
+                return {
+                    items: [...head, ...(data.items ?? []).filter((x) => !ids.has(x.id))],
+                    next: data.next || null,
+                    error: null,
+                    loading: false,
+                };
+            });
         } catch (err) {
             setState((s) => ({...s, items: s.items ?? [], error: err.message, loading: false}));
         }
-    }, [ref, query]);
+    }, [pageUrl]);
     useEffect(() => {
         void load(null);
     }, [load]);
+    const shown = useRef(0);
+    shown.current = state.items?.length ?? 0;
+    // The count read again once: the filters changing read on their own.
+    const handled = useRef(changes);
+    useEffect(() => {
+        if (changes === handled.current) return undefined;
+        handled.current = changes;
+        let live = true;
+        (async () => {
+            const count = Math.max(shown.current, 1);
+            const items = [];
+            let next = null;
+            do {
+                const data = await read(pageUrl(next));
+                items.push(...(data.items ?? []));
+                next = data.next || null;
+            } while (next && items.length < count);
+            return {items, next};
+        })().then(
+            (fresh) => live && setState((s) => {
+                // Those read past the last read again, older pages read meanwhile, kept after it; none past the end.
+                const ids = new Set(fresh.items.map((x) => x.id));
+                const tail = fresh.next && fresh.items.length ? Date.parse(fresh.items[fresh.items.length - 1].created_at) : -Infinity;
+                const older = (s.items ?? []).filter((x) => !ids.has(x.id) && Date.parse(x.created_at) < tail);
+                return {...s, items: [...fresh.items, ...older], next: older.length ? s.next : fresh.next, error: null};
+            }),
+            () => {},
+        );
+        return () => {
+            live = false;
+        };
+    }, [changes, pageUrl]);
     const more = useCallback(() => state.next && load(state.next), [state.next, load]);
     const drop = useCallback((id) => setState((s) => ({...s, items: (s.items ?? []).filter((x) => x.id !== id)})), []);
     return {...state, more, drop};
@@ -223,8 +277,9 @@ export function StoreOverview({name}) {
     const bytes = useBytes();
     // The ids of its headings its own: a reference may hold spaces, which an id may not.
     const id = useId();
-    const {store, error} = useStore(name);
-    const {objects, error: objectsError} = useStoreObjects(name);
+    const changes = useStoreChanges();
+    const {store, error} = useStore(name, changes);
+    const {objects, error: objectsError} = useStoreObjects(name, changes);
     const source = storeSource(name);
     // Of a store of the cluster configuration, what it keeps and when it pushes, as set.
     const {section} = useClusterSection("store", source.name);
@@ -393,13 +448,14 @@ export function StoreSnapshots({name, path: objectPath}) {
     const ofObject = Boolean(objectPath) && !name;
     // The object whose snapshots are shown, by its id; none, the whole store. The period, from
     // the presets or around a date: the daemon filters the snapshots by them.
-    const {objects} = useStoreObjects(name);
+    const changes = useStoreChanges();
+    const {objects} = useStoreObjects(name, changes);
     const [objectId, setObjectId] = useState("");
     const [period, setPeriod] = useState(ALL);
     const [date, setDate] = useState("");
     const [point, setPoint] = useState(null);
     const [now] = useState(() => Date.now());
-    const {items: snapshots, next, error, loading, more, drop} = useSnapshotPages(name, {objectId, path: objectPath, since: period.since, until: period.until});
+    const {items: snapshots, next, error, loading, more, drop} = useSnapshotPages(name, {objectId, path: objectPath, since: period.since, until: period.until}, changes);
     // The newest snapshot of an object, read with no period: the one its latest preset starts from.
     const newest = useRef(null);
     if (ofObject && period === ALL && snapshots?.length) newest.current = Math.max(...snapshots.map((s) => Date.parse(s.created_at)));

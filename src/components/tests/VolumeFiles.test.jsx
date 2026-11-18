@@ -17,6 +17,20 @@ vi.mock("../../services/volume-files.js", async (importOriginal) => ({
     downloadFile: vi.fn(),
 }));
 
+// The changes of the configuration and the poll ticks, moved by the tests.
+const live = vi.hoisted(() => ({store: null}));
+vi.mock("../../hooks/useLiveChanges", async (importOriginal) => {
+    const {create} = await import("zustand");
+    live.store = create(() => ({config: 0, ticks: 0}));
+    return {
+        ...(await importOriginal()),
+        useInstanceConfigChanges: () => live.store((s) => s.config),
+        usePollTicks: () => live.store((s) => s.ticks),
+    };
+});
+const tick = () => act(() => live.store.setState((s) => ({ticks: s.ticks + 1})));
+const reconfigured = () => act(() => live.store.setState((s) => ({config: s.config + 1})));
+
 // The key a file is installed from is shown by the keys dialog, tested on its own.
 vi.mock("../KeysSection", () => ({
     default: ({decodedObjectName, keyOnly}) => <div data-testid="key-shown">{`${keyOnly} of ${decodedObjectName}`}</div>,
@@ -284,6 +298,40 @@ describe("VolumeFiles", () => {
             expect(within(dialog).getByRole("button", {name: "Edit"})).toBeInTheDocument();
         });
 
+        test("changed on its node, as the list read again says: read again unless edited, kept on a failure", async () => {
+            const dialog = await open("haproxy.cfg", {blob: text("global\n"), total: 7, partial: false});
+            await within(dialog).findByDisplayValue(/global/);
+            const changed = (size) => listFiles.mockResolvedValue({items: [
+                {name: "haproxy.cfg", type: "file", size, modified_at: `2026-11-02T10:00:${size}Z`},
+            ], truncated: false});
+            // Listed the same: nothing read.
+            tick();
+            await waitFor(() => expect(listFiles).toHaveBeenCalledTimes(2));
+            expect(readFileHead).toHaveBeenCalledTimes(1);
+            changed(10);
+            readFileHead.mockResolvedValue({blob: text("frontend\n"), total: 9, partial: false});
+            tick();
+            expect(await within(dialog).findByDisplayValue(/frontend/)).toHaveAttribute("readonly");
+            // Edited: the text typed stays.
+            await userEvent.click(within(dialog).getByRole("button", {name: "Edit"}));
+            await userEvent.type(within(dialog).getByRole("textbox", {name: "File content"}), "x");
+            changed(11);
+            readFileHead.mockResolvedValue({blob: text("backend\n"), total: 8, partial: false});
+            reconfigured();
+            await waitFor(() => expect(listFiles).toHaveBeenCalledTimes(4));
+            expect(readFileHead).toHaveBeenCalledTimes(2);
+            expect(within(dialog).getByRole("textbox", {name: "File content"})).toHaveValue("frontend\nx");
+            // Cancelled: the change missed read then; a failure after keeps it.
+            await userEvent.click(within(dialog).getByRole("button", {name: "Cancel"}));
+            expect(await within(dialog).findByDisplayValue(/backend/)).toBeInTheDocument();
+            changed(12);
+            readFileHead.mockRejectedValue(new Error("gone"));
+            tick();
+            await waitFor(() => expect(readFileHead).toHaveBeenCalledTimes(4));
+            expect(within(dialog).getByDisplayValue(/backend/)).toBeInTheDocument();
+            expect(within(dialog).queryByText("gone")).toBeNull();
+        });
+
         test("no line feed at its end when read: the box checked, none added; unchecked, one", async () => {
             const dialog = await open("haproxy.cfg", {blob: text("a = 1"), total: 5, partial: false});
             await within(dialog).findByDisplayValue("a = 1");
@@ -482,6 +530,27 @@ describe("VolumeFiles", () => {
         render(<VolumeFiles path={PATH}/>);
         expect(await screen.findByText("noble.qcow2")).toBeInTheDocument();
         expect(listFiles).toHaveBeenCalledWith(PATH, "n2", "");
+    });
+
+    test("read again as the configuration changes and as time passes, the listing and the directory kept on a failure", async () => {
+        up({n1: "up"});
+        render(<VolumeFiles path={PATH}/>, {at: "/objects?view=isos"});
+        expect(await screen.findByText("noble.qcow2")).toBeInTheDocument();
+        listFiles.mockResolvedValue({items: [{name: "jammy.qcow2", size: 1, modified_at: "2026-10-31T07:00:00Z"}], truncated: false});
+        tick();
+        expect(await screen.findByText("jammy.qcow2")).toBeInTheDocument();
+        expect(listFiles).toHaveBeenLastCalledWith(PATH, "n1", "isos");
+        listFiles.mockResolvedValue({items: [{name: "focal.qcow2", size: 1, modified_at: "2026-10-31T07:00:00Z"}], truncated: false});
+        reconfigured();
+        expect(await screen.findByText("focal.qcow2")).toBeInTheDocument();
+        const before = listFiles.mock.calls.length;
+        listFiles.mockRejectedValue(new Error("node down"));
+        tick();
+        await waitFor(() => expect(listFiles).toHaveBeenCalledTimes(before + 1));
+        await act(() => new Promise((r) => setTimeout(r, 20)));
+        expect(screen.getByText("focal.qcow2")).toBeInTheDocument();
+        expect(screen.queryByText(/node down/)).toBeNull();
+        expect(screen.getByTestId("where")).toHaveTextContent("view=isos");
     });
 
     test("a volume up nowhere says so", () => {

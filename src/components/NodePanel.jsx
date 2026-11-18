@@ -1,4 +1,4 @@
-import React, {useEffect, useId, useMemo, useState} from "react";
+import React, {useEffect, useId, useMemo, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useTranslation} from "react-i18next";
 import {RecordPanel} from "../app/RecordPanel";
@@ -47,6 +47,7 @@ import {NodeLabels} from "./NodeLabels";
 import {RawDataButton} from "./JsonCode";
 import {matches} from "../app/facets";
 import {useEditDraft} from "../app/edit-drafts";
+import {anyOf, useClusterConfigChanges, useNodeConfigChanges, usePollTicks} from "../hooks/useLiveChanges";
 
 /*
  * The record panel of a cluster node, as oc3 gives its nodes one: its state and
@@ -86,14 +87,20 @@ const DANGER_ICON = "flex h-4 w-4 items-center justify-center text-state-down [&
 
 /**
  * Reads an endpoint of the daemon: the JSON it answers, or its text with `text`.
- * `reload` reads it again.
+ * `reload` reads it again. `changes`, a count of the changes of what it reads
+ * (useLiveChanges): each one going up reads it again, what was read kept shown
+ * meanwhile, and kept when that read fails.
  */
-export function useApiResource(url, {text = false} = {}) {
+export function useApiResource(url, {text = false, changes = 0} = {}) {
     const [state, setState] = useState({data: null, error: null, loading: true});
     const [version, setVersion] = useState(0);
+    // The url and its kind read first, then again on a reload: a change read quietly.
+    const shown = useRef({url, text, version});
     useEffect(() => {
         let cancelled = false;
-        setState((previous) => ({...previous, loading: true, error: null}));
+        const quiet = shown.current.url === url && shown.current.text === text && shown.current.version === version;
+        shown.current = {url, text, version};
+        if (!quiet) setState((previous) => ({...previous, loading: true, error: null}));
         fetch(url, {headers: authHeaders(), cache: "no-cache"})
             .then(async (response) => {
                 if (!response.ok) throw new Error((await getResponseErrorMessage(response)) || `HTTP ${response.status}`);
@@ -103,17 +110,25 @@ export function useApiResource(url, {text = false} = {}) {
                 if (!cancelled) setState({data, error: null, loading: false});
             })
             .catch((error) => {
-                if (!cancelled) setState({data: null, error: error.message, loading: false});
+                if (cancelled) return;
+                setState((previous) => (quiet && previous.data !== null ? previous : {data: null, error: error.message, loading: false}));
             });
         return () => {
             cancelled = true;
         };
-    }, [url, text, version]);
+    }, [url, text, version, changes]);
     return {...state, reload: () => setVersion((v) => v + 1)};
 }
 
 /** Reads an endpoint of the node (`/api/node/name/{node}/…`). */
 const useNodeResource = (node, path, options) => useApiResource(nodeUrl(node, path), options);
+
+/** The changes of the configuration of `node`: its node.conf, or the cluster configuration. */
+const useConfigChanges = (node) => anyOf(useNodeConfigChanges(node), useClusterConfigChanges());
+
+// The runs of the schedules and the pushes of the inventory, which no event says: polled.
+const SCHEDULES_POLL_MS = 30_000;
+const INVENTORY_POLL_MS = 30_000;
 
 /** The records of a list the daemon answers: `items`, each one's `data` when it has one. */
 export const itemsOf = (resource) => (resource.data?.items ?? []).map((item) => item?.data ?? item);
@@ -261,7 +276,9 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
     const status = useEventStore((s) => s.nodeStatus?.[node]);
     const monitor = useEventStore((s) => s.nodeMonitor?.[node]);
     const stats = useEventStore((s) => s.nodeStats?.[node]);
-    const properties = useNodeResource(node, "system/property");
+    // The properties of the organisation and the labels in the configuration: read again as it changes.
+    const configChanges = useConfigChanges(node);
+    const properties = useNodeResource(node, "system/property", {changes: configChanges});
     const header = usePanelHeader();
 
     useEffect(() => {
@@ -272,6 +289,11 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
 
     const mayConfigure = Object.prototype.hasOwnProperty.call(useGrants(), "root");
     const {thresholds, reload: reloadThresholds} = useMinAvail(node);
+    useEffect(() => {
+        if (configChanges > 0) void reloadThresholds();
+        // The thresholds read again on a change, not on a new reload.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [configChanges]);
     const [editing, setEditing] = useState(null);
 
     const frozen = isSet(status?.frozen_at);
@@ -584,14 +606,16 @@ const INVENTORY_VIEWS = ["hardware", "disks", "addresses", "san", "packages", "a
  */
 function NodeInventory({node}) {
     const {t, i18n} = useTranslation();
-    const hardware = useNodeResource(node, "system/hardware");
-    const disks = useNodeResource(node, "system/disk");
-    const addresses = useNodeResource(node, "system/ipaddress");
-    const initiators = useNodeResource(node, "system/san/initiator");
-    const paths = useNodeResource(node, "system/san/path");
-    const packages = useNodeResource(node, "system/package");
-    const users = useNodeResource(node, "system/user");
-    const groups = useNodeResource(node, "system/group");
+    // Pushed again on its schedule, or on a change of the configuration.
+    const options = {changes: anyOf(usePollTicks(INVENTORY_POLL_MS), useNodeConfigChanges(node))};
+    const hardware = useNodeResource(node, "system/hardware", options);
+    const disks = useNodeResource(node, "system/disk", options);
+    const addresses = useNodeResource(node, "system/ipaddress", options);
+    const initiators = useNodeResource(node, "system/san/initiator", options);
+    const paths = useNodeResource(node, "system/san/path", options);
+    const packages = useNodeResource(node, "system/package", options);
+    const users = useNodeResource(node, "system/user", options);
+    const groups = useNodeResource(node, "system/group", options);
     const [packageFilter, setPackageFilter] = useState("");
     const [addressFilter, setAddressFilter] = useState("");
     const panel = usePanelSearch();
@@ -802,7 +826,8 @@ function NodeConfig({node}) {
     const {t} = useTranslation();
     const [showSecrets, setShowSecrets] = useState(false);
     const secondsLeft = useAutoHide(showSecrets, () => setShowSecrets(false));
-    const file = useNodeResource(node, `config/file?redact-secrets=${!showSecrets}`, {text: true});
+    // Written elsewhere, read again: an edit in progress keeps its draft, its base told apart on save.
+    const file = useNodeResource(node, `config/file?redact-secrets=${!showSecrets}`, {text: true, changes: useConfigChanges(node)});
     // The edit in progress, kept when a tab of the panel is left: found again on coming back.
     const [edit, setEdit] = useEditDraft(`node\u0000${node}`);
     const [saving, setSaving] = useState(false);
@@ -935,7 +960,7 @@ function NodeConfig({node}) {
 /** The tasks the daemon schedules on the node (`om node schedule list`). */
 function NodeSchedules({node}) {
     const {t, i18n} = useTranslation();
-    const schedules = useNodeResource(node, "schedule");
+    const schedules = useNodeResource(node, "schedule", {changes: usePollTicks(SCHEDULES_POLL_MS)});
     const when = (value) => (isSet(value) ? <RelativeTime value={value} locale={i18n.language}/> : "–");
     const requirements = (s) => [
         s.require,

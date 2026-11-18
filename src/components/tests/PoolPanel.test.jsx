@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, screen, fireEvent, waitFor, within} from '@testing-library/react';
+import {act, render, screen, fireEvent, waitFor, within} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import {MemoryRouter, useLocation} from 'react-router-dom';
@@ -8,6 +8,27 @@ import {PoolConfig, PoolOverview, PoolVolumes} from '../PoolPanel';
 // The grants of the user: root edits and deletes a pool.
 const mockGrants = vi.hoisted(() => ({value: {}}));
 vi.mock('../../hooks/useGrants', () => ({useGrants: () => mockGrants.value}));
+
+// The changes the views read again on, counted here: a test makes them go up.
+const mockLive = vi.hoisted(() => ({counts: {pool: 0, cluster: 0, poll: {}}, listeners: new Set()}));
+const bump = (change) => act(() => {
+    change(mockLive.counts);
+    mockLive.listeners.forEach((listener) => listener());
+});
+vi.mock('../../hooks/useLiveChanges', async (importOriginal) => {
+    const {useSyncExternalStore} = await import('react');
+    const subscribe = (listener) => {
+        mockLive.listeners.add(listener);
+        return () => mockLive.listeners.delete(listener);
+    };
+    const use = (read) => useSyncExternalStore(subscribe, () => read(mockLive.counts));
+    return {
+        ...(await importOriginal()),
+        usePoolChanges: () => use((c) => c.pool),
+        useClusterConfigChanges: () => use((c) => c.cluster),
+        usePollTicks: (ms) => use((c) => c.poll[ms] ?? 0),
+    };
+});
 // The help of the keywords is tested with the file view: here, the section given it.
 vi.mock('../ConfigText', () => ({
     ConfigText: ({text, label}) => <pre aria-label={label}>{text}</pre>,
@@ -44,6 +65,7 @@ describe('the pool panel', () => {
     let file;
 
     beforeEach(() => {
+        mockLive.counts = {pool: 0, cluster: 0, poll: {}};
         requests = [];
         file = FILE;
         mockGrants.value = {};
@@ -146,5 +168,53 @@ describe('the pool panel', () => {
         expect(await screen.findByText('shm is built in: no section of the cluster configuration defines it.')).toBeInTheDocument();
         expect(screen.queryByRole('button', {name: 'Delete the pool'})).toBeNull();
         expect(screen.queryByRole('button', {name: 'Modify the pool shm in the wizard'})).toBeNull();
+    });
+
+    /** The answers from now on: `override(u)` a Response, or undefined for the usual one. */
+    const answer = (override) => {
+        const usual = global.fetch.getMockImplementation();
+        global.fetch.mockImplementation(async (url, options = {}) => {
+            const response = await override(String(url));
+            if (!response) return usual(url, options);
+            requests.push({url: String(url), method: options.method ?? 'GET'});
+            return response;
+        });
+    };
+    const json = (body, status = 200) => new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}});
+    const reads = (prefix) => requests.filter((r) => r.url.startsWith(prefix)).length;
+
+    test('the overview read again as the pools or the cluster configuration change, kept shown; a failure keeping it', async () => {
+        renderIn(<PoolOverview name="drbdz"/>);
+        const usage = await screen.findByRole('region', {name: 'Usage'});
+        await screen.findByRole('group', {name: 'Sketch of the pool drbdz over 2 nodes'});
+        answer((u) => (u === '/api/pool?name=drbdz' ? json({items: [{...POOL, used: 6 * GiB, free: 6 * GiB}]}) : undefined));
+        await bump((c) => { c.pool += 1; });
+        await waitFor(() => expect(within(usage).getByRole('group', {name: 'Usage of drbdz'})).toHaveTextContent('50.0%6 GiB used6 GiB free'));
+        expect(screen.queryByText('Reading the pool')).toBeNull();
+        const volumeReads = reads('/api/pool/volume');
+        await bump((c) => { c.cluster += 1; });
+        await waitFor(() => expect(reads('/api/pool/volume')).toBe(volumeReads + 1));
+
+        answer((u) => (u.startsWith('/api/pool') || u === '/api/node' ? json({detail: 'down'}, 500) : undefined));
+        await bump((c) => { c.pool += 1; });
+        await waitFor(() => expect(reads('/api/pool/volume')).toBe(volumeReads + 2));
+        expect(within(usage).getByRole('group', {name: 'Usage of drbdz'})).toHaveTextContent('50.0%');
+        expect(screen.getByRole('group', {name: 'Sketch of the pool drbdz over 2 nodes'})).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).toBeNull();
+        expect(screen.queryByText(/Could not read the pool/)).toBeNull();
+    });
+
+    test('the volumes read again as a vol is created or deleted; a failure keeping them', async () => {
+        renderIn(<PoolVolumes name="drbdz"/>);
+        const table = await screen.findByRole('table', {name: 'Volumes of the pool drbdz'});
+        const paths = () => within(table).getAllByRole('row').slice(1).map((r) => r.getAttribute('data-volume'));
+        answer((u) => (u.startsWith('/api/pool/volume') ? json({items: VOLUMES.slice(1)}) : undefined));
+        await bump((c) => { c.pool += 1; });
+        await waitFor(() => expect(paths()).toEqual(['ns/vol/logs', 'ns/vol/old']));
+        answer((u) => (u.startsWith('/api/pool/volume') ? json({detail: 'down'}, 500) : undefined));
+        await bump((c) => { c.pool += 1; });
+        await waitFor(() => expect(reads('/api/pool/volume')).toBe(3));
+        expect(paths()).toEqual(['ns/vol/logs', 'ns/vol/old']);
+        expect(screen.queryByText(/Could not read the pool/)).toBeNull();
     });
 });

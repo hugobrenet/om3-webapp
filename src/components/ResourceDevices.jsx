@@ -1,6 +1,7 @@
-import React, {useCallback, useEffect, useMemo, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {useTranslation} from "react-i18next";
 import useEventStore from "../hooks/useEventStore.js";
+import {anyOf, useInstanceConfigChanges, useInstanceStatusChanges} from "../hooks/useLiveChanges";
 import {authHeaders, getResponseErrorMessage} from "../services/api.jsx";
 import {DEVICE_ROLES, devicesUrl, resourceDevices, resourceFileUrl, resourceFiles} from "../app/resource-devices";
 import {InstanceLink} from "./RecordLinks";
@@ -14,6 +15,8 @@ import {RefreshIcon} from "../ui/icons";
 const ZERO_TIME = "0001-01-01T00:00:00Z";
 // What a file shows at most: the files a resource lists are small, a list of disks.
 const SHOWN_CHARS = 256 * 1024;
+// The status of a resource changing on its nodes one after the other: read again once settled.
+export const DEVICES_SETTLE_MS = 1000;
 
 /** An error of the daemon, its status kept. */
 async function refusal(response) {
@@ -24,17 +27,29 @@ async function refusal(response) {
  * The devices of a resource on the nodes holding it (`om <path> instance device ls`),
  * each node read on its own: a row a device, its node a badge, its role, its path and
  * the driver telling it; the roles said under the table. A node failing said, the
- * others shown.
+ * others shown. Read again as the configuration of the object or the status of the
+ * resource changes, quietly: what was read kept, a node failing then keeping its own.
  */
 export function ResourceDevices({path, rid, nodes}) {
     const {t} = useTranslation();
     const [reads, setReads] = useState({});
     const [version, setVersion] = useState(0);
     const key = nodes.join(",");
+    const changes = anyOf(useInstanceConfigChanges(path), useInstanceStatusChanges(path, rid));
+    const [settled, setSettled] = useState(0);
+    useEffect(() => {
+        if (changes === 0) return undefined;
+        const timer = setTimeout(() => setSettled((n) => n + 1), DEVICES_SETTLE_MS);
+        return () => clearTimeout(timer);
+    }, [changes]);
+    // What is read and asked: one of them alone changed, a change read quietly.
+    const shown = useRef({path, key, version});
     useEffect(() => {
         let cancelled = false;
+        const quiet = shown.current.path === path && shown.current.key === key && shown.current.version === version;
+        shown.current = {path, key, version};
         const list = key === "" ? [] : key.split(",");
-        setReads((previous) => Object.fromEntries(list.map((node) => [node, {...previous[node], loading: true}])));
+        if (!quiet) setReads((previous) => Object.fromEntries(list.map((node) => [node, {...previous[node], loading: true}])));
         for (const node of list) {
             fetch(devicesUrl(path, node), {headers: authHeaders(), cache: "no-cache"})
                 .then(async (response) => {
@@ -43,13 +58,17 @@ export function ResourceDevices({path, rid, nodes}) {
                 })
                 .then((data) => ({items: data?.items ?? [], error: null}), (error) => ({items: null, error: error.message}))
                 .then((read) => {
-                    if (!cancelled) setReads((previous) => ({...previous, [node]: {...read, loading: false}}));
+                    if (cancelled) return;
+                    setReads((previous) => ({
+                        ...previous,
+                        [node]: quiet && read.error && previous[node]?.items ? previous[node] : {...read, loading: false},
+                    }));
                 });
         }
         return () => {
             cancelled = true;
         };
-    }, [path, key, version]);
+    }, [path, key, version, settled]);
 
     // A node not read yet is being read: its effect is to come.
     const loading = nodes.some((node) => reads[node] === undefined || reads[node].loading);
@@ -108,9 +127,10 @@ export function ResourceDevices({path, rid, nodes}) {
 
 /**
  * A file a resource lists, read from its node on demand: its owner, mode and time as
- * the node says them, then its text. Not there on its node, said so.
+ * the node says them, then its text. Not there on its node, said so. Read again as
+ * its checksum or its time changes (`stamp`), what was read kept on a failure.
  */
-function FileContent({path, rid, node, name}) {
+function FileContent({path, rid, node, name, stamp}) {
     const {t, i18n} = useTranslation();
     const [state, setState] = useState({loading: true});
     useEffect(() => {
@@ -128,11 +148,14 @@ function FileContent({path, rid, node, name}) {
                     modified: response.headers.get("OM-Last-Modified"),
                 };
             })
-            .then((file) => !cancelled && setState({file}), (error) => !cancelled && setState({error}));
+            .then(
+                (file) => !cancelled && setState({file}),
+                (error) => !cancelled && setState((previous) => (previous.file && error.status !== 404 ? previous : {error})),
+            );
         return () => {
             cancelled = true;
         };
-    }, [path, rid, node, name]);
+    }, [path, rid, node, name, stamp]);
 
     if (state.loading) return <Spinner label={t("resource.files.reading")}/>;
     if (state.error) {
@@ -203,7 +226,7 @@ export function ResourceFiles({path, rid, nodes}) {
                                 {open === id && (
                                     <tr className="border-b border-line">
                                         <td colSpan={5} className="px-2 py-2">
-                                            <FileContent path={path} rid={rid} node={f.node} name={f.name}/>
+                                            <FileContent path={path} rid={rid} node={f.node} name={f.name} stamp={`${f.csum}@${f.mtime}`}/>
                                         </td>
                                     </tr>
                                 )}

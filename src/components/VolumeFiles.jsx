@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from "react";
 import {Trans, useTranslation} from "react-i18next";
 import useEventStore from "../hooks/useEventStore.js";
+import {anyOf, useInstanceConfigChanges, usePollTicks} from "../hooks/useLiveChanges";
 import {deleteFile, isFileExists, listFiles, makeDirectory, uploadFile} from "../services/volume-files.js";
 import {formatBytes} from "../utils/cgroupMetrics.js";
 import {usePanelSearch} from "../app/panel-search";
@@ -27,6 +28,9 @@ const AVAILABLE = ["up", "stdby up", "n/a"];
 /** The mark is set after the last byte, by the node, on its clock: written later, the file was changed since. */
 const CHANGED_AFTER_MS = 0;
 
+/** What the services write, which no event says: the directory shown polled as often. */
+export const VOLUME_FILES_POLL_MS = 30_000;
+
 /**
  * Where a file comes from, as the node tells it: installed from a key of a datastore,
  * or fetched from a url, which the next install writes again; uploaded here, by whom; when, changed since or
@@ -47,6 +51,9 @@ export function fileOrigin(file) {
 
 /** A name of an entry of a directory, as the node takes one: no path, not hidden. */
 export const isEntryName = (name) => name !== "" && !name.startsWith(".") && !/[/\\\0]/.test(name) && name.length <= 255;
+
+/** What changes with the content of a file, as listed: its size and its time. */
+const stampOf = (file) => (file ? `${file.size}@${file.modified_at}` : "");
 
 /** A directory under another, "" the top of the volume. */
 const join = (dir, name) => (dir ? `${dir}/${name}` : name);
@@ -97,17 +104,18 @@ export function VolumeFiles({path}) {
 
     // The directory shown read, the last read asked winning: one answering after it,
     // of the directory before a delete or of another, is dropped. Asked of a directory
-    // no longer shown (a delete there ended), nothing read.
-    const refresh = useCallback(async () => {
+    // no longer shown (a delete there ended), nothing read. Read `quiet`, what is said
+    // stays, a failure keeping the listing.
+    const refresh = useCallback(async ({quiet = false} = {}) => {
         if (!node || shown.current !== `${node}\0${dir}`) return;
         const read = ++lastRead.current;
         try {
             const answer = await listFiles(path, node, dir);
             if (read !== lastRead.current) return;
             setListing({...answer, node, dir});
-            setError("");
+            if (!quiet) setError("");
         } catch (err) {
-            if (read !== lastRead.current) return;
+            if (read !== lastRead.current || quiet) return;
             setListing({items: [], truncated: false, node, dir});
             setError(err.message);
         }
@@ -117,6 +125,14 @@ export function VolumeFiles({path}) {
         setListing(null);
         refresh();
     }, [refresh]);
+
+    // Read again as the configuration changes (the keys installed), and as time passes.
+    const changes = anyOf(useInstanceConfigChanges(path), usePollTicks(VOLUME_FILES_POLL_MS));
+    const latest = useRef(refresh);
+    latest.current = refresh;
+    useEffect(() => {
+        if (changes > 0) void latest.current({quiet: true});
+    }, [changes]);
 
     // A transfer lasts as long as the tab showing it.
     useEffect(() => () => upload.current?.abort(), []);
@@ -373,6 +389,7 @@ export function VolumeFiles({path}) {
                     dir={dir}
                     name={viewing}
                     origin={fileOrigin(files?.find((f) => f.name === viewing))}
+                    stamp={stampOf(files?.find((f) => f.name === viewing))}
                     onKey={(origin) => {
                         setViewing(null);
                         setKeyShown(origin);
