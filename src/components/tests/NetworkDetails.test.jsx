@@ -173,6 +173,26 @@ describe('NetworkDetails Component', () => {
         }
     });
 
+    test('hidden while filtering, its button says the filters on: the list not whole', async () => {
+        axios.get.mockResolvedValueOnce({data: {items: mockIpDetails}});
+        render(
+            <MemoryRouter initialEntries={['/network/default']}>
+                <Routes>
+                    <Route path="/network/:networkName" element={<NetworkDetails/>}/>
+                </Routes>
+            </MemoryRouter>
+        );
+        await waitFor(() => expect(screen.getByLabelText('Node')).toBeInTheDocument());
+        expect(screen.getByRole('button', {name: 'Hide filters'})).not.toHaveClass('border-accent');
+        fireEvent.change(screen.getByLabelText('Node'), {target: {value: 'node1'}});
+        fireEvent.change(screen.getByLabelText('RID'), {target: {value: 'ip'}});
+        const on = await screen.findByRole('button', {name: 'Hide filters · 2 on'});
+        fireEvent.click(on);
+        const hidden = screen.getByRole('button', {name: 'Show filters · 2 on'});
+        expect(hidden).toHaveClass('border-accent', 'bg-accent-soft');
+        expect(hidden).toHaveTextContent('Show filters2');
+    });
+
     test('toggles filter visibility on button click', async () => {
         axios.get.mockResolvedValueOnce({data: {items: mockIpDetails}});
 

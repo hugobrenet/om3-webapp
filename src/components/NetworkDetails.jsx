@@ -11,6 +11,8 @@ import {Button} from "../ui/components/Button";
 import {Input} from "../ui/components/Field";
 import {Spinner} from "../ui/components/Spinner";
 import {ChevronDownIcon} from "../ui/icons";
+import {cn} from "../ui/cn";
+import {filtersOnClass} from "./FilterRail";
 import {CrossLink} from "../app/CrossLink";
 
 /**
@@ -134,6 +136,7 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
     }, [ipDetails, nodeFilter, pathFilter, ridFilter]);
 
     const notAvailable = t("common.notAvailable");
+    const activeFilters = [nodeFilter, pathFilter, ridFilter].filter((value) => value !== "").length;
 
     return (
         <div ref={containerRef} className={embedded ? "space-y-3" : "p-4 space-y-3"}>
@@ -149,13 +152,18 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
             <div className="flex flex-wrap items-center gap-3 max-md:flex-col max-md:items-stretch max-md:gap-2" data-filters="">
                 <Button
                     size="sm"
-                    className="max-md:self-start"
+                    className={cn("max-md:self-start", filtersOnClass(activeFilters))}
                     onClick={() => setShowFilters(!showFilters)}
                     icon={<ChevronDownIcon className={showFilters ? "rotate-180" : undefined}/>}
-                    aria-label={showFilters ? t("networks.details.hideFilters") : t("networks.details.showFilters")}
+                    aria-label={[
+                        showFilters ? t("networks.details.hideFilters") : t("networks.details.showFilters"),
+                        activeFilters > 0 ? t("objects.filters.active", {count: activeFilters}) : null,
+                    ].filter(Boolean).join(" · ")}
                     aria-expanded={showFilters}
                 >
                     {showFilters ? t("networks.details.hideFilters") : t("networks.details.showFilters")}
+                    {/* Hidden, the filters on said all the same: the list is not whole. */}
+                    {activeFilters > 0 && <span aria-hidden="true" className="text-accent tabular-nums">{activeFilters}</span>}
                 </Button>
                 {showFilters && [
                     ["node", t("common.node"), nodeFilter, debouncedSetNodeFilter],

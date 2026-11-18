@@ -1874,7 +1874,9 @@
       "unprovisioned": "Unprovisioned",
       "rail": "Filters",
       "clear": "Clear",
-      "clearOf": "Clear the {{filter}} filter"
+      "clearOf": "Clear the {{filter}} filter",
+      "active_one": "{{count}} on",
+      "active_other": "{{count}} on"
     },
     "feedback": {
       "authTokenNotFound": "Authentication token not found"

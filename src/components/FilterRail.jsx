@@ -190,17 +190,34 @@ export function SearchField({label, value, onChange}) {
 }
 
 /**
+ * The button folding filters, said filtering while any is on: in the accent, how many
+ * on beside its word and in its name. Folded, the filters on are seen nowhere else,
+ * the list looking whole.
+ */
+export const filtersOnClass = (active) => (active > 0 ? "border-accent bg-accent-soft" : undefined);
+
+/** The name of a button folding filters: show or hide, then how many are on. */
+export const filtersButtonLabel = (t, open, active) => [
+    open ? t("objects.filters.hide") : t("objects.filters.show"),
+    active > 0 ? t("objects.filters.active", {count: active}) : null,
+].filter(Boolean).join(" · ");
+
+/**
  * The filters of a list over its table, narrower than the rail: each facet a popover
  * (FilterPopover), then the words searched, then `children`, what else filters (a
- * checkbox, a clear of them all). On a phone, folded under a Filters button.
+ * checkbox, a clear of them all), `active` how many of those are on. On a phone,
+ * folded under a Filters button saying how many filters are on.
  */
-export function FilterToolbar({facets, search, onSearch, searchLabel, children, compactAction}) {
+export function FilterToolbar({facets, search, onSearch, searchLabel, children, compactAction, active: others = 0}) {
     const {t} = useTranslation();
     const id = useId();
     const folded = useMediaQuery(FOLDED_QUERY);
     const wide = useMediaQuery(WIDE_QUERY);
     // Folded, closed at first; open on a wide screen, as the lists had it.
     const [open, setOpen] = useState(() => wide || !folded);
+    const active = facets.filter((facet) => facet.selected.length > 0).length
+        + (onSearch && search?.trim() ? 1 : 0)
+        + others;
     return (
         <>
             {folded && (
@@ -209,11 +226,13 @@ export function FilterToolbar({facets, search, onSearch, searchLabel, children, 
                         size="sm"
                         icon={<FilterIcon className="h-4 w-4"/>}
                         onClick={() => setOpen((v) => !v)}
-                        aria-label={open ? t("objects.filters.hide") : t("objects.filters.show")}
+                        aria-label={filtersButtonLabel(t, open, active)}
                         aria-expanded={open}
                         aria-controls={id}
+                        className={filtersOnClass(active)}
                     >
                         <span className="hidden sm:inline">{t("common.filters")}</span>
+                        {active > 0 && <span aria-hidden="true" className="text-accent tabular-nums">{active}</span>}
                         <ChevronDownIcon className={open ? "h-4 w-4 rotate-180" : "h-4 w-4"}/>
                     </Button>
                     {compactAction}
