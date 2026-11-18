@@ -9,6 +9,7 @@ import logger from "../utils/logger.js";
 import {childrenDown} from "../app/statusboard";
 import useEventStore from "./useEventStore.js";
 import {onSessionEnd} from "../app/session-end";
+import {followRunningOrchestrations, observeOrchestration} from "../app/action-tracker";
 
 /** Pools and networks have no events: their usage is polled at this period. */
 export const SIDEBAR_USAGE_REFRESH_MS = 15000;
@@ -24,6 +25,21 @@ export const SIDEBAR_FLUSH_MS = 300;
  * last event of each object, node and heartbeat, and the configuration of the
  * cluster, which gives the current state, then sends the changes as they happen.
  */
+/**
+ * The orchestrations of the cluster, for the actions tray to show them all, those
+ * asked from elsewhere too (observeOrchestration): an object's said on every node,
+ * a node's on its own. None replayed by the cache: those running when the stream
+ * opens read from the daemon (followRunningOrchestrations).
+ */
+const ORCHESTRATION_EVENTS = [
+    "ObjectOrchestrationAccepted",
+    "ObjectOrchestrationEnd",
+    "ObjectOrchestrationRefused",
+    "NodeOrchestrationAccepted",
+    "NodeOrchestrationEnd",
+    "NodeOrchestrationRefused",
+];
+
 const SIDEBAR_EVENTS = [
     "ObjectStatusUpdated",
     "ObjectDeleted",
@@ -35,6 +51,7 @@ const SIDEBAR_EVENTS = [
     // The cluster configuration: its name, id, nodes and ai.agent_url, the nodes
     // gone out of the cluster dropped.
     "ClusterConfigUpdated",
+    ...ORCHESTRATION_EVENTS,
 ];
 
 export const SIDEBAR_EVENTS_URL =
@@ -149,6 +166,10 @@ function useSidebarEventState(enabled) {
             } catch {
                 return;
             }
+            if (ORCHESTRATION_EVENTS.includes(type)) {
+                observeOrchestration(type, data);
+                return;
+            }
             if (!replaced) {
                 working = emptyState();
                 replaced = true;
@@ -181,6 +202,11 @@ function useSidebarEventState(enabled) {
             for (const type of SIDEBAR_EVENTS) {
                 source.addEventListener(type, onEvent(type, source));
             }
+            // Those running already, or since the last stream closed: none of its events.
+            const opened = source;
+            opened.onopen = () => {
+                if (opened === source) void followRunningOrchestrations();
+            };
             source.onerror = (error) => {
                 logger.warn("Sidebar event stream error, reconnecting", error?.status ?? "");
                 source?.close();

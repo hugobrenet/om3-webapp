@@ -7,7 +7,7 @@
 export const GLOSSARY_GROUPS = [
   {
     key: "concepts",
-    terms: ["cluster", "node", "object", "instance", "resource", "namespace", "kinds", "heartbeat", "relay", "network", "pool", "store", "snapshot", "label"],
+    terms: ["cluster", "node", "object", "instance", "resource", "namespace", "kinds", "heartbeat", "relay", "network", "pool", "array", "store", "snapshot", "label"],
   },
   {
     key: "kinds",

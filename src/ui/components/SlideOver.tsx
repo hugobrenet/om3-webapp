@@ -363,7 +363,9 @@ export function SlideOver({
       // Under the navbar, which stays in sight: its search, its actions tray, its menus.
       // Its shadow when open only: slid away, it would still fall over the window's edge,
       // a grey bar down the side of the page or of the panel open over it.
-      className={`fixed top-(--navbar-height) bottom-0 z-10 flex max-w-full border-line bg-surface-raised transition-transform duration-200 ease-out ${
+      // Focused by code alone, to hold the keyboard (tabIndex -1): no ring around it, the
+      // controls in it keeping theirs. A page reloaded on it would frame it in the accent.
+      className={`fixed top-(--navbar-height) bottom-0 z-10 flex outline-none max-w-full border-line bg-surface-raised transition-transform duration-200 ease-out ${
         left ? "left-0 flex-row-reverse border-r" : "right-0 border-l"
       } ${open ? "translate-x-0 shadow-lg" : left ? "-translate-x-full" : "translate-x-full"}`}
     >

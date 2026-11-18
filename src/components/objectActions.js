@@ -6,6 +6,7 @@ import {trackRefused, trackResponse} from "../app/action-tracker";
 import {optionsRequest} from "../app/action-options";
 import {configStamp} from "../app/config-stamps";
 import i18n from "../i18n";
+import {pacedFetch} from "../services/paced-fetch.js";
 
 /*
  * The actions on an object, as om runs them: on the object (the orchestration
@@ -124,7 +125,7 @@ export async function postAction(target, {saysRefusal = false} = {}) {
     const headers = {Authorization: `Bearer ${localStorage.getItem("authToken")}`};
     let response;
     try {
-        response = await fetch(url, {
+        response = await pacedFetch(url, {
             method: "POST",
             headers: body === undefined ? headers : {...headers, "Content-Type": "application/json"},
             ...(body === undefined ? {} : {body}),

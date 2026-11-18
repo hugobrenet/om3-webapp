@@ -21,6 +21,7 @@ export function introPage(pathname: string, search: string): string | null {
     case "/namespaces":
     case "/pools":
     case "/stores":
+    case "/arrays":
     case "/resources":
       return path.slice(1);
     case "/network":

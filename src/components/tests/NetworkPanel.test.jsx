@@ -4,6 +4,19 @@ import '@testing-library/jest-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import {MemoryRouter, useLocation} from 'react-router-dom';
 import {NetworkConfig, NetworkOverview, UsageRing, formatCount} from '../NetworkPanel';
+import {act} from '@testing-library/react';
+import {useMenuState} from '../../hooks/useSidebarAlerts';
+import useEventStore from '../../hooks/useEventStore';
+
+// The stream is tested on its own: here, the events a view claims.
+const mockClaims = vi.hoisted(() => ({list: []}));
+vi.mock('../../eventSourceManager', async (importOriginal) => ({
+    ...(await importOriginal()),
+    retainEventReception: (token, filters) => {
+        mockClaims.list.push(filters);
+        return () => {};
+    },
+}));
 
 // The grants of the user: root deletes a network.
 const mockGrants = vi.hoisted(() => ({value: {}}));
@@ -133,6 +146,51 @@ describe('the network panel', () => {
         fireEvent.click(objects[2]);
         expect(screen.getByTestId('search')).toHaveTextContent('peek=object');
         expect(decodeURIComponent(screen.getByTestId('search').textContent)).toContain('c');
+    });
+
+    test('read again as the cluster configuration changes: a subnet the daemon chose for a node shown, no reload of the page', async () => {
+        renderIn(<NetworkOverview name="backend3"/>);
+        const sketch = await screen.findByRole('group', {name: /^Sketch of the network backend3/});
+        expect(sketch.querySelector('[data-node=n1]')).toHaveTextContent('subnet chosen by the daemon');
+        // The daemon writes it to the cluster configuration, which the stream says.
+        file = FILE.replace('network = 10.100.0.0/22\n', 'network = 10.100.0.0/22\nsubnet@n1 = 10.100.0.0/24\n');
+        act(() => useMenuState.setState({clusterConfig: {nodes: ['n1', 'n2', 'n3']}}));
+        await waitFor(() => expect(screen.getByRole('group', {name: /^Sketch of the network backend3/}).querySelector('[data-node=n1]'))
+            .toHaveTextContent('subnet 10.100.0.0/24'));
+    });
+
+    test('read again as the networks polled change: the addresses handed out since shown', async () => {
+        renderIn(<NetworkOverview name="backend3"/>);
+        await screen.findByRole('group', {name: 'Usage of backend3'});
+        NETWORKS.backend3 = {...NETWORKS.backend3, used: 4, free: 1020};
+        try {
+            act(() => useMenuState.setState({networks: Object.values(NETWORKS)}));
+            await waitFor(() => expect(screen.getByRole('group', {name: 'Usage of backend3'})).toHaveTextContent('4 used1,020 free'));
+        } finally {
+            NETWORKS.backend3 = {...NETWORKS.backend3, used: 3, free: 1021};
+        }
+    });
+
+    test('read again once the addresses the instances report change, a burst of them settled first; the status of the instances claimed', async () => {
+        const ip = (ipaddr) => ({resources: {'ip#0': {status: ipaddr ? 'up' : 'down', type: 'ip.cni', info: ipaddr ? {ipaddr} : {}}}});
+        localStorage.setItem('authToken', 'tok');
+        useEventStore.setState({objectInstanceStatus: {'t/svc/a': {n1: ip('')}}});
+        renderIn(<NetworkOverview name="backend3"/>);
+        await screen.findByRole('group', {name: /^Sketch of the network backend3/});
+        expect(mockClaims.list).toContainEqual(['InstanceStatusUpdated', 'InstanceStatusDeleted']);
+        const reads = () => requests.filter((r) => r.url === '/api/network/ip').length;
+        const before = reads();
+        // Another state of the instance, no address: nothing read.
+        act(() => useEventStore.setState({objectInstanceStatus: {'t/svc/a': {n1: {...ip(''), overall: 'warn'}}}}));
+        // The address handed out, reported twice in a row: read once, after it settled.
+        act(() => useEventStore.setState({objectInstanceStatus: {'t/svc/a': {n1: ip('10.100.0.9')}}}));
+        act(() => useEventStore.setState({objectInstanceStatus: {'t/svc/a': {n1: ip('10.100.0.9')}, 't/svc/b': {n2: ip('10.100.1.9')}}}));
+        expect(reads()).toBe(before);
+        await waitFor(() => expect(reads()).toBe(before + 1), {timeout: 3000});
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        expect(reads()).toBe(before + 1);
+        expect(requests.filter((r) => r.url.startsWith('/api/network?name=backend3')).length).toBeGreaterThanOrEqual(2);
+        localStorage.removeItem('authToken');
     });
 
     test('an address reported by several nodes drawn once, a pill across the nodes, dashed over those not reporting it', async () => {

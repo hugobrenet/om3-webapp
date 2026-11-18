@@ -3,6 +3,7 @@ import { URL_NODE } from "../config/apiPath.js";
 import { readClusterStatus } from "../hooks/clusterStatusOnce";
 import useEventStore from "../hooks/useEventStore.js";
 import { recordConfigWrite } from "./config-stamps";
+import { pacedFetch } from "../services/paced-fetch.js";
 
 /*
  * The actions asked, followed to their end, as `om ... --wait` follows them: the
@@ -14,9 +15,10 @@ import { recordConfigWrite } from "./config-stamps";
  * - An action of an instance, of a resource or of a node is a run of one node
  *   (`daemon/exec/id/<id>`).
  *
- * Both are read with `wait`: the request is held until the end, no polling. The
- * runs of an orchestration, which no wait covers, are read again every few seconds
- * while it runs.
+ * Both are read again until they end (END_EVERY_MS says why not held), the runs of
+ * an orchestration every few seconds while it runs. The orchestrations followed at
+ * once, an action on a selection, are read together (`gathered`): a list of a node
+ * for all, by their objects, not a read each.
  */
 
 export type TrackState = "running" | "succeeded" | "failed" | "aborted" | "refused" | "unknown";
@@ -67,6 +69,7 @@ interface Accepted {
 
 interface ExecItem {
   exec_id: string;
+  orchestration_id?: string;
   node: string;
   title?: string;
   command?: string;
@@ -78,6 +81,7 @@ interface ExecItem {
 }
 
 interface OrchestrationItem {
+  orchestration_id?: string;
   state: string;
   error?: string;
 }
@@ -125,6 +129,13 @@ const update = (id: string, change: Partial<Tracked>) => {
 
 const isLive = (id: string) => useActionTracker.getState().tracked.some((t) => t.id === id);
 
+/** Kept and not ended yet: an orchestration its end event ended is read no more. */
+const isRunning = (id: string) => useActionTracker.getState().tracked.some((t) => t.id === id && t.state === "running");
+
+/** The orchestration of id `orchestrationId` tracked, if it is. */
+const followed = (orchestrationId: string) =>
+  useActionTracker.getState().tracked.find((t) => t.kind === "orchestration" && t.followedId === orchestrationId);
+
 const toState = (state: string | undefined): TrackState =>
   state === "running" || state === "succeeded" || state === "failed" || state === "aborted" || state === "refused"
     ? state
@@ -145,13 +156,187 @@ const headers = () => ({ Authorization: `Bearer ${localStorage.getItem("authToke
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const daemonUrl = (node: string, rest: string) => `${URL_NODE}/${encodeURIComponent(node)}/daemon/${rest}`;
 
+/** What a read answers: a response of the daemon, or an item of a list read, said as one. */
+interface Answer {
+  status: number;
+  ok: boolean;
+  json(): Promise<unknown>;
+}
+
+const answer = (status: number, item?: unknown): Answer => ({
+  status,
+  ok: status >= 200 && status < 300,
+  json: () => Promise.resolve(item),
+});
+
+/** The longest selector of a list read, its paths joined: more, read in parts. */
+const MAX_SELECTOR = 2000;
+
+/**
+ * The items `node` lists of `what` (orchestration, exec) for the objects of `paths`,
+ * their selector: in parts of MAX_SELECTOR. The status of the first part refused, the
+ * items then said nothing of.
+ */
+async function readListed<T>(node: string, what: string, paths: Iterable<string>): Promise<{ status: number; items: T[] }> {
+  const parts: string[][] = [[]];
+  let length = 0;
+  for (const path of new Set(paths)) {
+    if (length + path.length > MAX_SELECTOR && parts[parts.length - 1].length > 0) {
+      parts.push([]);
+      length = 0;
+    }
+    parts[parts.length - 1].push(path);
+    length += path.length + 1;
+  }
+  const lists = await Promise.all(
+    parts.map(async (part) => {
+      const response = await pacedFetch(daemonUrl(node, `${what}?selector=${encodeURIComponent(part.join(","))}`), {
+        headers: headers(),
+      });
+      if (!response.ok) return { status: response.status, items: [] as T[] };
+      const body = (await response.json()) as { items?: T[] };
+      return { status: response.status, items: body.items ?? [] };
+    }),
+  );
+  const refused = lists.find((list) => list.status < 200 || list.status >= 300);
+  return refused ?? { status: 200, items: lists.flatMap((list) => list.items) };
+}
+
+/**
+ * The reads of what is followed at once, gathered: an action on hundreds of objects
+ * followed by a read of a node a second, not hundreds of reads, which their pace
+ * (paced-fetch) took minutes to send, the tray saying running long after the
+ * objects were done. A read asked joins the next one due, sent once the one before
+ * has answered (none queued behind it, the writes going first) and END_EVERY_MS
+ * after it was sent, at once when none was. One alone is read on its own
+ * (`one`), as it always was; more, `many` reads the list of them, by key, their
+ * paths given: a key it says nothing of, read on its own.
+ */
+function gathered<R>(
+  one: (key: string) => Promise<R>,
+  many: (paths: Map<string, string>) => Promise<Map<string, R>>,
+): (key: string, path: string) => Promise<R> {
+  let paths = new Map<string, string>();
+  let waiting = new Map<string, { resolve: (r: R) => void; reject: (e: unknown) => void }[]>();
+  let due = false;
+  let busy = false;
+  let sentAt = 0;
+  const schedule = () => {
+    if (due || busy || paths.size === 0) return;
+    due = true;
+    const wait = sentAt + END_EVERY_MS - Date.now();
+    if (wait > 0) setTimeout(send, wait);
+    else queueMicrotask(send);
+  };
+  const sent = (read: Promise<unknown>) => {
+    busy = true;
+    void read.catch(() => undefined).then(() => {
+      busy = false;
+      schedule();
+    });
+  };
+  const send = () => {
+    due = false;
+    sentAt = Date.now();
+    const asked = paths;
+    const waiters = waiting;
+    paths = new Map();
+    waiting = new Map();
+    const settle = (key: string, read: Promise<R>) => {
+      read.then(
+        (r) => waiters.get(key)?.forEach((w) => w.resolve(r)),
+        (e: unknown) => waiters.get(key)?.forEach((w) => w.reject(e)),
+      );
+    };
+    if (asked.size === 1) {
+      const [key] = asked.keys();
+      const read = one(key);
+      sent(read);
+      settle(key, read);
+      return;
+    }
+    const listed = many(asked);
+    sent(listed);
+    for (const key of asked.keys()) settle(key, listed.then((items) => items.get(key) ?? one(key)));
+  };
+  return (key, path) =>
+    new Promise<R>((resolve, reject) => {
+      paths.set(key, path);
+      waiting.set(key, [...(waiting.get(key) ?? []), { resolve, reject }]);
+      schedule();
+    });
+}
+
+/** The reads of the orchestrations a node answers for, gathered, by node. */
+const orchestrationReads = new Map<string, (orchestrationId: string, path: string) => Promise<Answer>>();
+
+function readOrchestration(node: string, orchestrationId: string, path?: string): Promise<Answer> {
+  const one = (key: string) =>
+    pacedFetch(daemonUrl(node, `orchestration/id/${encodeURIComponent(key)}`), { headers: headers() });
+  if (!path) return one(orchestrationId);
+  let read = orchestrationReads.get(node);
+  if (!read) {
+    read = gathered<Answer>(one, async (paths) => {
+      const listed = await readListed<OrchestrationItem>(node, "orchestration", paths.values());
+      const answers = new Map<string, Answer>();
+      if (listed.status !== 200) {
+        for (const key of paths.keys()) answers.set(key, answer(listed.status));
+        return answers;
+      }
+      for (const item of listed.items) {
+        if (item.orchestration_id && paths.has(item.orchestration_id)) answers.set(item.orchestration_id, answer(200, item));
+      }
+      return answers;
+    });
+    orchestrationReads.set(node, read);
+  }
+  return read(orchestrationId, path);
+}
+
+/** The reads of the runs of orchestrations on a node, gathered, by node. */
+const execReads = new Map<string, (orchestrationId: string, path: string) => Promise<ExecItem[]>>();
+
+async function readExecs(node: string, orchestrationId: string): Promise<ExecItem[]> {
+  try {
+    const response = await pacedFetch(daemonUrl(node, `exec?orchestration_id=${encodeURIComponent(orchestrationId)}`), {
+      headers: headers(),
+    });
+    if (!response.ok) return [];
+    const body = (await response.json()) as { items?: ExecItem[] };
+    return body.items ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function readRuns(node: string, orchestrationId: string, path?: string): Promise<ExecItem[]> {
+  if (!path) return readExecs(node, orchestrationId);
+  let read = execReads.get(node);
+  if (!read) {
+    read = gathered<ExecItem[]>(
+      (key) => readExecs(node, key),
+      async (paths) => {
+        // The runs of their objects, of any orchestration or none: those of each kept.
+        const listed = await readListed<ExecItem>(node, "exec", paths.values()).catch(() => ({ status: 0, items: [] }));
+        const runs = new Map<string, ExecItem[]>([...paths.keys()].map((key) => [key, []]));
+        for (const item of listed.items) {
+          if (item.orchestration_id) runs.get(item.orchestration_id)?.push(item);
+        }
+        return runs;
+      },
+    );
+    execReads.set(node, read);
+  }
+  return read(orchestrationId, path);
+}
+
 /**
  * Reads what `url` says until it ends, every `END_EVERY_MS`, no read held by the
  * daemon (END_EVERY_MS says why). Resolves to the item ended, or to the reason it
  * could not be known.
  */
 async function waitEnd<T extends { state: string }>(
-  url: string,
+  read: () => Promise<Answer>,
   id: string,
   { queued = false, seen }: { queued?: boolean; seen?: () => void } = {},
 ): Promise<T | { lost: string }> {
@@ -159,9 +344,10 @@ async function waitEnd<T extends { state: string }>(
   // Queued, its monitor has yet to read it: unknown by its id until then.
   let unseenSince = queued ? Date.now() : null;
   for (;;) {
-    if (!isLive(id)) return { lost: "" };
+    if (!isRunning(id)) return { lost: "" };
     try {
-      const response = await fetch(url, { headers: headers() });
+      // Paced: hundreds of actions followed at once stay within what the daemon takes.
+      const response = await read();
       // A daemon holding it all the same (a wait run out): read again.
       if (response.status === 408) continue;
       if (response.status === 410) {
@@ -189,28 +375,14 @@ async function waitEnd<T extends { state: string }>(
 }
 
 /** The runs of an orchestration on every node of the cluster, in the order they started. */
-async function readSteps(orchestrationId: string, nodes: string[]): Promise<TrackStep[] | null> {
-  const lists = await Promise.all(
-    nodes.map(async (node) => {
-      try {
-        const response = await fetch(
-          daemonUrl(node, `exec?orchestration_id=${encodeURIComponent(orchestrationId)}`),
-          { headers: headers() },
-        );
-        if (!response.ok) return [];
-        const body = (await response.json()) as { items?: ExecItem[] };
-        return body.items ?? [];
-      } catch {
-        return [];
-      }
-    }),
-  );
+async function readSteps(orchestrationId: string, nodes: string[], path?: string): Promise<TrackStep[] | null> {
+  const lists = await Promise.all(nodes.map((node) => readRuns(node, orchestrationId, path)));
   const steps = lists.flat().map(toStep);
   if (steps.length === 0) return null;
   return steps.sort((a, b) => (a.startedAt ?? "").localeCompare(b.startedAt ?? ""));
 }
 
-async function followOrchestration(id: string, orchestrationId: string, node: string, queued = false) {
+async function followOrchestration(id: string, orchestrationId: string, node: string, queued = false, path?: string) {
   const status = await readClusterStatus().catch(() => null);
   const configured = (status as { cluster?: { config?: { nodes?: string[] } } } | null)?.cluster?.config?.nodes;
   const nodes = Array.isArray(configured) && configured.length > 0 ? configured : [node];
@@ -221,7 +393,7 @@ async function followOrchestration(id: string, orchestrationId: string, node: st
     stop = resolve;
   });
   const refreshSteps = async () => {
-    const steps = await readSteps(orchestrationId, nodes);
+    const steps = await readSteps(orchestrationId, nodes, path);
     if (steps !== null && isLive(id)) update(id, { steps });
   };
   const stepsLoop = (async () => {
@@ -230,7 +402,7 @@ async function followOrchestration(id: string, orchestrationId: string, node: st
       await Promise.race([sleep(STEPS_EVERY_MS), stopped]);
     }
   })();
-  const end = await waitEnd<OrchestrationItem>(daemonUrl(node, `orchestration/id/${encodeURIComponent(orchestrationId)}`), id, {
+  const end = await waitEnd<OrchestrationItem>(() => readOrchestration(node, orchestrationId, path), id, {
     queued,
     seen: () => {
       update(id, { queued: false });
@@ -241,6 +413,8 @@ async function followOrchestration(id: string, orchestrationId: string, node: st
   await stepsLoop;
   if (!isLive(id)) return;
   await refreshSteps();
+  // Ended meanwhile by the event saying so (observeOrchestration).
+  if (!isRunning(id)) return;
   if ("lost" in end) {
     update(id, { state: "unknown", error: end.lost || undefined, endedAt: Date.now() });
     return;
@@ -250,7 +424,8 @@ async function followOrchestration(id: string, orchestrationId: string, node: st
 }
 
 async function followExec(id: string, execId: string, node: string) {
-  const end = await waitEnd<ExecItem>(daemonUrl(node, `exec/id/${encodeURIComponent(execId)}`), id);
+  const url = daemonUrl(node, `exec/id/${encodeURIComponent(execId)}`);
+  const end = await waitEnd<ExecItem>(() => pacedFetch(url, { headers: headers() }), id);
   if (!isLive(id)) return;
   if ("lost" in end) {
     update(id, { state: "unknown", error: end.lost || undefined, endedAt: Date.now() });
@@ -299,6 +474,13 @@ export function trackAccepted(
   const orchestrationId = body.orchestration_id;
   const execId = body.exec_id;
   if (!orchestrationId && !execId) return;
+  // Seen first in the events, as every orchestration of the cluster is: said in the
+  // words of the action asked, followed already.
+  const seen = orchestrationId ? followed(orchestrationId) : undefined;
+  if (seen) {
+    update(seen.id, { action, subject, ...(path === undefined ? {} : { path }) });
+    return;
+  }
   sequence += 1;
   const id = `${String(Date.now())}-${String(sequence)}`;
   const answering = body.node || node || "localhost";
@@ -316,7 +498,7 @@ export function trackAccepted(
     steps: [],
   };
   useActionTracker.setState((s) => ({ tracked: withNew(tracked, s.tracked) }));
-  if (orchestrationId) void followOrchestration(id, orchestrationId, answering, body.queued === true);
+  if (orchestrationId) void followOrchestration(id, orchestrationId, answering, body.queued === true, path);
   else if (execId) void followExec(id, execId, answering);
 }
 
@@ -344,9 +526,20 @@ export function trackRefused({
   orchestrationId?: string;
   node?: string;
 }) {
+  const recorded = orchestrationId !== undefined && orchestrationId !== "" && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(orchestrationId);
+  // Seen first in the events: said in the words of the action asked.
+  const seen = recorded ? followed(orchestrationId) : undefined;
+  if (seen) {
+    update(seen.id, {
+      action,
+      ...(label === undefined ? {} : { label }),
+      subject,
+      ...(seen.state === "running" ? { state: "refused" as const, error: reason || undefined, endedAt: Date.now() } : {}),
+    });
+    return;
+  }
   sequence += 1;
   const now = Date.now();
-  const recorded = orchestrationId !== undefined && orchestrationId !== "" && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(orchestrationId);
   const refused: Tracked = {
     id: `${String(now)}-${String(sequence)}`,
     action,
@@ -606,5 +799,136 @@ export async function acceptedBody(response: Response): Promise<unknown> {
     return await response.clone().json();
   } catch {
     return null;
+  }
+}
+
+/** The action an orchestration is for, by the state it expects (global_expect, expect). */
+export function expectAction(expect: string | undefined | null): string {
+  if (!expect) return "";
+  if (expect.startsWith("placed@")) return "switch";
+  const actions: Record<string, string> = {
+    aborted: "abort",
+    deleted: "delete",
+    drained: "drain",
+    frozen: "freeze",
+    placed: "giveback",
+    provisioned: "provision",
+    purged: "purge",
+    resized: "scale",
+    restarted: "restart",
+    started: "start",
+    stopped: "stop",
+    thawed: "unfreeze",
+    unfrozen: "unfreeze",
+    unprovisioned: "unprovision",
+    upgraded: "upgrade",
+  };
+  return actions[expect] ?? expect;
+}
+
+/** An orchestration event of the daemon, of an object (path) or a node. */
+export interface OrchestrationEvent {
+  id?: string;
+  node?: string;
+  path?: string;
+  expect?: string;
+  global_expect?: string | null;
+  aborted?: boolean;
+  failed?: boolean;
+  error?: string;
+  reason?: string;
+}
+
+/**
+ * Every orchestration of the cluster in the tray, not only those asked from this
+ * page: one accepted, asked from another page, by om, by another user, followed as
+ * the others (`Object|NodeOrchestrationAccepted`); its end said as soon as the event
+ * says it (`…End`, `…Refused`), the reads of it, a user the daemon lets read none,
+ * not waited for. Once each, whichever of the event and the answer of this page's
+ * action comes first.
+ */
+export function observeOrchestration(kind: string, event: OrchestrationEvent) {
+  const orchestrationId = event.id;
+  if (!orchestrationId) return;
+  const seen = followed(orchestrationId);
+  const action = expectAction(event.expect ?? event.global_expect);
+  const subject = event.path || event.node || "";
+  if (kind.endsWith("OrchestrationAccepted")) {
+    if (!seen) follow({ orchestrationId, action, subject, node: event.node, path: event.path });
+    return;
+  }
+  if (kind.endsWith("OrchestrationRefused")) {
+    if (!seen) trackRefused({ action, subject, reason: event.reason ?? "", orchestrationId, node: event.node });
+    else if (seen.state === "running") update(seen.id, { state: "refused", error: event.reason || undefined, endedAt: Date.now() });
+    return;
+  }
+  if (kind.endsWith("OrchestrationEnd") && seen?.state === "running") {
+    const state: TrackState = event.aborted ? "aborted" : event.failed ? "failed" : "succeeded";
+    update(seen.id, { state, error: event.error || undefined, queued: false, endedAt: Date.now() });
+    lingerIfSucceeded(seen.id);
+  }
+}
+
+/** An orchestration not asked from this page, followed from now on. */
+function follow({
+  orchestrationId,
+  action,
+  subject,
+  node,
+  path,
+  startedAt = Date.now(),
+}: {
+  orchestrationId: string;
+  action: string;
+  subject: string;
+  node?: string;
+  path?: string;
+  startedAt?: number;
+}) {
+  sequence += 1;
+  const id = `${String(Date.now())}-${String(sequence)}`;
+  // Any node answers for an object's: the one accepting it, else this one.
+  const answering = node || "localhost";
+  const entry: Tracked = {
+    id,
+    action,
+    subject,
+    kind: "orchestration",
+    followedId: orchestrationId,
+    node: answering,
+    ...(path ? { path } : {}),
+    state: "running",
+    startedAt,
+    steps: [],
+  };
+  useActionTracker.setState((s) => ({ tracked: withNew(entry, s.tracked) }));
+  void followOrchestration(id, orchestrationId, answering, false, path || undefined);
+}
+
+/**
+ * The orchestrations running when the events start, which they will not say were
+ * accepted: read from the daemon (root only; refused, the events alone).
+ */
+export async function followRunningOrchestrations() {
+  try {
+    const response = await pacedFetch(daemonUrl("localhost", "orchestration?state=running"), { headers: headers() });
+    if (!response.ok) return;
+    const body = (await response.json()) as {
+      items?: (OrchestrationItem & { node?: string; path?: string; expect?: string; started_at?: string })[];
+    };
+    for (const item of body.items ?? []) {
+      if (!item.orchestration_id || item.state !== "running" || followed(item.orchestration_id)) continue;
+      const started = item.started_at ? Date.parse(item.started_at) : NaN;
+      follow({
+        orchestrationId: item.orchestration_id,
+        action: expectAction(item.expect),
+        subject: item.path || item.node || "",
+        node: item.node,
+        path: item.path,
+        ...(Number.isNaN(started) ? {} : { startedAt: started }),
+      });
+    }
+  } catch {
+    // The events say the next ones.
   }
 }

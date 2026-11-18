@@ -33,10 +33,11 @@ export function GroupingSwitch({
           onClick={() => {
             onChange(option);
           }}
-          className="flex h-6 w-6 items-center justify-center text-ink-muted first:rounded-l-(--radius-control) last:rounded-r-(--radius-control) hover:text-ink aria-pressed:bg-accent-soft aria-pressed:text-ink"
+          className="flex h-6 cursor-pointer items-center gap-1 px-1.5 text-data text-ink-muted first:rounded-l-(--radius-control) last:rounded-r-(--radius-control) hover:bg-surface-sunken hover:text-ink aria-pressed:bg-accent-soft aria-pressed:text-ink"
         >
-          <Icon className="h-3.5 w-3.5" />
-          <span className="sr-only">{t(`panelHistory.grouping.${option}`)}</span>
+          <Icon className="h-3.5 w-3.5 shrink-0" />
+          {/* Its words beside its icon: what it groups by, read without a hover. */}
+          {t(`panelHistory.grouping.${option}`)}
         </button>
       ))}
     </div>

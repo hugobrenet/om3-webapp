@@ -1,7 +1,16 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ActionTray, formatDuration } from "../ActionTray";
-import { type Tracked, trackAccepted, trackPoll, trackRefused, trackResponse, useActionTracker } from "../action-tracker";
+import {
+  type Tracked,
+  followRunningOrchestrations,
+  observeOrchestration,
+  trackAccepted,
+  trackPoll,
+  trackRefused,
+  trackResponse,
+  useActionTracker,
+} from "../action-tracker";
 import { resetClusterStatus } from "../../hooks/clusterStatusOnce";
 import useEventStore from "../../hooks/useEventStore.js";
 
@@ -17,6 +26,7 @@ const json = (status: number, body: unknown) =>
 
 const ORCH = "11111111-1111-1111-1111-111111111111";
 const EXEC = "22222222-2222-2222-2222-222222222222";
+const REFUSED = "33333333-3333-3333-3333-333333333333";
 
 /** The daemon of dev3: an orchestration running once, then succeeded, a run on each node. */
 function daemon({ orchestration = ["running", "succeeded"], exec = ["running", "failed"] } = {}) {
@@ -243,9 +253,11 @@ describe("ActionTray", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     // The trash can in the dialog only.
     expect(screen.queryByRole("button", { name: "Clear the ended actions" })).toBeNull();
+    // Ended, one failed: the failure counted, the other said on hover alone.
     await waitFor(() => {
-      expect(trayButton()).toHaveAccessibleName("Actions: 2 ended");
+      expect(trayButton()).toHaveAccessibleName("Actions: 1 failed · 1 ended");
     }, { timeout: 3000 });
+    expect(trayButton()).toHaveTextContent(/^1$/);
     const tray = openTray();
     const runs = within(tray).getByRole("list", { name: "The runs of Provision on the nodes" });
     expect(within(runs).getByText("provision leader")).toBeInTheDocument();
@@ -254,6 +266,41 @@ describe("ActionTray", () => {
     fireEvent.click(within(tray).getByRole("button", { name: "Clear the ended actions" }));
     expect(trayButton()).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("ActionTray, its button counting what needs the user", () => {
+  const entry = (id: string, state: Tracked["state"]): Tracked => ({
+    id, action: "stop", subject: id, kind: "orchestration", node: "dev3n1", state, startedAt: 0, steps: [],
+    ...(state === "running" ? {} : { endedAt: 1 }),
+  });
+  const show = (...entries: Tracked[]) => {
+    render(<ActionTray />);
+    act(() => {
+      useActionTracker.setState({ tracked: entries });
+    });
+  };
+
+  test("what runs, the failures under it said on hover", () => {
+    // Never answered: never ends while the test looks.
+    globalThis.fetch = vi.fn(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch;
+    show(entry("a", "running"), entry("b", "running"), entry("c", "failed"), entry("d", "succeeded"));
+    expect(trayButton()).toHaveAccessibleName("Actions: 2 running · 1 failed · 1 ended");
+    expect(trayButton()).toHaveTextContent(/^2$/);
+  });
+
+  test("nothing running: the failures and refusals, in the down colour", () => {
+    show(entry("a", "failed"), entry("b", "refused"), entry("c", "succeeded"), entry("d", "aborted"));
+    expect(trayButton()).toHaveAccessibleName("Actions: 2 failed · 2 ended");
+    expect(trayButton()).toHaveTextContent(/^2$/);
+    expect(within(trayButton() as HTMLElement).getByText("2")).toHaveClass("text-state-down");
+  });
+
+  test("nothing running nor failed, the cluster's others ended: no count, the history a click away", () => {
+    show(entry("a", "succeeded"), entry("b", "succeeded"), entry("c", "unknown"));
+    expect(trayButton()).toHaveAccessibleName("Actions: 3 ended");
+    expect(trayButton()).toHaveTextContent(/^$/);
+    expect(within(openTray()).getAllByRole("listitem")).toHaveLength(3);
   });
 });
 
@@ -327,7 +374,7 @@ describe("ActionTray, the logs of each action", () => {
       trackAccepted({ exec_id: EXEC }, { action: "start", subject: "foo on dev3n2", node: "dev3n2" });
       trackRefused({ action: "stop", subject: "bar", reason: "HTTP 403" });
       // Refused by the instance monitor, recorded under an orchestration: its logs there.
-      trackRefused({ action: "switch", subject: "baz", reason: "no instance to switch from", orchestrationId: ORCH, node: "dev3n2" });
+      trackRefused({ action: "switch", subject: "baz", reason: "no instance to switch from", orchestrationId: REFUSED, node: "dev3n2" });
     });
     const tray = openTray();
     fireEvent.click(within(tray).getByRole("button", { name: "Logs of Provision foo" }));
@@ -343,7 +390,7 @@ describe("ActionTray, the logs of each action", () => {
     fireEvent.click(within(tray).getByRole("button", { name: "Logs of Switch baz" }));
     const refused = screen.getByRole("dialog", { name: "logs Switch baz" });
     expect(refused).toHaveAttribute("data-kind", "orchestration");
-    expect(refused).toHaveAttribute("data-id", ORCH);
+    expect(refused).toHaveAttribute("data-id", REFUSED);
     expect(refused).toHaveAttribute("data-node", "dev3n2");
     act(() => {
       useActionTracker.setState({ tracked: [] });
@@ -379,5 +426,132 @@ describe("formatDuration", () => {
     [185_000, "3 min 05 s"],
   ])("%d ms is %s", (ms, text) => {
     expect(formatDuration(ms)).toBe(text);
+  });
+});
+
+describe("the orchestrations followed at once, a selection's", () => {
+  const ids = ["aaaaaaaa-0000-0000-0000-000000000001", "aaaaaaaa-0000-0000-0000-000000000002", "aaaaaaaa-0000-0000-0000-000000000003"];
+  const paths = ["ns/svc/s1", "ns/svc/s2", "ns/svc/s3"];
+
+  /** dev3, its lists by object: the third orchestration not in the list of dev3n1, read by its id. */
+  function listingDaemon() {
+    return vi.fn((url: string) => {
+      if (url === "/api/cluster/status?selector=cluster") {
+        return json(200, { cluster: { config: { nodes: ["dev3n1", "dev3n2"] }, node: { dev3n1: {}, dev3n2: {} } } });
+      }
+      if (url.includes("/daemon/orchestration?selector=")) {
+        return json(200, {
+          items: ids.slice(0, 2).map((id, i) => ({ orchestration_id: id, path: paths[i], state: "succeeded" })),
+        });
+      }
+      if (url.includes(`/daemon/orchestration/id/${ids[2]}`)) return json(200, { orchestration_id: ids[2], state: "succeeded" });
+      if (url.includes("/daemon/exec?selector=")) {
+        const node = url.includes("/dev3n1/") ? "dev3n1" : "dev3n2";
+        return json(200, {
+          items: [
+            ...ids.map((id, i) => ({ exec_id: `${node}-${String(i)}`, orchestration_id: id, node, title: "delete", state: "succeeded", path: paths[i] })),
+            // A run of one of them under no orchestration (the scheduler's): of none of them.
+            { exec_id: `${node}-status`, node, title: "status", state: "succeeded", path: paths[0] },
+          ],
+        });
+      }
+      return json(404, {});
+    }) as unknown as typeof fetch;
+  }
+
+  test("read together, a list of their objects a node, not a read each", async () => {
+    globalThis.fetch = listingDaemon();
+    ids.forEach((id, i) => {
+      trackAccepted({ orchestration_id: id, node: "dev3n1" }, { action: "delete", subject: paths[i], path: paths[i] });
+    });
+    await waitFor(() => {
+      expect(tracked().map((t) => t.state)).toEqual(["succeeded", "succeeded", "succeeded"]);
+    }, { timeout: 3000 });
+    const urls = vi.mocked(globalThis.fetch).mock.calls.map(([url]) => decodeURIComponent(String(url)));
+    expect(urls).toContain(`/api/node/name/dev3n1/daemon/orchestration?selector=${paths.join(",")}`);
+    expect(urls).toContain(`/api/node/name/dev3n2/daemon/exec?selector=${paths.join(",")}`);
+    // Read by its id alone: the one the list said nothing of.
+    expect(urls.filter((url) => url.includes("/orchestration/id/"))).toEqual(
+      urls.filter((url) => url.includes(`/orchestration/id/${ids[2]}`)),
+    );
+    expect(urls.some((url) => url.includes("exec?orchestration_id="))).toBe(false);
+    // Each its own runs, on each node; the scheduler's of none.
+    for (const [i, entry] of [...tracked()].reverse().entries()) {
+      expect(entry.steps.map((s) => s.execId).sort()).toEqual([`dev3n1-${String(i)}`, `dev3n2-${String(i)}`]);
+    }
+  });
+});
+
+describe("every orchestration of the cluster, asked from here or elsewhere", () => {
+  const ID = "bbbbbbbb-0000-0000-0000-000000000001";
+  // Read by its id as followed: running until the event says it ended.
+  const running = () =>
+    vi.fn((url: string) => {
+      if (url === "/api/cluster/status?selector=cluster") return json(200, { cluster: { config: { nodes: ["dev3n1"] } } });
+      if (url.includes("/daemon/orchestration/id/")) return json(200, { orchestration_id: ID, state: "running" });
+      if (url.includes("/daemon/orchestration?state=running")) {
+        return json(200, {
+          items: [
+            { orchestration_id: ID, node: "dev3n2", path: "ns/svc/s1", expect: "stopped", state: "running", started_at: "2026-11-18T10:00:00Z" },
+            { orchestration_id: "done", node: "dev3n2", path: "ns/svc/s2", expect: "started", state: "succeeded" },
+          ],
+        });
+      }
+      return json(200, { items: [] });
+    }) as unknown as typeof fetch;
+
+  test("one asked elsewhere, by om, followed; its end said by its event", async () => {
+    globalThis.fetch = running();
+    observeOrchestration("ObjectOrchestrationAccepted", { id: ID, node: "dev3n2", path: "ns/svc/s1", global_expect: "frozen" });
+    expect(tracked()).toHaveLength(1);
+    expect(tracked()[0]).toMatchObject({ action: "freeze", subject: "ns/svc/s1", kind: "orchestration", followedId: ID, node: "dev3n2", state: "running" });
+    // Said again, by the other node: once.
+    observeOrchestration("ObjectOrchestrationAccepted", { id: ID, node: "dev3n2", path: "ns/svc/s1", global_expect: "frozen" });
+    expect(tracked()).toHaveLength(1);
+    observeOrchestration("ObjectOrchestrationEnd", { id: ID, node: "dev3n2", path: "ns/svc/s1", failed: true, error: "dev3n1: frozen failed" });
+    expect(tracked()[0]).toMatchObject({ state: "failed", error: "dev3n1: frozen failed" });
+    // The reads stop: the end the event said stays.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(tracked()[0]?.state).toBe("failed");
+  });
+
+  test("a node's, its node the subject; aborted said so", () => {
+    globalThis.fetch = running();
+    observeOrchestration("NodeOrchestrationAccepted", { id: ID, node: "dev3n1", expect: "drained" });
+    expect(tracked()[0]).toMatchObject({ action: "drain", subject: "dev3n1", state: "running" });
+    observeOrchestration("NodeOrchestrationEnd", { id: ID, node: "dev3n1", aborted: true });
+    expect(tracked()[0]?.state).toBe("aborted");
+  });
+
+  test("one refused, never seen accepted: in the tray, refused, with the reason", () => {
+    observeOrchestration("ObjectOrchestrationRefused", { id: ID, node: "dev3n1", path: "ns/svc/s1", global_expect: "placed@dev3n2", reason: "no candidate" });
+    expect(tracked()).toEqual([expect.objectContaining({ action: "switch", subject: "ns/svc/s1", state: "refused", error: "no candidate", followedId: ID })]);
+  });
+
+  test("one asked from this page, its event first: once, in the words of the action asked", () => {
+    globalThis.fetch = running();
+    observeOrchestration("ObjectOrchestrationAccepted", { id: ID, node: "dev3n1", path: "ns/svc/s1", global_expect: "placed" });
+    trackAccepted({ orchestration_id: ID, node: "dev3n1" }, { action: "giveback", subject: "s1", path: "ns/svc/s1" });
+    expect(tracked()).toHaveLength(1);
+    expect(tracked()[0]).toMatchObject({ action: "giveback", subject: "s1", state: "running" });
+  });
+
+  test("one asked from this page, its answer first: its event adds none", () => {
+    globalThis.fetch = running();
+    trackAccepted({ orchestration_id: ID, node: "dev3n1" }, { action: "stop", subject: "s1", path: "ns/svc/s1" });
+    observeOrchestration("ObjectOrchestrationAccepted", { id: ID, node: "dev3n1", path: "ns/svc/s1", global_expect: "stopped" });
+    expect(tracked()).toHaveLength(1);
+    expect(tracked()[0]).toMatchObject({ action: "stop", subject: "s1" });
+  });
+
+  test("those running when the events start, read from the daemon; the ended ones not", async () => {
+    globalThis.fetch = running();
+    await followRunningOrchestrations();
+    expect(tracked()).toEqual([
+      expect.objectContaining({ action: "stop", subject: "ns/svc/s1", node: "dev3n2", followedId: ID, state: "running", startedAt: Date.parse("2026-11-18T10:00:00Z") }),
+    ]);
+    // Read again (a reconnection): not twice.
+    await followRunningOrchestrations();
+    expect(tracked()).toHaveLength(1);
   });
 });

@@ -33,6 +33,7 @@ export const NAV_SECTIONS = [
             {id: "networks", to: "/network", labelKey: "nav.routes.networks"},
             {id: "pools", to: "/pools", labelKey: "nav.routes.pools"},
             {id: "stores", to: "/stores", labelKey: "nav.routes.stores"},
+            {id: "arrays", to: "/arrays", labelKey: "nav.routes.arrays"},
             {id: "resources", to: "/resources", labelKey: "nav.routes.resources"},
         ],
     },

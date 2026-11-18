@@ -253,6 +253,8 @@ export function ActionTray() {
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const running = tracked.filter((entry) => entry.state === "running").length;
+  // Failed or refused, not dismissed: what may need the user, the cluster's other actions not.
+  const failed = tracked.filter((entry) => entry.state === "failed" || entry.state === "refused").length;
   const ended = tracked.length - running;
 
   // The durations of what runs go on.
@@ -274,17 +276,21 @@ export function ActionTray() {
   if (tracked.length === 0) return null;
   const counts = [
     running > 0 ? t("actionTray.running", { count: running }) : null,
-    ended > 0 ? t("actionTray.ended", { count: ended }) : null,
+    failed > 0 ? t("actionTray.failed", { count: failed }) : null,
+    ended > failed ? t("actionTray.ended", { count: ended - failed }) : null,
   ]
     .filter(Boolean)
     .join(" · ");
-  const failed = tracked.some((entry) => entry.state === "failed" || entry.state === "refused");
   const mark =
     running > 0 ? (
       <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-line border-t-accent" />
     ) : (
-      <BoltIcon className={cn("h-3.5 w-3.5 shrink-0", failed ? "text-state-down" : "text-ink-muted")} />
+      <BoltIcon className={cn("h-3.5 w-3.5 shrink-0", failed > 0 ? "text-state-down" : "text-ink-muted")} />
     );
+  // The tray holds every orchestration of the cluster: the button counts what runs
+  // now, else what failed and waits to be seen; the others, said on hover, count for
+  // nothing to do.
+  const shown = running > 0 ? running : failed > 0 ? failed : null;
 
   return (
     <>
@@ -300,9 +306,11 @@ export function ActionTray() {
         className="flex h-7 shrink-0 items-center gap-1 rounded-(--radius-control) border border-line px-1.5 text-ink-muted hover:bg-surface-sunken hover:text-ink"
       >
         {mark}
-        <span aria-hidden="true" className="text-data tabular-nums">
-          {tracked.length}
-        </span>
+        {shown !== null && (
+          <span aria-hidden="true" className={cn("text-data tabular-nums", running === 0 && "text-state-down")}>
+            {shown}
+          </span>
+        )}
       </button>
       <Dialog
         open={open}

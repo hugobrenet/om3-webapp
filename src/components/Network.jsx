@@ -8,6 +8,7 @@ import {UsageBar} from "../ui/components/UsageBar";
 import {usePanelSearch} from "../app/panel-search";
 import {NetworkDetailPanel} from "./RecordPanels";
 import {NetworkWizard} from "./NetworkWizard";
+import {useNetworkChanges} from "./NetworkPanel";
 import {Button} from "../ui/components/Button";
 import {PlusIcon} from "../ui/icons";
 import {useGrants} from "../hooks/useGrants";
@@ -75,9 +76,11 @@ const Network = () => {
         }
     }, []);
 
+    // Read at first, then again as the networks or the cluster configuration change.
+    const changes = useNetworkChanges();
     useEffect(() => {
         void fetchNetworks();
-    }, [fetchNetworks]);
+    }, [fetchNetworks, changes]);
 
     /** A network deleted: its panel closed, the list read until it no longer has it. */
     const deleted = async (name) => {

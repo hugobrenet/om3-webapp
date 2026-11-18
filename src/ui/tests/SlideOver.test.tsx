@@ -73,6 +73,8 @@ describe("SlideOver", () => {
     // Under the navbar, which stays in sight, down to the bottom of the window.
     expect(panel).toHaveClass("fixed", "top-(--navbar-height)", "bottom-0");
     expect(panel).not.toHaveClass("inset-y-0");
+    // Focused by code to hold the keyboard: no focus ring framing it.
+    expect(panel).toHaveClass("outline-none");
     expect(screen.getByRole("heading", { name: "node-1" })).toBeInTheDocument();
   });
 

@@ -13,6 +13,7 @@ import {Alert} from "../ui/components/Alert";
 import {IconButton} from "../ui/components/Button";
 import {CloseIcon} from "../ui/icons";
 import {explainedItems} from "../app/action-menu";
+import {pacedFetch} from "../services/paced-fetch.js";
 
 /** How long a feedback message stays, as the snackbar it replaces. */
 const FEEDBACK_DURATION_MS = 4000;
@@ -29,7 +30,6 @@ const actionIcon = ({icon, color}) => (
 );
 
 const selectObjectStatus = (state) => state.objectStatus;
-const selectRemoveObject = (state) => state.removeObject;
 
 /**
  * The objects acted on alone, never swept along with others by a select all or the
@@ -44,17 +44,54 @@ const actedOn = (objects) => objects.length > 1 ? objects.filter((obj) => !isAlo
 /** Whether an object takes the action: its kind does (a vol no switch, a cfg no start). */
 const takes = (objectName, action) => isActionAllowedForSelection(action, [objectName]);
 
-/** The frozen state an action gives an object at once, before the daemon says it. */
-const updateFrozenStatusOptimistic = (objectName, newFrozenValue) => {
-    const store = useEventStore.getState();
-    const currentStatus = store.objectStatus[objectName];
-    if (currentStatus) {
-        store.setObjectStatuses({
-            ...store.objectStatus,
-            [objectName]: {...currentStatus, frozen: newFrozenValue},
-        });
-    }
-};
+/** How often the changes an action on a selection makes to the page are applied, gathered. */
+export const APPLY_EVERY_MS = 250;
+
+/**
+ * What an action on a selection changes at once in what the page shows, before the
+ * daemon says it: an object deleted dropped, one frozen or thawed marked so. Gathered,
+ * applied together every APPLY_EVERY_MS and at the end (`apply`): applied as each
+ * answer came, hundreds of answers arriving together drew the list as many times in
+ * a row, React taking it for an update loop (#185) and the object whose answer it
+ * was said refused, deleted all the same.
+ */
+function pageChanges() {
+    const deleted = [];
+    const frozen = new Map();
+    let timer = null;
+    const apply = () => {
+        if (timer !== null) clearTimeout(timer);
+        timer = null;
+        try {
+            const store = useEventStore.getState();
+            const marked = [...frozen].filter(([name]) => store.objectStatus[name]);
+            frozen.clear();
+            if (marked.length > 0) {
+                const next = {...store.objectStatus};
+                for (const [name, value] of marked) next[name] = {...next[name], frozen: value};
+                store.setObjectStatuses(next);
+            }
+            if (deleted.length > 0) store.removeObjects(deleted.splice(0));
+        } catch (error) {
+            // What the page shows ahead of the daemon only: its events say it all the same.
+            logger.error("Failed to show the outcome of an action on the selection:", error);
+        }
+    };
+    const later = () => {
+        if (timer === null) timer = setTimeout(apply, APPLY_EVERY_MS);
+    };
+    return {
+        deleted: (objectName) => {
+            deleted.push(objectName);
+            later();
+        },
+        frozen: (objectName, value) => {
+            frozen.set(objectName, value);
+            later();
+        },
+        apply,
+    };
+}
 
 /**
  * The actions on the objects selected in a list, as the Objects page offers them:
@@ -66,7 +103,6 @@ const updateFrozenStatusOptimistic = (objectName, newFrozenValue) => {
 export function useObjectBulkActions({selectedObjects, onDone}) {
     const {t} = useTranslation();
     const objectStatus = useEventStore(selectObjectStatus);
-    const removeObject = useEventStore(selectRemoveObject);
     const [pendingAction, setPendingAction] = useState(null);
     const [snackbar, setSnackbar] = useState({open: false, message: "", severity: "info"});
 
@@ -106,6 +142,7 @@ export function useObjectBulkActions({selectedObjects, onDone}) {
         const targets = selected.filter((obj) => takes(obj, action));
         selected.filter((obj) => !targets.includes(obj))
             .forEach((obj) => refuse(obj, t("actionTray.reasons.notForKind", {kind: parseObjectPath(obj).kind})));
+        const changes = pageChanges();
         const promises = targets.map(async (objectName) => {
             const rawObj = objectStatus[objectName];
             if (!rawObj) {
@@ -122,7 +159,8 @@ export function useObjectBulkActions({selectedObjects, onDone}) {
             }
             const {url, body} = actionRequest({path: objectName, action, options});
             try {
-                const response = await fetch(url, {
+                // Paced, refused for asking too often asked again: an action on hundreds of objects loses none.
+                const response = await pacedFetch(url, {
                     method: "POST",
                     headers: {Authorization: `Bearer ${token}`, "Content-Type": "application/json"},
                     ...(body === undefined ? {} : {body}),
@@ -134,25 +172,22 @@ export function useObjectBulkActions({selectedObjects, onDone}) {
                     return;
                 }
                 await trackResponse(response, {action, subject: objectName, path: objectName});
-                if (action === "freeze") {
-                    updateFrozenStatusOptimistic(objectName, "frozen");
-                } else if (action === "unfreeze") {
-                    updateFrozenStatusOptimistic(objectName, "unfrozen");
-                } else if (action === "delete") {
-                    removeObject(objectName);
-                }
+                if (action === "freeze") changes.frozen(objectName, "frozen");
+                else if (action === "unfreeze") changes.frozen(objectName, "unfrozen");
+                else if (action === "delete") changes.deleted(objectName);
             } catch (error) {
                 logger.error(`Failed to execute ${action} on ${objectName}:`, error);
                 refuse(objectName, error.message);
             }
         });
         await Promise.all(promises);
+        changes.apply();
 
         forceFlush();
 
         onDone?.();
         setPendingAction(null);
-    }, [pendingAction, selectedObjects, objectStatus, removeObject, notify, onDone, t]);
+    }, [pendingAction, selectedObjects, objectStatus, notify, onDone, t]);
 
     // Kind-limited actions (svc-only enable / disable) are offered when the whole selection is of that kind.
     const items = useMemo(() => {

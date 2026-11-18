@@ -23,7 +23,7 @@ vi.mock('../../hooks/useEventStore', async (importOriginal) => {
             'b/svc/three': {node1: {avail: 'up'}},
         },
         instanceMonitor: {},
-        removeObject: vi.fn(),
+        removeObjects: vi.fn(),
         setObjectStatuses: vi.fn(),
     };
     const useEventStore = vi.fn((selector) => selector(state));

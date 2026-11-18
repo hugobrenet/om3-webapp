@@ -11,6 +11,7 @@ import NetworkDetails from "./NetworkDetails";
 import {NetworkConfig, NetworkOverview} from "./NetworkPanel";
 import {PoolConfig, PoolOverview, PoolVolumes} from "./PoolPanel";
 import {StoreConfig, StoreOverview, StoreSnapshots} from "./StorePanel";
+import {ArrayConfig, ArrayOverview} from "./ArrayPanel";
 import {storeSource} from "../app/store-config";
 import {NamespaceConfig, NamespaceUsage} from "./NamespacePanel";
 import {NamespaceClaims} from "./NamespaceClaims";
@@ -324,6 +325,33 @@ export function StoreDetailPanel({name, tab, onTabChange, onClose, onDeleted}) {
                 : active === "config"
                     ? <StoreConfig key={name} name={name} onDeleted={onDeleted ?? onClose}/>
                     : <StoreOverview key={name} name={name}/>)}
+        </RecordPanel>
+    );
+}
+
+/**
+ * A storage array: what it is, where it is reached, the pools on it; its section of
+ * the cluster configuration. A tab each, the tab in the URL, as for the other records.
+ * `onDeleted`, the array deleted, the panel closed by its page.
+ */
+export function ArrayDetailPanel({name, tab, onTabChange, onClose, onDeleted}) {
+    const {t} = useTranslation();
+    const tabs = ["overview", "config"].map((key) => ({key, label: t(`arrays.panel.tabs.${key}`)}));
+    return (
+        <RecordPanel
+            open={name !== undefined}
+            kind="array"
+            recordId={name}
+            title={name ?? ""}
+            onClose={onClose}
+            tabs={tabs}
+            tab={tab}
+            onTabChange={onTabChange}
+            size="wide"
+        >
+            {(active) => (active === "config"
+                ? <ArrayConfig key={name} name={name} onDeleted={onDeleted ?? onClose}/>
+                : <ArrayOverview key={name} name={name}/>)}
         </RecordPanel>
     );
 }

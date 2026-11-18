@@ -10,12 +10,12 @@ import i18n from '../../i18n';
 // ── Hoisted mock variables ─────────────────────────────────────────────
 const {
     mockNavigate,
-    mockRemoveObject,
+    mockRemoveObjects,
     mockSetObjectStatuses,
     mockForceFlush,
 } = vi.hoisted(() => ({
     mockNavigate: vi.fn(),
-    mockRemoveObject: vi.fn(),
+    mockRemoveObjects: vi.fn(),
     mockSetObjectStatuses: vi.fn(),
     mockForceFlush: vi.fn(),
 }));
@@ -132,7 +132,7 @@ const defaultState = {
         'node1:test-ns/svc/test2': {state: 'failed', global_expect: 'none'},
         'node2:root/svc/test3': {state: 'idle', global_expect: 'started'},
     },
-    removeObject: mockRemoveObject,
+    removeObjects: mockRemoveObjects,
     setObjectStatuses: mockSetObjectStatuses,
 };
 
@@ -186,7 +186,7 @@ const setup = (customState = {}, locationSearch = '', mediaQuery = true, {fetch}
 
     mockForceFlush.mockClear();
     mockNavigate.mockClear();
-    mockRemoveObject.mockClear();
+    mockRemoveObjects.mockClear();
     mockSetObjectStatuses.mockClear();
 
     const RouterSearch = () => <span data-testid="router-search">{decodeURIComponent(useRouterLocation().search)}</span>;
@@ -307,7 +307,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     originalGetItem = Storage.prototype.getItem;
     Storage.prototype.getItem = vi.fn().mockReturnValue('mock-token');
-    mockRemoveObject.mockClear();
+    mockRemoveObjects.mockClear();
     mockSetObjectStatuses.mockClear();
     vi.mocked(useMediaQuery).mockReset();
     useActionTracker.setState({tracked: [], revealed: 0});
@@ -1340,8 +1340,27 @@ describe('Objects Component', () => {
                     expect.any(Object)
                 )
             );
-            expect(mockRemoveObject).toHaveBeenCalledWith('test-ns/svc/test1');
+            // Dropped from the page with the others deleted at once: one change of the store.
+            expect(mockRemoveObjects).toHaveBeenCalledWith(['test-ns/svc/test1']);
             expect(mockForceFlush).toHaveBeenCalled();
+        });
+
+        test('the objects deleted together leave the page in one change, not one each', async () => {
+            setup();
+            await waitForLoad();
+            selectRow('test-ns/svc/test1');
+            selectRow('test-ns/svc/test2');
+            selectRow('test-ns/svc/test4');
+            openActionsMenu();
+            await clickMenuItem('Delete');
+            await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+            fireEvent.click(screen.getByLabelText(/Confirm configuration loss/i));
+            fireEvent.click(screen.getByLabelText(/Confirm clusterwide orchestration/i));
+            fireEvent.click(screen.getByRole('button', {name: /Delete/i}));
+            await waitFor(() => expect(mockForceFlush).toHaveBeenCalled());
+            expect(mockRemoveObjects).toHaveBeenCalledTimes(1);
+            expect([...mockRemoveObjects.mock.calls[0][0]].sort())
+                .toEqual(['test-ns/svc/test1', 'test-ns/svc/test2', 'test-ns/svc/test4']);
         });
 
         test('an action refused is said in the actions tray, with its status', async () => {

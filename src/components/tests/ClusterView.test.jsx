@@ -364,11 +364,12 @@ describe('ClusterView', () => {
         expect([...ring.querySelectorAll('[data-arc]')].map((a) => a.getAttribute('data-arc'))).toEqual(['down', 'warn', 'quiet', 'ok']);
         // The resource down on a passive node apart, gray, as Problems only leaves it out: every one down counted.
         expect(labels(ring)).toEqual(['down 1', 'warn 1', 'down, no issue 1', 'ok 3']);
-        // The problems on the resources page filtered so; every one down, of no issue among them; the others, which no filter says, no badge.
+        // The problems on the resources page filtered so; every one down, of no issue among them; the others by their statuses.
         expect(within(ring).getByRole('link', {name: 'Open the page filtered on down: 1'})).toHaveAttribute('href', '/resources?status=down&problems=1');
         expect(within(ring).getByRole('link', {name: 'Open the page filtered on warn: 1'})).toHaveAttribute('href', '/resources?status=warn&problems=1');
         expect(within(ring).getByRole('link', {name: 'Open the page filtered on down, no issue: 1'})).toHaveAttribute('href', '/resources?status=down&reason=optional%2Cdisabled%2Cstopped%2Cpassive%2Cunused');
-        expect(within(ring).getAllByRole('link')).toHaveLength(3);
+        expect(within(ring).getByRole('link', {name: 'Open the page filtered on ok: 3'})).toHaveAttribute('href', '/resources?status=up');
+        expect(within(ring).getAllByRole('link')).toHaveLength(4);
         unmount();
 
         resourcesFail = true;
