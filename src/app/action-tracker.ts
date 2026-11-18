@@ -129,6 +129,13 @@ const update = (id: string, change: Partial<Tracked>) => {
 
 const isLive = (id: string) => useActionTracker.getState().tracked.some((t) => t.id === id);
 
+/** Kept and not ended yet: an orchestration its end event ended is read no more. */
+const isRunning = (id: string) => useActionTracker.getState().tracked.some((t) => t.id === id && t.state === "running");
+
+/** The orchestration of id `orchestrationId` tracked, if it is. */
+const followed = (orchestrationId: string) =>
+  useActionTracker.getState().tracked.find((t) => t.kind === "orchestration" && t.followedId === orchestrationId);
+
 const toState = (state: string | undefined): TrackState =>
   state === "running" || state === "succeeded" || state === "failed" || state === "aborted" || state === "refused"
     ? state
@@ -337,7 +344,7 @@ async function waitEnd<T extends { state: string }>(
   // Queued, its monitor has yet to read it: unknown by its id until then.
   let unseenSince = queued ? Date.now() : null;
   for (;;) {
-    if (!isLive(id)) return { lost: "" };
+    if (!isRunning(id)) return { lost: "" };
     try {
       // Paced: hundreds of actions followed at once stay within what the daemon takes.
       const response = await read();
@@ -406,6 +413,8 @@ async function followOrchestration(id: string, orchestrationId: string, node: st
   await stepsLoop;
   if (!isLive(id)) return;
   await refreshSteps();
+  // Ended meanwhile by the event saying so (observeOrchestration).
+  if (!isRunning(id)) return;
   if ("lost" in end) {
     update(id, { state: "unknown", error: end.lost || undefined, endedAt: Date.now() });
     return;
@@ -465,6 +474,13 @@ export function trackAccepted(
   const orchestrationId = body.orchestration_id;
   const execId = body.exec_id;
   if (!orchestrationId && !execId) return;
+  // Seen first in the events, as every orchestration of the cluster is: said in the
+  // words of the action asked, followed already.
+  const seen = orchestrationId ? followed(orchestrationId) : undefined;
+  if (seen) {
+    update(seen.id, { action, subject, ...(path === undefined ? {} : { path }) });
+    return;
+  }
   sequence += 1;
   const id = `${String(Date.now())}-${String(sequence)}`;
   const answering = body.node || node || "localhost";
@@ -510,9 +526,20 @@ export function trackRefused({
   orchestrationId?: string;
   node?: string;
 }) {
+  const recorded = orchestrationId !== undefined && orchestrationId !== "" && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(orchestrationId);
+  // Seen first in the events: said in the words of the action asked.
+  const seen = recorded ? followed(orchestrationId) : undefined;
+  if (seen) {
+    update(seen.id, {
+      action,
+      ...(label === undefined ? {} : { label }),
+      subject,
+      ...(seen.state === "running" ? { state: "refused" as const, error: reason || undefined, endedAt: Date.now() } : {}),
+    });
+    return;
+  }
   sequence += 1;
   const now = Date.now();
-  const recorded = orchestrationId !== undefined && orchestrationId !== "" && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(orchestrationId);
   const refused: Tracked = {
     id: `${String(now)}-${String(sequence)}`,
     action,
@@ -772,5 +799,136 @@ export async function acceptedBody(response: Response): Promise<unknown> {
     return await response.clone().json();
   } catch {
     return null;
+  }
+}
+
+/** The action an orchestration is for, by the state it expects (global_expect, expect). */
+export function expectAction(expect: string | undefined | null): string {
+  if (!expect) return "";
+  if (expect.startsWith("placed@")) return "switch";
+  const actions: Record<string, string> = {
+    aborted: "abort",
+    deleted: "delete",
+    drained: "drain",
+    frozen: "freeze",
+    placed: "giveback",
+    provisioned: "provision",
+    purged: "purge",
+    resized: "scale",
+    restarted: "restart",
+    started: "start",
+    stopped: "stop",
+    thawed: "unfreeze",
+    unfrozen: "unfreeze",
+    unprovisioned: "unprovision",
+    upgraded: "upgrade",
+  };
+  return actions[expect] ?? expect;
+}
+
+/** An orchestration event of the daemon, of an object (path) or a node. */
+export interface OrchestrationEvent {
+  id?: string;
+  node?: string;
+  path?: string;
+  expect?: string;
+  global_expect?: string | null;
+  aborted?: boolean;
+  failed?: boolean;
+  error?: string;
+  reason?: string;
+}
+
+/**
+ * Every orchestration of the cluster in the tray, not only those asked from this
+ * page: one accepted, asked from another page, by om, by another user, followed as
+ * the others (`Object|NodeOrchestrationAccepted`); its end said as soon as the event
+ * says it (`…End`, `…Refused`), the reads of it, a user the daemon lets read none,
+ * not waited for. Once each, whichever of the event and the answer of this page's
+ * action comes first.
+ */
+export function observeOrchestration(kind: string, event: OrchestrationEvent) {
+  const orchestrationId = event.id;
+  if (!orchestrationId) return;
+  const seen = followed(orchestrationId);
+  const action = expectAction(event.expect ?? event.global_expect);
+  const subject = event.path || event.node || "";
+  if (kind.endsWith("OrchestrationAccepted")) {
+    if (!seen) follow({ orchestrationId, action, subject, node: event.node, path: event.path });
+    return;
+  }
+  if (kind.endsWith("OrchestrationRefused")) {
+    if (!seen) trackRefused({ action, subject, reason: event.reason ?? "", orchestrationId, node: event.node });
+    else if (seen.state === "running") update(seen.id, { state: "refused", error: event.reason || undefined, endedAt: Date.now() });
+    return;
+  }
+  if (kind.endsWith("OrchestrationEnd") && seen?.state === "running") {
+    const state: TrackState = event.aborted ? "aborted" : event.failed ? "failed" : "succeeded";
+    update(seen.id, { state, error: event.error || undefined, queued: false, endedAt: Date.now() });
+    lingerIfSucceeded(seen.id);
+  }
+}
+
+/** An orchestration not asked from this page, followed from now on. */
+function follow({
+  orchestrationId,
+  action,
+  subject,
+  node,
+  path,
+  startedAt = Date.now(),
+}: {
+  orchestrationId: string;
+  action: string;
+  subject: string;
+  node?: string;
+  path?: string;
+  startedAt?: number;
+}) {
+  sequence += 1;
+  const id = `${String(Date.now())}-${String(sequence)}`;
+  // Any node answers for an object's: the one accepting it, else this one.
+  const answering = node || "localhost";
+  const entry: Tracked = {
+    id,
+    action,
+    subject,
+    kind: "orchestration",
+    followedId: orchestrationId,
+    node: answering,
+    ...(path ? { path } : {}),
+    state: "running",
+    startedAt,
+    steps: [],
+  };
+  useActionTracker.setState((s) => ({ tracked: withNew(entry, s.tracked) }));
+  void followOrchestration(id, orchestrationId, answering, false, path || undefined);
+}
+
+/**
+ * The orchestrations running when the events start, which they will not say were
+ * accepted: read from the daemon (root only; refused, the events alone).
+ */
+export async function followRunningOrchestrations() {
+  try {
+    const response = await pacedFetch(daemonUrl("localhost", "orchestration?state=running"), { headers: headers() });
+    if (!response.ok) return;
+    const body = (await response.json()) as {
+      items?: (OrchestrationItem & { node?: string; path?: string; expect?: string; started_at?: string })[];
+    };
+    for (const item of body.items ?? []) {
+      if (!item.orchestration_id || item.state !== "running" || followed(item.orchestration_id)) continue;
+      const started = item.started_at ? Date.parse(item.started_at) : NaN;
+      follow({
+        orchestrationId: item.orchestration_id,
+        action: expectAction(item.expect),
+        subject: item.path || item.node || "",
+        node: item.node,
+        path: item.path,
+        ...(Number.isNaN(started) ? {} : { startedAt: started }),
+      });
+    }
+  } catch {
+    // The events say the next ones.
   }
 }

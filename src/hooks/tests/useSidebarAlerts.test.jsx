@@ -37,6 +37,12 @@ vi.mock('event-source-polyfill', () => ({
     }),
 }));
 vi.mock('../../utils/logger.js', () => ({default: {warn: vi.fn(), error: vi.fn(), debug: vi.fn(), info: vi.fn()}}));
+// The tray it hands the orchestrations to, tested with the tracker.
+const {observeOrchestration, followRunningOrchestrations} = vi.hoisted(() => ({
+    observeOrchestration: vi.fn(),
+    followRunningOrchestrations: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('../../app/action-tracker', () => ({observeOrchestration, followRunningOrchestrations}));
 
 describe('objectsAlert', () => {
     test('none while no actor is down and no object warns', () => {
@@ -202,6 +208,30 @@ describe('useSidebarAlerts', () => {
             expect(sources[0].url).toContain(`filter=${filter}`);
         }
         expect(sources[0].options.headers.Authorization).toBe('Bearer tok');
+    });
+
+    test('hands every orchestration of the cluster to the actions tray, those running read once open', async () => {
+        const {result} = renderHook(() => useSidebarAlerts());
+        for (const kind of ['Object', 'Node']) {
+            for (const event of ['Accepted', 'End', 'Refused']) {
+                expect(sources[0].url).toContain(`filter=${kind}Orchestration${event}`);
+            }
+        }
+        act(() => {
+            sources[0].onopen();
+        });
+        expect(followRunningOrchestrations).toHaveBeenCalledTimes(1);
+        const accepted = {id: 'o1', node: 'n1', path: 'ns/svc/a', global_expect: 'stopped'};
+        act(() => {
+            sources[0].emit('ObjectOrchestrationAccepted', accepted);
+            sources[0].emit('NodeOrchestrationEnd', {id: 'o2', node: 'n1', expect: 'frozen'});
+        });
+        await flush();
+        expect(observeOrchestration).toHaveBeenCalledWith('ObjectOrchestrationAccepted', accepted);
+        expect(observeOrchestration).toHaveBeenCalledWith('NodeOrchestrationEnd', {id: 'o2', node: 'n1', expect: 'frozen'});
+        // Nothing of the menu's: no object, no node from them.
+        expect(result.current['objects-any'].alert).toBeNull();
+        expect(result.current.nodes.alert).toBeNull();
     });
 
     test('updates the alerts from the events, without any user action', async () => {

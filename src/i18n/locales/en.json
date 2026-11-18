@@ -2515,6 +2515,8 @@
     "running_other": "{{count}} running",
     "ended_one": "{{count}} ended",
     "ended_other": "{{count}} ended",
+    "failed_one": "{{count}} failed",
+    "failed_other": "{{count}} failed",
     "clear": "Clear the ended actions",
     "dismiss": "Dismiss {{action}} on {{subject}}",
     "steps": "The runs of {{action}} on the nodes",
