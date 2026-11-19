@@ -1363,6 +1363,33 @@ describe('Objects Component', () => {
                 .toEqual(['test-ns/svc/test1', 'test-ns/svc/test2', 'test-ns/svc/test4']);
         });
 
+        test('a slow action leaves the next selection and its dialog alone when it ends', async () => {
+            setup();
+            await waitForLoad();
+            let answer;
+            global.fetch = vi.fn(() => new Promise((resolve) => {
+                answer = resolve;
+            }));
+            selectRow('test-ns/svc/test1');
+            openActionsMenu();
+            await clickMenuItem('Restart');
+            await confirmDialog();
+            await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+            // The selection let go as the action is confirmed.
+            await waitFor(() => expect(screen.queryByText('1 selected')).not.toBeInTheDocument());
+            // Another object ticked, another action chosen, while the first still runs.
+            selectRow('test-ns/svc/test2');
+            openActionsMenu();
+            await clickMenuItem('Stop');
+            await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+            answer({ok: true, clone: () => ({json: async () => ({orchestration_id: 'o1', node: 'node1'})})});
+            await waitFor(() => expect(tray()).toEqual([['restart', 'test-ns/svc/test1', 'running', null]]));
+            await waitFor(() => expect(mockForceFlush).toHaveBeenCalled());
+            // The first ended: the second dialog and selection kept.
+            expect(screen.getByRole('dialog')).toBeInTheDocument();
+            expect(screen.getByText('1 selected')).toBeInTheDocument();
+        });
+
         test('an action refused is said in the actions tray, with its status', async () => {
             setup();
             global.fetch = vi.fn(() => Promise.resolve({ok: false, status: 500}));

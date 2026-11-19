@@ -133,6 +133,10 @@ export function useObjectBulkActions({selectedObjects, onDone}) {
         }
         // What comes of each object, accepted, refused or left alone, the actions tray says.
         const objectsToProcess = pendingAction?.target ? [pendingAction.target] : selectedObjects;
+        // The selection let go as the action is confirmed, its dialog closing (ActionDialogManager):
+        // not once the requests end, a burst on hundreds of objects lasting, the user meanwhile
+        // ticking others and opening another dialog, both then lost.
+        onDone?.();
         const refuse = (objectName, reason) => trackRefused({action, subject: objectName, reason});
         const selected = actedOn(objectsToProcess);
         objectsToProcess.filter((obj) => !selected.includes(obj))
@@ -184,9 +188,6 @@ export function useObjectBulkActions({selectedObjects, onDone}) {
         changes.apply();
 
         forceFlush();
-
-        onDone?.();
-        setPendingAction(null);
     }, [pendingAction, selectedObjects, objectStatus, notify, onDone, t]);
 
     // Kind-limited actions (svc-only enable / disable) are offered when the whole selection is of that kind.
