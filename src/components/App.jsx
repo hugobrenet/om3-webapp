@@ -159,8 +159,11 @@ const OidcInitializer = ({children, authInfo}) => {
         authDispatch?.({type: SetAccessToken, data: null});
         localStorage.removeItem('authToken');
         localStorage.removeItem('tokenExpiration');
+        // The user the UserManager stores forgotten too: else the next sign-in, maybe
+        // another's, finds it still valid and runs on with its token.
+        userManager?.removeUser?.().catch((err) => logger.warn('removeUser failed:', err));
         navigateRef.current('/auth-choice', {replace: true});
-    }, [authDispatch]);
+    }, [authDispatch, userManager]);
 
     /*
      * Renews the access token with the refresh token. Only the provider refusing it

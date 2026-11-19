@@ -117,6 +117,7 @@ const mockAuthState = {user: null, isAuthenticated: false, authChoice: null, aut
 let mockUserManager = {
     getUser: vi.fn(() => Promise.resolve(null)),
     signinSilent: vi.fn(() => Promise.resolve(null)),
+    removeUser: vi.fn(() => Promise.resolve()),
     events: {
         addUserLoaded: vi.fn(),
         addAccessTokenExpiring: vi.fn(),
@@ -621,6 +622,7 @@ describe('App Component', () => {
             await mockUserManager.events.addAccessTokenExpired.mock.calls[0][0]();
         });
         expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('authToken');
+        expect(mockUserManager.removeUser).toHaveBeenCalled();
         expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
     });
 
@@ -630,6 +632,16 @@ describe('App Component', () => {
         await waitFor(() => expect(mockUserManager.events.addSilentRenewError).toHaveBeenCalled());
         act(() => mockUserManager.events.addSilentRenewError.mock.calls[0][0]({error: 'invalid_grant'}));
         await waitFor(() => expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('authToken'));
+        expect(mockUserManager.removeUser).toHaveBeenCalled();
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true}));
+    });
+
+    test('a session ended survives a failing removeUser', async () => {
+        setupOidcAuth();
+        mockUserManager.removeUser.mockRejectedValueOnce(new Error('storage'));
+        renderApp(['/objects']);
+        await waitFor(() => expect(mockUserManager.events.addSilentRenewError).toHaveBeenCalled());
+        act(() => mockUserManager.events.addSilentRenewError.mock.calls[0][0]({error: 'invalid_grant'}));
         await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true}));
     });
 
