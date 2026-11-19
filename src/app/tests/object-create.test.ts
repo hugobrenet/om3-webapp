@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { objectPath, pathErrors, withId } from "../object-create";
+import { knownPath, objectPath, pathErrors, withId } from "../object-create";
 
 describe("the path of a new object, as om checks it", () => {
   test("a valid path has no error, the root namespace by default", () => {
@@ -44,6 +44,17 @@ describe("objectPath", () => {
     ["ns1", "nscfg", "", "ns1/nscfg/namespace"],
   ])("%s %s %s is %s", (namespace, kind, name, path) => {
     expect(objectPath(namespace, kind, name)).toBe(path);
+  });
+});
+
+describe("knownPath", () => {
+  test.each([
+    ["ns1/", "ns1/nscfg/namespace"],
+    ["/", "nscfg/namespace"],
+    ["ns1/svc/web", "ns1/svc/web"],
+    ["web", "web"],
+  ])("%s is %s", (key, path) => {
+    expect(knownPath(key)).toBe(path);
   });
 });
 

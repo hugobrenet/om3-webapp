@@ -224,6 +224,26 @@ describe('CreateObject', () => {
         expect(posts()[0].body).toMatch(/^\[DEFAULT\]\nid = [0-9a-f-]+\n$/);
     });
 
+    test('a namespace configuration that exists is said, listed by om as its namespace and a slash', () => {
+        // ns1/ the configuration of ns1, / the one of root.
+        const paths = ['ns1/svc/web', 'ns1/', '/'];
+        const {unmount} = open({defaultNamespace: 'ns1', paths});
+        fireEvent.click(card('[data-kind=nscfg]'));
+        expect(screen.getByText('ns1/nscfg/namespace already exists.')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Free')).toBeNull();
+        next();
+        expect(screen.queryByRole('group', {name: 'Start from'})).toBeNull();
+        unmount();
+        const root = open({defaultNamespace: 'root', paths});
+        fireEvent.click(card('[data-kind=nscfg]'));
+        expect(screen.getByText('nscfg/namespace already exists.')).toBeInTheDocument();
+        root.unmount();
+        // A namespace with none: free.
+        open({defaultNamespace: 'ns2', paths});
+        fireEvent.click(card('[data-kind=nscfg]'));
+        expect(screen.getByLabelText('Free')).toBeInTheDocument();
+    });
+
     test('a namespace configuration takes the name om gives it, in a namespace new', async () => {
         open({defaultNamespace: 'ns2'});
         fireEvent.click(card('[data-kind=nscfg]'));

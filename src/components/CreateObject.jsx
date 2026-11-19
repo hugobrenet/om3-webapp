@@ -25,6 +25,7 @@ import {
     CREATABLE_KINDS,
     NSCFG_NAME,
     PROVISIONABLE_KINDS,
+    knownPath,
     objectPath,
     pathErrors,
     newId,
@@ -337,11 +338,17 @@ const CreateObject = ({onClose, defaultKind = "svc", defaultNamespace = "root", 
 
     const path = objectPath(namespace.trim(), kind, name.trim());
     const errors = pathErrors(namespace.trim(), kind, name.trim());
-    const exists = paths.includes(path);
+    // A namespace configuration listed `<namespace>/`: known as the path it is made at.
+    const known = useMemo(() => new Set(paths.map(knownPath)), [paths]);
+    const exists = known.has(path);
+    const existsError = exists ? t("createObject.errors.exists", {path}) : null;
+    // A namespace configuration's name is om's: one that exists said on its namespace, the one to change.
     const nameError = errors.name
         ? t(`createObject.errors.${errors.name}`)
-        : exists ? t("createObject.errors.exists", {path}) : null;
-    const namespaceError = errors.namespace ? t(`createObject.errors.${errors.namespace}`) : null;
+        : kind === "nscfg" ? null : existsError;
+    const namespaceError = errors.namespace
+        ? t(`createObject.errors.${errors.namespace}`)
+        : kind === "nscfg" ? existsError : null;
     const invalid = nameError !== null || namespaceError !== null;
     // Its kind changed: the env section of the design, for a service or a volume only.
     const pickKind = (next) => {
@@ -678,7 +685,7 @@ const CreateObject = ({onClose, defaultKind = "svc", defaultNamespace = "root", 
                         </Field>
                         <p className="flex items-center gap-1.5 text-ink-muted">
                             {t("createObject.path")} <code className="font-mono text-ink">{path}</code>
-                            {!invalid && name.trim() !== "" && <CheckIcon aria-label={t("createObject.free")} className="h-3.5 w-3.5 text-state-up"/>}
+                            {!invalid && (kind === "nscfg" || name.trim() !== "") && <CheckIcon aria-label={t("createObject.free")} className="h-3.5 w-3.5 text-state-up"/>}
                         </p>
                         {datastore && <p className="text-ink-muted">{t("createObject.datastoreHint")}</p>}
                     </>
