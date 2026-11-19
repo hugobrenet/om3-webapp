@@ -13,7 +13,7 @@ import {NodeActionDialog} from "./NodeActionDialog";
 import LogsViewer from "./LogsViewer";
 import {EventLog, NODE_EVENT_TYPES} from "./EventLogger";
 import {ConfigText} from "./ConfigText";
-import {MonitorState} from "./NodeRow";
+import {MonitorState, nodeReports} from "./NodeRow";
 import {MenuButton} from "../ui/components/MenuButton";
 import {OrchestrationBadge, orchestrationOf} from "./OrchestrationBadge";
 import {OrchestrationLogsFilter} from "./OrchestrationLogsFilter";
@@ -212,9 +212,11 @@ export {matches};
  * The actions on the node, in the title bar of its panel as oc3 places them: the
  * node actions of the Nodes view, by group, each confirmed first. Freeze or unfreeze,
  * by its state. Abort is no action of the menu: the badge of the orchestration in
- * progress offers it, with its logs.
+ * progress offers it, with its logs. None for a node that reports nothing (`reports`
+ * false), dropped or not heard from yet: no action reaches it, evict included, the
+ * node itself ordered to leave.
  */
-function NodeActions({node, monitor, onOrchestrationLogs}) {
+function NodeActions({node, monitor, reports, onOrchestrationLogs}) {
     const {t} = useTranslation();
     const [pending, setPending] = useState(null);
     const {globalExpect, orchestrationId} = orchestrationOf([monitor]);
@@ -254,6 +256,7 @@ function NodeActions({node, monitor, onOrchestrationLogs}) {
                 filterLabel={t("actionMenus.filter")}
                 filterEmpty={t("actionMenus.noMatch")}
                 items={items}
+                disabled={!reports}
             />
             <NodeActionDialog
                 pending={pending}
@@ -434,7 +437,8 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
         // A masonry of its sections: side by side where the panel is wide, each whole.
         <div className="@container">
             {header.actions !== null && createPortal(
-                <NodeActions node={node} monitor={monitor} onOrchestrationLogs={onOrchestrationLogs}/>,
+                <NodeActions node={node} monitor={monitor} reports={nodeReports({status, monitor, stats})}
+                             onOrchestrationLogs={onOrchestrationLogs}/>,
                 header.actions,
             )}
             {org.editing && (

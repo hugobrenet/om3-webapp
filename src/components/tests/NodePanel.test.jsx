@@ -334,6 +334,17 @@ describe('NodeDetailPanel', () => {
         expect(useActionTracker.getState().tracked[0]).toMatchObject({state: 'succeeded', label: 'Set node.min_avail_mem = 50%'});
     });
 
+    test('a node that reports nothing offers no action, then does once it reports', async () => {
+        useEventStore.setState({nodeStatus: {}, nodeMonitor: {}, nodeStats: {}});
+        renderPanel();
+        const actions = within(panel()).getByRole('button', {name: 'Node actions'});
+        expect(actions).toBeDisabled();
+        fireEvent.click(actions);
+        expect(screen.queryByRole('menu', {name: 'Node actions'})).toBeNull();
+        act(() => useEventStore.setState({nodeStatus: {dev3n1: {agent: 'v3.0.0-rc46'}}}));
+        expect(within(panel()).getByRole('button', {name: 'Node actions'})).toBeEnabled();
+    });
+
     test('its actions stand in the title bar, an accent button the size of the close one, each confirmed then posted', async () => {
         renderPanel();
         const actions = within(panel()).getByRole('button', {name: 'Node actions'});

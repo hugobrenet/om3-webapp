@@ -38,7 +38,8 @@ const {
 }));
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
-vi.mock('../NodeRow.jsx', () => ({
+vi.mock('../NodeRow.jsx', async (importOriginal) => ({
+    ...(await importOriginal()),
     default: (props) => (
         <tr data-testid={`row-${props.nodename}`}>
             <td><input type="checkbox" aria-label={`select ${props.nodename}`} checked={props.isSelected} onChange={(e) => props.onSelect(e, props.nodename)}/>
@@ -239,6 +240,55 @@ describe('NodesTable', () => {
             expect(await screen.findByTestId('row-node-4')).toBeInTheDocument();
             expect(screen.getByTestId('row-node-1')).toBeInTheDocument();
             expect(mockRetainEventReception.mock.calls[0][1]).toContain('NodeMonitorDeleted');
+        } finally {
+            mockClusterOrder.value = null;
+        }
+    });
+
+    test('a node that reports nothing is not selected by all, nor by a range, nor acted on', async () => {
+        // node-0 and node-4, of the cluster configuration, report nothing: first and last of the list.
+        mockClusterOrder.value = ['node-0', 'node-1', 'node-2', 'node-3', 'node-4'];
+        global.fetch = vi.fn().mockResolvedValue({ok: true, json: async () => ({})});
+        try {
+            renderWithRouter(<NodesTable/>);
+            await screen.findByTestId('row-node-4');
+            const all = screen.getByRole('checkbox', {name: 'Select all nodes'});
+            fireEvent.click(all);
+            expect(screen.getByText('3 selected')).toBeInTheDocument();
+            expect(all).toBeChecked();
+            expect(screen.getByRole('checkbox', {name: 'select node-0'})).not.toBeChecked();
+            expect(screen.getByRole('checkbox', {name: 'select node-4'})).not.toBeChecked();
+            fireEvent.click(all);
+            // A range over the "?" lines: the nodes that report alone.
+            fireEvent.click(screen.getByRole('checkbox', {name: 'select node-1'}));
+            fireEvent.click(screen.getByRole('checkbox', {name: 'select node-3'}), {shiftKey: true});
+            expect(screen.getByText('3 selected')).toBeInTheDocument();
+            fireEvent.click(all);
+            fireEvent.click(all);
+            fireEvent.click(screen.getByRole('button', {name: 'Actions'}));
+            fireEvent.click(await screen.findByRole('menuitem', {name: /^Freeze$/i}));
+            fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
+            await waitFor(() => expect(actionPosts()).toHaveLength(3));
+            expect(actionPosts().map(([url]) => url).join(' ')).not.toMatch(/node-0|node-4/);
+        } finally {
+            mockClusterOrder.value = null;
+        }
+    });
+
+    test('a node selected that stops reporting leaves the selection', async () => {
+        const store = setStore();
+        const {rerender} = renderWithRouter(<NodesTable/>);
+        fireEvent.click(await screen.findByRole('checkbox', {name: 'select node-1'}));
+        fireEvent.click(screen.getByRole('checkbox', {name: 'select node-2'}));
+        expect(screen.getByText('2 selected')).toBeInTheDocument();
+        mockClusterOrder.value = ['node-1', 'node-2', 'node-3'];
+        try {
+            const {['node-2']: _s, ...nodeStatus} = store.nodeStatus;
+            const {['node-2']: _t, ...nodeStats} = store.nodeStats;
+            const {['node-2']: _m, ...nodeMonitor} = store.nodeMonitor;
+            setStore({nodeStatus, nodeStats, nodeMonitor});
+            rerender(<BrowserRouter><NodesTable/></BrowserRouter>);
+            await waitFor(() => expect(screen.getByText('1 selected')).toBeInTheDocument());
         } finally {
             mockClusterOrder.value = null;
         }

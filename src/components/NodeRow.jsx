@@ -21,7 +21,14 @@ export const monitorMark = (monitor) => {
     return {state: "warn", label: state};
 };
 
-const MONITOR_STATE_CLASS = {up: undefined, down: "text-state-down", warn: "font-semibold", unknown: "text-ink-muted"};
+/**
+ * Whether a node of the cluster reports anything: a status, a monitor or stats. One
+ * that reports nothing, dropped or not heard from yet, is a "?" line no action reaches.
+ */
+export const nodeReports = ({status, monitor, stats}) =>
+    status !== undefined || monitor !== undefined || stats !== undefined;
+
+const MONITOR_STATE_CLASS ={up: undefined, down: "text-state-down", warn: "font-semibold", unknown: "text-ink-muted"};
 
 /**
  * The node monitor state in words, styled after what it says: idle quiet, a failure
@@ -91,7 +98,7 @@ const NodeRow = ({
 
     // A node of the cluster that reports nothing, dropped or not heard from yet: a
     // "?" for each of its values, as om mon shows it; no action reaches it.
-    if (status === undefined && monitor === undefined && stats === undefined) {
+    if (!nodeReports({status, monitor, stats})) {
         const unknown = <span className="text-ink-muted">?</span>;
         const others = nodeColumns(layout).slice(2);
         return (

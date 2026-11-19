@@ -5,7 +5,7 @@ import {retainEventReception} from "../eventSourceManager";
 import useEventStore from "../hooks/useEventStore.js";
 import {useClusterNodeOrder} from "../hooks/useClusterNodeOrder";
 import {trackRefused} from "../app/action-tracker";
-import NodeRow from "../components/NodeRow.jsx";
+import NodeRow, {nodeReports} from "../components/NodeRow.jsx";
 import logger from '../utils/logger.js';
 import {URL_NODE_INFO} from "../config/apiPath.js";
 import {nodeMenuItems, postNodeAction} from "../app/node-actions";
@@ -177,7 +177,7 @@ const NodesTable = () => {
         const checked = event.target.checked;
         const shift = withShift(event);
         setSelectedNodes((prev) => {
-            const next = rangeSelect(shownNodes, prev, anchor.current, nodename, checked, shift);
+            const next = rangeSelect(selectableNodes, prev, anchor.current, nodename, checked, shift);
             anchor.current = next.anchor;
             return next.selected;
         });
@@ -290,12 +290,17 @@ const NodesTable = () => {
         facet("version", t("nodes.columns.version")),
         facet("label", t("nodes.filters.label")),
     ];
-    // A node a filter hides leaves the selection, as on the other lists.
-    const shownKey = shownNodes.join(",");
+    // The nodes a tick, a range or all select: those shown that report, a "?" line
+    // left out, as its checkbox says.
+    const selectableNodes = shownNodes.filter((node) => nodeReports({
+        status: nodeStatus[node], monitor: nodeMonitor[node], stats: nodeStats[node],
+    }));
+    // A node a filter hides, or that stops reporting, leaves the selection, as on the other lists.
+    const selectableKey = selectableNodes.join(",");
     useEffect(() => {
-        const kept = new Set(shownKey.split(","));
+        const kept = new Set(selectableKey.split(","));
         setSelectedNodes((prev) => (prev.every((node) => kept.has(node)) ? prev : prev.filter((node) => kept.has(node))));
-    }, [shownKey]);
+    }, [selectableKey]);
 
     const handleSort = (column) => {
         if (sortColumn === column) {
@@ -428,10 +433,11 @@ const NodesTable = () => {
                             <HeaderCell className="w-8">
                                 <Checkbox
                                     aria-label={t("nodes.selectAll")}
-                                    checked={shownNodes.length > 0 && selectedNodes.length === shownNodes.length}
+                                    checked={selectableNodes.length > 0 && selectedNodes.length === selectableNodes.length}
+                                    disabled={selectableNodes.length === 0}
                                     onChange={(e) =>
-                                        // All, every node the filters keep.
-                                        setSelectedNodes(e.target.checked ? shownNodes : [])
+                                        // All, every node the filters keep that reports.
+                                        setSelectedNodes(e.target.checked ? selectableNodes : [])
                                     }
                                 />
                             </HeaderCell>
