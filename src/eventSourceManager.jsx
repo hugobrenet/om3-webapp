@@ -943,6 +943,9 @@ export const createLoggerEventSource = (url, token, filters) => {
 
     // Attach cleanup function for testing
     currentLoggerEventSource._cleanup = cleanup;
+    // The events chosen, the ones logged: its address asks more (the deletions, every
+    // event of an object), not to be read back from it on a token renewed.
+    currentLoggerEventSource._filters = filters;
 
     // Store reference for cleanup
     const loggerEventSourceRef = currentLoggerEventSource;
@@ -1044,8 +1047,8 @@ export const updateLoggerEventSourceToken = (newToken) => {
 
     if (currentLoggerEventSource) {
         logger.info('🔄 Token updated, restarting Logger EventSource');
-        const currentUrl = currentLoggerEventSource.url;
-        createLoggerEventSource(currentUrl, newToken, filtersOf(currentUrl));
+        const {url, _filters} = currentLoggerEventSource;
+        createLoggerEventSource(url, newToken, _filters ?? filtersOf(url));
     }
 };
 

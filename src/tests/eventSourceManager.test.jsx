@@ -460,6 +460,18 @@ describe('eventSourceManager', () => {
             ]);
         });
 
+        test('a token updated: the event log listens to the events chosen still, not to all its address asks', () => {
+            localStorageMock.getItem.mockReturnValue('old-token');
+            // An object: its address asks every event of an object, and the deletions.
+            eventSourceManager.startLoggerReception('old-token', ['ObjectStatusUpdated'], 'ns/svc/web');
+            const listened = (source) => source.addEventListener.mock.calls.map(([type]) => type);
+            expect(listened(last())).toEqual(['ObjectStatusUpdated']);
+            expect(last().url).toContain('InstanceStatusUpdated');
+            eventSourceManager.updateLoggerEventSourceToken('new-token');
+            expect(opened().at(-1)[1].headers.Authorization).toBe('Bearer new-token');
+            expect(listened(last())).toEqual(['ObjectStatusUpdated']);
+        });
+
         test('the same claims on a stream given up on open it again', async () => {
             localStorageMock.getItem.mockReturnValue('tok');
             const release = eventSourceManager.retainEventReception('tok', ['ObjectStatusUpdated']);
