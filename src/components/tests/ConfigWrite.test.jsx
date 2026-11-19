@@ -174,11 +174,11 @@ describe('the force of a configuration write', () => {
 
         const alert = await within(dialog).findByRole('alert');
         expect(alert).toHaveTextContent(HELD.detail);
-        expect(writes().map((w) => decodeURIComponent(w.url))).toEqual([`${OBJ}/config?set=nodes=n1 n2&wait=30s`]);
+        expect(writes().map((w) => decodeURIComponent(w.url))).toEqual([`${OBJ}/config?set=DEFAULT.nodes=n1 n2&wait=30s`]);
 
         await act(() => user.click(within(alert).getByRole('button', {name: 'Write anyway (--force)'})));
         await waitFor(() => expect(writes()).toHaveLength(2));
-        expect(decodeURIComponent(writes()[1].url)).toBe(`${OBJ}/config?set=nodes=n1 n2&wait=30s&force=true`);
+        expect(decodeURIComponent(writes()[1].url)).toBe(`${OBJ}/config?set=DEFAULT.nodes=n1 n2&wait=30s&force=true`);
         await waitFor(() => expect(screen.queryByRole('heading', {name: 'Configuration design'})).toBeNull());
         expect(tray()[0]).toEqual(['Set nodes = n1 n2', 'succeeded', null]);
     });

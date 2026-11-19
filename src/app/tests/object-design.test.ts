@@ -4,6 +4,7 @@ import {
     strategyLeftovers,
   designStart,
   designChanges,
+  shownKeyword,
   designText,
   parseDesign,
   readValue,
@@ -220,15 +221,28 @@ describe("object design", () => {
     ];
     expect(designChanges(before, after)).toEqual({
       set: [
-        { keyword: "nodes", value: "n1 n2" },
+        { keyword: "DEFAULT.nodes", value: "n1 n2" },
         { keyword: "env.b", value: "2" },
         { keyword: "app#1.type", value: "forking" },
         { keyword: "app#1.start", value: "x" },
       ],
-      unset: ["orchestrate"],
+      unset: ["DEFAULT.orchestrate"],
       delete: ["fs#1"],
     });
     expect(designChanges(before, before)).toEqual({ set: [], unset: [], delete: [] });
+  });
+
+  test("a keyword of DEFAULT sent with its section, a scope with dots read by om as written; shown alone", () => {
+    // Alone, om3 would read nodes@n1.acme.com as section.option, cut where it has no dot.
+    const before = parseDesign("[DEFAULT]\nnodes@n1.acme.com = n1\n");
+    const after: DesignSection[] = [{ name: "DEFAULT", entries: [{ key: "nodes@n2.acme.com", value: "n2" }] }, { name: "env", entries: [] }];
+    expect(designChanges(before, after)).toEqual({
+      set: [{ keyword: "DEFAULT.nodes@n2.acme.com", value: "n2" }],
+      unset: ["DEFAULT.nodes@n1.acme.com"],
+      delete: [],
+    });
+    expect(shownKeyword("DEFAULT.nodes@n1.acme.com")).toBe("nodes@n1.acme.com");
+    expect(shownKeyword("fs#1.size")).toBe("fs#1.size");
   });
 
   test("the popular keywords: of its group first, then minimal, then those of any resource; offered ones alone, at most a few", () => {
