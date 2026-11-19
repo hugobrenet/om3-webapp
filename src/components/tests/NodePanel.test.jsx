@@ -10,6 +10,7 @@ import node from './fixtures/node-dev3n1.json';
 import daemon from './fixtures/daemon-dev3n1.json';
 import {useActionTracker} from '../../app/action-tracker';
 import {propertyGroups} from '../NodePanel';
+import {thresholdPct} from '../NodeMinAvail';
 import {parseLabel} from '../NodeLabels';
 
 /** What the actions tray holds, the latest first: label, subject, state, reason. */
@@ -323,6 +324,15 @@ describe('NodeDetailPanel', () => {
         fireEvent.change(field, {target: {value: '3Gi'}});
         // 3 GiB of 5.8 GiB: 51%, read as 50% at most.
         expect(dialog).toHaveTextContent('With a minimum of 50%, the node would be overloaded now.');
+        // A percentage as written, as the daemon reads it: not capped.
+        fireEvent.change(field, {target: {value: '80%'}});
+        expect(dialog).toHaveTextContent('With a minimum of 80%, the node would be overloaded now.');
+        // Not a whole percentage from 0 to 100: the daemon would set no minimum.
+        for (const refused of ['12.5%', '120%']) {
+            fireEvent.change(field, {target: {value: refused}});
+            expect(dialog).toHaveTextContent('A whole percentage from 0 to 100, as 10%, or a size, as 2Gi.');
+            expect(within(dialog).getByRole('button', {name: 'Save'})).toBeDisabled();
+        }
         fireEvent.change(field, {target: {value: 'lots'}});
         expect(within(dialog).getByRole('button', {name: 'Save'})).toBeDisabled();
         fireEvent.change(field, {target: {value: '50%'}});
@@ -343,6 +353,37 @@ describe('NodeDetailPanel', () => {
         expect(screen.queryByRole('menu', {name: 'Node actions'})).toBeNull();
         act(() => useEventStore.setState({nodeStatus: {dev3n1: {agent: 'v3.0.0-rc46'}}}));
         expect(within(panel()).getByRole('button', {name: 'Node actions'})).toBeEnabled();
+    });
+
+    test('a minimum of free memory over 50% written as a percentage tints the memory, as the daemon then holds the node overloaded', async () => {
+        api.config = {items: [
+            {keyword: 'node.min_avail_mem', value: '80%', evaluated_text: '80%'},
+            {keyword: 'node.min_avail_swap', value: '', evaluated_text: '10%'},
+        ]};
+        // 60% free: over a minimum read as 50%, under the 80% the daemon holds.
+        useEventStore.setState({nodeStats: {dev3n1: {score: 63, load_15m: 0.39, mem_avail: 60, mem_total: 5920, swap_avail: 0, swap_total: 0}}});
+        renderPanel();
+        const health = within(panel()).getByRole('region', {name: 'Health'});
+        await waitFor(() => expect(health).toHaveTextContent('60% of 5.8 GiB· minimum 80%'));
+        expect(within(health).getByText('60% of 5.8 GiB')).toHaveClass('text-state-warn');
+    });
+
+    test('thresholdPct reads a minimum as the daemon does', () => {
+        // A percentage as is, never capped; a whole number from 0 to 100.
+        expect(thresholdPct('80%', 5920, 50)).toBe(80);
+        expect(thresholdPct('80', 5920, 50)).toBe(80);
+        expect(thresholdPct('0', 5920, 50)).toBe(0);
+        expect(thresholdPct('100%', 5920, 50)).toBe(100);
+        expect(thresholdPct('101%', 5920, 50)).toBeNull();
+        expect(thresholdPct('12.5%', 5920, 50)).toBeNull();
+        // A size, its share of the total, capped.
+        expect(thresholdPct('1g', 4096, 50)).toBe(25);
+        expect(thresholdPct('3g', 4096, 50)).toBe(50);
+        expect(thresholdPct('8g', 4096, 100)).toBe(100);
+        // A size of a total of 0, a node without swap: no minimum; of a total not known: none read.
+        expect(thresholdPct('1g', 0, 100)).toBe(0);
+        expect(thresholdPct('1g', undefined, 100)).toBeNull();
+        expect(thresholdPct('lots', 4096, 50)).toBeNull();
     });
 
     test('its actions stand in the title bar, an accent button the size of the close one, each confirmed then posted', async () => {

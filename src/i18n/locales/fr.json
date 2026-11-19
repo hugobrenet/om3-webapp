@@ -2869,7 +2869,7 @@
     "off": "désactivé (0)",
     "choices": "Valeurs usuelles",
     "now": "Libre actuellement : {{pct}} %.",
-    "invalid": "Un pourcentage, comme 10%, ou une taille, comme 2Gi.",
+    "invalid": "Un pourcentage entier de 0 à 100, comme 10%, ou une taille, comme 2Gi.",
     "previewOverloaded": "Avec un minimum de {{pct}} %, le nœud serait surchargé maintenant.",
     "previewFine": "Avec un minimum de {{pct}} %, le nœud ne serait pas surchargé maintenant.",
     "previewOff": "Pas de minimum : ce critère ne rend jamais le nœud surchargé.",

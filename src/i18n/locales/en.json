@@ -2869,7 +2869,7 @@
     "off": "off (0)",
     "choices": "Usual values",
     "now": "Free now: {{pct}}%.",
-    "invalid": "A percentage, as 10%, or a size, as 2Gi.",
+    "invalid": "A whole percentage from 0 to 100, as 10%, or a size, as 2Gi.",
     "previewOverloaded": "With a minimum of {{pct}}%, the node would be overloaded now.",
     "previewFine": "With a minimum of {{pct}}%, the node would not be overloaded now.",
     "previewOff": "No minimum: the node is never overloaded by it.",
