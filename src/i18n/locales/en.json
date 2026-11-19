@@ -2429,6 +2429,7 @@
       "level": "From level",
       "subsystems": "Subsystems",
       "subsystemsPlaceholder": "All of them; type to search",
+      "allSubsystems": "every subsystem",
       "suffixHint": "Type to search the known subsystems. Glob patterns too: imon:* for every object monitor, imon:prod/svc/web for one, hb:1 for a heartbeat.",
       "start": "Start",
       "stop": "Stop",

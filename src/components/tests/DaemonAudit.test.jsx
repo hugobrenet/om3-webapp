@@ -140,6 +140,8 @@ describe('DaemonAudit', () => {
         fireEvent.click(screen.getByRole('button', {name: 'Start'}));
         await waitFor(() => expect(requests).toHaveLength(1));
         expect(requests[0].url).toBe('/api/node/name/n1/daemon/audit?level=debug');
+        // Said in words, not its key.
+        expect(screen.getByRole('status')).toHaveTextContent('Auditing every subsystem, from debug');
     });
 
     test('refused while another runs: said, and taken over on demand, preempting it', async () => {

@@ -2429,6 +2429,7 @@
       "level": "À partir du niveau",
       "subsystems": "Sous-systèmes",
       "subsystemsPlaceholder": "Tous ; tapez pour chercher",
+      "allSubsystems": "tous les sous-systèmes",
       "suffixHint": "Tapez pour chercher parmi les sous-systèmes connus. Les motifs glob aussi : imon:* pour tous les moniteurs d'objet, imon:prod/svc/web pour un seul, hb:1 pour un heartbeat.",
       "start": "Démarrer",
       "stop": "Arrêter",
