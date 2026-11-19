@@ -528,14 +528,15 @@ describe('eventSourceManager', () => {
             expect(mockStore.setObjectStatuses).not.toHaveBeenCalled();
         });
 
-        test('should merge objectStatus updates in buffer preserving all fields', () => {
+        test('should keep the last objectStatus of a batch whole, a field it omits gone', () => {
             const es = createES();
             const handler = getHandler(es, 'ObjectStatusUpdated');
-            fire(handler, {path: 'obj1', object_status: {avail: 'up', frozen: false}});
+            // The whole status in each event: the second omits pool, emptied since.
+            fire(handler, {path: 'obj1', object_status: {avail: 'up', pool: 'p1'}});
             fire(handler, {path: 'obj1', object_status: {avail: 'down', provisioned: true}});
             vi.runAllTimers();
             expect(mockStore.setObjectStatuses).toHaveBeenCalledWith(expect.objectContaining({
-                obj1: expect.objectContaining({avail: 'down', frozen: false, provisioned: true}),
+                obj1: {avail: 'down', provisioned: true},
             }));
         });
 
@@ -1023,57 +1024,37 @@ describe('eventSourceManager', () => {
             }
         });
 
-        test('should keep the last instanceStatus, merge repeated buffer updates for instanceConfig, instanceMonitor, and catch-all', () => {
-            {
+        test('of two updates of one value in a batch, the last kept whole: nothing of the first, a field it omits gone', () => {
+            // Each event the whole value (object.Status, instance.Config…): the daemon
+            // omits a field once empty, the last event says it so.
+            const cases = [
+                ['ObjectStatusUpdated', (v) => ({path: 'ns/svc/obj1', node: 'n1', object_status: v}),
+                    () => expect(mockStore.setObjectStatuses).toHaveBeenCalledWith(expect.objectContaining({'ns/svc/obj1': {b: 2}}))],
+                ['InstanceStatusUpdated', (v) => ({path: 'obj1', node: 'n1', instance_status: v}),
+                    () => expect(mockStore.setInstanceStatuses).toHaveBeenCalledWith(expect.objectContaining({obj1: {n1: {b: 2}}}))],
+                ['InstanceConfigUpdated', (v) => ({path: 'obj1', node: 'n1', instance_config: v}),
+                    () => expect(mockStore.setInstanceConfig).toHaveBeenCalledWith('obj1', 'n1', {b: 2})],
+                ['InstanceMonitorUpdated', (v) => ({node: 'n1', path: 'obj1', instance_monitor: v}),
+                    () => expect(mockStore.setInstanceMonitors).toHaveBeenCalledWith(expect.objectContaining({'n1:obj1': {b: 2}}))],
+                ['NodeStatusUpdated', (v) => ({node: 'n1', node_status: v}),
+                    () => expect(mockStore.setNodeStatuses).toHaveBeenCalledWith(expect.objectContaining({n1: {b: 2}}))],
+                ['NodeMonitorUpdated', (v) => ({node: 'n1', node_monitor: v}),
+                    () => expect(mockStore.setNodeMonitors).toHaveBeenCalledWith(expect.objectContaining({n1: {b: 2}}))],
+                ['NodeStatsUpdated', (v) => ({node: 'n1', node_stats: v}),
+                    () => expect(mockStore.setNodeStats).toHaveBeenCalledWith(expect.objectContaining({n1: {b: 2}}))],
+                ['DaemonHeartbeatUpdated', (v) => ({node: 'n1', heartbeat: v}),
+                    () => expect(mockStore.setHeartbeatStatuses).toHaveBeenCalledWith(expect.objectContaining({n1: {b: 2}}))],
+            ];
+            for (const [type, event, check] of cases) {
                 const es = createES();
-                const h = getHandler(es, 'InstanceStatusUpdated');
-                // Each event the whole status: the last one, nothing of the first kept.
-                fire(h, {path: 'obj1', node: 'n1', instance_status: {a: 1}});
-                fire(h, {path: 'obj1', node: 'n1', instance_status: {b: 2}});
+                const h = getHandler(es, type);
+                fire(h, event({a: 1}));
+                fire(h, event({b: 2}));
                 eventSourceManager.forceFlush();
-                expect(mockStore.setInstanceStatuses).toHaveBeenCalledWith(
-                    expect.objectContaining({obj1: {n1: {b: 2}}})
-                );
+                check();
                 eventSourceManager.closeEventSource();
-            }
-            vi.clearAllMocks();
-            mockNow += 1_000_000;
-
-            {
-                const es = createES();
-                const h = getHandler(es, 'InstanceConfigUpdated');
-                fire(h, {path: 'obj1', node: 'n1', instance_config: {a: 1}});
-                fire(h, {path: 'obj1', node: 'n1', instance_config: {b: 2}});
-                eventSourceManager.forceFlush();
-                expect(mockStore.setInstanceConfig).toHaveBeenCalledWith('obj1', 'n1', {a: 1, b: 2});
-                eventSourceManager.closeEventSource();
-            }
-            vi.clearAllMocks();
-            mockNow += 1_000_000;
-
-            {
-                const es = createES();
-                const h = getHandler(es, 'InstanceMonitorUpdated');
-                fire(h, {node: 'n1', path: 'obj1', instance_monitor: {a: 1}});
-                fire(h, {node: 'n1', path: 'obj1', instance_monitor: {b: 2}});
-                eventSourceManager.forceFlush();
-                expect(mockStore.setInstanceMonitors).toHaveBeenCalledWith(
-                    expect.objectContaining({'n1:obj1': {a: 1, b: 2}})
-                );
-                eventSourceManager.closeEventSource();
-            }
-            vi.clearAllMocks();
-            mockNow += 1_000_000;
-
-            {
-                const es = createES();
-                const h = getHandler(es, 'NodeStatusUpdated');
-                fire(h, {node: 'n1', node_status: {a: 1}});
-                fire(h, {node: 'n1', node_status: {b: 2}});
-                eventSourceManager.forceFlush();
-                expect(mockStore.setNodeStatuses).toHaveBeenCalledWith(
-                    expect.objectContaining({n1: {a: 1, b: 2}})
-                );
+                vi.clearAllMocks();
+                mockNow += 1_000_000;
             }
         });
 
