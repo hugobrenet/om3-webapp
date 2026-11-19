@@ -68,6 +68,29 @@ describe('ContainerLogs', () => {
         expect(reads().at(-1)).toContain('/node/name/n1/');
     });
 
+    test('the node changing on its own, the instances known: the lines of the first dropped, the last lines of the other read', async () => {
+        answers(ok(['stopped on n1\n'], {ends: true}), ok(['running on n2\n']));
+        // Opened before the status of the instances: up nowhere yet, the first node read.
+        const {rerender} = render(<ContainerLogs path="prod/svc/web" rid="container#1" nodes={['n1', 'n2']} upNodes={[]}/>);
+        await waitFor(() => expect(lines()).toEqual(['stopped on n1']));
+        // Up on n2, known now: read there.
+        rerender(<ContainerLogs path="prod/svc/web" rid="container#1" nodes={['n1', 'n2']} upNodes={['n2']}/>);
+        await waitFor(() => expect(lines()).toEqual(['running on n2']));
+        expect(reads().at(-1)).toBe('/api/node/name/n2/instance/path/prod/svc/web/container/log?rid=container%231&follow=true&lines=200');
+    });
+
+    test('the node changing while paused: none of its lines shown under the other, its last lines read on resuming', async () => {
+        answers(ok(['on n1\n']), ok(['on n2\n']));
+        const {rerender} = render(<ContainerLogs path="prod/svc/web" rid="container#1" nodes={['n1', 'n2']} upNodes={['n1']}/>);
+        await waitFor(() => expect(lines()).toEqual(['on n1']));
+        fireEvent.click(screen.getByRole('button', {name: 'Pause'}));
+        rerender(<ContainerLogs path="prod/svc/web" rid="container#1" nodes={['n1', 'n2']} upNodes={['n2']}/>);
+        await waitFor(() => expect(lines()).toEqual([]));
+        await act(async () => fireEvent.click(screen.getByRole('button', {name: 'Resume'})));
+        await waitFor(() => expect(lines()).toEqual(['on n2']));
+        expect(reads().at(-1)).toMatch(/\/node\/name\/n2\/.*&lines=200$/);
+    });
+
     test('refused to a user not root: said', async () => {
         answers(() => ({ok: false, status: 403}));
         render(<ContainerLogs path="prod/svc/web" rid="container#1" nodes={['n1']}/>);
