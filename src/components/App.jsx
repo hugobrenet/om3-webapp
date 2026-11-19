@@ -301,17 +301,23 @@ const OidcInitializer = ({children, authInfo}) => {
 
     useEffect(() => {
         const handleCheckAuthOnResume = () => {
-            const authPaths = ['/auth-choice', '/auth/login', '/auth-callback', '/silent-renew'];
-            if (authPaths.includes(location.pathname)) {
+            // The pages open without a session, signing in or not: nothing checked.
+            if (OPEN_PATHS.includes(location.pathname)) {
                 return;
             }
+            // A page asked once (ProtectedRoute once), a console in it lasting past the
+            // token it opened with: renewed if it can be, never left, its session kept.
+            const stays = location.pathname.startsWith(ONCE_PATH);
+            const leave = () => {
+                if (!stays) navigate('/auth-choice', {replace: true});
+            };
             try {
                 const authChoice = localStorage.getItem('authChoice');
                 const token = localStorage.getItem('authToken');
                 if (authChoice === 'openid') {
                     if (!token) {
                         logger.warn('No OIDC token found on resume, redirecting to /auth-choice');
-                        navigate('/auth-choice', {replace: true});
+                        leave();
                     } else if (!isTokenValid(token)) {
                         if (userManager) {
                             logger.warn('OIDC token expired on resume, attempting silent renew');
@@ -330,12 +336,12 @@ const OidcInitializer = ({children, authInfo}) => {
                     void doRefreshToken(authDispatch);
                     return;
                 }
-                if (!isTokenValid(token)) {
+                if (!isTokenValid(token) && !stays) {
                     logger.warn('Token invalid or expired on resume, redirecting to /auth-choice');
                     localStorage.removeItem('authToken');
                     localStorage.removeItem('tokenExpiration');
                     localStorage.removeItem('authChoice');
-                    navigate('/auth-choice', {replace: true});
+                    leave();
                 }
             } catch (err) {
                 logger.error('Error while checking auth on resume:', err);
@@ -372,6 +378,14 @@ const OidcInitializer = ({children, authInfo}) => {
 
     return children;
 };
+
+/**
+ * The pages open without a session, ProtectedRoute around none: signing in, the
+ * about page, the token page a node being enrolled opens.
+ */
+const OPEN_PATHS = ['/auth-choice', '/auth/login', '/auth-callback', '/silent-renew', '/about', '/token'];
+/** The pages asked once (ProtectedRoute once): a console session. */
+const ONCE_PATH = '/session/';
 
 // `once`: asked as the page opens alone. What runs in it lasts past the token it opened with.
 const ProtectedRoute = ({once = false, children}) => {

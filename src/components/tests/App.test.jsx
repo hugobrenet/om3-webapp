@@ -795,6 +795,53 @@ describe('App Component', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
     });
 
+    describe('back to the tab', () => {
+        const resume = async () => {
+            act(() => window.dispatchEvent(new Event('focus')));
+            await act(async () => {
+                await new Promise(r => setTimeout(r, 600));
+            });
+        };
+
+        test.each(['/token', '/about'])('a page open without a session, %s, stays without one', async (path) => {
+            // No session at all: no token, no choice.
+            renderApp([path]);
+            await resume();
+            expect(mockNavigate).not.toHaveBeenCalledWith('/auth-choice', expect.anything());
+            expect(mockLocalStorage.removeItem).not.toHaveBeenCalledWith('authToken');
+        });
+
+        test('a console session stays open, its token expired since, nothing to renew it with', async () => {
+            setupBasicAuth();
+            renderApp(['/session/console?path=ns/svc/foo&node=n1&rid=container%231']);
+            expect(await screen.findByTestId('session-page')).toBeInTheDocument();
+            // Expired while away, no refresh token.
+            setupBasicAuth(-3600);
+            await resume();
+            expect(mockNavigate).not.toHaveBeenCalledWith('/auth-choice', expect.anything());
+            expect(mockLocalStorage.removeItem).not.toHaveBeenCalledWith('authToken');
+            expect(screen.getByTestId('session-page')).toBeInTheDocument();
+        });
+
+        test('an OpenID console session stays open, its token gone', async () => {
+            setupOidcAuth();
+            renderApp(['/session/display?path=ns/svc/foo&node=n1&rid=container%231']);
+            expect(await screen.findByTestId('session-page')).toBeInTheDocument();
+            mockLocalStorage.getItem.mockImplementation((k) => (k === 'authChoice' ? 'openid' : null));
+            await resume();
+            expect(mockNavigate).not.toHaveBeenCalledWith('/auth-choice', expect.anything());
+            expect(screen.getByTestId('session-page')).toBeInTheDocument();
+        });
+
+        test('any other page, its token expired, nothing to renew it with, still goes to sign in', async () => {
+            setupBasicAuth();
+            renderApp(['/objects']);
+            setupBasicAuth(-3600);
+            await resume();
+            expect(mockNavigate).toHaveBeenCalledWith('/auth-choice', {replace: true});
+        });
+    });
+
     test('handleCheckAuthOnResume: OIDC expired token without userManager waits for its startup', async () => {
         __setMockIsInitialized(false);
         const expiredToken = makeTokenWithExp(-3600);
