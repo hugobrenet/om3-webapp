@@ -8,20 +8,32 @@ import {URL_AUTH_WHOAMI} from "../config/apiPath.js";
  */
 let cache = {token: null, read: null};
 
+/** The wait before the read of a view is tried again, doubled at each failure up to the last. */
+export const RETRY_DELAYS = [1000, 2000, 5000, 10000, 30000];
+
 /** Forgets what was read: for the tests. */
 export const clearGrants = () => {
     cache = {token: null, read: null};
 };
 
+/**
+ * The grants of the token, null when they could not be read: a failure is not
+ * kept, the next to ask reads them again. Kept, a 502 at load left root with no
+ * Add nor Edit until the page was reloaded.
+ */
 function readGrants(token) {
     if (cache.token !== token || cache.read === null) {
-        cache = {
-            token,
-            read: fetch(URL_AUTH_WHOAMI, {headers: {Authorization: `Bearer ${token}`}, cache: "no-cache"})
-                .then((response) => (response.ok ? response.json() : {}))
-                .then((whoami) => whoami?.grant ?? {})
-                .catch(() => ({})),
-        };
+        const read = fetch(URL_AUTH_WHOAMI, {headers: {Authorization: `Bearer ${token}`}, cache: "no-cache"})
+            .then((response) => {
+                if (!response.ok) throw new Error(`whoami: ${response.status}`);
+                return response.json();
+            })
+            .then((whoami) => whoami?.grant ?? {})
+            .catch(() => {
+                if (cache.read === read) cache = {token: null, read: null};
+                return null;
+            });
+        cache = {token, read};
     }
     return cache.read;
 }
@@ -32,11 +44,21 @@ export function useGrants() {
     useEffect(() => {
         if (!token) return undefined;
         let cancelled = false;
-        readGrants(token).then((read) => {
-            if (!cancelled) setGrants(read);
-        });
+        let timer;
+        const read = (failures) => {
+            readGrants(token).then((got) => {
+                if (cancelled) return;
+                if (got !== null) {
+                    setGrants(got);
+                    return;
+                }
+                timer = setTimeout(() => read(failures + 1), RETRY_DELAYS[Math.min(failures, RETRY_DELAYS.length - 1)]);
+            });
+        };
+        read(0);
         return () => {
             cancelled = true;
+            clearTimeout(timer);
         };
     }, [token]);
     return grants;
