@@ -17,12 +17,14 @@ const ALLOWED_ACTIONS_BY_KIND = {
     // The cluster object stands for the cluster: its actions are the cluster's, on
     // all the nodes (`om cluster freeze`), not an object's (see actionUrl).
     ccfg: ["abort", "freeze", "unfreeze"],
-    cfg: ["abort", "delete"],
+    // A purge of a cfg or a usr, nothing to unprovision, is a delete (as `om cfg purge`);
+    // a sec is deleted only (KEY_KIND_ACTIONS in constants/actions).
+    cfg: ["abort", "delete", "purge"],
     // A namespace configuration holds the claims of its namespace: deleted, nothing run.
     nscfg: ["abort", "delete"],
     vol: ["abort", "delete", "freeze", "provision", "purge", "unfreeze", "unprovision"],
     sec: ["abort", "delete"],
-    usr: ["abort", "delete"],
+    usr: ["abort", "delete", "purge"],
     // svc-only actions enable / disable are mounted directly at the object
     // path (not under /action) and are declared with `kinds: ["svc"]` in
     // OBJECT_ACTIONS. They must be listed here too, otherwise

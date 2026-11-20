@@ -758,20 +758,24 @@ describe('Objects Component', () => {
         expect(within(menu).getByRole('menuitem', {name: 'Restart'}).querySelector('.text-state-down')).toBeNull();
     });
 
-    test('a selection of configurations offers what applies to keys only: abort, delete, purge', async () => {
+    test.each([
+        ['configs', 'test-ns/cfg/conf1'],
+        ['users', 'test-ns/usr/usr1'],
+    ])('a selection of %s offers what applies to keys only: abort, delete, purge', async (list, path) => {
         setup({
             objectStatus: {
                 ...defaultState.objectStatus,
-                'test-ns/cfg/conf1': {avail: 'n/a', frozen: 'unfrozen', provisioned: 'true'},
+                [path]: {avail: 'n/a', frozen: 'unfrozen', provisioned: 'true'},
             },
-        }, '?list=configs');
+        }, `?list=${list}`);
         await waitForLoad();
-        selectRow('test-ns/cfg/conf1');
+        selectRow(path);
         openActionsMenu();
         const menu = await screen.findByRole('menu');
         expect(within(menu).getAllByRole('menuitem').map(entryName)).toEqual(['Abort', 'Delete', 'Purge']);
-        expect(within(menu).getByRole('menuitem', {name: 'Delete'})).toBeEnabled();
-        expect(within(menu).getByRole('menuitem', {name: 'Abort'})).toBeEnabled();
+        for (const name of ['Abort', 'Delete', 'Purge']) {
+            expect(within(menu).getByRole('menuitem', {name})).toBeEnabled();
+        }
     });
 
     test('a selection of secrets offers no purge: a secret is deleted', async () => {
