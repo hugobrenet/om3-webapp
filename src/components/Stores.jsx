@@ -15,10 +15,7 @@ import {StoreDetailPanel} from "./RecordPanels";
 import {StoreWizard} from "./StoreWizard";
 import {read, readNodes} from "./SectionConfig";
 import {BADGE} from "./ObjectCells";
-
-/** A store written or deleted: the list read again until it says so, the daemons applying the configuration. */
-const SETTLE_TRIES = 10;
-const SETTLE_EVERY_MS = 1000;
+import {useSettle} from "../hooks/useSettle";
 
 /** A figure of a card: its number, its name under it. */
 const Figure = ({name, label, children}) => (
@@ -148,21 +145,15 @@ export default function Stores() {
         };
     }, [changes]);
 
-    /** The list read until `settled` says the store is there, or gone. */
-    const settle = async (settled) => {
-        for (let i = 0; i < SETTLE_TRIES; i += 1) {
-            if (settled(await refresh())) return true;
-            await new Promise((resolve) => setTimeout(resolve, SETTLE_EVERY_MS));
-        }
-        return false;
-    };
+    // The list read until the store is there, or gone: no more once the page is left.
+    const settle = useSettle();
     const added = async (name) => {
         setAdding(null);
-        if (await settle((items) => items.some((s) => s.ref === name))) select(name);
+        if (await settle(refresh, (items) => items.some((s) => s.ref === name))) select(name);
     };
     const deleted = async (name) => {
         select(undefined);
-        await settle((items) => !items.some((s) => s.ref === name));
+        await settle(refresh, (items) => !items.some((s) => s.ref === name));
     };
     const startAdding = async () => {
         let nodes = [];

@@ -6,7 +6,7 @@ import axios from 'axios';
 import Pools from '../Pools';
 import i18n from '../../i18n';
 import {URL_POOL} from '../../config/apiPath.js';
-import {MemoryRouter} from 'react-router-dom';
+import {MemoryRouter, Route, Routes, useLocation, useNavigate} from 'react-router-dom';
 
 // The panel of a pool, on its own tested elsewhere: here, which pool it is given.
 vi.mock('../RecordPanels', () => ({
@@ -112,6 +112,44 @@ describe('Pools Component', () => {
         expect(wizard).toHaveAttribute('data-nodes', 'n1 n2');
         fireEvent.click(within(wizard).getByRole('button', {name: 'save fast'}));
         await waitFor(() => expect(screen.getByTestId('pool-panel')).toHaveTextContent('fast'), {timeout: 3000});
+        mockGrants.value = {};
+    });
+
+    test('the page left before the pool added is listed: read no more, the URL of the page shown left alone', async () => {
+        const tank = {name: 'tank', type: 'zpool', size: 100, used: 10, volume_count: 1, head: '/dev/tank'};
+        const fast = {name: 'fast', type: 'directory', size: 50, used: 0, volume_count: 0, head: '/srv'};
+        mockGrants.value = {root: null};
+        axios.get
+            .mockResolvedValueOnce({data: {items: [tank]}})
+            // Written, not applied yet.
+            .mockResolvedValueOnce({data: {items: [tank]}})
+            .mockResolvedValue({data: {items: [tank, fast]}});
+        let navigate;
+        let location;
+        const Spy = () => {
+            navigate = useNavigate();
+            location = useLocation();
+            return null;
+        };
+        render(
+            <MemoryRouter initialEntries={['/storage/pools']}>
+                <Spy/>
+                <Routes>
+                    <Route path="/storage/pools" element={<Pools/>}/>
+                    <Route path="/objects" element={<div>objects</div>}/>
+                </Routes>
+            </MemoryRouter>
+        );
+        fireEvent.click(await screen.findByRole('button', {name: 'Add pool'}));
+        fireEvent.click(within(await screen.findByRole('dialog', {name: 'New pool'})).getByRole('button', {name: 'save fast'}));
+        await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(2));
+        act(() => navigate('/objects?kind=svc'));
+        await screen.findByText('objects');
+        const reads = axios.get.mock.calls.length;
+        // Past the wait the list read again had.
+        await act(() => new Promise((resolve) => setTimeout(resolve, 1500)));
+        expect(location.pathname + location.search).toBe('/objects?kind=svc');
+        expect(axios.get).toHaveBeenCalledTimes(reads);
         mockGrants.value = {};
     });
 

@@ -13,10 +13,7 @@ import {Button} from "../ui/components/Button";
 import {PlusIcon} from "../ui/icons";
 import {useGrants} from "../hooks/useGrants";
 import {useClusterNodes} from "../hooks/usePgUsage";
-
-/** A network written: the list read again until it has it, the daemons applying the configuration. */
-const APPEAR_TRIES = 10;
-const APPEAR_EVERY_MS = 1000;
+import {useSettle} from "../hooks/useSettle";
 
 const COLUMNS = [
     {key: "name", labelKey: "common.name"},
@@ -82,27 +79,19 @@ const Network = () => {
         void fetchNetworks();
     }, [fetchNetworks, changes]);
 
+    // The list read until the network is there, or gone: no more once the page is left.
+    const settle = useSettle();
+
     /** A network deleted: its panel closed, the list read until it no longer has it. */
     const deleted = async (name) => {
         select(undefined);
-        for (let i = 0; i < APPEAR_TRIES; i += 1) {
-            const items = await fetchNetworks();
-            if (!items.some((n) => n.name === name)) return;
-            await new Promise((resolve) => setTimeout(resolve, APPEAR_EVERY_MS));
-        }
+        await settle(fetchNetworks, (items) => !items.some((n) => n.name === name));
     };
 
     /** A network written: the list read until it has it, then its panel opened. */
     const added = async (name) => {
         setAdding(false);
-        for (let i = 0; i < APPEAR_TRIES; i += 1) {
-            const items = await fetchNetworks();
-            if (items.some((n) => n.name === name)) {
-                select(name);
-                return;
-            }
-            await new Promise((resolve) => setTimeout(resolve, APPEAR_EVERY_MS));
-        }
+        if (await settle(fetchNetworks, (items) => items.some((n) => n.name === name))) select(name);
     };
 
     const sortedNetworks = useMemo(() => {

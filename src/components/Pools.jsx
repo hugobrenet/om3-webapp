@@ -15,10 +15,7 @@ import {usePoolChanges} from "../hooks/useLiveChanges";
 import {PoolDetailPanel} from "./RecordPanels";
 import {PoolWizard} from "./PoolWizard";
 import {readNodes} from "./SectionConfig";
-
-/** A pool written or deleted: the list read again until it says so, the daemons applying the configuration. */
-const SETTLE_TRIES = 10;
-const SETTLE_EVERY_MS = 1000;
+import {useSettle} from "../hooks/useSettle";
 
 /**
  * @typedef {Object} Pool
@@ -78,21 +75,15 @@ const Pools = () => {
         }
     }, []);
 
-    /** The list read until `settled` says the pool is there, or gone. */
-    const settle = async (settled) => {
-        for (let i = 0; i < SETTLE_TRIES; i += 1) {
-            if (settled(await refresh())) return true;
-            await new Promise((resolve) => setTimeout(resolve, SETTLE_EVERY_MS));
-        }
-        return false;
-    };
+    // The list read until the pool is there, or gone: no more once the page is left.
+    const settle = useSettle();
     const added = async (name) => {
         setAdding(null);
-        if (await settle((items) => items.some((p) => p.name === name))) select(name);
+        if (await settle(refresh, (items) => items.some((p) => p.name === name))) select(name);
     };
     const deleted = async (name) => {
         select(undefined);
-        await settle((items) => !items.some((p) => p.name === name));
+        await settle(refresh, (items) => !items.some((p) => p.name === name));
     };
     const startAdding = async () => {
         let nodes = [];

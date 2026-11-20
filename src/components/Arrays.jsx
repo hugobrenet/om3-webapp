@@ -12,10 +12,7 @@ import {ArrayDetailPanel} from "./RecordPanels";
 import {ArrayWizard, arrayFacts, useArrays} from "./ArrayPanel";
 import {read, readNodes} from "./SectionConfig";
 import {BADGE} from "./ObjectCells";
-
-/** An array written or deleted: the list read again until it says so, the daemons applying the configuration. */
-const SETTLE_TRIES = 10;
-const SETTLE_EVERY_MS = 1000;
+import {useSettle} from "../hooks/useSettle";
 
 /**
  * An array as a card: its name and type over where the nodes reach it; at its foot,
@@ -64,14 +61,14 @@ export default function Arrays() {
     const [adding, setAdding] = useState(null);
     const items = data?.items ?? [];
 
-    /** The list read until `settled` says the array is there, or gone; the page read again then. */
+    /**
+     * The list read until `settled` says the array is there, or gone, no more once the
+     * page is left; the page read again then.
+     */
+    const settleList = useSettle();
     const settle = async (settled) => {
         try {
-            for (let i = 0; i < SETTLE_TRIES; i += 1) {
-                if (settled((await read(URL_ARRAY)).items ?? [])) return true;
-                await new Promise((resolve) => setTimeout(resolve, SETTLE_EVERY_MS));
-            }
-            return false;
+            return await settleList(async () => (await read(URL_ARRAY)).items ?? [], settled);
         } catch {
             return false;
         } finally {
