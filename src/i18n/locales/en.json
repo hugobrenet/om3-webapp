@@ -1485,7 +1485,9 @@
       "sharedObject_one": "{{path}}, {{count}} address on {{nodes}}",
       "sharedObject_other": "{{path}}, {{count}} addresses on {{nodes}}",
       "tunnelMesh": "tunnel mesh",
-      "routedLabel": "routed"
+      "routedLabel": "routed",
+      "vxlanMesh": "vxlan mesh",
+      "tunnelsAndRoutes": "tunnels and routes"
     }
   },
   "nodes": {

@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {useTranslation} from "react-i18next";
-import {URL_NETWORK, URL_NETWORK_IP} from "../config/apiPath.js";
+import {URL_NETWORK, URL_NETWORK_IP, URL_NETWORK_NODE} from "../config/apiPath.js";
 import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
 import {useClusterNodes} from "../hooks/usePgUsage";
@@ -37,6 +37,9 @@ export function UsageRing({used, size, free, label}) {
 
 /** How long the addresses are let settle before the networks are read again: a start reports a burst. */
 export const ADDRESSES_SETTLE_MS = 1000;
+
+/** How long after a change the setup of the networks is read again: the nodes set them up once the configuration changed. */
+const REPORTS_SETTLE_MS = 5000;
 
 /** The events the addresses of the instances come with: their status, and its delete. */
 const ADDRESS_EVENTS = ["InstanceStatusUpdated", "InstanceStatusDeleted"];
@@ -87,6 +90,7 @@ export function NetworkOverview({name}) {
     const {t} = useTranslation();
     const [network, setNetwork] = useState(undefined);
     const [addresses, setAddresses] = useState(null);
+    const [reports, setReports] = useState([]);
     const [error, setError] = useState(null);
     const {section, reload: reloadSection} = useNetworkSection(name);
     const storeNodes = useClusterNodes();
@@ -111,8 +115,17 @@ export function NetworkOverview({name}) {
             (data) => live && setAddresses((data.items ?? []).filter((ip) => ip.network?.name === name)),
             () => live && !again && setAddresses([]),
         );
+        // What the setup of the network made on each node: read again a while after a
+        // change, the nodes setting the network up once its configuration changed.
+        const readReports = () => read(`${URL_NETWORK_NODE}?name=${encodeURIComponent(name)}&node=*`).then(
+            (data) => live && setReports((data.items ?? []).filter((r) => r.name === name)),
+            () => live && !again && setReports([]),
+        );
+        readReports();
+        const timer = again ? setTimeout(readReports, REPORTS_SETTLE_MS) : null;
         return () => {
             live = false;
+            if (timer) clearTimeout(timer);
         };
     }, [name, changes]);
 
@@ -137,7 +150,7 @@ export function NetworkOverview({name}) {
             {addresses !== null && section !== undefined && clusterNodes !== null && (
                 <section aria-labelledby={`network-sketch-${name}`} className="space-y-2">
                     <h3 id={`network-sketch-${name}`} className="font-semibold">{t("networks.sketch.title")}</h3>
-                    <NetworkSketch network={network} section={section} nodes={sketchNodes} addresses={addresses}/>
+                    <NetworkSketch network={network} section={section} nodes={sketchNodes} addresses={addresses} reports={reports}/>
                 </section>
             )}
         </div>

@@ -2,7 +2,7 @@ import React, {useMemo} from "react";
 import {useTranslation} from "react-i18next";
 import {usePeek} from "../app/panel-search";
 import {sectionValues} from "../app/heartbeat-config";
-import {CHAR_WIDTH, sketchLayout} from "../app/network-sketch";
+import {CHAR_WIDTH, routeVias, sketchLayout} from "../app/network-sketch";
 import {TOUCH_QUERY, useMediaQuery} from "../ui/lib/media";
 import {Sketch} from "./Sketch";
 
@@ -11,18 +11,26 @@ import {Sketch} from "./Sketch";
  * what it is on each node in a box under it, routed between them for a routed bridge,
  * and the objects holding its addresses under the boxes, each opening its panel.
  * `network`, as the network list gives it; `section`, its section of the cluster
- * configuration; `addresses`, those it handed out.
+ * configuration; `addresses`, those it handed out; `reports`, what its setup made on
+ * each node, the tunnels and routes between them as the nodes made them.
  */
-export function NetworkSketch({network, section, nodes, addresses}) {
+export function NetworkSketch({network, section, nodes, addresses, reports}) {
     const {t} = useTranslation();
     const peek = usePeek();
     const touch = useMediaQuery(TOUCH_QUERY);
     const computed = t("networks.sketch.computed");
-    // The routes of a routed bridge: through a mesh of tunnels, unless never, its policy and mode said when set.
     const values = useMemo(() => sectionValues(section ?? null), [section]);
-    const routeLabel = values.tunnel === "never"
-        ? t("networks.sketch.routedLabel")
-        : [t("networks.sketch.tunnelMesh"), values.tunnel, values.tunnel_mode].filter(Boolean).join(" · ");
+    // The routes between the nodes as they reported them; of no report, those of a routed
+    // bridge, through a mesh of tunnels unless never, its policy and mode said when set.
+    const routeLabel = useMemo(() => {
+        const vias = routeVias(reports);
+        const tunnelMesh = [t("networks.sketch.tunnelMesh"), values.tunnel, values.tunnel_mode].filter(Boolean).join(" · ");
+        if (!reports?.length) return values.tunnel === "never" ? t("networks.sketch.routedLabel") : tunnelMesh;
+        if (vias.includes("vxlan")) return t("networks.sketch.vxlanMesh");
+        if (vias.includes("tunnel") && vias.includes("route")) return t("networks.sketch.tunnelsAndRoutes");
+        if (vias.includes("tunnel")) return tunnelMesh;
+        return t("networks.sketch.routedLabel");
+    }, [reports, values, t]);
     const layout = useMemo(() => sketchLayout({
         name: network.name,
         type: network.type,
@@ -30,8 +38,9 @@ export function NetworkSketch({network, section, nodes, addresses}) {
         values,
         nodes,
         addresses,
+        reports,
         touch,
-    }, computed.length * CHAR_WIDTH, routeLabel.length * CHAR_WIDTH), [network, values, nodes, addresses, touch, computed, routeLabel]);
+    }, computed.length * CHAR_WIDTH, routeLabel.length * CHAR_WIDTH), [network, values, nodes, addresses, reports, touch, computed, routeLabel]);
 
     return (
         <Sketch

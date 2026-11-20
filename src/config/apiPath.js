@@ -23,6 +23,7 @@ export const URL_NODE = '/api/node/name';
 export const URL_NODES = '/api/node';
 export const URL_NETWORK = "/api/network";
 export const URL_NETWORK_IP = "/api/network/ip";
+export const URL_NETWORK_NODE = "/api/network/node";
 export const URL_STORE = "/api/store";
 // The storage arrays of the cluster configuration, root only.
 export const URL_ARRAY = "/api/array";

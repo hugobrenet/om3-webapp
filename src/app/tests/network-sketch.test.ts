@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { MAX_OBJECTS, MAX_SHARED, bandFacts, nodeFacts, sketchLayout } from "../network-sketch";
+import { MAX_OBJECTS, MAX_SHARED, bandFacts, nodeFacts, routeOf, routeVias, sketchLayout } from "../network-sketch";
 
 const ROUTED = {
   name: "backend3",
@@ -174,5 +174,87 @@ describe("network sketch", () => {
     const layout = sketchLayout({ ...ROUTED, nodes: [], addresses: [] });
     expect(layout.nodes).toEqual([]);
     expect(layout.height).toBeGreaterThan(layout.band.y + layout.band.height);
+  });
+
+  // backend3 routed between n1 and n2, tunnelled to n3 from n1 alone: a tunnel auto
+  // decides on the addresses of each node, so the two ends may differ.
+  const REPORTS = [
+    {
+      name: "backend3",
+      node: "n1",
+      dev: "obr_backend3",
+      subnet: "10.100.0.0/24",
+      peers: [
+        { nodename: "n2", local: "10.29.0.11", remote: "10.29.0.12", subnet: "10.100.1.0/24", tunnel: "", via: "route" as const },
+        { nodename: "n3", local: "10.29.0.11", remote: "10.30.0.13", subnet: "10.100.2.0/24", tunnel: "tun1030013", via: "tunnel" as const },
+      ],
+    },
+    {
+      name: "backend3",
+      node: "n2",
+      dev: "obr_backend3",
+      subnet: "10.100.1.0/24",
+      peers: [
+        { nodename: "n1", local: "10.29.0.12", remote: "10.29.0.11", subnet: "10.100.0.0/24", tunnel: "", via: "route" as const },
+        { nodename: "n3", remote: "10.30.0.13", subnet: "10.100.2.0/24", tunnel: "", error: "no route to host" },
+      ],
+    },
+  ];
+
+  test("a node that reported its setup: its device and subnet, then each peer by the tunnel it names, the address it routes to, or its failure", () => {
+    const input = { ...ROUTED, reports: REPORTS };
+    expect(nodeFacts(input, "n1")).toEqual([
+      { key: "dev", value: "obr_backend3" },
+      { key: "subnet", value: "10.100.0.0/24" },
+      { key: "addr", value: "fd00::11" },
+      { key: "route@n2", value: "10.29.0.12" },
+      { key: "tunnel@n3", value: "tun1030013" },
+    ]);
+    expect(nodeFacts(input, "n2")).toEqual([
+      { key: "dev", value: "obr_backend3" },
+      { key: "subnet", value: "10.100.1.0/24" },
+      { key: "route@n1", value: "10.29.0.11" },
+      { key: "error@n3", value: "no route to host" },
+    ]);
+    // A node reporting nothing of a network others report: the configuration, and not set up.
+    expect(nodeFacts(input, "n3")).toEqual([
+      { key: "subnet", value: "", computed: true },
+      { key: "dev", value: "obr_backend3" },
+      { key: "setup", value: "none" },
+    ]);
+  });
+
+  test("the routes as the nodes reported them: a pipe for a tunnel, a line for routes alone, none for no peer", () => {
+    expect(routeOf({ ...ROUTED, reports: REPORTS })).toEqual({ tunnel: true });
+    expect(routeVias(REPORTS)).toEqual(["route", "tunnel"]);
+    // tunnel = always configured, but every node routes: no tunnel drawn.
+    const routed = REPORTS.map((r) => ({ ...r, peers: r.peers.filter((p) => p.via === "route") }));
+    expect(routeOf({ ...ROUTED, reports: routed })).toEqual({ tunnel: false });
+    expect(sketchLayout({ ...ROUTED, reports: routed }).route?.tunnel).toBe(false);
+    // Of no report, the configuration.
+    expect(routeOf(ROUTED)).toEqual({ tunnel: true });
+    // A l2_bridge alone on each node has no peer: no route.
+    const alone = [{ name: "l2", node: "n1", dev: "obr_l2" }, { name: "l2", node: "n2", dev: "obr_l2" }];
+    expect(routeOf({ type: "l2_bridge", values: {}, reports: alone })).toBeNull();
+  });
+
+  test("a l2_bridge meshed by a vxlan: a pipe, each peer at its address; meshed by ports, the ports, a failed one marked", () => {
+    const vx = [
+      { name: "l2vx", node: "n1", dev: "obr_l2vx", peers: [{ nodename: "n2", local: "10.29.0.11", remote: "10.29.0.12", tunnel: "vx_l2vx", via: "vxlan" as const }] },
+    ];
+    expect(routeOf({ type: "l2_bridge", values: {}, reports: vx })).toEqual({ tunnel: true });
+    expect(routeVias(vx)).toEqual(["vxlan"]);
+    expect(nodeFacts({ name: "l2vx", type: "l2_bridge", values: {}, reports: vx }, "n1")).toEqual([
+      { key: "dev", value: "obr_l2vx" },
+      { key: "vxlan@n2", value: "10.29.0.12" },
+    ]);
+    const lan = [
+      { name: "l2lan", node: "n1", dev: "obr_l2lan", ports: [{ name: "eno2", dev: "eno2.300" }, { name: "eno3", dev: "eno3.300", error: "port eno3: not found" }], error: "ports: port eno3: not found" },
+    ];
+    expect(nodeFacts({ name: "l2lan", type: "l2_bridge", values: {}, reports: lan }, "n1")).toEqual([
+      { key: "dev", value: "obr_l2lan" },
+      { key: "error", value: "ports: port eno3: not found" },
+      { key: "ports", value: "eno2.300 eno3.300!" },
+    ]);
   });
 });
