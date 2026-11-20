@@ -300,6 +300,36 @@ describe('NodeDetailPanel', () => {
         expect(useActionTracker.getState().tracked[0]).toMatchObject({state: 'succeeded', label: 'Update 3 labels'});
     });
 
+    test('the labels read again as the node or the cluster configuration changes elsewhere, a failure keeping them', async () => {
+        api.config = {items: [{keyword: 'labels.az', value: 'fr1'}]};
+        api['cluster/config'] = {items: [{keyword: 'labels.toto', value: 'tata'}]};
+        renderPanel();
+        const labels = await within(panel()).findByRole('region', {name: /^Labels/});
+        const shown = () => [...labels.querySelectorAll('[data-label]')].map((b) => [...b.children].map((c) => c.textContent).join(' '));
+        await waitFor(() => expect(shown()).toEqual(['az fr1', 'toto tata']));
+        // By om on the node: NodeConfigUpdated.
+        api.config = {items: [{keyword: 'labels.az', value: 'fr2'}, {keyword: 'labels.rack', value: 'r12'}]};
+        bump((c) => {
+            c.node += 1;
+        });
+        await waitFor(() => expect(shown()).toEqual(['az fr2', 'rack r12', 'toto tata']));
+        // In the cluster configuration: ClusterConfigUpdated.
+        api['cluster/config'] = {items: [{keyword: 'labels.toto', value: 'titi'}]};
+        bump((c) => {
+            c.cluster += 1;
+        });
+        await waitFor(() => expect(shown()).toEqual(['az fr2', 'rack r12', 'toto titi']));
+        // A read again failing: what was shown kept.
+        delete api.config;
+        const reads = requests.filter((r) => r.url === '/api/node/name/dev3n1/config').length;
+        bump((c) => {
+            c.node += 1;
+        });
+        await waitFor(() => expect(requests.filter((r) => r.url === '/api/node/name/dev3n1/config').length).toBe(reads + 1));
+        await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+        expect(shown()).toEqual(['az fr2', 'rack r12', 'toto titi']);
+    });
+
     test('the health says the minimum free memory; root sets it, said whether the node would be overloaded, written to its configuration', async () => {
         api.config = {items: [
             {keyword: 'node.min_avail_mem', value: '10', evaluated_text: '10%'},
@@ -822,7 +852,8 @@ describe('NodeDetailPanel', () => {
                 c.cluster += 1;
             });
             expect(await within(panel()).findByRole('region', {name: 'Location'})).toHaveTextContent('Lyon');
-            await waitFor(() => expect(reads('config')).toBe(thresholds + 1));
+            // Read again by the health and by the labels.
+            await waitFor(() => expect(reads('config')).toBe(thresholds + 2));
             expect(reads('system/property')).toBe(properties + 1);
             fireEvent.click(within(hardware).getByRole('button', {name: 'Edit the organisation properties'}));
             const enclosure = await within(panel()).findByRole('textbox', {name: 'Enclosure'});
