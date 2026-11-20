@@ -357,4 +357,41 @@ describe('the network panel', () => {
         renderIn(<NetworkConfig name="default"/>);
         expect(await screen.findByText('default is built in: no section of the cluster configuration defines it.')).toBeInTheDocument();
     });
+
+    test('the sketch drawn from what the setup made on each node, read again as a node says it set the network up again', async () => {
+        const report = (node, peers) => ({name: 'backend3', node, type: 'routed_bridge', network: '10.100.0.0/22', dev: 'obr_backend3', peers, applied_at: '2026-11-20T10:00:00Z'});
+        let reports = [
+            report('n1', [{nodename: 'n2', remote: '10.29.0.12', subnet: '10.100.1.0/24', tunnel: '', via: 'route'}]),
+            report('n2', [{nodename: 'n1', remote: '10.29.0.11', subnet: '10.100.0.0/24', tunnel: '', via: 'route'}]),
+        ];
+        const served = global.fetch.getMockImplementation();
+        global.fetch.mockImplementation(async (url, options = {}) => {
+            if (String(url).startsWith('/api/network/node?')) {
+                requests.push({url: String(url), method: 'GET'});
+                return new Response(JSON.stringify({items: reports}), {status: 200, headers: {'Content-Type': 'application/json'}});
+            }
+            return served(url, options);
+        });
+        mockClaims.list = [];
+        localStorage.setItem('authToken', 'token');
+        renderIn(<NetworkOverview name="backend3"/>);
+        const sketch = await screen.findByRole('group', {name: /^Sketch of the network backend3/});
+        // Routed between the nodes, as they said: no tunnel, though tunnel is not never.
+        await waitFor(() => expect(sketch.querySelector('[data-node=n1]')).toHaveTextContent('route@n2 10.29.0.12'));
+        expect(sketch.querySelector('[data-route]')).toHaveAttribute('data-route', 'routed');
+        expect(sketch.querySelector('[data-node=n3]')).toHaveTextContent('setup none');
+        expect(requests.filter((r) => r.url === '/api/network/node?name=backend3&node=*')).toHaveLength(1);
+        // The panel claims the events of the setups while it shows.
+        expect(mockClaims.list).toContainEqual(['NodeNetworkStatusUpdated']);
+
+        // n1 tunnels to n2 now: said by its event, read again.
+        reports = [report('n1', [{nodename: 'n2', remote: '10.30.0.12', subnet: '10.100.1.0/24', tunnel: 'tun1030012', tunnel_mode: 'gre', via: 'tunnel'}]), reports[1]];
+        act(() => useEventStore.getState().bumpNetworkSetup('backend3'));
+        await waitFor(() => expect(sketch.querySelector('[data-node=n1]')).toHaveTextContent('tunnel@n2 tun1030012 gre'));
+        expect(sketch.querySelector('[data-route]')).toHaveAttribute('data-route', 'tunnel');
+        // The setups of another network read nothing again.
+        act(() => useEventStore.getState().bumpNetworkSetup('backend1'));
+        expect(requests.filter((r) => r.url.startsWith('/api/network/node?'))).toHaveLength(2);
+        localStorage.removeItem('authToken');
+    });
 });

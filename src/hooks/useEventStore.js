@@ -157,6 +157,13 @@ const useEventStore = create(
             configUpdates: [],
             pendingDeletes: {},
 
+            // A count, by network name, of the setups of the network the nodes said
+            // they made or undid: a view of the network reads them again as it moves.
+            networkSetups: {},
+
+            bumpNetworkSetup: (name) =>
+                set((state) => ({networkSetups: {...state.networkSetups, [name]: (state.networkSetups[name] ?? 0) + 1}})),
+
             removePendingDelete: (objectPath, node) => {
                 const key = `${objectPath}:${node}`;
                 set((state) => {

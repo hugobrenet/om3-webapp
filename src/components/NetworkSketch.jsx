@@ -2,7 +2,7 @@ import React, {useMemo} from "react";
 import {useTranslation} from "react-i18next";
 import {usePeek} from "../app/panel-search";
 import {sectionValues} from "../app/heartbeat-config";
-import {CHAR_WIDTH, routeVias, sketchLayout} from "../app/network-sketch";
+import {CHAR_WIDTH, routeVias, sketchLayout, tunnelModes} from "../app/network-sketch";
 import {TOUCH_QUERY, useMediaQuery} from "../ui/lib/media";
 import {Sketch} from "./Sketch";
 
@@ -24,8 +24,13 @@ export function NetworkSketch({network, section, nodes, addresses, reports}) {
     // bridge, through a mesh of tunnels unless never, its policy and mode said when set.
     const routeLabel = useMemo(() => {
         const vias = routeVias(reports);
-        const tunnelMesh = [t("networks.sketch.tunnelMesh"), values.tunnel, values.tunnel_mode].filter(Boolean).join(" · ");
-        if (!reports?.length) return values.tunnel === "never" ? t("networks.sketch.routedLabel") : tunnelMesh;
+        if (!reports?.length) {
+            return values.tunnel === "never"
+                ? t("networks.sketch.routedLabel")
+                : [t("networks.sketch.tunnelMesh"), values.tunnel, values.tunnel_mode].filter(Boolean).join(" · ");
+        }
+        // The modes of the tunnels the nodes made, ipip over ipv6 being ip6ip6.
+        const tunnelMesh = [t("networks.sketch.tunnelMesh"), values.tunnel, ...tunnelModes(reports)].filter(Boolean).join(" · ");
         if (vias.includes("vxlan")) return t("networks.sketch.vxlanMesh");
         if (vias.includes("tunnel") && vias.includes("route")) return t("networks.sketch.tunnelsAndRoutes");
         if (vias.includes("tunnel")) return tunnelMesh;

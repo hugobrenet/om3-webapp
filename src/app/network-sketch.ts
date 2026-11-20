@@ -55,6 +55,8 @@ export interface NetworkPeerReport {
   remote?: string;
   subnet?: string;
   tunnel?: string;
+  /** The mode of the tunnel, as ipip, ip6ip6 or gre. */
+  tunnel_mode?: string;
   via?: "tunnel" | "route" | "vxlan";
   error?: string;
 }
@@ -119,7 +121,7 @@ function reportFacts(report: NetworkReport): SketchFact[] {
   if (ports.length) facts.push({ key: "ports", value: ports.join(" ") });
   for (const p of report.peers ?? []) {
     if (p.error) facts.push({ key: `error@${p.nodename}`, value: p.error });
-    else if (peerVia(p) === "tunnel") facts.push({ key: `tunnel@${p.nodename}`, value: p.tunnel ?? "" });
+    else if (peerVia(p) === "tunnel") facts.push({ key: `tunnel@${p.nodename}`, value: [p.tunnel, p.tunnel_mode].filter(Boolean).join(" ") });
     else facts.push({ key: `${peerVia(p)}@${p.nodename}`, value: p.remote ?? "" });
   }
   return facts;
@@ -180,6 +182,12 @@ export function routeOf({ type, values, reports }: Pick<SketchInput, "type" | "v
   const vias = new Set(reports.flatMap((r) => (r.peers ?? []).filter((p) => !p.error).map(peerVia)));
   if (vias.size === 0) return null;
   return { tunnel: vias.has("tunnel") || vias.has("vxlan") };
+}
+
+/** The modes of the tunnels the nodes reported, sorted. */
+export function tunnelModes(reports: NetworkReport[] | undefined): string[] {
+  const modes = (reports ?? []).flatMap((r) => (r.peers ?? []).filter((p) => !p.error && p.tunnel_mode).map((p) => p.tunnel_mode as string));
+  return [...new Set(modes)].sort();
 }
 
 /** The ways the nodes reach each other, as they reported them, sorted. */

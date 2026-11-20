@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { MAX_OBJECTS, MAX_SHARED, bandFacts, nodeFacts, routeOf, routeVias, sketchLayout } from "../network-sketch";
+import { MAX_OBJECTS, MAX_SHARED, bandFacts, nodeFacts, routeOf, routeVias, sketchLayout, tunnelModes } from "../network-sketch";
 
 const ROUTED = {
   name: "backend3",
@@ -186,7 +186,7 @@ describe("network sketch", () => {
       subnet: "10.100.0.0/24",
       peers: [
         { nodename: "n2", local: "10.29.0.11", remote: "10.29.0.12", subnet: "10.100.1.0/24", tunnel: "", via: "route" as const },
-        { nodename: "n3", local: "10.29.0.11", remote: "10.30.0.13", subnet: "10.100.2.0/24", tunnel: "tun1030013", via: "tunnel" as const },
+        { nodename: "n3", local: "10.29.0.11", remote: "10.30.0.13", subnet: "10.100.2.0/24", tunnel: "tun1030013", tunnel_mode: "ipip", via: "tunnel" as const },
       ],
     },
     {
@@ -208,7 +208,7 @@ describe("network sketch", () => {
       { key: "subnet", value: "10.100.0.0/24" },
       { key: "addr", value: "fd00::11" },
       { key: "route@n2", value: "10.29.0.12" },
-      { key: "tunnel@n3", value: "tun1030013" },
+      { key: "tunnel@n3", value: "tun1030013 ipip" },
     ]);
     expect(nodeFacts(input, "n2")).toEqual([
       { key: "dev", value: "obr_backend3" },
@@ -227,6 +227,7 @@ describe("network sketch", () => {
   test("the routes as the nodes reported them: a pipe for a tunnel, a line for routes alone, none for no peer", () => {
     expect(routeOf({ ...ROUTED, reports: REPORTS })).toEqual({ tunnel: true });
     expect(routeVias(REPORTS)).toEqual(["route", "tunnel"]);
+    expect(tunnelModes(REPORTS)).toEqual(["ipip"]);
     // tunnel = always configured, but every node routes: no tunnel drawn.
     const routed = REPORTS.map((r) => ({ ...r, peers: r.peers.filter((p) => p.via === "route") }));
     expect(routeOf({ ...ROUTED, reports: routed })).toEqual({ tunnel: false });
