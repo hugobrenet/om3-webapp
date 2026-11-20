@@ -347,11 +347,26 @@ describe("VolumeFiles", () => {
             expect(await written(uploadFile.mock.calls[0][2])).toBe("a = 1\n");
         });
 
-        test("the end of a text as asked: its line feeds dropped, or one there", () => {
+        test("the end of a text as asked: its line feeds dropped, or one there; an empty one left empty", () => {
             expect(withEnding("a\n\n", true)).toBe("a");
             expect(withEnding("a", true)).toBe("a");
             expect(withEnding("a", false)).toBe("a\n");
             expect(withEnding("a\n", false)).toBe("a\n");
+            expect(withEnding("", false)).toBe("");
+            expect(withEnding("", true)).toBe("");
+        });
+
+        test("empty: text, edited; nothing typed, nothing to save; typed, its last line ended", async () => {
+            const dialog = await open("haproxy.cfg", {blob: new Blob([]), total: 0, partial: false});
+            expect(await within(dialog).findByText(/Type: text/)).toBeInTheDocument();
+            await userEvent.click(within(dialog).getByRole("button", {name: "Edit"}));
+            // No last line to keep the end of: the line feed added, as to any text.
+            expect(within(dialog).getByRole("checkbox", {name: "No trailing line feed"})).not.toBeChecked();
+            expect(within(dialog).getByRole("button", {name: "Save"})).toBeDisabled();
+            await userEvent.type(within(dialog).getByRole("textbox", {name: "File content"}), "global");
+            await userEvent.click(within(dialog).getByRole("button", {name: "Save"}));
+            await waitFor(() => expect(uploadFile).toHaveBeenCalled());
+            expect(await written(uploadFile.mock.calls[0][2])).toBe("global\n");
         });
 
         test("binary shown in hex, not edited", async () => {

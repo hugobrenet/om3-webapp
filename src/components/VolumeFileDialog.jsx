@@ -45,9 +45,12 @@ export function InstalledFrom({origin, onKey}) {
     );
 }
 
-/** The text written: its line feeds at the end dropped, or one there, as asked. */
+/** The text written: its line feeds at the end dropped, or one there, as asked; an empty text left empty. */
 export const withEnding = (text, noTrailingLineFeed) =>
-    noTrailingLineFeed ? text.replace(/\n+$/, "") : text.endsWith("\n") ? text : `${text}\n`;
+    text === "" || noTrailingLineFeed ? text.replace(/\n+$/, "") : text.endsWith("\n") ? text : `${text}\n`;
+
+/** Whether a text read ends without a line feed: an empty one has no last line, its lines ended as usual once written. */
+const endsUnfed = (text) => text !== "" && !text.endsWith("\n");
 
 /**
  * A file of a volume in a dialog, as a key is: text shown as it is, else in hex, a
@@ -90,7 +93,7 @@ export function VolumeFileDialog({path, node, dir, name, origin = null, stamp = 
                 const content = await parseBlobContent(blob, {hexLimit: HEX_SHOWN});
                 if (live && !(quiet && busy.current)) {
                     setRead({...content, total, partial, hexPartial: content.type === "binary" && blob.size > HEX_SHOWN});
-                    setNoTrailingLineFeed(content.type === "text" && !content.content.endsWith("\n"));
+                    setNoTrailingLineFeed(content.type === "text" && endsUnfed(content.content));
                 }
             })
             .catch((err) => live && !quiet && setError(err));
@@ -122,7 +125,7 @@ export function VolumeFileDialog({path, node, dir, name, origin = null, stamp = 
     const changed = editing !== null && withEnding(editing, noTrailingLineFeed) !== read?.content;
     const cancel = () => {
         setEditing(null);
-        setNoTrailingLineFeed(!read.content.endsWith("\n"));
+        setNoTrailingLineFeed(endsUnfed(read.content));
     };
     return (
         <Dialog

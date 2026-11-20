@@ -753,6 +753,16 @@ describe('KeysSection', () => {
         expect(within(dialog).getByRole('button', {name: 'Update'})).toBeEnabled();
     });
 
+    test('update empty: an empty text to edit, not said binary', async () => {
+        mockFetch({keys: [{name: 'e', node: 'n', size: 0}], keyBlob: makeMockBlob(new Uint8Array([]))});
+        await renderAndWait('root/cfg/cfg1', 1);
+        const dialog = await openDialog('edit', 'e');
+        const content = await within(dialog).findByRole('textbox', {name: 'Key content'});
+        await waitFor(() => expect(within(dialog).queryByRole('status', {name: /^Loading/i})).toBeNull());
+        expect(content).toHaveValue('');
+        expect(content).not.toHaveAttribute('placeholder', expect.stringMatching(/content is binary/));
+    });
+
     test('update prefetch error', async () => {
         let reads = 0;
         mockFetch({

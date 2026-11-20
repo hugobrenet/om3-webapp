@@ -1,7 +1,7 @@
 /**
  * The content of a key or a file, as its dialog shows it: text, when it is UTF-8 with
- * no control character but tab and line ends; else binary, shown as a hex dump of
- * `hexLimit` bytes at most (all of them by default).
+ * no control character but tab and line ends, an empty one too, edited as any text;
+ * else binary, shown as a hex dump of `hexLimit` bytes at most (all of them by default).
  */
 export const parseBlobContent = async (blob, {hexLimit = Infinity} = {}) => {
     // A blob of no arrayBuffer (an older engine) read by a FileReader.
@@ -27,7 +27,7 @@ export const parseBlobContent = async (blob, {hexLimit = Infinity} = {}) => {
         isText = false;
     }
 
-    if (isText && textContent.length > 0) {
+    if (isText) {
         return {type: "text", content: textContent};
     } else {
         const hexLines = [];
