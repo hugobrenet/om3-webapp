@@ -20,6 +20,7 @@ vi.mock('../ObjectStatus', () => ({default: ({path, openCell}) => (
 vi.mock('../ObjectConfig', () => ({default: ({path}) => <div data-testid="object-config">{path}</div>}));
 // The locks of the cluster are tested on their own: here, where they show.
 vi.mock('../ClusterLocks', () => ({ClusterLocks: () => <div data-testid="cluster-locks">locks</div>}));
+vi.mock('../ClusterTombstones', () => ({ClusterTombstones: () => <div data-testid="cluster-tombstones">tombstones</div>}));
 vi.mock('../ObjectSnapshots', async (importOriginal) => ({
     ...(await importOriginal()),
     ObjectSnapshots: ({path}) => <div data-testid="object-snapshots">{path}</div>,
@@ -167,9 +168,16 @@ describe('record panels', () => {
         renderPeek('/nodes?peek=object:cluster&peektab=locks');
         const panel = screen.getByRole('dialog', {name: 'cluster'});
         expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent))
-            .toEqual(['Status', 'Usage', 'Schedules', 'Locks', 'Configuration', 'Logs', 'Events']);
+            .toEqual(['Status', 'Usage', 'Schedules', 'Locks', 'Tombstones', 'Configuration', 'Logs', 'Events']);
         expect(within(panel).getByRole('tab', {name: 'Locks'})).toHaveAttribute('aria-selected', 'true');
         expect(within(panel).getByTestId('cluster-locks')).toBeInTheDocument();
+    });
+
+    test('the cluster has the tombstones of its deletes and purges on a tab', () => {
+        renderPeek('/nodes?peek=object:cluster&peektab=tombstones');
+        const panel = screen.getByRole('dialog', {name: 'cluster'});
+        expect(within(panel).getByRole('tab', {name: 'Tombstones'})).toHaveAttribute('aria-selected', 'true');
+        expect(within(panel).getByTestId('cluster-tombstones')).toBeInTheDocument();
     });
 
     test('a service with a sync resource keeping snapshots shows and restores them on tabs; one without, neither', () => {

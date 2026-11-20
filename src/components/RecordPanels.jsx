@@ -20,6 +20,7 @@ import {ClusterUsage} from "./ClusterUsage";
 import {CAPACITY_KINDS, ObjectCapacity} from "./ObjectCapacity";
 import {FILES_KINDS, VolumeFiles} from "./VolumeFiles";
 import {ClusterLocks} from "./ClusterLocks";
+import {ClusterTombstones} from "./ClusterTombstones";
 import {ObjectSnapshots, useSnapshotNodes} from "./ObjectSnapshots";
 import {InstanceLink, ResourceLink, ResourceSessionLinks} from "./RecordLinks";
 import {CrossLink} from "../app/CrossLink";
@@ -134,8 +135,12 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
                 {key: "snapshots", label: t("panel.tabs.snapshots")},
                 {key: "restore", label: t("panel.tabs.restore")},
             ] : []),
-            // The cluster object, the cluster: its locks, as om cluster lock list shows them.
-            ...(kind === "ccfg" ? [{key: "locks", label: t("panel.tabs.locks")}] : []),
+            // The cluster object, the cluster: its locks, as om cluster lock list shows them;
+            // the records of the deletes and purges its nodes keep.
+            ...(kind === "ccfg" ? [
+                {key: "locks", label: t("panel.tabs.locks")},
+                {key: "tombstones", label: t("panel.tabs.tombstones")},
+            ] : []),
             {key: "config", label: t("panel.tabs.config")},
             {key: "logs", label: t("panel.tabs.logs")},
             {key: "events", label: t("panel.tabs.events")},
@@ -169,6 +174,7 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
                     {active === "snapshots" && <StoreSnapshots key={path} path={path}/>}
                     {active === "restore" && <ObjectSnapshots key={path} path={path}/>}
                     {active === "locks" && <ClusterLocks/>}
+                    {active === "tombstones" && <ClusterTombstones/>}
                     {active === "events" && (
                         <div className="h-[calc(100dvh-10rem)]">
                             <EventLog key={path} eventTypes={OBJECT_EVENT_TYPES} objectName={path} label={t("panel.tabs.events")}/>

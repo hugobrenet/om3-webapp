@@ -2087,7 +2087,8 @@
       "snapshots": "Snapshots",
       "restore": "Restore",
       "console": "Console",
-      "display": "Display"
+      "display": "Display",
+      "tombstones": "Tombstones"
     },
     "crossLink": "Show the {{kind}} here",
     "kinds": {
@@ -2998,6 +2999,29 @@
       "warning": "A lock held here holds every client of the cluster asking it: release it once done, or keep its lease short.",
       "held": "Not granted: {{message}}. Set a wait to queue for it, or try again later."
     }
+  },
+  "clusterTombstones": {
+    "intro": "The records the nodes keep of the deletes and purges: the version of the configuration deleted, so that a node still holding it does not bring the object back. A node drops its record once every node it concerns was seen deleting its instance, or a day later.",
+    "refresh": "Refresh",
+    "loading": "Reading the tombstones",
+    "table": "Tombstones",
+    "object": "Object",
+    "kind": "Kind",
+    "deletedAt": "Deleted",
+    "version": "Configuration deleted",
+    "recordedBy": "Recorded by",
+    "holders": "Still published by",
+    "orchestration": "Orchestration",
+    "kinds": {
+      "deleted": "deleted",
+      "purged": "purged"
+    },
+    "recreated": "recreated",
+    "noHolder": "none",
+    "none": "No tombstone: no delete nor purge in the last day, or all of them done on every node.",
+    "forbidden": "Reading the tombstones is refused to this session.",
+    "stale": "Not read again ({{message}}): the tombstones below are as last read.",
+    "footer": "Read again {{seconds}} s after each read, while this page is shown. A node still publishing the configuration deleted holds a version the record makes it drop."
   },
   "resources": {
     "caption": "The resources of the cluster",

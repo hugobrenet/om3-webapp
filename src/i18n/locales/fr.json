@@ -2087,7 +2087,8 @@
       "snapshots": "Instantanés",
       "restore": "Restauration",
       "console": "Console",
-      "display": "Écran"
+      "display": "Écran",
+      "tombstones": "Tombstones"
     },
     "crossLink": "Afficher la fiche ici ({{kind}})",
     "kinds": {
@@ -2998,6 +2999,29 @@
       "warning": "Un verrou tenu ici bloque tout client du cluster qui le demande : libérez-le dès que vous avez fini, ou gardez un bail court.",
       "held": "Non accordé : {{message}}. Indiquez une attente pour patienter dans la file, ou réessayez plus tard."
     }
+  },
+  "clusterTombstones": {
+    "intro": "Les enregistrements que les nœuds gardent des suppressions et des purges : la version de la configuration supprimée, pour qu'un nœud qui la détient encore ne fasse pas revenir l'objet. Un nœud efface son enregistrement une fois que chaque nœud concerné a supprimé son instance, ou un jour plus tard.",
+    "refresh": "Actualiser",
+    "loading": "Lecture des tombstones",
+    "table": "Tombstones",
+    "object": "Objet",
+    "kind": "Type",
+    "deletedAt": "Supprimé",
+    "version": "Configuration supprimée",
+    "recordedBy": "Enregistré par",
+    "holders": "Encore publiée par",
+    "orchestration": "Orchestration",
+    "kinds": {
+      "deleted": "supprimé",
+      "purged": "purgé"
+    },
+    "recreated": "recréé",
+    "noHolder": "aucun",
+    "none": "Aucun tombstone : aucune suppression ni purge dans la dernière journée, ou toutes achevées sur chaque nœud.",
+    "forbidden": "La lecture des tombstones est refusée à cette session.",
+    "stale": "Non relus ({{message}}) : les tombstones ci-dessous sont ceux de la dernière lecture.",
+    "footer": "Relus {{seconds}} s après chaque lecture, tant que cette page est affichée. Un nœud qui publie encore la configuration supprimée détient une version que l'enregistrement lui fait abandonner."
   },
   "resources": {
     "caption": "Les ressources du cluster",
