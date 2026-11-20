@@ -10,7 +10,8 @@ import {useMenuState} from '../../hooks/useSidebarAlerts';
 const mockGrants = vi.hoisted(() => ({value: {root: null}}));
 vi.mock('../../hooks/useGrants', () => ({
     useGrants: () => mockGrants.value,
-    useIsRoot: () => Object.prototype.hasOwnProperty.call(mockGrants.value, 'root'),
+    // Undefined, the grants not read yet.
+    useIsRoot: () => (mockGrants.value === undefined ? undefined : Object.prototype.hasOwnProperty.call(mockGrants.value, 'root')),
 }));
 // The panel and the wizard, on their own tested elsewhere: here, what they are given.
 vi.mock('../RecordPanels', () => ({
@@ -105,6 +106,14 @@ describe('Arrays', () => {
         items = [];
         render(<Arrays/>, {wrapper: MemoryRouter});
         expect(await screen.findByText('No array: the cluster configuration declares none.')).toBeInTheDocument();
+    });
+
+    test('the grants not read yet: waited for, root only not said, nothing asked of the daemon', () => {
+        mockGrants.value = undefined;
+        render(<Arrays/>, {wrapper: MemoryRouter});
+        expect(screen.getByRole('status', {name: 'Reading the arrays'})).toBeInTheDocument();
+        expect(screen.queryByText(/needs the root grant/)).toBeNull();
+        expect(fetch).not.toHaveBeenCalled();
     });
 
     test('root only: said, nothing asked of the daemon', () => {

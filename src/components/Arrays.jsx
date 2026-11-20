@@ -56,7 +56,8 @@ function ArrayCard({facts, selected, onOpen}) {
 export default function Arrays() {
     const {t} = useTranslation();
     const isRoot = useIsRoot();
-    const {data, error, reload} = useArrays(isRoot);
+    // Read by root alone, once known to be: its grants not read, nothing asked.
+    const {data, error, reload} = useArrays(isRoot === true);
     const {sel, select, tab, setTab} = usePanelSearch();
     const [adding, setAdding] = useState(null);
     const items = data?.items ?? [];
@@ -93,6 +94,10 @@ export default function Arrays() {
         setAdding({nodes});
     };
 
+    // The grants not read yet: neither the arrays nor that they are root's.
+    if (isRoot === undefined) {
+        return <div className="flex justify-center p-4"><Spinner label={t("arrays.loading")}/></div>;
+    }
     if (!isRoot) {
         return <div className="p-4"><Alert tone="info">{t("arrays.rootOnly")}</Alert></div>;
     }

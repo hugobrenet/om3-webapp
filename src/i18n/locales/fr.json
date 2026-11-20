@@ -2427,6 +2427,7 @@
     "audit": {
       "intro": "Diffuse les journaux des sous-systèmes du démon, jusqu'au debug et au trace, comme om daemon audit. Un audit à la fois sur un démon ; il s'arrête quand vous quittez cette vue.",
       "rootOnly": "Auditer le démon demande le droit root.",
+      "grantsLoading": "Lecture de vos droits",
       "level": "À partir du niveau",
       "subsystems": "Sous-systèmes",
       "subsystemsPlaceholder": "Tous ; tapez pour chercher",

@@ -2427,6 +2427,7 @@
     "audit": {
       "intro": "Streams the log records of the daemon subsystems, up to debug and trace, as om daemon audit does. One audit at a time on a daemon; it stops as you leave this view.",
       "rootOnly": "Auditing the daemon needs the root grant.",
+      "grantsLoading": "Reading your grants",
       "level": "From level",
       "subsystems": "Subsystems",
       "subsystemsPlaceholder": "All of them; type to search",

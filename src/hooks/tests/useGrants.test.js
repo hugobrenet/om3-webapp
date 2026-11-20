@@ -35,7 +35,8 @@ describe('useGrants', () => {
         global.fetch.mockImplementationOnce(failure).mockReturnValue(ok({root: null}));
         const {result} = renderHook(() => useIsRoot());
         await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
-        expect(result.current).toBe(false);
+        // Not read: not said either way.
+        expect(result.current).toBeUndefined();
         await act(() => vi.advanceTimersByTimeAsync(RETRY_DELAYS[0]));
         await waitFor(() => expect(result.current).toBe(true));
         expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -67,10 +68,43 @@ describe('useGrants', () => {
         expect(global.fetch).toHaveBeenCalledTimes(3);
     });
 
+    test('root not said either way while the grants are read; said once read', async () => {
+        let answer;
+        global.fetch.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+        const {result} = renderHook(() => useIsRoot());
+        expect(result.current).toBeUndefined();
+        await act(async () => answer(await ok({root: null})));
+        await waitFor(() => expect(result.current).toBe(true));
+        clearGrants();
+        global.fetch.mockReturnValue(ok({admin: ['ns1']}));
+        const other = renderHook(() => useIsRoot());
+        expect(other.result.current).toBeUndefined();
+        await waitFor(() => expect(other.result.current).toBe(false));
+    });
+
+    test('a view opened once they are read: given them at once, nothing read again', async () => {
+        global.fetch.mockReturnValue(ok({root: null}));
+        const first = renderHook(() => useIsRoot());
+        await waitFor(() => expect(first.result.current).toBe(true));
+        const later = renderHook(() => ({root: useIsRoot(), grants: useGrants()}));
+        expect(later.result.current).toEqual({root: true, grants: {root: null}});
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    test('the grants not read, the same empty ones from a render to the next', () => {
+        global.fetch.mockReturnValue(new Promise(() => {}));
+        const {result, rerender} = renderHook(() => useGrants());
+        const before = result.current;
+        rerender();
+        expect(result.current).toBe(before);
+        expect(before).toEqual({});
+    });
+
     test('reads nothing without a token', () => {
         localStorage.removeItem('authToken');
-        const {result} = renderHook(() => useGrants());
-        expect(result.current).toEqual({});
+        const {result} = renderHook(() => ({grants: useGrants(), root: useIsRoot()}));
+        // Nothing to read: no grant, said so at once.
+        expect(result.current).toEqual({grants: {}, root: false});
         expect(global.fetch).not.toHaveBeenCalled();
     });
 });

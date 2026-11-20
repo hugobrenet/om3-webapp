@@ -16,6 +16,7 @@ import {
 } from "../app/daemon-audit";
 import useEventStore from "../hooks/useEventStore.js";
 import {Alert} from "../ui/components/Alert";
+import {Spinner} from "../ui/components/Spinner";
 import {Button, IconButton} from "../ui/components/Button";
 import {Input, Select} from "../ui/components/Field";
 import {FollowOverlay} from "../ui/components/FollowOverlay";
@@ -284,6 +285,10 @@ export function DaemonAudit({node}) {
         hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3,
     });
 
+    // The grants not read yet: nothing said of who may audit.
+    if (isRoot === undefined) {
+        return <div className="flex justify-center p-4"><Spinner label={t("nodeDaemon.audit.grantsLoading")}/></div>;
+    }
     if (!isRoot) {
         return <Alert tone="info">{t("nodeDaemon.audit.rootOnly")}</Alert>;
     }
