@@ -307,6 +307,40 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     const nextId = useRef(0);
     // Feedback requests run beside turns and are canceled with the scope.
     const feedbackRequests = useRef(new Set());
+    // Whether the agent of the client takes the feedback of the scope: true or
+    // false as it says, null when it could not be read. The feedback is off
+    // until the agent says it is on, so that an operator who turned it off
+    // never has it offered; a read that failed is tried again with the next
+    // action of the user (retryCapabilities).
+    const [capabilities, setCapabilities] = useState({client: null, scope: null, feedback: null});
+    const [capabilitiesRetry, setCapabilitiesRetry] = useState(0);
+    // A read under way, which an action of the user does not start again.
+    const capabilitiesReading = useRef(false);
+    const capabilitiesOwn = capabilities.client === client && capabilities.scope === scope;
+    const capabilitiesKnown = capabilitiesOwn && capabilities.feedback !== null;
+    useEffect(() => {
+        if (!ready || !client || capabilitiesKnown) return undefined;
+        const controller = new AbortController();
+        capabilitiesReading.current = true;
+        const settle = (feedback) => {
+            if (controller.signal.aborted) return;
+            capabilitiesReading.current = false;
+            setCapabilities({client, scope, feedback});
+        };
+        Promise.resolve()
+            .then(() => client.getCapabilities({signal: controller.signal}))
+            .then((result) => result?.feedback === true)
+            .then(settle, () => settle(null));
+        return () => {
+            controller.abort();
+            capabilitiesReading.current = false;
+        };
+    }, [client, ready, scope, capabilitiesKnown, capabilitiesRetry]);
+    const feedbackEnabled = Boolean(ready && capabilitiesOwn && capabilities.feedback === true);
+    const retryCapabilities = () => {
+        if (capabilitiesOwn && capabilities.feedback === null && !capabilitiesReading.current)
+            setCapabilitiesRetry((count) => count + 1);
+    };
 
     const perform = useCallback(
         async (kind, action) => {
@@ -398,8 +432,9 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
         };
     }, [ready, scope, refreshConversations]);
 
-    const createConversation = () =>
-        perform('creating', async ({signal, update}) => {
+    const createConversation = () => {
+        retryCapabilities();
+        return perform('creating', async ({signal, update}) => {
             const conversation = await client.createConversation({signal});
             update((previous) => ({
                 ...previous,
@@ -415,6 +450,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
             }));
             return conversation;
         });
+    };
 
     // Back to no conversation, as the page opens: the next message sent creates
     // one. Nothing is asked of the agent: a question put in the message box by a
@@ -429,6 +465,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     };
 
     const resumeConversation = (id) => {
+        retryCapabilities();
         if (state.scope === scope && state.conversation?.id === id && !state.partial) return;
         return perform('resuming', async ({signal, update}) => {
             update((previous) => ({
@@ -542,7 +579,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     // the turn of an answer of the current conversation.
     const rateTurn = async (turnId, feedback) => {
         const conversationId = state.scope === scope ? state.conversation?.id : null;
-        if (!ready || !client || !conversationId || typeof turnId !== 'string' || state.ratings[turnId]?.pending) return false;
+        if (!ready || !client || !feedbackEnabled || !conversationId || typeof turnId !== 'string' || state.ratings[turnId]?.pending) return false;
         const requestEpoch = epoch.current;
         const controller = new AbortController();
         feedbackRequests.current.add(controller);
@@ -560,8 +597,22 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
             setRating(() => ({feedback: stored, pending: false, error: ''}));
             return true;
         } catch (error) {
-            if (!controller.signal.aborted && error?.name !== 'AbortError')
-                setRating((rating) => ({feedback: rating?.feedback || null, pending: false, error: errorMessage(error)}));
+            if (!controller.signal.aborted && error?.name !== 'AbortError') {
+                // The operator turned the feedback off since it was read: the
+                // other answers are no longer offered it, and this one says why
+                // (turnedOff) where its rating was.
+                const turnedOff = error?.code === 'feedback_disabled';
+                setRating((rating) => ({
+                    feedback: rating?.feedback || null,
+                    pending: false,
+                    error: errorMessage(error),
+                    ...(turnedOff ? {turnedOff: true} : {}),
+                }));
+                if (turnedOff)
+                    setCapabilities((previous) =>
+                        previous.client === client && previous.scope === scope ? {...previous, feedback: false} : previous
+                    );
+            }
             return false;
         } finally {
             feedbackRequests.current.delete(controller);
@@ -662,6 +713,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     // sent, or, for a queued message, when it was queued.
     const send = (prompt, context = interfaceContext()) => {
         if (!state.historyReady || state.confirmation || typeof prompt !== 'string' || !prompt.trim()) return;
+        retryCapabilities();
         const current = state.scope === scope ? state.conversation : null;
         // The conversation whose run ended normally, which releases the queue.
         let ended = null;
@@ -813,6 +865,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
         takeQueued,
         previewAgain,
         reject: () => decide(false),
+        feedbackEnabled,
         rate: (turnId, feedback) => rateTurn(turnId, feedback),
         unrate: (turnId) => rateTurn(turnId, null),
     };

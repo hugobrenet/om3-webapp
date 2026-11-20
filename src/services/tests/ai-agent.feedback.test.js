@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {AiAgentError, createAiAgentClient, parseFeedback} from '../ai-agent.js';
+import {AiAgentError, createAiAgentClient, parseCapabilities, parseFeedback} from '../ai-agent.js';
 
 const baseUrl = 'https://agent.example.com:8090';
 const path = `${baseUrl}/v1/om3/conversations/conversation-1/turns/turn-1/feedback`;
@@ -33,6 +33,21 @@ describe('parseFeedback', () => {
     });
     it('accepts an expected text of exactly 1000 characters', () => {
         expect(parseFeedback({rating: 'down', expected: '😀'.repeat(1000)})).not.toBeNull();
+    });
+});
+
+describe('parseCapabilities', () => {
+    it.each([
+        [{custom: {feedback: true}}, true],
+        [{custom: {feedback: false}}, false],
+        // An agent older than the setting: the feedback is on.
+        [{tools: {supported: true}}, true],
+        [{custom: {}}, true],
+    ])('reads %j', (value, feedback) => {
+        expect(parseCapabilities(value)).toEqual({feedback});
+    });
+    it.each([null, [], 'x', {custom: []}, {custom: 'x'}, {custom: {feedback: 'false'}}, {custom: {feedback: 0}}])('refuses %j', (value) => {
+        expect(() => parseCapabilities(value)).toThrow(AiAgentError);
     });
 });
 
@@ -71,14 +86,35 @@ describe('AI agent feedback client', () => {
         fetchMock.mockResolvedValueOnce(Response.json({feedback: {rating: 'maybe'}}));
         await expect(client.setFeedback('conversation-1', 'turn-1', {rating: 'up'})).rejects.toMatchObject({code: 'invalid_response'});
     });
+    it('reads the capabilities of the agent', async () => {
+        fetchMock.mockResolvedValueOnce(Response.json({transport: {streaming: true}, custom: {feedback: false}}));
+        await expect(client.getCapabilities()).resolves.toEqual({feedback: false});
+        const [url, options] = fetchMock.mock.calls[0];
+        expect(url).toBe(`${baseUrl}/v1/om3/capabilities`);
+        expect(options).toMatchObject({method: 'GET', credentials: 'omit', headers: {Authorization: 'Bearer token', 'X-OpenSVC-Cluster-ID': 'cluster-id'}});
+        fetchMock.mockResolvedValueOnce(new Response('not json'));
+        await expect(client.getCapabilities()).rejects.toMatchObject({code: 'invalid_response'});
+        fetchMock.mockResolvedValueOnce(Response.json({error: {code: 'authentication_unavailable', message: 'x'}}, {status: 503}));
+        await expect(client.getCapabilities()).rejects.toMatchObject({status: 503, message: 'Authentication or agent temporarily unavailable.'});
+    });
     it.each([
         [400, 'The feedback is invalid.'],
+        // A 403 without the code of the agent, such as from a proxy.
+        [403, 'Access denied to the agent or target cluster.'],
         [404, 'This answer can no longer be rated.'],
         [409, 'The agent keeps no more feedback for now.'],
         [410, 'Conversation expired.'],
     ])('explains HTTP %i', async (status, message) => {
         fetchMock.mockResolvedValueOnce(Response.json({error: {code: 'x', message: 'secret upstream'}}, {status}));
         await expect(client.setFeedback('conversation-1', 'turn-1', {rating: 'up'})).rejects.toMatchObject({status, message});
+    });
+    it('explains the feedback turned off by the operator by its code', async () => {
+        fetchMock
+            .mockResolvedValueOnce(Response.json({error: {code: 'feedback_disabled', message: 'secret'}}, {status: 403}))
+            .mockResolvedValueOnce(Response.json({error: {code: 'feedback_disabled', message: 'secret'}}, {status: 403}));
+        const expected = {code: 'feedback_disabled', status: 403, message: 'Feedback is turned off on this agent.'};
+        await expect(client.setFeedback('conversation-1', 'turn-1', {rating: 'up'})).rejects.toMatchObject(expected);
+        await expect(client.deleteFeedback('conversation-1', 'turn-1')).rejects.toMatchObject(expected);
     });
     it('deletes the feedback and requires 204', async () => {
         fetchMock.mockResolvedValueOnce(new Response(null, {status: 204})).mockResolvedValueOnce(Response.json({}));

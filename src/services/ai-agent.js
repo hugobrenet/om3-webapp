@@ -20,11 +20,17 @@ export const FEEDBACK_REASONS = [
     'action_not_done',
 ];
 export const MAX_FEEDBACK_EXPECTED_CHARACTERS = 1000;
-const FEEDBACK_HTTP_MESSAGES = {
+const FEEDBACK_STATUS_MESSAGES = {
     400: 'The feedback is invalid.',
     404: 'This answer can no longer be rated.',
     409: 'The agent keeps no more feedback for now.',
 };
+// The refusals of a feedback: the feedback turned off by the operator, by the
+// code of the agent, the others by their status.
+const FEEDBACK_HTTP_MESSAGES = (status, code) =>
+    code === 'feedback_disabled'
+        ? [code, 'Feedback is turned off on this agent.']
+        : [undefined, FEEDBACK_STATUS_MESSAGES[status]];
 // The run error codes the webapp explains. The agent message is never shown:
 // any other code gets the generic failure message.
 const RUN_ERROR_MESSAGES = {
@@ -79,6 +85,7 @@ const checkAborted = (signal) => {
 // The agent serves each backend under its own routes; the webapp talks to om3.
 const CONVERSATIONS_PATH = '/v1/om3/conversations';
 const TOOLS_PATH = '/v1/om3/tools';
+const CAPABILITIES_PATH = '/v1/om3/capabilities';
 const conversationPath = (id) => {
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) {
         throw new AiAgentError('invalid_conversation', 'A valid conversation ID is required.');
@@ -206,6 +213,18 @@ const parseTools = (result) => {
         };
     });
 };
+// What the webapp reads of the AG-UI AgentCapabilities of the agent: whether
+// its turns take a feedback, custom.feedback. An agent older than the setting
+// gives no custom group: its feedback is on.
+export const parseCapabilities = (result) => {
+    if (!isPlainObject(result)) throw protocolError();
+    const custom = result.custom;
+    if (custom !== undefined && !isPlainObject(custom)) throw protocolError();
+    const feedback = custom?.feedback;
+    if (feedback !== undefined && typeof feedback !== 'boolean') throw protocolError();
+    return {feedback: feedback !== false};
+};
+
 const TOOLS_MESSAGES = (status, code) =>
     status === 502 && code === 'tools_unavailable'
         ? ['tools_unavailable', 'The agent could not read its tools.']
@@ -1026,6 +1045,24 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                 },
                 signal,
                 TOOLS_MESSAGES
+            ),
+        // What the agent offers the interface, such as the feedback.
+        getCapabilities: ({signal} = {}) =>
+            request(
+                CAPABILITIES_PATH,
+                {method: 'GET', headers: {Accept: 'application/json'}},
+                async (response, requestSignal) => {
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch {
+                        checkAborted(requestSignal);
+                        throw protocolError();
+                    }
+                    checkAborted(requestSignal);
+                    return parseCapabilities(result);
+                },
+                signal
             ),
         getConversation: (id, options) =>
             jsonRequest(conversationPath(id), 'GET', 'conversation', options),

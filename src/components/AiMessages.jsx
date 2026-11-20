@@ -153,7 +153,9 @@ function Message({message, feedback, status}) {
 
 /**
  * The messages of the conversation shown, the page's and the dock's: each answer
- * with its steps, the last one of a turn, completed, rated by the user.
+ * with its steps, the last one of a turn, completed, rated by the user, unless
+ * the agent turned the feedback off: then no rating is shown, not even one
+ * given before.
  * `status`, the state of the cluster, which names the objects the answers link.
  */
 export default function AiMessages({chat, status}) {
@@ -173,13 +175,19 @@ export default function AiMessages({chat, status}) {
                         message={message}
                         status={status}
                         feedback={
-                            rateable && (
+                            rateable && chat.feedbackEnabled ? (
                                 <Feedback
                                     rating={chat.ratings[message.turn_id]}
                                     onRate={(value) => chat.rate(message.turn_id, value)}
                                     onUnrate={() => chat.unrate(message.turn_id)}
                                 />
-                            )
+                            ) : rateable && chat.ratings[message.turn_id]?.turnedOff ? (
+                                // Turned off while the user rated this answer: the
+                                // rating goes, the reason stays.
+                                <p role="alert" className="mt-2 text-data text-state-down">
+                                    {chat.ratings[message.turn_id].error}
+                                </p>
+                            ) : null
                         }
                     />
                 );

@@ -4,6 +4,7 @@ import {beforeEach, describe, expect, test, vi} from 'vitest';
 import AiChat from '../AiChat.jsx';
 import {MemoryRouter} from 'react-router-dom';
 import {AiChatProvider} from '../../context/AiChatProvider.jsx';
+import {AiAgentError} from '../../services/ai-agent.js';
 
 // The provider reads the page under the dock: the application mounts it in its
 // router. The page of the assistant has none under it.
@@ -43,6 +44,7 @@ describe('AI chatbot feedback', () => {
                 ],
                 next_cursor: '',
             }),
+            getCapabilities: vi.fn().mockResolvedValue({feedback: true}),
             newId: vi.fn(() => 'prompt-1'),
             run: vi.fn(async (_id, _input, {onEvent}) => {
                 onEvent({type: 'TEXT_MESSAGE_START', messageId: 'turn-live:2'});
@@ -119,6 +121,39 @@ describe('AI chatbot feedback', () => {
         await screen.findByText('Streamed answer.');
         fireEvent.click(await within(answer('Streamed answer.')).findByRole('button', {name: /Helpful/}));
         await waitFor(() => expect(mocks.client.setFeedback).toHaveBeenCalledWith('new', 'turn-live', {rating: 'up'}, expect.any(Object)));
+    });
+    test('offers no rating, not even one given before, when the agent turned the feedback off', async () => {
+        mocks.client.getCapabilities.mockResolvedValue({feedback: false});
+        await resume();
+        await screen.findByText('Linux mostly.');
+        expect(mocks.client.getCapabilities).toHaveBeenCalled();
+        expect(screen.queryByRole('group', {name: 'Rate this answer'})).toBeNull();
+        expect(screen.queryByText('Thanks for your feedback.')).toBeNull();
+    });
+    test('offers no rating when the capabilities of the agent cannot be read', async () => {
+        mocks.client.getCapabilities.mockRejectedValue(new Error('boom'));
+        await resume();
+        await waitFor(() => expect(mocks.client.getCapabilities).toHaveBeenCalled());
+        expect(screen.queryByRole('group', {name: 'Rate this answer'})).toBeNull();
+    });
+    test('says the feedback turned off under the answer rated, and offers it no more', async () => {
+        await resume();
+        mocks.client.setFeedback.mockRejectedValueOnce(new AiAgentError('feedback_disabled', 'Feedback is turned off on this agent.', 403));
+        fireEvent.click(within(answer('There are 484 nodes.')).getByRole('button', {name: /Helpful/}));
+        await waitFor(() => expect(screen.queryByRole('group', {name: 'Rate this answer'})).toBeNull());
+        expect(within(answer('There are 484 nodes.')).getByRole('alert')).toHaveTextContent('Feedback is turned off on this agent.');
+        expect(screen.getAllByRole('alert')).toHaveLength(1);
+    });
+    test('says the feedback turned off to a user who was telling more', async () => {
+        await resume();
+        const turn = within(answer('There are 484 nodes.'));
+        fireEvent.click(turn.getByRole('button', {name: /Needs improvement/}));
+        const form = within(turn.getByRole('form', {name: 'Feedback details'}));
+        mocks.client.setFeedback.mockRejectedValueOnce(new AiAgentError('feedback_disabled', 'Feedback is turned off on this agent.', 403));
+        fireEvent.change(form.getByRole('textbox', {name: /What did you expect/}), {target: {value: 'The count per OS'}});
+        fireEvent.click(form.getByRole('button', {name: 'Send'}));
+        expect(await turn.findByRole('alert')).toHaveTextContent('Feedback is turned off on this agent.');
+        expect(turn.queryByRole('form', {name: 'Feedback details'})).toBeNull();
     });
     test('shows a saving error under the answer', async () => {
         mocks.client.setFeedback.mockRejectedValueOnce(new Error('boom'));
