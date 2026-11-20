@@ -382,6 +382,13 @@ describe("VolumeFiles", () => {
             expect(within(dialog).queryByRole("button", {name: "Edit"})).toBeNull();
         });
 
+        test("read in part, its size not told: said so, the size unknown, not edited", async () => {
+            const dialog = await open("haproxy.cfg", {blob: text("a\n"), total: undefined, partial: true});
+            const said = await within(dialog).findByText(/the first 1.0 MiB shown/);
+            expect(said).toHaveTextContent(/^Type: text · – · the first/);
+            expect(within(dialog).queryByRole("button", {name: "Edit"})).toBeNull();
+        });
+
         test("CR LF lines: not edited, a text box would change them", async () => {
             const dialog = await open("haproxy.cfg", {blob: text("a\r\nb\r\n"), total: 6, partial: false});
             expect(await within(dialog).findByText(/CR LF/)).toBeInTheDocument();

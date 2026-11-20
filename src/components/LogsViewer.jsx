@@ -76,6 +76,8 @@ const LogsViewer = ({
     const nodesRef = useRef([]);
     const fetchLogsRef = useRef(null);
     const logBufferRef = useRef([]);
+    // The keys of the lines kept and of those waiting for the next render: a line read
+    // again (a stream reopened, older lines asked) shown once.
     const seenLogsRef = useRef(new Set());
     const scrollToLogTimeoutRef = useRef(null);
     const highlightTimeoutRef = useRef(null);
@@ -116,6 +118,12 @@ const LogsViewer = ({
     useEffect(() => {
         isPausedRef.current = isPaused;
     }, [isPaused]);
+
+    // The keys of the lines kept, no more: a line dropped from the top forgotten, as many
+    // keys as lines however long the logs are followed; read again with the older lines.
+    useEffect(() => {
+        seenLogsRef.current = new Set([...logs, ...logBufferRef.current].map((log) => log.key));
+    }, [logs]);
 
     useEffect(() => {
         // Other logs: followed from their end, none older read yet.
