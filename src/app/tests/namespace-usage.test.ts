@@ -151,18 +151,22 @@ describe("usage", () => {
 
 describe("formatCpuPercent", () => {
   test.each([
-    [0, "0.0 %"],
-    [0.2, "0.2 %"],
-    [0.06, "0.1 %"],
-    [50, "50.0 %"],
-    [400, "400.0 %"],
+    [0, "0.0%"],
+    [0.2, "0.2%"],
+    [0.06, "0.1%"],
+    [50, "50.0%"],
+    [400, "400.0%"],
   ])("%d %% of a cpu reads %s, as in the namespace panel", (percent, text) => {
-    expect(formatCpuPercent(percent)).toBe(text);
+    expect(formatCpuPercent(percent, "en")).toBe(text);
+  });
+
+  test("in French, as French writes a percent", () => {
+    expect(formatCpuPercent(0.2, "fr")).toMatch(/^0,2[\u00a0\u202f]%$/);
   });
 
   test("a usage not known yet reads -", () => {
-    expect(formatCpuPercent(null)).toBe("–");
-    expect(formatCpuPercent(undefined)).toBe("–");
+    expect(formatCpuPercent(null, "en")).toBe("–");
+    expect(formatCpuPercent(undefined, "en")).toBe("–");
   });
 });
 

@@ -142,10 +142,18 @@ describe("formatDuration", () => {
 });
 
 describe("formatPercent", () => {
-  test("up to two decimals by default", () => {
-    expect(formatPercent(12.3456, "en")).toBe("12.35 %");
-    expect(formatPercent(50, "en")).toBe("50 %");
-    expect(formatPercent(12.3456, "en", 0)).toBe("12 %");
+  test("as the locale writes it: no space in English, one before it in French", () => {
+    expect(formatPercent(63, "en")).toBe("63.0%");
+    expect(formatPercent(63, "fr")).toMatch(/^63,0[\u00a0\u202f]%$/);
+    expect(formatPercent(0, "en")).toBe("0.0%");
+  });
+
+  test("its decimals always, or at most; a cpu's past a hundred", () => {
+    expect(formatPercent(12.3456, "en", 2)).toBe("12.35%");
+    expect(formatPercent(12.3456, "en", 0)).toBe("12%");
+    expect(formatPercent(50, "en", 1, false)).toBe("50%");
+    expect(formatPercent(4.25, "en", 1, false)).toBe("4.3%");
+    expect(formatPercent(800, "en")).toBe("800.0%");
   });
 });
 

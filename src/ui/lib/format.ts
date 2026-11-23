@@ -139,7 +139,15 @@ export function formatDuration(seconds: number, locale: string): string {
   return parts.join(" ");
 }
 
-/** A percent, with up to two decimals, in the locale. */
-export function formatPercent(value: number, locale: string, digits = 2): string {
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(value)} %`;
+/**
+ * A percent (`value` from 0 to 100, past it a cpu's), as the locale writes one: "63.0%"
+ * in English, "63,0 %" in French. `digits` decimals, always (`fixed`, the figures of a
+ * column lined up), or at most.
+ */
+export function formatPercent(value: number, locale: string, digits = 1, fixed = true): string {
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    minimumFractionDigits: fixed ? digits : 0,
+    maximumFractionDigits: digits,
+  }).format(value / 100);
 }

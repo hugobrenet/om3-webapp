@@ -3,7 +3,7 @@ import {Trans, useTranslation} from "react-i18next";
 import useEventStore from "../hooks/useEventStore.js";
 import {anyOf, useInstanceConfigChanges, usePollTicks} from "../hooks/useLiveChanges";
 import {deleteFile, isFileExists, listFiles, makeDirectory, uploadFile} from "../services/volume-files.js";
-import {formatBytes} from "../utils/cgroupMetrics.js";
+import {formatBytes, formatPercent} from "../ui/lib/format";
 import {usePanelSearch} from "../app/panel-search";
 import {Alert} from "../ui/components/Alert";
 import {Button, IconButton} from "../ui/components/Button";
@@ -296,7 +296,7 @@ export function VolumeFiles({path}) {
                         max={1}
                         value={sending.part}
                     />
-                    <span className="text-data text-ink-muted tabular-nums">{Math.round(sending.part * 100)}%</span>
+                    <span className="text-data text-ink-muted tabular-nums">{formatPercent(sending.part * 100, i18n.language, 0)}</span>
                     <Button size="sm" onClick={() => upload.current?.abort()}>{t("volumeFiles.cancel")}</Button>
                 </div>
             )}
@@ -336,7 +336,7 @@ export function VolumeFiles({path}) {
                                             </button>
                                         )}
                                     </Cell>
-                                    <Cell className="whitespace-nowrap tabular-nums">{f.type === "file" ? formatBytes(f.size) : ""}</Cell>
+                                    <Cell className="whitespace-nowrap tabular-nums">{f.type === "file" ? formatBytes(f.size, i18n.language) || "0 B" : ""}</Cell>
                                     <Cell data-origin={origin?.kind ?? "unknown"}>
                                         {f.type !== "file" ? null : origin?.kind === "installed" ? (
                                             <span className="inline-flex flex-wrap items-center gap-x-1.5">

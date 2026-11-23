@@ -1,4 +1,4 @@
-import {cpuPercent, formatBytes, namespaceCgroupMetrics, namespaceTotals, parsePrometheusText} from '../cgroupMetrics';
+import {cpuPercent, namespaceCgroupMetrics, namespaceTotals, parsePrometheusText} from '../cgroupMetrics';
 
 const TEXT = `# HELP opensvc_pg_cgroup_cpu_usage_usec Total CPU usage in microseconds for the cgroup
 # TYPE opensvc_pg_cgroup_cpu_usage_usec gauge
@@ -79,18 +79,5 @@ describe('namespaceTotals', () => {
     test('has no CPU while no object has a rate, nor memory when none is known', () => {
         expect(namespaceTotals([{cpu: null}])).toEqual({cpu: null, memoryCurrent: undefined});
         expect(namespaceTotals([])).toEqual({cpu: null, memoryCurrent: undefined});
-    });
-});
-
-describe('formatBytes', () => {
-    test('formats in binary units', () => {
-        expect(formatBytes(512)).toBe('512 B');
-        expect(formatBytes(2048)).toBe('2.0 KiB');
-        expect(formatBytes(3 * 1024 ** 3)).toBe('3.0 GiB');
-    });
-
-    test('says when there is no limit or no value', () => {
-        expect(formatBytes(Infinity)).toBe('unlimited');
-        expect(formatBytes(undefined)).toBe('–');
     });
 });

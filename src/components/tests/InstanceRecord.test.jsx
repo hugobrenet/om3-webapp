@@ -141,7 +141,7 @@ describe('ObjectUsage', () => {
             ['on n3', '…', '–', '–'],
         ]);
         expect(within(table).getAllByRole('row')[3]).toHaveAttribute('aria-current', 'true');
-        expect(tile('Memory')).toHaveTextContent('3.0 MiB');
+        expect(tile('Memory')).toHaveTextContent('3 MiB');
         expect(tile('Limit')).toHaveTextContent('unlimited');
         // Half a cpu on n1, a quarter on n2.
         pages.n1.push(page(PG_FIRST_RATE_MS * 500, MiB, 64 * MiB));
@@ -164,7 +164,7 @@ describe('ObjectUsage', () => {
 describe('InstanceUsage', () => {
     test('the cgroup of the instance on its node alone, then the cgroups around it there', async () => {
         inRouter(<InstanceUsage path="prod/svc/web" node="n2"/>);
-        expect(await screen.findByText('2.0 MiB')).toBeInTheDocument();
+        await waitFor(() => expect(tile('Memory')).toHaveTextContent('2 MiB'));
         expect(global.fetch.mock.calls.map(([url]) => url)).toEqual(['/api/node/name/n2/metrics/pg?path=prod%2Fsvc%2Fweb']);
         expect(tile('Limit')).toHaveTextContent('unlimited');
         const table = await screen.findByRole('table', {name: 'The cgroups of opensvc'});

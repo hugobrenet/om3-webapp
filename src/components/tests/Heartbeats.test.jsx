@@ -325,6 +325,7 @@ describe("Heartbeats Component", () => {
         ["failed", "failed", "down", "text-state-down"],
         ["unknown", "unknown", "unknown", "text-state-unknown"],
         ["invalid-state", "invalid-state", "unknown", "text-state-unknown"],
+        ["", "unknown", "unknown", "text-state-unknown"],
     ])("renders the %s routine as %s in the %s tint", async (state, word, status, ink) => {
         mockHeartbeatStore(buildStatus([{
             node: "node1",

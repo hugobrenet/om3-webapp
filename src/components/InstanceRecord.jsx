@@ -8,7 +8,6 @@ import {objectUsageTree} from "../app/pg-tree";
 import {namespaceOf} from "../app/namespace-usage";
 import {UsageTreeTable} from "./ClusterUsage";
 import {PG_POLL_MS, usePgReadings} from "../hooks/usePgUsage";
-import {formatBytes} from "../utils/cgroupMetrics";
 import {RecordPanel} from "../app/RecordPanel";
 import {CrossLink} from "../app/CrossLink";
 import {Table, HeaderRow, HeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
@@ -17,7 +16,7 @@ import {StatusMark} from "../ui/components/StatusMark";
 import {FrozenMark} from "../ui/components/FrozenMark";
 import {NotProvisionedMark} from "../ui/components/StateMarks";
 import {toObjectState} from "../ui/components/status";
-import {ReadErrors, TotalTile, cpuText} from "./NamespaceMetrics";
+import {ReadErrors, TotalTile, cpuText, memoryText} from "./NamespaceMetrics";
 import {ObjectResources} from "./ObjectTabs";
 import {ContainerLogs} from "./ContainerLogs";
 import {ResourceConsole} from "./ResourceConsole";
@@ -54,13 +53,13 @@ function useInstanceNodes(path) {
 
 /** Its cpu, memory and memory limit, a tile each. */
 const UsageTiles = ({usage, label}) => {
-    const {t} = useTranslation();
+    const {t, i18n} = useTranslation();
     return (
         <section aria-label={label}>
             <dl className="grid grid-cols-3 gap-3">
-                <TotalTile label={t("metrics.columns.cpu")} value={cpuText(usage.cpu)}/>
-                <TotalTile label={t("metrics.columns.memory")} value={formatBytes(usage.memory)}/>
-                <TotalTile label={t("metrics.columns.limit")} value={formatBytes(usage.limit)}/>
+                <TotalTile label={t("metrics.columns.cpu")} value={cpuText(usage.cpu, i18n.language)}/>
+                <TotalTile label={t("metrics.columns.memory")} value={memoryText(usage.memory, t, i18n.language)}/>
+                <TotalTile label={t("metrics.columns.limit")} value={memoryText(usage.limit, t, i18n.language)}/>
             </dl>
         </section>
     );

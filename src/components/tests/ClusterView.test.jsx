@@ -163,7 +163,7 @@ describe('ClusterView', () => {
         global.fetch.mockImplementation(async (url) => (/\/metrics\/pg$/.test(String(url)) ? new Response(host, {status: 200}) : answer(url)));
         render(<ClusterView/>, {wrapper: MemoryRouter});
         // Two nodes: 2 GiB of the 8 GiB they use, of 16 GiB.
-        await waitFor(() => expect(card('opensvc').querySelector('[data-share=memory]')).toHaveTextContent('25 % of the 8 GiB the hosts use, of 16 GiB'));
+        await waitFor(() => expect(card('opensvc').querySelector('[data-share=memory]')).toHaveTextContent('25% of the 8 GiB the hosts use, of 16 GiB'));
         // The cpu from a second reading on.
         expect(card('opensvc').querySelector('[data-share=cpu]')).toBeNull();
     });

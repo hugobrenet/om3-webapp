@@ -57,7 +57,7 @@ const NOT_A_LOGIN = {
  * of the history of the shell.
  */
 export default function TokenPage() {
-    const {t} = useTranslation();
+    const {t, i18n} = useTranslation();
     const [params] = useSearchParams();
     const role = params.get("role") ?? "";
     const [duration, setDuration] = useState(DEFAULT_DURATION[role] ?? "10m");
@@ -204,7 +204,7 @@ export default function TokenPage() {
                     <div className="flex items-center gap-2">
                         <h2 id="token-result" className="font-semibold">{t("tokenPage.token")}</h2>
                         {token.expires && (
-                            <span className="text-data text-ink-muted">{t("tokenPage.expires", {at: new Date(token.expires).toLocaleString()})}</span>
+                            <span className="text-data text-ink-muted">{t("tokenPage.expires", {at: new Date(token.expires).toLocaleString(i18n.language)})}</span>
                         )}
                         <span className="ml-auto flex items-center gap-1">
                             <IconButton label={shown ? t("tokenPage.hide") : t("tokenPage.reveal")} aria-pressed={shown}

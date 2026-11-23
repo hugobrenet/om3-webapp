@@ -711,7 +711,8 @@
     },
     "routine": {
       "running": "started",
-      "stopped": "stopped"
+      "stopped": "stopped",
+      "unknown": "unknown"
     },
     "direction": {
       "tx": "sends to",
@@ -3490,7 +3491,7 @@
         "read": "Read",
         "write": "Write"
       },
-      "cell": "{{node}} · {{metric}}: {{value}}, {{share}} % of the busiest node",
+      "cell": "{{node}} · {{metric}}: {{value}}, {{share}}% of the busiest node",
       "cellPending": "{{node}} · {{metric}}: waiting for a second reading"
     },
     "relay": {
@@ -4320,7 +4321,7 @@
         "down": "down",
         "warn": "warn",
         "na": "n/a",
-        "unknown": "unknown"
+      "unknown": "unknown"
       },
       "waiting": "Waiting for the agent…"
     },

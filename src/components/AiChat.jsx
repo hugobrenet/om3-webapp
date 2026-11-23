@@ -267,7 +267,7 @@ function PreviewDetails({preview, path}) {
                 <p key={index} className="text-state-warn">{warning}</p>
             ))}
             {preview.readAt && (
-                <p className="text-ink-muted">{t("ai.confirm.readAt", {time: new Date(preview.readAt).toLocaleTimeString()})}</p>
+                <p className="text-ink-muted">{t("ai.confirm.readAt", {time: new Date(preview.readAt).toLocaleTimeString(i18n.language)})}</p>
             )}
         </div>
     );
@@ -301,7 +301,7 @@ function ArgumentValue({value, type}) {
  */
 function ConfirmationCard({confirmation, doc, busy, previewing, queued, onApprove, onReject, onPreview}) {
     const {t, i18n} = useTranslation();
-    const expires = new Date(confirmation.expires_at).toLocaleTimeString();
+    const expires = new Date(confirmation.expires_at).toLocaleTimeString(i18n.language);
     const entries = Object.entries(confirmation.arguments);
     const argumentTypes = confirmation.argument_types || {};
     // What the tool and its arguments do, from the catalog of the agent.

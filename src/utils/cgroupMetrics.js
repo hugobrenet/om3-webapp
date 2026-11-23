@@ -75,17 +75,3 @@ export const namespaceTotals = (rows) => {
     }
     return {cpu, memoryCurrent};
 };
-
-const UNITS = ["B", "KiB", "MiB", "GiB", "TiB"];
-
-export const formatBytes = (bytes) => {
-    if (bytes === undefined || Number.isNaN(bytes)) return "–";
-    if (bytes === Infinity) return "unlimited";
-    let value = bytes;
-    let unit = 0;
-    while (value >= 1024 && unit < UNITS.length - 1) {
-        value /= 1024;
-        unit++;
-    }
-    return `${unit === 0 ? value : value.toFixed(1)} ${UNITS[unit]}`;
-};

@@ -711,7 +711,8 @@
     },
     "routine": {
       "running": "démarrée",
-      "stopped": "arrêtée"
+      "stopped": "arrêtée",
+      "unknown": "inconnue"
     },
     "direction": {
       "tx": "envoie à",
@@ -1855,7 +1856,7 @@
     },
     "columns": {
       "object": "Objet",
-      "orchestrate": "Orchestrate",
+      "orchestrate": "Orchestration",
       "topology": "Topologie",
       "keys": "Clés",
       "keysSize": "Taille",

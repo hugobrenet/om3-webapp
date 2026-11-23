@@ -3,6 +3,7 @@ import {Row, Cell} from "../ui/components/Table";
 import {Checkbox} from "../ui/components/Field";
 import {FrozenMark} from "../ui/components/FrozenMark";
 import {UsageBar} from "../ui/components/UsageBar";
+import {formatPercent} from "../ui/lib/format";
 import {RssIcon, TagIcon} from "../ui/icons";
 import {useTranslation} from "react-i18next";
 import {AgeTime, ZERO_DATE} from "./AgeTime";
@@ -88,7 +89,7 @@ const NodeRow = ({
                      layout = WHOLE,
                      commonVersion,
                  }) => {
-    const {t} = useTranslation();
+    const {t, i18n} = useTranslation();
     const notAvailable = t("common.notAvailable");
     const isFrozen = !!status?.frozen_at && status.frozen_at !== ZERO_DATE;
     const isDaemonNode = daemonNodename === nodename;
@@ -143,14 +144,14 @@ const NodeRow = ({
     const mem = (
         <UsageBar
             value={has(stats?.mem_avail) ? stats.mem_avail : undefined}
-            text={`${stats?.mem_avail}%`}
+            text={has(stats?.mem_avail) ? formatPercent(stats.mem_avail, i18n.language, 0) : undefined}
             missing={notAvailable}
             state={memState}
             label={t("nodes.columns.memAvail")}
         />
     );
     // A dash rather than a percent of nothing: no value reported, or no swap.
-    const swap = typeof stats?.swap_avail === "number" && stats?.swap_total !== 0 ? `${stats.swap_avail}%` : "–";
+    const swap = typeof stats?.swap_avail === "number" && stats?.swap_total !== 0 ? formatPercent(stats.swap_avail, i18n.language, 0) : "–";
     const score = has(stats?.score) ? stats.score : notAvailable;
 
     return (
@@ -203,7 +204,7 @@ const NodeRow = ({
                         <span className="text-ink-muted">{t("nodes.short.load")}</span>
                         <span data-state={loadState} className={FIGURE_INK[loadState]}>{stats?.load_15m ?? notAvailable}</span>
                         <span className="text-ink-muted">{t("nodes.short.mem")}</span>
-                        <span data-state={memState} className={FIGURE_INK[memState]}>{typeof stats?.mem_avail === "number" ? `${stats.mem_avail}%` : notAvailable}</span>
+                        <span data-state={memState} className={FIGURE_INK[memState]}>{typeof stats?.mem_avail === "number" ? formatPercent(stats.mem_avail, i18n.language, 0) : notAvailable}</span>
                         <span className="text-ink-muted">{t("nodes.short.swap")}</span><span>{swap}</span>
                     </span>
                 </Cell>

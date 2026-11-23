@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
+import i18n from "../../i18n";
 import { UsageBar, usageState } from "../components/UsageBar";
 import { StatusCount } from "../components/StatusCount";
 
@@ -10,6 +11,17 @@ describe("UsageBar", () => {
     expect(usageState(50.1)).toBe("warn");
     expect(usageState(80.1)).toBe("down");
     expect(usageState(30, { warn: 20, down: 90 })).toBe("warn");
+  });
+
+  test("the value as the language of the page writes a percent", async () => {
+    await i18n.changeLanguage("fr");
+    try {
+      render(<UsageBar value={63.47} label="Usage" />);
+      // The matcher folds the no-break space before it into a space.
+      expect(screen.getByText("63,5 %")).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 
   test("writes the value and draws the bar beside it, in its state colour", () => {

@@ -7,7 +7,7 @@ import {Dialog} from "../ui/components/Dialog";
 import {Checkbox, Textarea} from "../ui/components/Field";
 import {Spinner} from "../ui/components/Spinner";
 import {DownloadIcon} from "../ui/icons";
-import {formatBytes} from "../utils/cgroupMetrics.js";
+import {formatBytes} from "../ui/lib/format";
 import {downloadFile, readFileHead, uploadFile} from "../services/volume-files.js";
 import {parseBlobContent} from "../utils/blob-content";
 import {hasPemCertificate} from "../utils/x509";
@@ -64,7 +64,9 @@ const endsUnfed = (text) => text !== "" && !text.endsWith("\n");
  * (`onDelete`).
  */
 export function VolumeFileDialog({path, node, dir, name, origin = null, stamp = "", onKey, onClose, onDelete, onSaved}) {
-    const {t} = useTranslation();
+    const {t, i18n} = useTranslation();
+    // A size not told, "–"; none, "0 B".
+    const size = (bytes) => (typeof bytes === "number" ? formatBytes(bytes, i18n.language) || "0 B" : "–");
     const [read, setRead] = useState(null);
     const [error, setError] = useState(null);
     const [showCertificate, setShowCertificate] = useState(false);
@@ -181,9 +183,9 @@ export function VolumeFileDialog({path, node, dir, name, origin = null, stamp = 
                         <p className="text-data text-ink-muted" data-file-type={read.type}>
                             {text ? t("keys.view.typeText") : t("keys.view.typeBinary")}
                             {/* In the units of its row in the list. */}
-                            {" · "}{formatBytes(read.total)}
-                            {read.partial && text && ` · ${t("volumeFiles.view.partial", {size: formatBytes(SHOWN)})}`}
-                            {read.hexPartial && ` · ${t("volumeFiles.view.partial", {size: formatBytes(HEX_SHOWN)})}`}
+                            {" · "}{size(read.total)}
+                            {read.partial && text && ` · ${t("volumeFiles.view.partial", {size: size(SHOWN)})}`}
+                            {read.hexPartial && ` · ${t("volumeFiles.view.partial", {size: size(HEX_SHOWN)})}`}
                             {text && !installed && !read.partial && !editable && ` · ${t("volumeFiles.view.crlf")}`}
                         </p>
                         <div className="flex items-center gap-1">

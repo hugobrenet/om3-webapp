@@ -1,5 +1,7 @@
 import React from "react";
+import {useTranslation} from "react-i18next";
 import {usageState} from "../ui/components/UsageBar";
+import {formatPercent} from "../ui/lib/format";
 
 const RING_RADIUS = 52;
 const RING_STROKE = {up: "stroke-state-up", warn: "stroke-state-warn", down: "stroke-state-down"};
@@ -20,6 +22,7 @@ export function formatCount(n, locale) {
  * is free, as the caller words them. A share too small to see still drawn, a sliver.
  */
 export function UsageRing({used, size, usedText, freeText, label}) {
+    const {i18n} = useTranslation();
     const pct = size ? (used / size) * 100 : 0;
     const round = 2 * Math.PI * RING_RADIUS;
     const length = used > 0 ? Math.max(2, (round * Math.min(pct, 100)) / 100) : 0;
@@ -42,7 +45,7 @@ export function UsageRing({used, size, usedText, freeText, label}) {
                 )}
             </svg>
             <div role="group" aria-label={label} className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-2xl font-semibold tabular-nums">{size ? `${pct.toFixed(1)}%` : "–"}</span>
+                <span className="text-2xl font-semibold tabular-nums">{size ? formatPercent(pct, i18n.language, 1) : "–"}</span>
                 <span className="tabular-nums">{usedText}</span>
                 <span className="text-ink-muted tabular-nums">{freeText}</span>
             </div>
