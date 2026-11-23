@@ -1131,8 +1131,8 @@
       "vol_other": "Afficher les {{count}} volumes {{status}} de {{namespace}}",
       "sec_one": "Afficher le secret de {{namespace}}",
       "sec_other": "Afficher les {{count}} secrets de {{namespace}}",
-      "cfg_one": "Afficher la configuration de {{namespace}}",
-      "cfg_other": "Afficher les {{count}} configurations de {{namespace}}"
+      "cfg_one": "Afficher la config de {{namespace}}",
+      "cfg_other": "Afficher les {{count}} configs de {{namespace}}"
     },
     "usage": {
       "claimed": "{{name}} : {{used}} sur un quota de {{total}} ({{percent}})",
@@ -1326,8 +1326,8 @@
         "svc_other": "Afficher les {{count}} services de {{namespace}}",
         "vol_one": "Afficher le volume de {{namespace}}",
         "vol_other": "Afficher les {{count}} volumes de {{namespace}}",
-        "cfg_one": "Afficher la configuration de {{namespace}}",
-        "cfg_other": "Afficher les {{count}} configurations de {{namespace}}",
+        "cfg_one": "Afficher la config de {{namespace}}",
+        "cfg_other": "Afficher les {{count}} configs de {{namespace}}",
         "sec_one": "Afficher le secret de {{namespace}}",
         "sec_other": "Afficher les {{count}} secrets de {{namespace}}"
       },
@@ -1847,7 +1847,7 @@
       "label": "Listes d'objets",
       "services": "Services",
       "volumes": "Volumes",
-      "configs": "Configurations",
+      "configs": "Configs",
       "secrets": "Secrets",
       "users": "Utilisateurs",
       "namespaces": "Namespaces",
@@ -2127,7 +2127,7 @@
       "node": "Nœuds",
       "svc": "Services",
       "vol": "Volumes",
-      "cfg": "Configurations",
+      "cfg": "Configs",
       "sec": "Secrets",
       "usr": "Utilisateurs",
       "nscfg": "Configurations de namespace",
@@ -3653,10 +3653,10 @@
       "resources": "Cette page liste chaque ressource de chaque service et volume, sur chaque nœud : systèmes de fichiers, adresses IP, disques, conteneurs, applications. « Problèmes seulement » ne garde que ce qui est down ou en warn, hors nœuds passifs d'un service failover, down comme prévu.",
       "objects-services": "Les services (svc) sont les applications que le cluster maintient en marche. Chacun est composé de ressources, comme une adresse IP, un système de fichiers et un conteneur. Un service a une instance sur chaque nœud où il est autorisé à tourner.",
       "objects-volumes": "Les volumes (vol) sont l'espace de stockage demandé par un service. Le cluster crée chaque volume dans un pool de stockage quand le service est provisionné.",
-      "objects-configs": "Les configurations (cfg) contiennent des réglages et des fichiers qui ne sont pas secrets. Les services les utilisent comme fichiers ou variables d'environnement. La configuration du cluster lui-même est listée ici aussi.",
-      "objects-secrets": "Les secrets (sec) fonctionnent comme les configurations, mais sont stockés chiffrés. Utilisez-les pour les mots de passe, certificats et clés privées.",
+      "objects-configs": "Les configs (cfg) contiennent des réglages et des fichiers qui ne sont pas secrets. Les services les utilisent comme fichiers ou variables d'environnement. La configuration du cluster lui-même est listée ici aussi.",
+      "objects-secrets": "Les secrets (sec) fonctionnent comme les configs, mais sont stockés chiffrés. Utilisez-les pour les mots de passe, certificats et clés privées.",
       "objects-users": "Les utilisateurs (usr) sont des comptes qui peuvent se connecter à cette webapp et à l'API, chacun avec ses propres droits (grants).",
-      "objects-any": "Tous les objets du cluster, de tous les types : services, volumes, configurations, secrets et utilisateurs."
+      "objects-any": "Tous les objets du cluster, de tous les types : services, volumes, configs, secrets et utilisateurs."
     }
   },
   "glossary": {

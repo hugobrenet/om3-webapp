@@ -33,7 +33,7 @@ const setCompact = (compact) => {
 };
 
 const CLUSTER = ['Links', 'Nodes', 'Namespaces', 'Networks', 'Pools', 'Stores', 'Arrays', 'Resources'];
-const OBJECTS = ['Services', 'Volumes', 'Configurations', 'Secrets', 'Users'];
+const OBJECTS = ['Services', 'Volumes', 'Configs', 'Secrets', 'Users'];
 const section = (name) => screen.getByRole('region', {name});
 /** The entries of a section: the links of its list, not its title. */
 const linkNames = (element) => within(within(element).getByRole('list')).getAllByRole('link').map((link) => link.textContent);
@@ -103,7 +103,7 @@ describe('Sidebar', () => {
         expect(hrefs).toEqual({
             Cluster: '/cluster', Relay: '/relay', Links: '/heartbeats', Nodes: '/nodes', Namespaces: '/namespaces', Networks: '/network', Pools: '/pools', Stores: '/stores', Arrays: '/arrays', Resources: '/resources',
             Objects: '/objects?list=any', Services: '/objects', Volumes: '/objects?list=volumes',
-            Configurations: '/objects?list=configs', Secrets: '/objects?list=secrets', Users: '/objects?list=users',
+            Configs: '/objects?list=configs', Secrets: '/objects?list=secrets', Users: '/objects?list=users',
             'AI assistant': '/ai',
             Glossary: '/glossary',
             About: '/about',

@@ -1131,8 +1131,8 @@
       "vol_other": "Show the {{count}} {{status}} volumes of {{namespace}}",
       "sec_one": "Show the {{count}} secret of {{namespace}}",
       "sec_other": "Show the {{count}} secrets of {{namespace}}",
-      "cfg_one": "Show the {{count}} configuration of {{namespace}}",
-      "cfg_other": "Show the {{count}} configurations of {{namespace}}"
+      "cfg_one": "Show the {{count}} config of {{namespace}}",
+      "cfg_other": "Show the {{count}} configs of {{namespace}}"
     },
     "usage": {
       "claimed": "{{name}}: {{used}} of {{total}} claimed ({{percent}})",
@@ -1326,8 +1326,8 @@
         "svc_other": "Show the {{count}} services of {{namespace}}",
         "vol_one": "Show the {{count}} volume of {{namespace}}",
         "vol_other": "Show the {{count}} volumes of {{namespace}}",
-        "cfg_one": "Show the {{count}} configuration of {{namespace}}",
-        "cfg_other": "Show the {{count}} configurations of {{namespace}}",
+        "cfg_one": "Show the {{count}} config of {{namespace}}",
+        "cfg_other": "Show the {{count}} configs of {{namespace}}",
         "sec_one": "Show the {{count}} secret of {{namespace}}",
         "sec_other": "Show the {{count}} secrets of {{namespace}}"
       },
@@ -1847,7 +1847,7 @@
       "label": "Object lists",
       "services": "Services",
       "volumes": "Volumes",
-      "configs": "Configurations",
+      "configs": "Configs",
       "secrets": "Secrets",
       "users": "Users",
       "namespaces": "Namespaces",
@@ -2127,7 +2127,7 @@
       "node": "Nodes",
       "svc": "Services",
       "vol": "Volumes",
-      "cfg": "Configurations",
+      "cfg": "Configs",
       "sec": "Secrets",
       "usr": "Users",
       "nscfg": "Namespace configurations",
@@ -3653,10 +3653,10 @@
       "resources": "This lists every resource of every service and volume, on every node: filesystems, IP addresses, disks, containers, applications. Problems only keeps what is down or in warn, leaving out the passive nodes of a failover service, down as they should be.",
       "objects-services": "Services (svc) are the applications the cluster keeps running. Each one is built from resources, such as an IP address, a filesystem and a container. A service has one instance on each node it is allowed to run on.",
       "objects-volumes": "Volumes (vol) are storage that a service asks for. The cluster creates each volume in a storage pool when the service is provisioned.",
-      "objects-configs": "Configurations (cfg) hold settings and files that are not secret. Services use them as files or environment variables. The cluster's own configuration is listed here too.",
-      "objects-secrets": "Secrets (sec) are like configurations, but stored encrypted. Use them for passwords, certificates and private keys.",
+      "objects-configs": "Configs (cfg) hold settings and files that are not secret. Services use them as files or environment variables. The cluster's own configuration is listed here too.",
+      "objects-secrets": "Secrets (sec) are like configs, but stored encrypted. Use them for passwords, certificates and private keys.",
       "objects-users": "Users (usr) are accounts that can sign in to this webapp and the API, each with its own permissions (grants).",
-      "objects-any": "All the objects in the cluster, of every kind: services, volumes, configurations, secrets and users."
+      "objects-any": "All the objects in the cluster, of every kind: services, volumes, configs, secrets and users."
     }
   },
   "glossary": {

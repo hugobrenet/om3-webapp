@@ -267,7 +267,7 @@ describe('record panels', () => {
         renderPeek('/objects?peek=namespace:ns1');
         const panel = screen.getByRole('dialog', {name: 'ns1'});
         expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent.replace(/\d+!?$/, '')))
-            .toEqual(['Usage', 'Claims', 'Services', 'Volumes', 'Configurations', 'Secrets', 'Configuration', 'Events']);
+            .toEqual(['Usage', 'Claims', 'Services', 'Volumes', 'Configs', 'Secrets', 'Configuration', 'Events']);
         fireEvent.click(within(panel).getByRole('tab', {name: 'Configuration'}));
         expect(screen.getByTestId('search')).toHaveTextContent('peektab=config');
         expect(within(panel).getByTestId('namespace-config')).toHaveTextContent('ns1');

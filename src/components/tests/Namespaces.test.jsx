@@ -191,7 +191,7 @@ describe('Namespaces', () => {
         expect(mockNavigate).toHaveBeenLastCalledWith('/objects?namespace=prod&list=volumes');
         fireEvent.click(within(chart).getByRole('button', {name: 'Show the 1 secret of prod'}));
         expect(mockNavigate).toHaveBeenLastCalledWith('/objects?namespace=prod&list=secrets');
-        fireEvent.click(within(chart).getByRole('button', {name: 'Show the 2 configurations of prod'}));
+        fireEvent.click(within(chart).getByRole('button', {name: 'Show the 2 configs of prod'}));
         expect(mockNavigate).toHaveBeenLastCalledWith('/objects?namespace=prod&list=configs');
         expect(screen.queryByRole('dialog', {name: 'prod'})).not.toBeInTheDocument();
         await loaded();
@@ -346,7 +346,7 @@ describe('Namespaces', () => {
         // Its objects by kind after them, each its count, a service down a red alert; then, as
         // every panel, its configuration, then its events.
         expect(within(panel).getAllByRole('tab').map((tab) => tab.textContent))
-            .toEqual(['Usage', 'Claims', 'Services3!', 'Volumes2', 'Configurations2', 'Secrets1', 'Configuration', 'Events']);
+            .toEqual(['Usage', 'Claims', 'Services3!', 'Volumes2', 'Configs2', 'Secrets1', 'Configuration', 'Events']);
         expect(within(panel).getByTestId('ns-tab-alert-services')).toHaveAttribute('data-level', 'down');
         expect(within(panel).getByTestId('namespace-usage')).toHaveTextContent('prod');
         expect(row('prod')).toHaveAttribute('aria-current', 'true');
