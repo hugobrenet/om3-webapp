@@ -165,6 +165,27 @@ const readPools = async (namespace, isRoot) => {
 /** The drivers whose address om draws from a network of the cluster, `network` naming it. */
 const NETWORK_DRIVERS = ["ip.netns", "ip.cni", "container.kvm"];
 
+/** The words om reads as a boolean, case and spaces aside (TBool.Convert); any other refused. */
+const TRUE_WORDS = ["y", "yes", "t", "true", "1"];
+const FALSE_WORDS = ["n", "no", "f", "false", "0", "0.0", "none", "[]", "{}"];
+
+/** What om reads a boolean written as: true, false, or nothing it reads. */
+const boolRead = (value) => {
+    const word = value.trim().toLowerCase();
+    return TRUE_WORDS.includes(word) ? true : FALSE_WORDS.includes(word) ? false : undefined;
+};
+
+/** A reference, evaluated by om: {env.x}, {nodename}... */
+const isReference = (value) => /\{[^}]+\}/.test(value);
+
+/**
+ * The value written, when none of the options of its list is it (`yes` for a boolean,
+ * a reference, another case): an option of its own, as written, rather than the list
+ * falling back to its first, the default, the opposite of what om applies maybe.
+ */
+const writtenOption = (value, options, text) =>
+    value !== "" && !options.includes(value) ? <option value={value}>{text}</option> : null;
+
 /** The first line of a text, for a list. */
 /**
  * A value of a keyword: a choice among its candidates, a boolean, or a text after its
@@ -184,14 +205,19 @@ function ValueInput({keyword, value, onChange, label, suggestions = [], picks = 
         return (
             <Select aria-label={label} className="h-7 w-full" value={value} onChange={(e) => onChange(e.target.value)}>
                 <option value="">{keyword.default ? t("objectDesigner.byDefault", {value: keyword.default}) : ""}</option>
+                {writtenOption(value, keyword.candidates, value)}
                 {keyword.candidates.map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
         );
     }
     if (keyword?.converter === "bool") {
+        const read = boolRead(value);
         return (
             <Select aria-label={label} className="h-7 w-full" value={value} onChange={(e) => onChange(e.target.value)}>
                 <option value="">{keyword.default ? t("objectDesigner.byDefault", {value: keyword.default}) : ""}</option>
+                {writtenOption(value, ["true", "false"], read === undefined
+                    ? (isReference(value) ? value : t("objectDesigner.notBool", {value}))
+                    : t("objectDesigner.readAs", {value, read: String(read)}))}
                 <option value="true">true</option>
                 <option value="false">false</option>
             </Select>

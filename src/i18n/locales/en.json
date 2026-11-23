@@ -3547,6 +3547,8 @@
   },
   "objectDesigner": {
     "byDefault": "default: {{value}}",
+    "readAs": "{{value}} (read as {{read}})",
+    "notBool": "{{value}} (not a boolean: refused by om)",
     "strategyChoose": "Choose one: its keywords are then offered.",
     "strategyImplied": "{{strategy}}, as the keywords set say.",
     "strategyBySelector": "{{strategy}}, as a keyword of the configuration chooses.",

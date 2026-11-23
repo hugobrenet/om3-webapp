@@ -3547,6 +3547,8 @@
   },
   "objectDesigner": {
     "byDefault": "par défaut : {{value}}",
+    "readAs": "{{value}} (lu comme {{read}})",
+    "notBool": "{{value}} (pas un booléen : refusé par om)",
     "strategyChoose": "Choisissez-en une : ses mots-clés sont alors proposés.",
     "strategyImplied": "{{strategy}}, d'après les mots-clés renseignés.",
     "strategyBySelector": "{{strategy}}, choisie par un mot-clé de la configuration.",
