@@ -4063,7 +4063,9 @@
       "send": "Envoyer",
       "queue": "Mettre en file",
       "queuedHint": "La réponse est en cours : votre message sera envoyé une fois celle-ci terminée.",
-      "queuedDuringConfirmation": "Votre message sera envoyé après votre décision ; il ne répond pas à la confirmation."
+      "queuedDuringConfirmation": "Votre message sera envoyé après votre décision ; il ne répond pas à la confirmation.",
+      "model": "Modèle",
+      "modelHint": "Le modèle des messages que vous envoyez"
     },
     "dialog": {
       "deleteTitle": "Supprimer la conversation",

@@ -4063,7 +4063,9 @@
       "send": "Send",
       "queue": "Queue",
       "queuedHint": "The answer is running: your message will be sent once it ends.",
-      "queuedDuringConfirmation": "Your message will be sent after your decision; it does not answer the confirmation."
+      "queuedDuringConfirmation": "Your message will be sent after your decision; it does not answer the confirmation.",
+      "model": "Model",
+      "modelHint": "The model of the messages you send"
     },
     "dialog": {
       "deleteTitle": "Delete conversation",

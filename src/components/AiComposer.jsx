@@ -5,6 +5,7 @@ import {Alert} from "../ui/components/Alert";
 import {Button} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
 import {Field, Textarea} from "../ui/components/Field";
+import AiModelSelect from "./AiModelSelect.jsx";
 import {ClockIcon, SendIcon, StopIcon} from "../ui/icons";
 import {cn} from "../ui/cn";
 import {untrustedT} from "../utils/untrustedText";
@@ -50,6 +51,7 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
     useEffect(() => {
         onReplacingChange?.(replacement !== null);
     }, [replacement, onReplacingChange]);
+
 
     // The message the dialog would replace went meanwhile: there is nothing
     // left to replace, and what the user typed stays in the box.
@@ -101,8 +103,9 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
     // was asked from.
     const resend = () => {
         const context = chat.queued?.context;
+        const model = chat.queued?.model;
         const text = chat.takeQueued();
-        if (text) void chat.send(text, context);
+        if (text) void chat.send(text, context, model);
     };
 
     const replace = () => {
@@ -191,7 +194,12 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
                         />
                     )}
                 </Field>
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    {chat.models && (
+                        <div className="mr-auto min-w-0">
+                            <AiModelSelect chat={chat} disabled={composerClosed}/>
+                        </div>
+                    )}
                     {/* A turn only: after an approval the action runs on the agent,
                         which a stop would not cancel; its result is what to see. */}
                     {chat.pending === "turn" && (
