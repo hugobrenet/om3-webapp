@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
     impliedType,
+    strategyLeftovers,
   designStart,
   designChanges,
   designText,
@@ -719,5 +720,34 @@ describe("impliedType", () => {
         expect(impliedType([{section: "ip", option: "type"}, {section: "ip", option: "name", types: ["host"]}] as never)).toBe("host");
         expect(impliedType([{section: "ip", option: "type", types: []}] as never)).toBe("");
         expect(impliedType([{section: "fs", option: "mnt", types: ["flag", "ext4"]}] as never)).toBe("");
+    });
+});
+
+describe("clusterSectionChoices", () => {
+    test("a section of the cluster taking a name, a unix group as a pool, among those of several: uxgroup#<group>", () => {
+        const keywords = [
+            {section: "uxgroup", option: "grant"},
+            {section: "pool", option: "type", candidates: ["directory"]},
+            {section: "syslog", option: "host"},
+        ] as never;
+        const choices = clusterSectionChoices(keywords, [{name: "uxgroup#ops", entries: []}] as never);
+        expect(choices.map((c) => [c.section, c.indexed])).toEqual([["syslog", false], ["pool", true], ["uxgroup", true]]);
+    });
+});
+
+describe("strategyLeftovers", () => {
+    const addressing = {
+        id: "addressing", driver: "ip.netns", name: "Addressing", order: 10, required: true, strategies: [
+            {id: "static", name: "Static", uses: ["name"], excludes: ["network"], requires: ["dev"], when: []},
+            {id: "ipam", name: "Drawn", uses: ["network"], excludes: ["name"], requires: [], when: []},
+        ],
+    } as never;
+    test("another strategy chosen: the keywords of the former left empty dropped, those given a value kept", () => {
+        const section = {name: "ip#1", group: "ip", type: "netns", entries: [
+            {key: "netns", value: ""}, {key: "name", value: ""}, {key: "dev", value: "br0"},
+        ]} as never;
+        expect(strategyLeftovers(addressing, "ipam", section)).toEqual(["name"]);
+        // Its own keywords never dropped; a keyword of no strategy neither.
+        expect(strategyLeftovers(addressing, "static", section)).toEqual([]);
     });
 });

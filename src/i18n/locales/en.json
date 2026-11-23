@@ -1485,7 +1485,9 @@
       "sharedObject_one": "{{path}}, {{count}} address on {{nodes}}",
       "sharedObject_other": "{{path}}, {{count}} addresses on {{nodes}}",
       "tunnelMesh": "tunnel mesh",
-      "routedLabel": "routed"
+      "routedLabel": "routed",
+      "vxlanMesh": "vxlan mesh",
+      "tunnelsAndRoutes": "tunnels and routes"
     }
   },
   "nodes": {
@@ -3596,7 +3598,8 @@
       "text": "Text"
     },
     "viewLabel": "Edit as",
-    "type": "Type"
+    "type": "Type",
+    "strategyShowsRoot": "Its keywords are only root's: choosing it shows them."
   },
   "driverSupport": {
     "lacking_one": "Not usable on {{nodes}}: its driver is not among the capabilities of the node.",

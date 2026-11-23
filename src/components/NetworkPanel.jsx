@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {useTranslation} from "react-i18next";
-import {URL_NETWORK, URL_NETWORK_IP} from "../config/apiPath.js";
+import {URL_NETWORK, URL_NETWORK_IP, URL_NETWORK_NODE} from "../config/apiPath.js";
 import {Alert} from "../ui/components/Alert";
 import {Spinner} from "../ui/components/Spinner";
 import {useClusterNodes} from "../hooks/usePgUsage";
@@ -37,6 +37,9 @@ export function UsageRing({used, size, free, label}) {
 
 /** How long the addresses are let settle before the networks are read again: a start reports a burst. */
 export const ADDRESSES_SETTLE_MS = 1000;
+
+/** The events a node says it set a network up, or tore it down, with. */
+const SETUP_EVENTS = ["NodeNetworkStatusUpdated"];
 
 /** The events the addresses of the instances come with: their status, and its delete. */
 const ADDRESS_EVENTS = ["InstanceStatusUpdated", "InstanceStatusDeleted"];
@@ -87,6 +90,7 @@ export function NetworkOverview({name}) {
     const {t} = useTranslation();
     const [network, setNetwork] = useState(undefined);
     const [addresses, setAddresses] = useState(null);
+    const [reports, setReports] = useState([]);
     const [error, setError] = useState(null);
     const {section, reload: reloadSection} = useNetworkSection(name);
     const storeNodes = useClusterNodes();
@@ -116,6 +120,25 @@ export function NetworkOverview({name}) {
         };
     }, [name, changes]);
 
+    // What the setup of the network made on each node, read again as a node says it set
+    // the network up again, or tore it down.
+    const setups = useEventStore((s) => s.networkSetups?.[name] ?? 0);
+    useEffect(() => {
+        const token = localStorage.getItem("authToken");
+        const release = token ? retainEventReception(token, SETUP_EVENTS) : null;
+        return () => release?.();
+    }, []);
+    useEffect(() => {
+        let live = true;
+        read(`${URL_NETWORK_NODE}?name=${encodeURIComponent(name)}&node=*`).then(
+            (data) => live && setReports((data.items ?? []).filter((r) => r.name === name)),
+            () => live && setReports((was) => was),
+        );
+        return () => {
+            live = false;
+        };
+    }, [name, setups]);
+
     // The nodes of the sketch: those of the cluster; unread, those the page knows, or those holding addresses.
     const sketchNodes = useMemo(() => {
         if (clusterNodes?.length) return clusterNodes;
@@ -137,7 +160,7 @@ export function NetworkOverview({name}) {
             {addresses !== null && section !== undefined && clusterNodes !== null && (
                 <section aria-labelledby={`network-sketch-${name}`} className="space-y-2">
                     <h3 id={`network-sketch-${name}`} className="font-semibold">{t("networks.sketch.title")}</h3>
-                    <NetworkSketch network={network} section={section} nodes={sketchNodes} addresses={addresses}/>
+                    <NetworkSketch network={network} section={section} nodes={sketchNodes} addresses={addresses} reports={reports}/>
                 </section>
             )}
         </div>

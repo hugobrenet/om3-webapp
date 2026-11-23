@@ -724,6 +724,43 @@ describe('CreateObject', () => {
             expect(document.querySelector('[data-ignored="flex_min"]')).toHaveTextContent('Ignored: it applies only where topology=flex.');
         });
 
+        test.each([
+            ['root, its keywords held back by its choice: chosen, they are shown', {root: null}, true],
+            ['an admin, its keywords never offered: not to choose', {admin: ['ns1']}, false],
+        ])('a strategy of keywords only root may set: %s', async (_, who, picks) => {
+            grants.current = who;
+            answers['GET /api/object/path/ns1/svc/db/config/keywords?driver=DEFAULT'] = {status: 200, text: JSON.stringify({
+                items: [
+                    {section: 'DEFAULT', option: 'name', group: 'addressing', grant: 'root', grantAlways: true},
+                    {section: 'DEFAULT', option: 'network', group: 'addressing'},
+                ],
+                groups: [
+                    {id: 'addressing', driver: 'ip.netns', name: 'Addressing', order: 10, required: true, strategies: [
+                        {id: 'static', name: 'Static address', uses: ['name'], excludes: ['network'], requires: [], when: []},
+                        {id: 'ipam', name: 'Address drawn from a network', uses: ['network'], excludes: ['name'], requires: [], when: []},
+                    ]},
+                ],
+            })};
+            await design();
+            const staticButton = within(screen.getByRole('group', {name: 'How to set Addressing'})).getByRole('button', {name: 'Static address'});
+            if (!picks) {
+                expect(staticButton).toBeDisabled();
+                return;
+            }
+            expect(staticButton).toBeEnabled();
+            expect(staticButton).toHaveAttribute('title', "Its keywords are only root's: choosing it shows them.");
+            const lock = screen.getByRole('button', {name: 'Show the keywords only root may set'});
+            expect(lock).toHaveAttribute('aria-pressed', 'false');
+            fireEvent.click(staticButton);
+            expect(lock).toHaveAttribute('aria-pressed', 'true');
+            expect(screen.getByRole('textbox', {name: 'Value of name'})).toHaveValue('');
+            // Switched back and forth: the other, and this one again, no lock to turn on first.
+            fireEvent.click(within(screen.getByRole('group', {name: 'How to set Addressing'})).getByRole('button', {name: 'Address drawn from a network'}));
+            expect(screen.queryByRole('textbox', {name: 'Value of name'})).toBeNull();
+            fireEvent.click(within(screen.getByRole('group', {name: 'How to set Addressing'})).getByRole('button', {name: 'Static address'}));
+            expect(screen.getByRole('textbox', {name: 'Value of name'})).toBeInTheDocument();
+        });
+
         test('a required strategy asked for; picked, the keywords it needs added, required', async () => {
             answers['GET /api/object/path/ns1/svc/db/config/keywords?driver=DEFAULT'] = {status: 200, text: JSON.stringify({
                 items: [
@@ -746,6 +783,16 @@ describe('CreateObject', () => {
             expect(screen.getByRole('textbox', {name: 'Value of name'})).toHaveValue('');
             expect(screen.getByRole('textbox', {name: 'Value of dev'})).toHaveValue('');
             expect(screen.getByText('Required without a value: DEFAULT.name, DEFAULT.dev.')).toBeInTheDocument();
+            // Back and forth, nothing written: the keywords of the strategy left go, they do not add up.
+            const bar = () => within(screen.getByRole('group', {name: 'How to set Addressing'}));
+            fireEvent.click(bar().getByRole('button', {name: 'Address drawn from a network'}));
+            expect(screen.queryByRole('textbox', {name: 'Value of name'})).toBeNull();
+            expect(screen.queryByRole('textbox', {name: 'Value of dev'})).toBeNull();
+            expect(screen.getByRole('textbox', {name: 'Value of network'})).toHaveValue('');
+            fireEvent.click(bar().getByRole('button', {name: 'Static address'}));
+            expect(screen.queryByRole('textbox', {name: 'Value of network'})).toBeNull();
+            expect(screen.getByRole('textbox', {name: 'Value of name'})).toHaveValue('');
+            expect(screen.getByRole('textbox', {name: 'Value of dev'})).toHaveValue('');
             fireEvent.change(screen.getByRole('textbox', {name: 'Value of name'}), {target: {value: '10.0.0.1'}});
             fireEvent.change(screen.getByRole('textbox', {name: 'Value of dev'}), {target: {value: 'eth0'}});
             expect(screen.queryByText(/Required without a value/)).toBeNull();

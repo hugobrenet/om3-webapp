@@ -247,6 +247,21 @@ export function strategyRequirements(groups: KeywordGroup[], section: DesignSect
   return needs;
 }
 
+/**
+ * The entries a strategy chosen leaves behind in its group: those of the other
+ * strategies of the group, their keywords used or required, the strategy chosen not
+ * using nor requiring them, left without a value, as a former choice added them to
+ * fill in. Those given a value stay: what the user wrote is not dropped by a choice.
+ */
+export function strategyLeftovers(group: KeywordGroup, strategy: string, section: DesignSection): string[] {
+  const of = (s: KeywordStrategy) => [...(s.uses ?? []), ...(s.requires ?? [])];
+  const kept = new Set((group.strategies ?? []).filter((s) => s.id === strategy).flatMap(of));
+  const others = new Set((group.strategies ?? []).filter((s) => s.id !== strategy).flatMap(of).filter((o) => !kept.has(o)));
+  return section.entries
+    .filter((e) => others.has(e.key.split("@")[0]) && e.value.trim() === "")
+    .map((e) => e.key);
+}
+
 /** Whether the strategy of a group is chosen by a selector keyword rather than by a choice. */
 export const strategyBySelector = (group: KeywordGroup) => (group.strategies ?? []).some((s) => (s.when ?? []).length > 0);
 
@@ -565,9 +580,10 @@ export const isResource = (kind: string, section: { group?: string }) => !!secti
 /**
  * The sections of the cluster configuration a design may hold several of, each by a
  * name (`pool#ceph`, `hb#1`): those choosing a driver by a type, and the arbitrators,
- * the hooks and the stonith of a node, as om reads them.
+ * the hooks and the stonith of a node, and the unix groups granted (`uxgroup#ops`), as
+ * om reads them. The keywords do not say it: kept here, as om's code knows it.
  */
-const INDEXED_CLUSTER_SECTIONS = ["array", "arbitrator", "hb", "hook", "network", "pool", "stonith", "store", "switch"];
+const INDEXED_CLUSTER_SECTIONS = ["array", "arbitrator", "hb", "hook", "network", "pool", "stonith", "store", "switch", "uxgroup"];
 
 export interface ClusterSectionChoice {
   /** The section, `ai`; for those of several, the kind of them, `pool`. */

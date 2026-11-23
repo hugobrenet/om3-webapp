@@ -1138,4 +1138,12 @@ describe('useEventStore', () => {
             delete document.visibilityState;
         });
     });
+
+    test('the setups of a network counted by its name, apart from the others', () => {
+        act(() => useEventStore.setState({networkSetups: {}}));
+        act(() => useEventStore.getState().bumpNetworkSetup('backend1'));
+        act(() => useEventStore.getState().bumpNetworkSetup('backend1'));
+        act(() => useEventStore.getState().bumpNetworkSetup('l2vx'));
+        expect(useEventStore.getState().networkSetups).toEqual({backend1: 2, l2vx: 1});
+    });
 });

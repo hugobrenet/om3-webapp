@@ -1678,4 +1678,11 @@ describe('eventSourceManager', () => {
             expect(() => release()).not.toThrow();
         });
     });
+
+    test('the events of the network setups only claimed by a view, not of the default stream; their deletion claimed with them', () => {
+        const {DEFAULT_FILTERS, EVENT_TYPES, withDeletions} = eventSourceManager;
+        expect(DEFAULT_FILTERS).not.toContain(EVENT_TYPES.NODE_NETWORK_STATUS_UPDATED);
+        expect(DEFAULT_FILTERS).not.toContain(EVENT_TYPES.NODE_NETWORK_STATUS_DELETED);
+        expect(withDeletions([EVENT_TYPES.NODE_NETWORK_STATUS_UPDATED])).toEqual(['NodeNetworkStatusUpdated', 'NodeNetworkStatusDeleted']);
+    });
 });

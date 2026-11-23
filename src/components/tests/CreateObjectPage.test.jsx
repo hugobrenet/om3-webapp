@@ -7,6 +7,13 @@ import {clearDesignerCache} from '../ObjectDesigner';
 import useEventStore from '../../hooks/useEventStore.js';
 import {useActionTracker} from '../../app/action-tracker';
 
+const stream = vi.hoisted(() => ({retain: null, release: null}));
+vi.mock('../../eventSourceManager', () => {
+    stream.release = vi.fn();
+    stream.retain = vi.fn(() => stream.release);
+    return {retainEventReception: (...args) => stream.retain(...args)};
+});
+
 vi.mock('../../hooks/useGrants', () => ({
     useGrants: () => ({root: null}),
     useIsRoot: () => true,
@@ -49,6 +56,15 @@ describe('CreateObjectPage', () => {
     afterEach(() => {
         localStorage.clear();
         sessionStorage.clear();
+    });
+
+    test('opened in a tab of its own, it holds the stream of the objects itself, released once left', async () => {
+        stream.retain.mockClear();
+        stream.release.mockClear();
+        const {unmount} = renderPage('/create?kind=svc&ns=test-ns&draft=s1');
+        expect(stream.retain).toHaveBeenCalledWith('tok');
+        unmount();
+        expect(stream.release).toHaveBeenCalledTimes(1);
     });
 
     test('opens on the kind and namespace its address says, a draft of its own named in it; an object known refused', async () => {

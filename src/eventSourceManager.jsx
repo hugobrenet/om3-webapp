@@ -22,7 +22,15 @@ export const EVENT_TYPES = {
     INSTANCE_STATUS_DELETED: 'InstanceStatusDeleted',
     INSTANCE_MONITOR_DELETED: 'InstanceMonitorDeleted',
     NODE_MONITOR_DELETED: 'NodeMonitorDeleted',
+    NODE_NETWORK_STATUS_UPDATED: 'NodeNetworkStatusUpdated',
+    NODE_NETWORK_STATUS_DELETED: 'NodeNetworkStatusDeleted',
 };
+
+/**
+ * The event types only a view claims while it shows (retainEventReception), not of the
+ * default stream: what the setup of a network made on a node, which a network panel reads.
+ */
+const CLAIMED_ONLY = [EVENT_TYPES.NODE_NETWORK_STATUS_UPDATED, EVENT_TYPES.NODE_NETWORK_STATUS_DELETED];
 
 /**
  * The deletion of what each event updates: claimed with it, whoever claims the
@@ -34,6 +42,7 @@ const DELETIONS = {
     [EVENT_TYPES.INSTANCE_STATUS_UPDATED]: [EVENT_TYPES.INSTANCE_STATUS_DELETED, EVENT_TYPES.INSTANCE_CONFIG_DELETED],
     [EVENT_TYPES.INSTANCE_MONITOR_UPDATED]: [EVENT_TYPES.INSTANCE_MONITOR_DELETED, EVENT_TYPES.INSTANCE_CONFIG_DELETED],
     [EVENT_TYPES.INSTANCE_CONFIG_UPDATED]: [EVENT_TYPES.INSTANCE_CONFIG_DELETED],
+    [EVENT_TYPES.NODE_NETWORK_STATUS_UPDATED]: [EVENT_TYPES.NODE_NETWORK_STATUS_DELETED],
 };
 
 /** The event types with the deletions of what they update, once each, in their order. */
@@ -49,7 +58,7 @@ export const CONNECTION_EVENTS = {
 };
 
 // Default filters for all events
-export const DEFAULT_FILTERS = Object.values(EVENT_TYPES);
+export const DEFAULT_FILTERS = Object.values(EVENT_TYPES).filter((t) => !CLAIMED_ONLY.includes(t));
 
 // Filters for specific objectName
 const OBJECT_SPECIFIC_FILTERS = [
@@ -699,6 +708,14 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
         addEventListener(currentEventSource, eventType, (data) => {
             // Process each event type
             switch (eventType) {
+                // A network set up again on a node, or torn down: its panel reads what
+                // the setups made again. Rare, so not buffered.
+                case EVENT_TYPES.NODE_NETWORK_STATUS_UPDATED:
+                case EVENT_TYPES.NODE_NETWORK_STATUS_DELETED: {
+                    const network = data.name || data.labels?.name;
+                    if (network) useEventStore.getState().bumpNetworkSetup(network);
+                    break;
+                }
                 case EVENT_TYPES.NODE_STATUS_UPDATED:
                     if (data.node && data.node_status) {
                         updateBuffer('nodeStatus', data.node, data.node_status);
