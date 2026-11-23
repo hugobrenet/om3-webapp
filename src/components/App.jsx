@@ -170,7 +170,8 @@ const OidcInitializer = ({children, authInfo}) => {
      * ends the session: a renewal not answered, the network down or the provider
      * slow, leaves it to the next attempt, the expiry, a 401 of the event streams,
      * the page coming back to the front. The renewals are one at a time
-     * (serialRenewal): asked while another runs, this one shares its outcome.
+     * (serialRenewal): asked while another runs, this one shares its outcome; and
+     * one tab at a time, the user another tab renewed meanwhile taken, no request sent.
      */
     const renewSession = useCallback((reason) => {
         if (!userManager) return Promise.resolve(null);
