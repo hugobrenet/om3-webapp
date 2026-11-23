@@ -9,6 +9,7 @@ import {Spinner} from "../ui/components/Spinner";
 import {EyeIcon, EyeOffIcon, KeyIcon} from "../ui/icons";
 import {URL_AUTH_WHOAMI, URL_TOKEN} from "../config/apiPath.js";
 import {getResponseErrorMessage} from "../services/api.jsx";
+import {basicAuthorization} from "../utils/basicAuth.js";
 import {useGrants} from "../hooks/useGrants";
 
 /** The lifetime of a token by default: a join one must outlive the drain of the node. */
@@ -99,7 +100,7 @@ export default function TokenPage() {
             const response = await fetch(`${URL_TOKEN}?${query}`, {
                 method: "POST",
                 headers: {
-                    Authorization: useCredentials ? `Basic ${btoa(`${username}:${password}`)}` : `Bearer ${refresh}`,
+                    Authorization: useCredentials ? basicAuthorization(username, password) : `Bearer ${refresh}`,
                 },
             });
             if (!response.ok) {
