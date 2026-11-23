@@ -910,6 +910,31 @@ describe('Objects Component', () => {
             expect(kinds).toEqual(expect.arrayContaining(['ccfg', 'cfg', 'sec', 'svc', 'usr', 'vol']));
         });
 
+        test('the volumes opened from the services, from the menu: sorted by their size, the columns theirs', async () => {
+            const vols = {
+                objectStatus: {
+                    'test-ns/svc/web': {avail: 'up', frozen: 'unfrozen', provisioned: 'true', orchestrate: 'ha', topology: 'failover'},
+                    'test-ns/vol/big': {avail: 'up', frozen: 'unfrozen', provisioned: 'true', orchestrate: '', topology: 'failover'},
+                    'test-ns/vol/small': {avail: 'up', frozen: 'unfrozen', provisioned: 'true', orchestrate: '', topology: 'failover'},
+                },
+                objectInstanceStatus: {},
+            };
+            const fetch = vi.fn((url) => Promise.resolve({ok: true, json: () => Promise.resolve(String(url).endsWith('/api/pool/volume')
+                ? {items: [{path: 'test-ns/vol/big', size: 4294967296}, {path: 'test-ns/vol/small', size: 104857600}]}
+                : {})}));
+            const {rerender} = setup(vols, '?list=services', {isWideScreen: true, isMobile: false}, {fetch});
+            await waitForLoad();
+            vi.mocked(useLocation).mockReturnValue({search: '?list=volumes', pathname: '/objects'});
+            rerender(<MemoryRouter><Objects/></MemoryRouter>);
+            const header = await screen.findByRole('columnheader', {name: /^Size/});
+            await waitFor(() => expect(within(objectRow('test-ns/vol/big')).getAllByRole('cell').map((c) => c.textContent)).toContain('4 GiB'));
+            fireEvent.click(within(header).getByRole('button'));
+            expect(screen.getByRole('columnheader', {name: /^Size/})).toHaveAttribute('aria-sort', 'ascending');
+            await waitFor(() => expect(objectNamesInOrder()).toEqual(['test-ns/vol/small', 'test-ns/vol/big']));
+            fireEvent.click(within(screen.getByRole('columnheader', {name: /^Size/})).getByRole('button'));
+            await waitFor(() => expect(objectNamesInOrder()).toEqual(['test-ns/vol/big', 'test-ns/vol/small']));
+        });
+
         test('another list, opened from the menu, drops the selection', async () => {
             const {rerender} = setup(mixed);
             await waitForLoad();

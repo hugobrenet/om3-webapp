@@ -731,7 +731,7 @@ const Objects = () => {
         ...propertyColumnsOf(list, isMobile).map((c) => c.key),
         "status",
         ...(isWideScreen ? allNodes.map((node) => `node:${node}`) : []),
-    ])], [namesOnly, isMobile, isWideScreen, allNodes]);
+    ])], [list, namesOnly, isMobile, isWideScreen, allNodes]);
     const sortColumn = sortColumns.includes(sort.column) ? sort.column : "object";
     const sortDirection = sortColumn === sort.column ? sort.direction : "asc";
     const sortBy = useCallback((column) => setSort((prev) => (prev.column === column
