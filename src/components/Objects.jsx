@@ -26,6 +26,7 @@ import {VolumeSizesContext, useVolumeSizes} from "../hooks/useVolumeSizes";
 import {ALL_LIST, OBJECT_LISTS, OBJECTS_TABS, listOfKind} from "../utils/objectLists";
 import {AlertTriangleIcon, BoltIcon, CheckIcon, InfoIcon, PlusIcon} from "../ui/icons";
 import {cachedReason, needsReason} from "../app/object-reason";
+import {reasonText} from "../app/note-say";
 import {instanceState, instanceStateContext} from "../app/statusboard";
 import {menuColumns, menuFilter} from "../app/action-menu";
 import {Term} from "../app/Term";
@@ -419,7 +420,7 @@ function ObjectReason({objectName}) {
             className="flex max-w-md min-w-0 items-center gap-1 text-[0.75rem] font-normal text-ink-muted max-md:max-w-[min(44vw,calc(100vw-12.5rem))]"
         >
             <Icon aria-hidden="true" className={cn("h-3 w-3 shrink-0", REASON_INK[reason.level])}/>
-            <span className="truncate">{reason.text}</span>
+            <span className="truncate">{reasonText(t, reason)}</span>
             {more && <span className="shrink-0 tabular-nums">{more}</span>}
             {fix !== null && (
                 <button

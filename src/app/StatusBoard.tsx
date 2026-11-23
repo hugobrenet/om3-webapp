@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { noteText, subjectText } from "./note-say";
 import { cn } from "../ui/cn";
 import { AlertTriangleIcon, CloseIcon, DrpIcon, HistoryIcon, InfoIcon, PlayIcon, PauseIcon, SnowflakeIcon, TargetIcon } from "../ui/icons";
 import { IconButton } from "../ui/components/Button";
@@ -243,7 +244,7 @@ export function NotesList({ notes, className = "max-w-sm" }: { notes: RowNote[];
                 <span className="sr-only">{t(`statusBoard.levels.${n.level}`)}</span>
                 <span className="min-w-0">
               {n.marker !== "" && <sup className={cn("mr-0.5 font-medium", ink)}>{n.marker}</sup>}
-                  <span className="text-ink">{n.text}</span>
+                  <span className="text-ink">{noteText(t, n)}</span>
                   {n.nodes !== "" && <span className="ml-1.5 text-ink-muted">{n.nodes}</span>}
             </span>
               </li>
@@ -1040,7 +1041,7 @@ export function StatusBoard({
                                 {h.marker !== "" && h.marker !== "·" && (
                                     <sup className={cn("text-[0.75rem] font-medium", ink)}>{h.marker}</sup>
                                 )}
-                                <span className="font-medium">{h.subject}</span>
+                                <span className="font-medium">{subjectText(t, h.subject)}</span>
                                 {h.nodes !== "" && (
                                     <span className="text-ink-muted">
                             {h.nodes === "all" ? t("statusBoard.allNodes") : h.nodes}
@@ -1048,7 +1049,7 @@ export function StatusBoard({
                                 )}
                               </p>
                           ))}
-                          <p className={cn(g.level === "info" ? "text-ink-muted" : "text-ink")}>{g.text}</p>
+                          <p className={cn(g.level === "info" ? "text-ink-muted" : "text-ink")}>{noteText(t, g)}</p>
                           {g.fix !== undefined && noteFix !== undefined && noteFix(g.fix)}
                         </div>
                       </li>
