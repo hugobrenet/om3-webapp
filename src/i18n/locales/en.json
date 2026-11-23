@@ -2518,6 +2518,9 @@
   "actionTray": {
     "label": "Actions asked",
     "title": "Actions",
+    "arrived": "New action: {{what}}",
+    "arrivedMore_one": "New actions: {{what}} and {{count}} more",
+    "arrivedMore_other": "New actions: {{what}} and {{count}} more",
     "running_one": "{{count}} running",
     "running_other": "{{count}} running",
     "ended_one": "{{count}} ended",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { actionLabel } from "../constants/actions";
 import { cn } from "../ui/cn";
@@ -244,9 +244,57 @@ function Entry({ entry, now, onLeave }: { entry: Tracked; now: number; onLeave: 
   );
 }
 
+/** How long the action just arrived is said beside the button. */
+export const ARRIVAL_SHOWN_MS = 4000;
+
+interface Arrival {
+  /** Counts the arrivals: the flash, keyed by it, runs again on each. */
+  key: number;
+  /** The newest arrived, in words. */
+  text: string;
+  /** The others arrived with it, a selection's. */
+  more: number;
+}
+
+/**
+ * The actions arriving in the tray, asked from here or the cluster's: the newest
+ * said a while, then nothing. Those already there as the tray mounts arrived
+ * before, said by nothing.
+ */
+function useArrival(tracked: Tracked[]): Arrival | null {
+  const seen = useRef<Set<string> | null>(null);
+  const count = useRef(0);
+  const [arrival, setArrival] = useState<Arrival | null>(null);
+
+  useEffect(() => {
+    const known = seen.current;
+    seen.current = new Set(tracked.map((entry) => entry.id));
+    if (known === null) return;
+    // Newest first in the tray.
+    const arrived = tracked.filter((entry) => !known.has(entry.id));
+    if (arrived.length === 0) return;
+    const [newest] = arrived;
+    count.current += 1;
+    setArrival({ key: count.current, text: `${newest.label ?? actionLabel(newest.action)} ${newest.subject}`, more: arrived.length - 1 });
+  }, [tracked]);
+
+  useEffect(() => {
+    if (arrival === null) return;
+    const timer = setTimeout(() => {
+      setArrival(null);
+    }, ARRIVAL_SHOWN_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [arrival]);
+
+  return arrival;
+}
+
 export function ActionTray() {
   const { t } = useTranslation();
   const tracked = useActionTracker((s) => s.tracked);
+  const arrival = useArrival(tracked);
   const clearEnded = useActionTracker((s) => s.clearEnded);
   // The dialog of the actions: opened from the bar, not on each action asked, which
   // a modal would put over what the user is doing; the bar says it goes.
@@ -273,7 +321,16 @@ export function ActionTray() {
     if (tracked.length === 0) setOpen(false);
   }, [tracked.length]);
 
-  if (tracked.length === 0) return null;
+  // Said to a reader as it arrives: there before what it says, for it to be heard.
+  const announced = (
+    <span role="status" className="sr-only">
+      {arrival &&
+        (arrival.more > 0
+          ? t("actionTray.arrivedMore", { what: arrival.text, count: arrival.more })
+          : t("actionTray.arrived", { what: arrival.text }))}
+    </span>
+  );
+  if (tracked.length === 0) return announced;
   const counts = [
     running > 0 ? t("actionTray.running", { count: running }) : null,
     failed > 0 ? t("actionTray.failed", { count: failed }) : null,
@@ -294,6 +351,9 @@ export function ActionTray() {
 
   return (
     <>
+      {announced}
+      {/* Its border throbbing while something runs, flashing as an action arrives,
+          the newest said beside it a while; still for whom motion bothers. */}
       <button
         type="button"
         aria-haspopup="dialog"
@@ -303,8 +363,19 @@ export function ActionTray() {
         onClick={() => {
           setOpen(true);
         }}
-        className="flex h-7 shrink-0 items-center gap-1 rounded-(--radius-control) border border-line px-1.5 text-ink-muted hover:bg-surface-sunken hover:text-ink"
+        className={cn(
+          "relative flex h-7 shrink-0 items-center gap-1 rounded-(--radius-control) border border-line px-1.5 text-ink-muted hover:bg-surface-sunken hover:text-ink",
+          running > 0 && "motion-safe:animate-throb",
+        )}
       >
+        {arrival && (
+          <span
+            key={arrival.key}
+            aria-hidden="true"
+            data-testid="action-tray-arrival-flash"
+            className="pointer-events-none absolute -inset-px rounded-(--radius-control) border border-transparent motion-safe:animate-arrive"
+          />
+        )}
         {mark}
         {shown !== null && (
           <span aria-hidden="true" className={cn("text-data tabular-nums", running === 0 && "text-state-down")}>
@@ -312,6 +383,12 @@ export function ActionTray() {
           </span>
         )}
       </button>
+      {arrival && (
+        <span aria-hidden="true" className="hidden max-w-48 shrink truncate text-data text-ink-muted sm:inline">
+          {arrival.text}
+          {arrival.more > 0 && ` +${String(arrival.more)}`}
+        </span>
+      )}
       <Dialog
         open={open}
         onClose={() => {

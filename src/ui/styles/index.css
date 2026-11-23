@@ -14,6 +14,15 @@
   }
 }
 
+/* A flash, once: the accent, then nothing, something just arrived (animate-arrive). */
+@theme {
+  --animate-arrive: arrive 1.2s ease-out;
+  @keyframes arrive {
+    0%, 30% { background-color: color-mix(in oklab, var(--accent) 35%, transparent); border-color: var(--accent); }
+    100% { background-color: transparent; }
+  }
+}
+
 /* Exposes the tokens as Tailwind utilities: bg-surface, text-ink, border-line, text-state-down... */
 @theme inline {
   --color-surface: var(--surface);

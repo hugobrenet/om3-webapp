@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { ActionTray, formatDuration } from "../ActionTray";
+import { ARRIVAL_SHOWN_MS, ActionTray, formatDuration } from "../ActionTray";
 import {
   type Tracked,
   followRunningOrchestrations,
@@ -301,6 +301,86 @@ describe("ActionTray, its button counting what needs the user", () => {
     expect(trayButton()).toHaveAccessibleName("Actions: 3 ended");
     expect(trayButton()).toHaveTextContent(/^$/);
     expect(within(openTray()).getAllByRole("listitem")).toHaveLength(3);
+  });
+});
+
+describe("ActionTray, an action arriving", () => {
+  const ID = "cccccccc-0000-0000-0000-000000000001";
+  const flash = () => screen.queryByTestId("action-tray-arrival-flash");
+  const entry = (id: string, state: Tracked["state"]): Tracked => ({
+    id, action: "stop", subject: id, kind: "orchestration", node: "dev3n1", state, startedAt: 0, steps: [],
+    ...(state === "running" ? {} : { endedAt: 1 }),
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // Never answered: runs while the test looks.
+    globalThis.fetch = vi.fn(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("one of the cluster: flashed, said beside the button and to a reader, a while", () => {
+    render(<ActionTray />);
+    act(() => {
+      observeOrchestration("ObjectOrchestrationAccepted", { id: ID, node: "dev3n2", path: "ns/svc/s1", global_expect: "frozen" });
+    });
+    expect(trayButton()).toHaveClass("motion-safe:animate-throb");
+    expect(flash()).toHaveClass("motion-safe:animate-arrive");
+    expect(screen.getByRole("status")).toHaveTextContent("New action: Freeze ns/svc/s1");
+    expect(screen.getByText("Freeze ns/svc/s1", { selector: "span[aria-hidden]" })).toBeInTheDocument();
+    // The count of the button alone in it.
+    expect(trayButton()).toHaveTextContent(/^1$/);
+    act(() => {
+      vi.advanceTimersByTime(ARRIVAL_SHOWN_MS);
+    });
+    expect(flash()).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+    expect(screen.queryByText("Freeze ns/svc/s1")).toBeNull();
+    // Running still: throbbing still.
+    expect(trayButton()).toHaveClass("motion-safe:animate-throb");
+  });
+
+  test("another arriving: flashed again, the newest said", () => {
+    render(<ActionTray />);
+    act(() => {
+      useActionTracker.setState({ tracked: [entry("a", "running")] });
+    });
+    const first = flash();
+    act(() => {
+      vi.advanceTimersByTime(1000);
+      useActionTracker.setState({ tracked: [entry("b", "running"), entry("a", "running")] });
+    });
+    expect(flash()).not.toBe(first);
+    expect(screen.getByRole("status")).toHaveTextContent("New action: Stop b");
+    // Its while counted from the newest.
+    act(() => {
+      vi.advanceTimersByTime(ARRIVAL_SHOWN_MS - 500);
+    });
+    expect(flash()).not.toBeNull();
+  });
+
+  test("a selection's, at once: the newest, and how many more", () => {
+    render(<ActionTray />);
+    act(() => {
+      useActionTracker.setState({ tracked: [entry("c", "running"), entry("b", "running"), entry("a", "running")] });
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("New actions: Stop c and 2 more");
+    expect(screen.getByText("Stop c +2")).toBeInTheDocument();
+  });
+
+  test("there as it mounts, or only changing: said by nothing; nothing running, no throb", () => {
+    useActionTracker.setState({ tracked: [entry("a", "succeeded")] });
+    render(<ActionTray />);
+    expect(flash()).toBeNull();
+    expect(trayButton()).not.toHaveClass("motion-safe:animate-throb");
+    act(() => {
+      useActionTracker.setState({ tracked: [{ ...entry("a", "failed") }] });
+    });
+    expect(flash()).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent(/^$/);
   });
 });
 
