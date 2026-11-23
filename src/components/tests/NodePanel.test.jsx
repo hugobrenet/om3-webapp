@@ -246,6 +246,18 @@ describe('NodeDetailPanel', () => {
         expect(node).not.toHaveTextContent('rc40');
     });
 
+    test('the memory in mebibytes as the probe reads it, whatever its name; the cpu frequency in megahertz, gigahertz from one', async () => {
+        api['system/property'].items.push(
+            {data: {name: 'mem_bytes', source: 'probe', title: 'mem bytes', value: 6144, error: ''}},
+            {data: {name: 'cpu_freq', source: 'probe', title: 'cpu freq', value: 2400, error: ''}},
+        );
+        renderPanel();
+        const memory = await within(panel()).findByRole('region', {name: 'Memory'});
+        expect(memory).toHaveTextContent('Size6 GiB');
+        expect(memory).not.toHaveTextContent('KiB');
+        expect(within(panel()).getByRole('region', {name: 'CPU'})).toHaveTextContent('Frequency2.4 GHz');
+    });
+
     test('the last boot an age, its date hovered', async () => {
         // The clock set, the age the same whatever the day the test runs: the
         // timers left real, for the panel to be waited for.

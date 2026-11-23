@@ -4,6 +4,7 @@ import {
   formatDate,
   formatDateTime,
   formatDuration,
+  formatMHz,
   formatPercent,
   formatBytes,
   formatRelativeTime,
@@ -26,6 +27,16 @@ describe("parseCollectorDate", () => {
     expect(parseCollectorDate(undefined)).toBeNull();
     expect(parseCollectorDate("")).toBeNull();
     expect(parseCollectorDate("not a date")).toBeNull();
+  });
+});
+
+describe("formatMHz", () => {
+  test("below a gigahertz in megahertz, from one in gigahertz", () => {
+    expect(formatMHz(800, "en")).toBe("800 MHz");
+    expect(formatMHz(2000, "en")).toBe("2 GHz");
+    expect(formatMHz(2400, "fr")).toBe("2,4 GHz");
+    expect(formatMHz(3193, "en")).toBe("3.19 GHz");
+    expect(formatMHz(0, "en")).toBe("");
   });
 });
 

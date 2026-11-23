@@ -28,7 +28,7 @@ import {BoltIcon, CodeIcon, EyeIcon, EyeOffIcon, PencilIcon, RefreshIcon, ResetI
 import ConfigEvalDialog from "./ConfigEvalDialog";
 import {ConfigValidationResult, ValidateButton, useConfigValidation} from "./ConfigValidation";
 import {formatSeconds, useAutoHide} from "../ui/lib/reveal";
-import {formatBytes, formatSizeMiB} from "../ui/lib/format";
+import {formatBytes, formatMHz, formatSizeMiB} from "../ui/lib/format";
 import {NodeDaemon} from "./NodeDaemon";
 import {InstanceLink} from "./RecordLinks";
 import {CategoryCount, CategoryTabs} from "../ui/components/CategoryTabs";
@@ -426,8 +426,12 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
         if (p.name === "version" && status?.agent) return status.agent;
         if (p.error) return <span className="text-ink-muted">{p.error}</span>;
         if (isUnset(p)) return <span className="text-ink-muted">{none}</span>;
-        // The memory in bytes, readable.
-        if (p.name === "mem_bytes" && Number(p.value) > 0) return formatBytes(Number(p.value));
+        // The memory in mebibytes, whatever its name says: the probe reads it so (sysinfo
+        // Memory.Size), 6144 on a node of 6 GiB.
+        if (p.name === "mem_bytes" && Number(p.value) > 0) return formatSizeMiB(Number(p.value), i18n.language);
+        // The frequency of the cpu in megahertz, as the probe reads it (sysinfo CPU.Speed):
+        // from a gigahertz, in gigahertz.
+        if (p.name === "cpu_freq" && Number(p.value) > 0) return formatMHz(Number(p.value), i18n.language);
         // The last boot, as an age.
         if (p.name === "last_boot") return <RelativeTime value={String(p.value)} locale={i18n.language}/>;
         return String(p.value);

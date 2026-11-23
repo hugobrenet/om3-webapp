@@ -16,6 +16,13 @@ export function formatSizeMiB(value: number | undefined, locale: string): string
   return `${gib.toLocaleString(locale, { maximumFractionDigits: gib < 10 ? 1 : 0 })} GiB`;
 }
 
+/** A frequency in megahertz, a cpu's: from a gigahertz, in gigahertz, two decimals at most. */
+export function formatMHz(value: number | undefined, locale: string): string {
+  if (value === undefined || value <= 0) return "";
+  if (value < 1000) return `${value.toLocaleString(locale, { maximumFractionDigits: 0 })} MHz`;
+  return `${(value / 1000).toLocaleString(locale, { maximumFractionDigits: 2 })} GHz`;
+}
+
 /** Sizes in bytes, as the om3 daemon gives them: a disk, a region. */
 export function formatBytes(value: number | undefined, locale: string): string {
   if (value === undefined || value <= 0) return "";
