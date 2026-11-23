@@ -971,7 +971,7 @@ export function ObjectDesigner({kind, namespace = "", sections, onChange, keywor
     const poolChoices = useMemo(() => poolPicks.map((p) => ({
         value: p.value,
         info: p.type ? [p.type] : [],
-        side: p.free !== undefined ? t("objectDesigner.free", {size: formatBytes(p.free, i18n.language) || "0"}) : undefined,
+        side: p.free !== undefined ? t("objectDesigner.free", {size: formatBytes(p.free, i18n.language) || "0 B"}) : undefined,
     })), [poolPicks, t, i18n.language]);
     const networkChoices = useMemo(() => networks.map((n) => ({
         value: n.value,

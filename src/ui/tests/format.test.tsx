@@ -5,6 +5,7 @@ import {
   formatDateTime,
   formatDuration,
   formatPercent,
+  formatBytes,
   formatRelativeTime,
   formatSizeMiB,
   parseCollectorDate,
@@ -25,6 +26,26 @@ describe("parseCollectorDate", () => {
     expect(parseCollectorDate(undefined)).toBeNull();
     expect(parseCollectorDate("")).toBeNull();
     expect(parseCollectorDate("not a date")).toBeNull();
+  });
+});
+
+describe("formatBytes", () => {
+  test("below a kibibyte, in bytes: a small key not said empty", () => {
+    expect(formatBytes(1, "en")).toBe("1 B");
+    expect(formatBytes(31, "en")).toBe("31 B");
+    expect(formatBytes(511, "en")).toBe("511 B");
+    expect(formatBytes(1023, "en")).toBe("1,023 B");
+  });
+
+  test("from a kibibyte, in kibibytes, then as the mebibytes", () => {
+    expect(formatBytes(1024, "en")).toBe("1 KiB");
+    expect(formatBytes(374 * 1024, "en")).toBe("374 KiB");
+    expect(formatBytes(1024 * 1024, "en")).toBe("1 MiB");
+  });
+
+  test("nothing for nothing: the caller says its zero", () => {
+    expect(formatBytes(0, "en")).toBe("");
+    expect(formatBytes(undefined, "en")).toBe("");
   });
 });
 

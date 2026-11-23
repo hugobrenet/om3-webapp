@@ -19,6 +19,8 @@ export function formatSizeMiB(value: number | undefined, locale: string): string
 /** Sizes in bytes, as the om3 daemon gives them: a disk, a region. */
 export function formatBytes(value: number | undefined, locale: string): string {
   if (value === undefined || value <= 0) return "";
+  // Below the kibibyte, in bytes: a key of 31 B shown as "0 KiB" would say it empty.
+  if (value < 1024) return `${value.toLocaleString(locale, { maximumFractionDigits: 0 })} B`;
   // Below the mebibyte, in kibibytes: a DVD drive's 374 KiB shown as "0 MiB" would say nothing.
   if (value < 1024 * 1024) return `${(value / 1024).toLocaleString(locale, { maximumFractionDigits: 0 })} KiB`;
   return formatSizeMiB(Math.round(value / 1024 / 1024), locale);

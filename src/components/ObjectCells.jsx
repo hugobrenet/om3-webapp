@@ -218,7 +218,7 @@ export const KeyCells = ({objectName}) => {
         <>
             <Cell numeric className="tabular-nums">{stats === null ? "" : stats === undefined ? dash : stats.count}</Cell>
             <Cell numeric className="whitespace-nowrap tabular-nums">
-                {stats === null ? "" : stats === undefined ? dash : stats.size > 0 ? formatBytes(stats.size, i18n.language) : "0"}
+                {stats === null ? "" : stats === undefined ? dash : stats.size > 0 ? formatBytes(stats.size, i18n.language) : "0 B"}
             </Cell>
         </>
     );

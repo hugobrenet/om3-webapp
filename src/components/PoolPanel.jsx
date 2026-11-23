@@ -21,7 +21,7 @@ const URL_POOL_VOLUME = `${URL_POOL}/volume`;
 /** A size in bytes, readable; nothing, zero. */
 const useBytes = () => {
     const {i18n} = useTranslation();
-    return (n) => formatBytes(n, i18n.language) || "0";
+    return (n) => formatBytes(n, i18n.language) || "0 B";
 };
 
 /**

@@ -32,7 +32,7 @@ export const SNAPSHOT_PAGE = 100;
 /** A size in bytes, readable; nothing for none. */
 export const useBytes = () => {
     const {i18n} = useTranslation();
-    return (n) => formatBytes(n, i18n.language) || "0";
+    return (n) => formatBytes(n, i18n.language) || "0 B";
 };
 
 /**
