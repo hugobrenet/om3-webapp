@@ -161,7 +161,7 @@ export function PoolVolumes({name}) {
                 <thead>
                     <HeaderRow>
                         <HeaderCell>{t("pools.volumes.volume")}</HeaderCell>
-                        <HeaderCell className="text-right">{t("pools.volumes.size")}</HeaderCell>
+                        <HeaderCell>{t("pools.volumes.size")}</HeaderCell>
                         <HeaderCell>{t("pools.volumes.usedBy")}</HeaderCell>
                     </HeaderRow>
                 </thead>

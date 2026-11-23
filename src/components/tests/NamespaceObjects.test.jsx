@@ -69,6 +69,15 @@ describe('NamespaceObjects', () => {
         renderList('configs');
         expect(headers()).toEqual(['Object', 'Keys', 'Size']);
         expect(rows().map(texts)).toEqual([['app', '2', '2 KiB']]);
+        // Each title over its values: both aligned left, the number of keys read as such.
+        const titles = within(screen.getByRole('table')).getAllByRole('columnheader').slice(1);
+        const cells = within(rows()[0]).getAllByRole('cell').slice(1);
+        for (const [i, title] of titles.entries()) {
+            expect(title).toHaveClass('text-left');
+            expect(title).not.toHaveClass('text-right');
+            expect(cells[i]).toHaveClass('text-left');
+            expect(cells[i]).not.toHaveClass('text-right');
+        }
     });
 
     test('the name of an object a badge opening it over the view; the row opens nothing', () => {

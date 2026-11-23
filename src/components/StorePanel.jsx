@@ -240,10 +240,10 @@ function StatsTable({label, head, rows, bytesColumn}) {
             <thead>
                 <HeaderRow>
                     <HeaderCell>{head}</HeaderCell>
-                    <HeaderCell className="text-right">{t("stores.columns.snapshots")}</HeaderCell>
-                    <HeaderCell className="text-right">{t("stores.columns.objects")}</HeaderCell>
+                    <HeaderCell>{t("stores.columns.snapshots")}</HeaderCell>
+                    <HeaderCell>{t("stores.columns.objects")}</HeaderCell>
                     <HeaderCell>{t("stores.columns.latest")}</HeaderCell>
-                    <HeaderCell className="text-right">{t(`stores.columns.${bytesColumn}`)}</HeaderCell>
+                    <HeaderCell>{t(`stores.columns.${bytesColumn}`)}</HeaderCell>
                 </HeaderRow>
             </thead>
             <tbody>
@@ -378,12 +378,12 @@ export function StoreOverview({name}) {
                             <HeaderRow>
                                 <HeaderCell>{t("stores.snapshots.object")}</HeaderCell>
                                 {clusters.length > 1 && <HeaderCell>{t("stores.panel.cluster")}</HeaderCell>}
-                                <HeaderCell className="text-right">{t("stores.columns.snapshots")}</HeaderCell>
+                                <HeaderCell>{t("stores.columns.snapshots")}</HeaderCell>
                                 <HeaderCell>{t("stores.columns.latest")}</HeaderCell>
                                 <HeaderCell>{t("stores.columns.nodes")}</HeaderCell>
-                                <HeaderCell className="text-right">{t("stores.columns.saved")}</HeaderCell>
-                                <HeaderCell className="text-right">{t("stores.columns.protected")}</HeaderCell>
-                                <HeaderCell className="text-right">{t("stores.columns.incomplete")}</HeaderCell>
+                                <HeaderCell>{t("stores.columns.saved")}</HeaderCell>
+                                <HeaderCell>{t("stores.columns.protected")}</HeaderCell>
+                                <HeaderCell>{t("stores.columns.incomplete")}</HeaderCell>
                             </HeaderRow>
                         </thead>
                         <tbody>
@@ -638,8 +638,8 @@ export function StoreSnapshots({name, path: objectPath}) {
                             ? <HeaderCell>{t("stores.snapshots.store")}</HeaderCell>
                             : <HeaderCell>{t("stores.snapshots.object")}</HeaderCell>}
                         <HeaderCell>{t("stores.snapshots.taken")}</HeaderCell>
-                        <HeaderCell className="text-right">{t("stores.snapshots.took")}</HeaderCell>
-                        <HeaderCell className="text-right">{t("stores.snapshots.size")}</HeaderCell>
+                        <HeaderCell>{t("stores.snapshots.took")}</HeaderCell>
+                        <HeaderCell>{t("stores.snapshots.size")}</HeaderCell>
                         <HeaderCell>{t("common.node")}</HeaderCell>
                         <HeaderCell>{t("stores.snapshots.holds")}</HeaderCell>
                         <HeaderCell>{t("stores.snapshots.note")}</HeaderCell>

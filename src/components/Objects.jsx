@@ -1101,8 +1101,8 @@ const Objects = () => {
                                 />
                                 {namesOnly && (
                                     <>
-                                        <HeaderCell className="text-right">{t("objects.columns.keys")}</HeaderCell>
-                                        <HeaderCell className="text-right">{t("objects.columns.keysSize")}</HeaderCell>
+                                        <HeaderCell>{t("objects.columns.keys")}</HeaderCell>
+                                        <HeaderCell>{t("objects.columns.keysSize")}</HeaderCell>
                                     </>
                                 )}
                                 {!namesOnly && propertyColumns.map(({key, labelKey, term}) => (

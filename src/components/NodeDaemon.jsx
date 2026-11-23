@@ -506,7 +506,7 @@ export function NodeDaemon({node}) {
                     <thead>
                         <HeaderRow>
                             <HeaderCell>{t("common.type")}</HeaderCell>
-                            <HeaderCell className="text-right">{t("nodeDaemon.columns.ttl")}</HeaderCell>
+                            <HeaderCell>{t("nodeDaemon.columns.ttl")}</HeaderCell>
                             <HeaderCell>{t("nodeDaemon.columns.content")}</HeaderCell>
                         </HeaderRow>
                     </thead>
@@ -523,7 +523,7 @@ export function NodeDaemon({node}) {
                                 )}
                                 <Row>
                                     <Cell>{r.qtype}</Cell>
-                                    <Cell numeric className="text-right">{r.ttl}</Cell>
+                                    <Cell numeric>{r.ttl}</Cell>
                                     <Cell className="font-mono text-data">{r.content}</Cell>
                                 </Row>
                             </React.Fragment>
