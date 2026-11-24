@@ -30,6 +30,57 @@ const STROKE = 8;
 const STROKE_POINTED = 13;
 const ARC_GROWS = "transition-[stroke-width] duration-150 [[data-card]:hover_&]:[stroke-width:10]";
 
+/**
+ * The width a label has on its side, from the edge of the drawing to the ring: the
+ * room of the labels and what the ring leaves of its own half, outside its stroke.
+ */
+const LABEL_WIDTH = LABEL_ROOM + 60 - (RING_RADIUS + STROKE / 2) - 6;
+
+let measureContext;
+/**
+ * The width of `text` at `size` in the drawing, in the font of the page: measured
+ * where a canvas measures, else guessed, a letter about half its size wide.
+ */
+function textWidth(text, size, bold = false) {
+    if (measureContext === undefined) {
+        try {
+            measureContext = document.createElement("canvas").getContext("2d") ?? null;
+        } catch {
+            measureContext = null;
+        }
+    }
+    if (measureContext) {
+        measureContext.font = `${bold ? "600 " : ""}${size}px ${getComputedStyle(document.body).fontFamily}`;
+        const width = measureContext.measureText(text).width;
+        if (width > 0) return width;
+    }
+    return text.length * size * 0.55;
+}
+
+/**
+ * The lines of a label, `word` then its `count`: one when they fit on their side of
+ * the ring; else wrapped after its comma, or as many words as fit on the first line,
+ * the rest and the count on the second, never run over the ring.
+ */
+export function labelLines(word, count, size, width = LABEL_WIDTH) {
+    const counted = ` ${count}`;
+    const fits = (line, last) => textWidth(line, size) + (last ? textWidth(counted, size, true) : 0) <= width;
+    if (fits(word, true)) return [word];
+    // After a comma when both halves fit: "down," then "sans problème".
+    const comma = word.indexOf(", ");
+    if (comma > 0 && fits(word.slice(0, comma + 1), false) && fits(word.slice(comma + 2), true)) {
+        return [word.slice(0, comma + 1), word.slice(comma + 2)];
+    }
+    const words = word.split(" ");
+    let first = words[0];
+    let at = 1;
+    while (at < words.length - 1 && fits(`${first} ${words[at]}`, false)) {
+        first = `${first} ${words[at]}`;
+        at += 1;
+    }
+    return at < words.length ? [first, words.slice(at).join(" ")] : [word];
+}
+
 /** The width of a labelled ring at its largest, in rem (max-w-[23rem]). */
 const RING_FULL_REM = 23;
 
@@ -48,7 +99,7 @@ export function wordsScale(room) {
  * side of the ring the middle stands, one above the other with room between them, kept
  * in the drawing.
  */
-function placeLabels(arcs, cx, cy, height, gap = LABEL_GAP) {
+function placeLabels(arcs, cx, cy, height, gap = LABEL_GAP, line = LABEL_SIZE + 1) {
     const placed = arcs.map((arc) => {
         // From its middle; near the top or the bottom of the ring, from the point of the arc
         // farthest to a side, its label beside the ring rather than under or over it.
@@ -73,14 +124,18 @@ function placeLabels(arcs, cx, cy, height, gap = LABEL_GAP) {
         const [x2, y2] = point(LEAD_TO, turn);
         return {...arc, right, x1, y1, x2, y: y2};
     });
+    // A label on two lines, its text above its line, needs a line more of room above it.
+    const above = (l) => gap + ((l.lines?.length ?? 1) - 1) * line;
     for (const right of [true, false]) {
         const side = placed.filter((l) => l.right === right).sort((a, b) => a.y - b.y);
-        for (let i = 1; i < side.length; i += 1) side[i].y = Math.max(side[i].y, side[i - 1].y + gap);
+        for (let i = 1; i < side.length; i += 1) side[i].y = Math.max(side[i].y, side[i - 1].y + above(side[i]));
         // Pushed past the bottom: back up, the gaps kept.
         const over = (side.at(-1)?.y ?? 0) - (height - 4);
         if (over > 0) for (const l of side) l.y -= over;
-        // Its text in the drawing, however large: its line under its top.
-        for (const l of side) l.y = Math.max(l.y, gap - 1);
+        // Its text in the drawing, however large: its lines under its top.
+        for (let i = 0; i < side.length; i += 1) {
+            side[i].y = Math.max(side[i].y, above(side[i]) - 1, i > 0 ? side[i - 1].y + above(side[i]) : 0);
+        }
     }
     return placed;
 }
@@ -142,7 +197,14 @@ export function StateRing({parts, total = parts.reduce((sum, [, count]) => sum +
     // Its labels read on a phone: as large in the drawing as its shrinking asks.
     const [box, room] = useRoomWidth();
     const size = room ? Math.max(LABEL_SIZE, (LABEL_READ * width) / room) : LABEL_SIZE;
-    const labels = labelled ? placeLabels(arcs.filter((a) => a.label), cx, 60, 120, Math.max(LABEL_GAP, size + 3)) : [];
+    // A label too long for its side wrapped on two lines (labelLines), not run over the ring.
+    const line = size + 1;
+    const labels = labelled
+        ? placeLabels(
+            arcs.filter((a) => a.label).map((a) => ({...a, lines: labelLines(a.label.word, a.count, size)})),
+            cx, 60, 120, Math.max(LABEL_GAP, size + 3), line,
+        )
+        : [];
     // The part of a page pointed at, by its arc or its label: its arc thicker, its label underlined.
     const [pointed, setPointed] = useState(null);
     const point = (part) => (on) => setPointed((was) => (on ? part : was === part ? null : was));
@@ -198,12 +260,24 @@ export function StateRing({parts, total = parts.reduce((sum, [, count]) => sum +
                                     {/* The label at the outer end of its line, those of a side aligned. */}
                                     <text
                                         x={end}
-                                        y={l.y - 2}
+                                        y={l.y - 2 - (l.lines.length - 1) * line}
                                         textAnchor={l.right ? "end" : "start"}
                                         className={pointed === l.part ? "fill-current underline" : "fill-current"}
                                     >
-                                        <tspan className="fill-ink-muted">{l.label.word}</tspan>
-                                        <tspan className="font-semibold tabular-nums">{` ${l.count}`}</tspan>
+                                        {l.lines.map((text, i) => {
+                                            const last = i === l.lines.length - 1;
+                                            // The space between two lines on their side of the ring, where it moves nothing:
+                                            // the label read whole all the same.
+                                            const words = l.lines.length === 1 ? text
+                                                : i === 0 ? (l.right ? text : `${text} `)
+                                                    : (l.right ? ` ${text}` : text);
+                                            return (
+                                                <tspan key={i} x={end} dy={i === 0 ? 0 : line}>
+                                                    <tspan className="fill-ink-muted">{words}</tspan>
+                                                    {last && <tspan className="font-semibold tabular-nums">{` ${l.count}`}</tspan>}
+                                                </tspan>
+                                            );
+                                        })}
                                     </text>
                                 </g>
                             );
