@@ -472,7 +472,6 @@ export function InstanceDetailPanel({id, tab, onTabChange, onClose}) {
             tabs={tabs}
             tab={tab}
             onTabChange={onTabChange}
-            closeOnOutsideClick={false}
         >
             {(active) => (parsed === null ? null : active === "logs"
                 ? <ObjectLogs key={id} path={parsed.path} nodes={[parsed.node]}/>
@@ -557,7 +556,6 @@ export function ResourceDetailPanel({id, tab, onTabChange, onClose}) {
             tabs={tabs}
             tab={tab}
             onTabChange={onTabChange}
-            closeOnOutsideClick={false}
         >
             {(active) => (parsed === null ? null : (
                 <>

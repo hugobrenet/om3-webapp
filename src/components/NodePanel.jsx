@@ -1176,7 +1176,6 @@ export function NodeDetailPanel({node, tab, onTabChange, onClose}) {
             tabs={tabs}
             tab={tab}
             onTabChange={onTabChange}
-            closeOnOutsideClick={false}
         >
             {(active) => (
                 <>

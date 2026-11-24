@@ -358,6 +358,21 @@ describe('InstanceDetailPanel', () => {
         expect(screen.getByTestId('logs')).toHaveTextContent(/^prod\/svc\/web on n1$/);
     });
 
+    test('closes on a click beside it, as every panel; not on a click in it', () => {
+        for (const panel of [
+            (onClose) => <InstanceDetailPanel id="prod/svc/web@n1" onTabChange={vi.fn()} onClose={onClose}/>,
+            (onClose) => <ResourceDetailPanel id="prod/svc/web:app#1" onTabChange={vi.fn()} onClose={onClose}/>,
+        ]) {
+            const onClose = vi.fn();
+            const {unmount} = render(<MemoryRouter>{panel(onClose)}</MemoryRouter>);
+            fireEvent.pointerDown(screen.getByRole('dialog').querySelector('h2'));
+            expect(onClose).not.toHaveBeenCalled();
+            fireEvent.pointerDown(document.body);
+            expect(onClose).toHaveBeenCalledTimes(1);
+            unmount();
+        }
+    });
+
     test('closes once its instance is gone', () => {
         const onClose = vi.fn();
         render(<MemoryRouter><InstanceDetailPanel id="prod/svc/web@n1" onTabChange={vi.fn()} onClose={onClose}/></MemoryRouter>);

@@ -573,7 +573,6 @@ const ObjectDetail = ({path, embedded = false, onOpenLogs, onViewInstance, onOrc
                 closeLabel={t("objectDetails.logs.close")}
                 size="wide"
                 resizeLabel={t("objectDetails.logs.resize")}
-                closeOnOutsideClick={false}
             >
                 {logsDrawerOpen && selectedNodeForLogs !== null && (
                     <LogsViewer
