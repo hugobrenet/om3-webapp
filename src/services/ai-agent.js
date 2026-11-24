@@ -20,11 +20,17 @@ export const FEEDBACK_REASONS = [
     'action_not_done',
 ];
 export const MAX_FEEDBACK_EXPECTED_CHARACTERS = 1000;
-const FEEDBACK_HTTP_MESSAGES = {
+const FEEDBACK_STATUS_MESSAGES = {
     400: 'The feedback is invalid.',
     404: 'This answer can no longer be rated.',
     409: 'The agent keeps no more feedback for now.',
 };
+// The refusals of a feedback: the feedback turned off by the operator, by the
+// code of the agent, the others by their status.
+const FEEDBACK_HTTP_MESSAGES = (status, code) =>
+    code === 'feedback_disabled'
+        ? [code, 'Feedback is turned off on this agent.']
+        : [undefined, FEEDBACK_STATUS_MESSAGES[status]];
 // The run error codes the webapp explains. The agent message is never shown:
 // any other code gets the generic failure message.
 const RUN_ERROR_MESSAGES = {
@@ -34,6 +40,7 @@ const RUN_ERROR_MESSAGES = {
 // The refusals of a run the webapp explains by their code: the answer to a
 // confirmation that no longer waits, or that expired.
 const RUN_HTTP_CODE_MESSAGES = {
+    model_unknown: 'This model is no longer available: the default model is selected. Send your message again.',
     confirmation_not_pending: 'This action no longer waits for a decision.',
     confirmation_expired: 'The confirmation request expired. The action was not run.',
     invalid_edited_arguments: 'The agent refused the edited arguments. Check the form; the action still waits.',
@@ -79,6 +86,8 @@ const checkAborted = (signal) => {
 // The agent serves each backend under its own routes; the webapp talks to om3.
 const CONVERSATIONS_PATH = '/v1/om3/conversations';
 const TOOLS_PATH = '/v1/om3/tools';
+const CAPABILITIES_PATH = '/v1/om3/capabilities';
+const MODELS_PATH = '/v1/om3/models';
 const conversationPath = (id) => {
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) {
         throw new AiAgentError('invalid_conversation', 'A valid conversation ID is required.');
@@ -206,6 +215,56 @@ const parseTools = (result) => {
         };
     });
 };
+// What the webapp reads of the AG-UI AgentCapabilities of the agent: whether
+// its turns take a feedback, custom.feedback, and whether its runs choose
+// their model, custom.models. An agent older than the settings gives no
+// custom group: its feedback is on, and it offers no choice of model.
+export const parseCapabilities = (result) => {
+    if (!isPlainObject(result)) throw protocolError();
+    const custom = result.custom;
+    if (custom !== undefined && !isPlainObject(custom)) throw protocolError();
+    const feedback = custom?.feedback;
+    const models = custom?.models;
+    if (
+        (feedback !== undefined && typeof feedback !== 'boolean') ||
+        (models !== undefined && typeof models !== 'boolean')
+    )
+        throw protocolError();
+    return {feedback: feedback !== false, models: models === true};
+};
+
+// The models a run chooses from, the default first: their ID, opaque, the
+// label to show, whether the user can run on them. The labels are the
+// operator's, shown as text.
+export const MAX_MODELS = 16;
+const MAX_MODEL_ID_BYTES = 64;
+const MAX_MODEL_LABEL_CHARACTERS = 64;
+export const isModelId = (id) =>
+    typeof id === 'string' && id !== '' && new TextEncoder().encode(id).length <= MAX_MODEL_ID_BYTES;
+export const parseModels = (result) => {
+    const models = result?.models;
+    if (!isPlainObject(result) || !Array.isArray(models) || models.length < 1 || models.length > MAX_MODELS)
+        throw protocolError();
+    const ids = new Set();
+    const parsed = models.map((model) => {
+        if (
+            !isPlainObject(model) ||
+            !isModelId(model.id) ||
+            ids.has(model.id) ||
+            typeof model.label !== 'string' ||
+            !model.label.trim() ||
+            Array.from(model.label).length > MAX_MODEL_LABEL_CHARACTERS ||
+            typeof model.default !== 'boolean' ||
+            typeof model.ready !== 'boolean'
+        )
+            throw protocolError();
+        ids.add(model.id);
+        return {id: model.id, label: model.label, default: model.default, ready: model.ready};
+    });
+    if (parsed.filter((model) => model.default).length !== 1) throw protocolError();
+    return parsed;
+};
+
 const TOOLS_MESSAGES = (status, code) =>
     status === 502 && code === 'tools_unavailable'
         ? ['tools_unavailable', 'The agent could not read its tools.']
@@ -272,6 +331,9 @@ const readMessagePage = async (response, signal, limit, before) => {
             // Only an assistant message carries the steps of its turn.
             const history = parseHistorySteps(message);
             if (history && message.role !== 'assistant') throw protocolError();
+            // And the model its turn last ran on.
+            if (message.model_id !== undefined && (!isModelId(message.model_id) || message.role !== 'assistant'))
+                throw protocolError();
             ids.add(message.id);
             return {
                 id: message.id,
@@ -281,6 +343,7 @@ const readMessagePage = async (response, signal, limit, before) => {
                 created_at: message.created_at,
                 ...(feedback ? {feedback} : {}),
                 ...(history ? {history} : {}),
+                ...(message.model_id ? {model_id: message.model_id} : {}),
             };
         });
         // The steps go with the last assistant message of their turn.
@@ -891,7 +954,7 @@ const readErrorCode = async (response) => {
 // The refusals of a run: the answers to a confirmation by their code, and the
 // 404 of an agent that serves no runs, from the conversation not found.
 const runRefusal = (status, code) => {
-    if (code === 'invalid_edited_arguments') return [code, RUN_HTTP_CODE_MESSAGES[code]];
+    if (code === 'invalid_edited_arguments' || code === 'model_unknown') return [code, RUN_HTTP_CODE_MESSAGES[code]];
     if (Object.hasOwn(RUN_HTTP_CODE_MESSAGES, code)) return ['http_error', RUN_HTTP_CODE_MESSAGES[code]];
     if (status === 404 && code !== 'conversation_not_found') return ['agent_outdated', AGENT_OUTDATED_MESSAGE];
     return undefined;
@@ -1027,6 +1090,42 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                 signal,
                 TOOLS_MESSAGES
             ),
+        // The models a run chooses from, the default first.
+        listModels: ({signal} = {}) =>
+            request(
+                MODELS_PATH,
+                {method: 'GET', headers: {Accept: 'application/json'}},
+                async (response, requestSignal) => {
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch {
+                        checkAborted(requestSignal);
+                        throw protocolError();
+                    }
+                    checkAborted(requestSignal);
+                    return parseModels(result);
+                },
+                signal
+            ),
+        // What the agent offers the interface, such as the feedback.
+        getCapabilities: ({signal} = {}) =>
+            request(
+                CAPABILITIES_PATH,
+                {method: 'GET', headers: {Accept: 'application/json'}},
+                async (response, requestSignal) => {
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch {
+                        checkAborted(requestSignal);
+                        throw protocolError();
+                    }
+                    checkAborted(requestSignal);
+                    return parseCapabilities(result);
+                },
+                signal
+            ),
         getConversation: (id, options) =>
             jsonRequest(conversationPath(id), 'GET', 'conversation', options),
         // The conversation with the tool call it waits on, if any.
@@ -1116,8 +1215,11 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
         // phase: it keeps the history itself and reads no other message, so
         // their texts are not sent. context is what the page under the dock
         // shows (interface-context.ts), sent with a new prompt only: a resumed
-        // turn keeps the one of its prompt. A run resolves with its RUN_FINISHED.
-        run: (id, {prompt, promptId, held = [], resume, context = []} = {}, {signal, onEvent} = {}) => {
+        // turn keeps the one of its prompt. model, the ID of a model of
+        // listModels, chooses the model of a new prompt, the default when
+        // absent; a resumed turn keeps its own. A run resolves with its
+        // RUN_FINISHED.
+        run: (id, {prompt, promptId, held = [], resume, context = [], model} = {}, {signal, onEvent} = {}) => {
             const path = conversationPath(id);
             if (
                 !Array.isArray(held) ||
@@ -1138,7 +1240,7 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                         'A non-empty prompt of at most 32 KiB is required.'
                     );
                 }
-                if (typeof promptId !== 'string' || !promptIdPattern.test(promptId)) {
+                if (typeof promptId !== 'string' || !promptIdPattern.test(promptId) || (model !== undefined && !isModelId(model))) {
                     throw new AiAgentError('invalid_run', 'The messages of the run are invalid.');
                 }
                 messages.push({id: promptId, role: 'user', content: prompt});
@@ -1183,7 +1285,7 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                 tools: [],
                 context: answer || !Array.isArray(context) ? [] : boundContext(context),
                 state: {},
-                forwardedProps: {},
+                forwardedProps: !answer && model !== undefined ? {model} : {},
                 ...(answer ? {resume: answer} : {}),
             };
             return request(

@@ -20,6 +20,28 @@ const emptyState = (scope) => ({
     // The feedback of the user per turn ID: {feedback, pending, error}.
     ratings: {},
 });
+// The last choice of a model of the user, kept by the browser for the next
+// visits: the agent of the webapp is the same for every cluster.
+export const MODEL_KEY = 'om3.ai.model';
+const readModelChoice = () => {
+    try {
+        return localStorage.getItem(MODEL_KEY);
+    } catch {
+        return null;
+    }
+};
+const keepModelChoice = (id) => {
+    try {
+        if (id === null) localStorage.removeItem(MODEL_KEY);
+        else localStorage.setItem(MODEL_KEY, id);
+    } catch {
+        // A comfort: the choice holds for the page.
+    }
+};
+// The model the last turn of a page of history ran on.
+const lastModelOf = (messages) =>
+    messages.findLast((message) => message.role === 'assistant' && message.model_id)?.model_id ?? null;
+
 const errorMessage = (error) =>
     error instanceof AiAgentError ? error.message : 'The AI request failed. It was not retried.';
 
@@ -307,6 +329,106 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     const nextId = useRef(0);
     // Feedback requests run beside turns and are canceled with the scope.
     const feedbackRequests = useRef(new Set());
+    // Whether the agent of the client takes the feedback of the scope: true or
+    // false as it says, null when it could not be read. The feedback is off
+    // until the agent says it is on, so that an operator who turned it off
+    // never has it offered; a read that failed is tried again with the next
+    // action of the user (retryCapabilities).
+    // Whether its runs choose their model is read with it: models, true or
+    // false, null as feedback when it could not be read.
+    const [capabilities, setCapabilities] = useState({client: null, scope: null, feedback: null, models: null});
+    const [capabilitiesRetry, setCapabilitiesRetry] = useState(0);
+    // A read under way, which an action of the user does not start again.
+    const capabilitiesReading = useRef(false);
+    const capabilitiesOwn = capabilities.client === client && capabilities.scope === scope;
+    const capabilitiesKnown = capabilitiesOwn && capabilities.feedback !== null;
+    useEffect(() => {
+        if (!ready || !client || capabilitiesKnown) return undefined;
+        const controller = new AbortController();
+        capabilitiesReading.current = true;
+        const settle = (result) => {
+            if (controller.signal.aborted) return;
+            capabilitiesReading.current = false;
+            setCapabilities({
+                client,
+                scope,
+                feedback: result ? result.feedback === true : null,
+                models: result ? result.models === true : null,
+            });
+        };
+        Promise.resolve()
+            .then(() => client.getCapabilities({signal: controller.signal}))
+            .then(settle, () => settle(null));
+        return () => {
+            controller.abort();
+            capabilitiesReading.current = false;
+        };
+    }, [client, ready, scope, capabilitiesKnown, capabilitiesRetry]);
+    const feedbackEnabled = Boolean(ready && capabilitiesOwn && capabilities.feedback === true);
+
+    // The models the agent offers, read once it says its runs choose them:
+    // the list, or null when it could not be read, tried again with the next
+    // action of the user. No choice is offered without a list of two models
+    // or more: the runs then send none, and run on the default model.
+    const [models, setModels] = useState({client: null, scope: null, list: null});
+    const [modelsRetry, setModelsRetry] = useState(0);
+    const modelsReading = useRef(false);
+    const modelsOwn = models.client === client && models.scope === scope;
+    const modelsOffered = Boolean(ready && capabilitiesOwn && capabilities.models === true);
+    const modelsKnown = modelsOwn && models.list !== null;
+    useEffect(() => {
+        if (!modelsOffered || !client || modelsKnown) return undefined;
+        const controller = new AbortController();
+        modelsReading.current = true;
+        const settle = (list) => {
+            if (controller.signal.aborted) return;
+            modelsReading.current = false;
+            setModels({client, scope, list});
+        };
+        Promise.resolve()
+            .then(() => client.listModels({signal: controller.signal}))
+            .then(settle, () => settle(null));
+        return () => {
+            controller.abort();
+            modelsReading.current = false;
+        };
+    }, [client, scope, modelsOffered, modelsKnown, modelsRetry]);
+    // Read again, as for a model the agent no longer offers: no choice is
+    // offered until the new list comes, a message sent meanwhile going on
+    // the default model.
+    const readModelsAgain = () => {
+        setModels((previous) => (previous.client === client && previous.scope === scope ? {...previous, list: null} : previous));
+        setModelsRetry((count) => count + 1);
+    };
+    // An action of the user reads again what could not be read.
+    const retryCapabilities = () => {
+        if (capabilitiesOwn && capabilities.feedback === null && !capabilitiesReading.current)
+            setCapabilitiesRetry((count) => count + 1);
+        if (modelsOffered && modelsOwn && models.list === null && !modelsReading.current)
+            setModelsRetry((count) => count + 1);
+    };
+    const modelList = modelsOffered && modelsOwn && models.list?.length >= 2 ? models.list : null;
+    // The model chosen, by its ID: the choice of the user or the model of
+    // the conversation opened, else the last choice of the user the browser
+    // keeps, read once, else the default. An ID the list no longer holds, or
+    // that the user cannot run on, is passed over. A new conversation, or one
+    // that names no model, starts from the choice kept.
+    const [choice, setChoice] = useState({scope, id: null});
+    const [kept, setKept] = useState(readModelChoice);
+    const offered = (id) => Boolean(id && modelList?.some((item) => item.id === id && item.ready));
+    const forgetConversationModel = () => setChoice({scope, id: null});
+    let model = null;
+    if (modelList) {
+        if (choice.scope === scope && offered(choice.id)) model = choice.id;
+        else if (offered(kept)) model = kept;
+        else model = modelList.find((item) => item.default && item.ready)?.id ?? modelList.find((item) => item.ready)?.id ?? null;
+    }
+    const selectModel = (id) => {
+        if (!offered(id)) return;
+        keepModelChoice(id);
+        setKept(id);
+        setChoice({scope, id});
+    };
 
     const perform = useCallback(
         async (kind, action) => {
@@ -398,8 +520,10 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
         };
     }, [ready, scope, refreshConversations]);
 
-    const createConversation = () =>
-        perform('creating', async ({signal, update}) => {
+    const createConversation = () => {
+        retryCapabilities();
+        forgetConversationModel();
+        return perform('creating', async ({signal, update}) => {
             const conversation = await client.createConversation({signal});
             update((previous) => ({
                 ...previous,
@@ -415,12 +539,14 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
             }));
             return conversation;
         });
+    };
 
     // Back to no conversation, as the page opens: the next message sent creates
     // one. Nothing is asked of the agent: a question put in the message box by a
     // link leaves no empty conversation behind when it is not sent.
     const leaveConversation = () => {
         if (!ready || active.current || state.scope !== scope || state.conversation === null) return;
+        forgetConversationModel();
         setState((previous) => ({
             ...emptyState(scope),
             opened: true,
@@ -429,7 +555,10 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     };
 
     const resumeConversation = (id) => {
+        retryCapabilities();
         if (state.scope === scope && state.conversation?.id === id && !state.partial) return;
+        // The conversation shown, read again whole, keeps the model chosen since.
+        const reread = state.scope === scope && state.conversation?.id === id;
         return perform('resuming', async ({signal, update}) => {
             update((previous) => ({
                 ...previous,
@@ -445,6 +574,9 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
             const {conversation, confirmation} = await client.getConversationState(id, {signal});
             if (signal.aborted) return;
             const page = await client.getMessages(id, {signal});
+            if (signal.aborted) return;
+            // Another conversation goes on with the model of its last turn.
+            if (!reread) setChoice({scope, id: lastModelOf(page.messages)});
             update((previous) => ({
                 ...previous,
                 conversation,
@@ -514,8 +646,9 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
         if (state.scope !== scope || !id) return;
         return perform('deleting', async ({signal, update}) => {
             await client.deleteConversation(id, {signal});
-            // A message queued for it goes with it.
+            // A message queued for it goes with it, and its model.
             if (queuedRef.current?.conversationId === id) setQueued(null);
+            if (state.conversation?.id === id) forgetConversationModel();
             update((previous) => previous.conversation?.id !== id ? {
                 ...previous,
                 conversations: previous.conversations.filter((item) => item.id !== id),
@@ -542,7 +675,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     // the turn of an answer of the current conversation.
     const rateTurn = async (turnId, feedback) => {
         const conversationId = state.scope === scope ? state.conversation?.id : null;
-        if (!ready || !client || !conversationId || typeof turnId !== 'string' || state.ratings[turnId]?.pending) return false;
+        if (!ready || !client || !feedbackEnabled || !conversationId || typeof turnId !== 'string' || state.ratings[turnId]?.pending) return false;
         const requestEpoch = epoch.current;
         const controller = new AbortController();
         feedbackRequests.current.add(controller);
@@ -560,8 +693,22 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
             setRating(() => ({feedback: stored, pending: false, error: ''}));
             return true;
         } catch (error) {
-            if (!controller.signal.aborted && error?.name !== 'AbortError')
-                setRating((rating) => ({feedback: rating?.feedback || null, pending: false, error: errorMessage(error)}));
+            if (!controller.signal.aborted && error?.name !== 'AbortError') {
+                // The operator turned the feedback off since it was read: the
+                // other answers are no longer offered it, and this one says why
+                // (turnedOff) where its rating was.
+                const turnedOff = error?.code === 'feedback_disabled';
+                setRating((rating) => ({
+                    feedback: rating?.feedback || null,
+                    pending: false,
+                    error: errorMessage(error),
+                    ...(turnedOff ? {turnedOff: true} : {}),
+                }));
+                if (turnedOff)
+                    setCapabilities((previous) =>
+                        previous.client === client && previous.scope === scope ? {...previous, feedback: false} : previous
+                    );
+            }
             return false;
         } finally {
             feedbackRequests.current.delete(controller);
@@ -660,8 +807,11 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
 
     // The context is the page the prompt is asked from: read when it is
     // sent, or, for a queued message, when it was queued.
-    const send = (prompt, context = interfaceContext()) => {
+    // The model is the one chosen when it is sent, or, for a queued message,
+    // when it was queued.
+    const send = (prompt, context = interfaceContext(), runModel = model) => {
         if (!state.historyReady || state.confirmation || typeof prompt !== 'string' || !prompt.trim()) return;
+        retryCapabilities();
         const current = state.scope === scope ? state.conversation : null;
         // The conversation whose run ended normally, which releases the queue.
         let ended = null;
@@ -690,11 +840,43 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
                 }));
             }
             if (signal.aborted) return;
-            const result = await client.run(
-                conversation.id,
-                {prompt, promptId, held, context},
-                {signal, onEvent: runEvents(answerId, update)}
-            );
+            let result;
+            try {
+                result = await client.run(
+                    conversation.id,
+                    {prompt, promptId, held, context, ...(runModel ? {model: runModel} : {})},
+                    {signal, onEvent: runEvents(answerId, update)}
+                );
+            } catch (error) {
+                // An operation stopped, as for another session or cluster,
+                // changes nothing more.
+                if (signal.aborted) throw error;
+                // The agent no longer offers the model: refused before the
+                // run, the choice kept is forgotten if it was that model, the
+                // default model is chosen if that model was the one chosen, as
+                // a message queued with another model leaves the choice of the
+                // user as it is, and the list is read again. The prompt goes
+                // to the queue, without its model, with the page it was asked
+                // from, for the user to send it again; a message queued
+                // meanwhile is not replaced: the prompt then stays in the
+                // thread, failed.
+                if (error?.code === 'model_unknown') {
+                    if (runModel && kept === runModel) {
+                        keepModelChoice(null);
+                        setKept(null);
+                    }
+                    if (runModel === model) setChoice({scope, id: modelList?.find((item) => item.default)?.id ?? null});
+                    readModelsAgain();
+                    if (!queuedRef.current) {
+                        setQueued({conversationId: conversation.id, text: prompt, context});
+                        update((previous) => ({
+                            ...previous,
+                            messages: previous.messages.filter((message) => message.id !== promptId && message.id !== answerId),
+                        }));
+                    }
+                }
+                throw error;
+            }
             finish(result, conversation.id, answerId, update);
             if (result.outcome === 'interrupt') return true;
             ended = conversation.id;
@@ -728,8 +910,9 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     // last one replacing it. Its text is the user's, sent as typed.
     const queue = (text) => {
         if (typeof text !== 'string' || !text.trim() || new TextEncoder().encode(text).length > MAX_QUEUED_BYTES) return false;
-        // The page it is asked from goes with it, whatever page the user is on once it is sent.
-        setQueued({conversationId: state.scope === scope ? state.conversation?.id ?? null : null, text, context: interfaceContext()});
+        // The page it is asked from and the model chosen go with it, whatever
+        // page the user is on, and model chosen, once it is sent.
+        setQueued({conversationId: state.scope === scope ? state.conversation?.id ?? null : null, text, context: interfaceContext(), ...(model ? {model} : {})});
         return true;
     };
     const unqueue = () => setQueued(null);
@@ -753,7 +936,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
         if (!item || state.confirmation || conversationId !== release.conversationId) return;
         if (item.conversationId !== null && item.conversationId !== conversationId) return;
         setQueued(null);
-        void send(item.text, item.context);
+        void send(item.text, item.context, item.model);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [release, state.pending]);
 
@@ -813,6 +996,12 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
         takeQueued,
         previewAgain,
         reject: () => decide(false),
+        feedbackEnabled,
+        // The models offered, null when none is to choose, and the model
+        // the next message goes on.
+        models: modelList,
+        model,
+        selectModel,
         rate: (turnId, feedback) => rateTurn(turnId, feedback),
         unrate: (turnId) => rateTurn(turnId, null),
     };

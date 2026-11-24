@@ -28,13 +28,142 @@ describe('useAiChat feedback', () => {
             }),
             setFeedback: vi.fn(async (_id, _turnId, feedback) => ({reasons: [], expected: '', ...feedback})),
             deleteFeedback: vi.fn().mockResolvedValue(undefined),
+            getCapabilities: vi.fn().mockResolvedValue({feedback: true}),
         };
     });
-    const setup = async () => {
+    const setup = async ({feedback = true} = {}) => {
         const hook = renderHook((options) => useAiChat(options), {initialProps: {client, ready: true, scope: 'user:cluster'}});
         await waitFor(() => expect(hook.result.current.pending).toBe(''));
+        if (feedback) await waitFor(() => expect(hook.result.current.feedbackEnabled).toBe(true));
         return hook;
     };
+
+    it('takes the feedback only once the agent says it does', async () => {
+        let resolve;
+        client.getCapabilities.mockImplementationOnce(() => new Promise((ok) => (resolve = ok)));
+        const {result} = await setup({feedback: false});
+        await act(async () => {
+            await result.current.resumeConversation('existing');
+        });
+        expect(result.current.feedbackEnabled).toBe(false);
+        await act(async () => {
+            expect(await result.current.rate('turn-1', {rating: 'up'})).toBe(false);
+        });
+        expect(client.setFeedback).not.toHaveBeenCalled();
+        // The read under way is not started again by the action of the user.
+        expect(client.getCapabilities).toHaveBeenCalledTimes(1);
+        await act(async () => resolve({feedback: true}));
+        expect(result.current.feedbackEnabled).toBe(true);
+    });
+    it('reads again, with the next action of the user, the capabilities it could not read', async () => {
+        client.getCapabilities.mockRejectedValueOnce(new AiAgentError('http_error', 'Authentication or agent temporarily unavailable.', 503));
+        const {result} = await setup({feedback: false});
+        await waitFor(() => expect(client.getCapabilities).toHaveBeenCalledTimes(1));
+        expect(result.current.feedbackEnabled).toBe(false);
+        await act(async () => {
+            await result.current.resumeConversation('existing');
+        });
+        await waitFor(() => expect(result.current.feedbackEnabled).toBe(true));
+        expect(client.getCapabilities).toHaveBeenCalledTimes(2);
+        // Known, they are not read again.
+        await act(async () => {
+            await result.current.createConversation();
+        });
+        expect(client.getCapabilities).toHaveBeenCalledTimes(2);
+    });
+    it('reads again with send, and starts no second read while one is under way', async () => {
+        client.getCapabilities.mockRejectedValueOnce(new AiAgentError('http_error', 'Authentication or agent temporarily unavailable.', 503));
+        let resolve;
+        client.getCapabilities.mockImplementationOnce(() => new Promise((ok) => (resolve = ok)));
+        const {result} = await setup({feedback: false});
+        await waitFor(() => expect(client.getCapabilities).toHaveBeenCalledTimes(1));
+        await act(async () => {
+            await result.current.send('hello');
+        });
+        await waitFor(() => expect(client.getCapabilities).toHaveBeenCalledTimes(2));
+        // Another action while the second read is under way does not start a third.
+        await act(async () => {
+            await result.current.send('again');
+        });
+        await act(async () => {
+            await result.current.resumeConversation('existing');
+        });
+        expect(client.getCapabilities).toHaveBeenCalledTimes(2);
+        await act(async () => resolve({feedback: true}));
+        expect(result.current.feedbackEnabled).toBe(true);
+    });
+    it('offers no feedback once the chat is no longer ready', async () => {
+        const {result, rerender} = await setup();
+        rerender({client, ready: false, scope: 'user:cluster'});
+        expect(result.current.feedbackEnabled).toBe(false);
+    });
+    it('takes the feedback off when the agent refuses it as turned off', async () => {
+        const {result} = await setup();
+        await act(async () => {
+            await result.current.resumeConversation('existing');
+        });
+        client.setFeedback.mockRejectedValueOnce(new AiAgentError('feedback_disabled', 'Feedback is turned off on this agent.', 403));
+        await act(async () => {
+            expect(await result.current.rate('turn-1', {rating: 'up'})).toBe(false);
+        });
+        expect(result.current.ratings['turn-1'].error).toBe('Feedback is turned off on this agent.');
+        expect(result.current.feedbackEnabled).toBe(false);
+    });
+    it('drops the late capabilities of a previous scope', async () => {
+        let resolve, signal;
+        client.getCapabilities.mockImplementationOnce((options) => {
+            signal = options.signal;
+            return new Promise((ok) => (resolve = ok));
+        });
+        const {result, rerender} = await setup({feedback: false});
+        client.getCapabilities.mockResolvedValue({feedback: false});
+        rerender({client, ready: true, scope: 'other:cluster'});
+        await waitFor(() => expect(client.getCapabilities).toHaveBeenCalledTimes(2));
+        expect(signal.aborted).toBe(true);
+        await waitFor(() => expect(result.current.feedbackEnabled).toBe(false));
+        await act(async () => resolve({feedback: true}));
+        expect(result.current.feedbackEnabled).toBe(false);
+        // The late answer does not replace those of the new scope, which are
+        // not read again.
+        await act(async () => new Promise((done) => setTimeout(done, 20)));
+        expect(client.getCapabilities).toHaveBeenCalledTimes(2);
+    });
+    it('reads the capabilities of another client of the same scope', async () => {
+        const {result, rerender} = await setup();
+        let resolve;
+        const other = {...client, getCapabilities: vi.fn(() => new Promise((ok) => (resolve = ok)))};
+        rerender({client: other, ready: true, scope: 'user:cluster'});
+        expect(result.current.feedbackEnabled).toBe(false);
+        await waitFor(() => expect(other.getCapabilities).toHaveBeenCalled());
+        await act(async () => resolve({feedback: true}));
+        expect(result.current.feedbackEnabled).toBe(true);
+    });
+    it.each([
+        ['turned off', () => client.getCapabilities.mockResolvedValue({feedback: false})],
+        ['unreadable', () => client.getCapabilities.mockRejectedValue(new AiAgentError('network_error', 'Cannot reach the AI agent.'))],
+    ])('neither offers nor sends the feedback when the capabilities are %s', async (_name, mock) => {
+        mock();
+        const {result} = await setup({feedback: false});
+        await waitFor(() => expect(client.getCapabilities).toHaveBeenCalled());
+        await act(async () => {
+            await result.current.resumeConversation('existing');
+        });
+        expect(result.current.feedbackEnabled).toBe(false);
+        await act(async () => {
+            expect(await result.current.rate('turn-1', {rating: 'up'})).toBe(false);
+            expect(await result.current.unrate('turn-1')).toBe(false);
+        });
+        expect(client.setFeedback).not.toHaveBeenCalled();
+        expect(client.deleteFeedback).not.toHaveBeenCalled();
+    });
+    it('reads the capabilities again for another scope', async () => {
+        const {result, rerender} = await setup();
+        client.getCapabilities.mockResolvedValue({feedback: false});
+        rerender({client, ready: true, scope: 'other:cluster'});
+        expect(result.current.feedbackEnabled).toBe(false);
+        await waitFor(() => expect(client.getCapabilities).toHaveBeenCalledTimes(2));
+        expect(result.current.feedbackEnabled).toBe(false);
+    });
 
     it('restores the saved feedback per turn and keeps it off the messages', async () => {
         const {result} = await setup();

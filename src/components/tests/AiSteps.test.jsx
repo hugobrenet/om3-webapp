@@ -325,6 +325,7 @@ describe('the steps of a conversation reloaded', () => {
             getConversation: vi.fn().mockResolvedValue(existing),
             getConversationState: vi.fn().mockResolvedValue({conversation: existing, confirmation: null}),
             getMessages: vi.fn(),
+            getCapabilities: vi.fn().mockResolvedValue({feedback: true}),
             newId: vi.fn(() => 'prompt-2'),
             run: vi.fn(replayEvents([
                 {type: 'RUN_STARTED', ...run, timestamp: T1 + 9000},
