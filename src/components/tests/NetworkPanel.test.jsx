@@ -3,7 +3,7 @@ import {render, screen, fireEvent, waitFor, within} from '@testing-library/react
 import '@testing-library/jest-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import {MemoryRouter, useLocation} from 'react-router-dom';
-import {NetworkConfig, NetworkOverview, UsageRing, formatCount} from '../NetworkPanel';
+import {NetworkConfig, NetworkOverview, UsageRing, formatCount, mergeNetworkReports} from '../NetworkPanel';
 import {act} from '@testing-library/react';
 import {useMenuState} from '../../hooks/useSidebarAlerts';
 import useEventStore from '../../hooks/useEventStore';
@@ -358,11 +358,11 @@ describe('the network panel', () => {
         expect(await screen.findByText('default is built in: no section of the cluster configuration defines it.')).toBeInTheDocument();
     });
 
-    test('the sketch drawn from what the setup made on each node, read again as a node says it set the network up again', async () => {
-        const report = (node, peers) => ({name: 'backend3', node, type: 'routed_bridge', network: '10.100.0.0/22', dev: 'obr_backend3', peers, applied_at: '2026-11-20T10:00:00Z'});
-        let reports = [
-            report('n1', [{nodename: 'n2', remote: '10.29.0.12', subnet: '10.100.1.0/24', tunnel: '', via: 'route'}]),
-            report('n2', [{nodename: 'n1', remote: '10.29.0.11', subnet: '10.100.0.0/24', tunnel: '', via: 'route'}]),
+    test('the sketch drawn from what the setup made on each node, then as the nodes say it by their events', async () => {
+        const status = (peers) => ({type: 'routed_bridge', network: '10.100.0.0/22', dev: 'obr_backend3', peers, applied_at: '2026-11-20T10:00:00Z'});
+        const reports = [
+            {...status([{nodename: 'n2', remote: '10.29.0.12', subnet: '10.100.1.0/24', tunnel: '', via: 'route'}]), name: 'backend3', node: 'n1'},
+            {...status([{nodename: 'n1', remote: '10.29.0.11', subnet: '10.100.0.0/24', tunnel: '', via: 'route'}]), name: 'backend3', node: 'n2'},
         ];
         const served = global.fetch.getMockImplementation();
         global.fetch.mockImplementation(async (url, options = {}) => {
@@ -372,6 +372,7 @@ describe('the network panel', () => {
             }
             return served(url, options);
         });
+        act(() => useEventStore.setState({networkStatus: {}}));
         mockClaims.list = [];
         localStorage.setItem('authToken', 'token');
         renderIn(<NetworkOverview name="backend3"/>);
@@ -380,18 +381,44 @@ describe('the network panel', () => {
         await waitFor(() => expect(sketch.querySelector('[data-node=n1]')).toHaveTextContent('route@n2 10.29.0.12'));
         expect(sketch.querySelector('[data-route]')).toHaveAttribute('data-route', 'routed');
         expect(sketch.querySelector('[data-node=n3]')).toHaveTextContent('setup none');
-        expect(requests.filter((r) => r.url === '/api/network/node?name=backend3&node=*')).toHaveLength(1);
         // The panel claims the events of the setups while it shows.
         expect(mockClaims.list).toContainEqual(['NodeNetworkStatusUpdated']);
 
-        // n1 tunnels to n2 now: said by its event, read again.
-        reports = [report('n1', [{nodename: 'n2', remote: '10.30.0.12', subnet: '10.100.1.0/24', tunnel: 'tun1030012', tunnel_mode: 'gre', via: 'tunnel'}]), reports[1]];
-        act(() => useEventStore.getState().bumpNetworkSetup('backend3'));
+        // n1 tunnels to n2 now, as its event says: drawn from it, nothing read again.
+        act(() => useEventStore.getState().setNetworkStatus('backend3', 'n1',
+            status([{nodename: 'n2', remote: '10.30.0.12', subnet: '10.100.1.0/24', tunnel: 'tun1030012', tunnel_mode: 'gre', via: 'tunnel'}])));
         await waitFor(() => expect(sketch.querySelector('[data-node=n1]')).toHaveTextContent('tunnel@n2 tun1030012 gre'));
         expect(sketch.querySelector('[data-route]')).toHaveAttribute('data-route', 'tunnel');
-        // The setups of another network read nothing again.
-        act(() => useEventStore.getState().bumpNetworkSetup('backend1'));
-        expect(requests.filter((r) => r.url.startsWith('/api/network/node?'))).toHaveLength(2);
+        // n3 set up, n2 torn down; the setups of another network change nothing here.
+        act(() => useEventStore.getState().setNetworkStatus('backend3', 'n3', status([])));
+        act(() => useEventStore.getState().setNetworkStatus('backend3', 'n2', null));
+        act(() => useEventStore.getState().setNetworkStatus('backend1', 'n2', status([])));
+        await waitFor(() => expect(sketch.querySelector('[data-node=n2]')).toHaveTextContent('setup none'));
+        expect(sketch.querySelector('[data-node=n3]')).not.toHaveTextContent('setup none');
+        expect(requests.filter((r) => r.url.startsWith('/api/network/node?'))).toEqual([
+            {url: '/api/network/node?name=backend3&node=*', method: 'GET'},
+        ]);
         localStorage.removeItem('authToken');
+    });
+
+    describe('what the setups made, read then said', () => {
+        const st = (dev) => ({type: 'bridge', dev});
+        test('an event since the read wins, a deletion since removes the node', () => {
+            const read = {n1: {...st('a'), name: 'x', node: 'n1'}, n2: {...st('b'), name: 'x', node: 'n2'}};
+            const said = {n1: {status: st('a2'), at: 20}, n2: {status: null, at: 20}, n3: {status: st('c'), at: 20}};
+            expect(mergeNetworkReports('x', read, 10, said)).toEqual([
+                {...st('a2'), name: 'x', node: 'n1'},
+                {...st('c'), name: 'x', node: 'n3'},
+            ]);
+        });
+        test('an event before the read loses to it, a node gone since not brought back', () => {
+            const read = {n1: {...st('a'), name: 'x', node: 'n1'}};
+            const said = {n1: {status: st('old'), at: 5}, n2: {status: st('gone'), at: 5}};
+            expect(mergeNetworkReports('x', read, 10, said)).toEqual([{...st('a'), name: 'x', node: 'n1'}]);
+        });
+        test('the read failed: the events alone', () => {
+            expect(mergeNetworkReports('x', null, 10, {n1: {status: st('a'), at: 5}, n2: {status: null, at: 5}}))
+                .toEqual([{...st('a'), name: 'x', node: 'n1'}]);
+        });
     });
 });

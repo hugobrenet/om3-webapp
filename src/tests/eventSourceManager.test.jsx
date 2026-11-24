@@ -99,6 +99,7 @@ describe('eventSourceManager', () => {
             removeNode: vi.fn(),
             removePendingDelete: vi.fn(),
             removeObjects: vi.fn(),
+            setNetworkStatus: vi.fn(),
         };
         mockStore.setNodeStatuses = makeSetter('nodeStatus');
         mockStore.setNodeMonitors = makeSetter('nodeMonitor');
@@ -499,6 +500,18 @@ describe('eventSourceManager', () => {
             fire(handler, {node: 'node1', [field]: value});
             vi.runAllTimers();
             expect(mockStore[setter]).toHaveBeenCalledWith(expect.objectContaining({node1: value}));
+        });
+
+        test('what the setup of a network made on a node kept as its event says it, a teardown as null', () => {
+            const es = eventSourceManager.createEventSource(URL_NODE_EVENT, 'fake-token', ['NodeNetworkStatusUpdated']);
+            const status = {type: 'routed_bridge', dev: 'obr_podnet1', subnet: '10.100.1.0/24', peers: [{nodename: 'n2', tunnel: 'tun1', via: 'tunnel'}]};
+            fire(getHandler(es, 'NodeNetworkStatusUpdated'), {node: 'n1', name: 'podnet1', network_status: status});
+            fire(getHandler(es, 'NodeNetworkStatusDeleted'), {labels: {node: 'n2'}, name: 'podnet1'});
+            fire(getHandler(es, 'NodeNetworkStatusUpdated'), {node: 'n1', network_status: status});
+            expect(mockStore.setNetworkStatus.mock.calls).toEqual([
+                ['podnet1', 'n1', status],
+                ['podnet1', 'n2', null],
+            ]);
         });
 
         test('should skip store update when value is unchanged', () => {

@@ -38,8 +38,26 @@ export function UsageRing({used, size, free, label}) {
 /** How long the addresses are let settle before the networks are read again: a start reports a burst. */
 export const ADDRESSES_SETTLE_MS = 1000;
 
-/** The events a node says it set a network up, or tore it down, with. */
+/** The events a node says it set a network up, or tore it down, with: their deletions come with them. */
 const SETUP_EVENTS = ["NodeNetworkStatusUpdated"];
+
+/**
+ * What the setup of a network made on each node: what was read at first
+ * (`/api/network/node`, `read` at `readAt`), each node then as its events said it
+ * since, set up again or torn down (`said`, the store's `networkStatus`). A node said
+ * before the read, the read wins: it may have gone since, which the event cache does
+ * not say again. The read failed, the events alone.
+ */
+export function mergeNetworkReports(name, read, readAt, said) {
+    const nodes = new Set([...Object.keys(read ?? {}), ...Object.keys(said ?? {})]);
+    const reports = [];
+    for (const node of [...nodes].sort()) {
+        const event = said?.[node];
+        const status = event && (read === null || event.at > readAt) ? event.status : read?.[node];
+        if (status) reports.push({...status, name, node});
+    }
+    return reports;
+}
 
 /** The events the addresses of the instances come with: their status, and its delete. */
 const ADDRESS_EVENTS = ["InstanceStatusUpdated", "InstanceStatusDeleted"];
@@ -90,7 +108,8 @@ export function NetworkOverview({name}) {
     const {t} = useTranslation();
     const [network, setNetwork] = useState(undefined);
     const [addresses, setAddresses] = useState(null);
-    const [reports, setReports] = useState([]);
+    // What the setups made, read once: by node, null unread, and when.
+    const [readSetups, setReadSetups] = useState({byNode: null, at: 0});
     const [error, setError] = useState(null);
     // Read again by itself as the cluster configuration changes (useClusterSection).
     const {section} = useNetworkSection(name);
@@ -117,9 +136,10 @@ export function NetworkOverview({name}) {
         };
     }, [name, changes]);
 
-    // What the setup of the network made on each node, read again as a node says it set
-    // the network up again, or tore it down.
-    const setups = useEventStore((s) => s.networkSetups?.[name] ?? 0);
+    // What the setup of the network made on each node, its podnet's peers and tunnels
+    // with it: read once, then as the nodes say it, set up again or torn down, by their
+    // events (root's, as the read).
+    const said = useEventStore((s) => s.networkStatus?.[name]);
     useEffect(() => {
         const token = localStorage.getItem("authToken");
         const release = token ? retainEventReception(token, SETUP_EVENTS) : null;
@@ -127,14 +147,26 @@ export function NetworkOverview({name}) {
     }, []);
     useEffect(() => {
         let live = true;
+        const at = Date.now();
         read(`${URL_NETWORK_NODE}?name=${encodeURIComponent(name)}&node=*`).then(
-            (data) => live && setReports((data.items ?? []).filter((r) => r.name === name)),
-            () => live && setReports((was) => was),
+            (data) => {
+                if (!live) return;
+                const byNode = {};
+                for (const item of Array.isArray(data.items) ? data.items : []) {
+                    if (item.name === name && item.node) byNode[item.node] = item;
+                }
+                setReadSetups({byNode, at});
+            },
+            () => live && setReadSetups({byNode: null, at}),
         );
         return () => {
             live = false;
         };
-    }, [name, setups]);
+    }, [name]);
+    const reports = useMemo(
+        () => mergeNetworkReports(name, readSetups.byNode, readSetups.at, said),
+        [name, readSetups, said],
+    );
 
     // The nodes of the sketch: those of the cluster; unread, those the page knows, or those holding addresses.
     const sketchNodes = useMemo(() => {
