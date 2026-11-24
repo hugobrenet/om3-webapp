@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {Trans, useTranslation} from "react-i18next";
 import {Alert} from "../ui/components/Alert";
 import {Button, IconButton} from "../ui/components/Button";
@@ -7,7 +7,7 @@ import {Dialog} from "../ui/components/Dialog";
 import {Checkbox, Textarea} from "../ui/components/Field";
 import {Spinner} from "../ui/components/Spinner";
 import {DownloadIcon} from "../ui/icons";
-import {formatBytes} from "../utils/cgroupMetrics.js";
+import {formatBytes} from "../ui/lib/format";
 import {downloadFile, readFileHead, uploadFile} from "../services/volume-files.js";
 import {parseBlobContent} from "../utils/blob-content";
 import {hasPemCertificate} from "../utils/x509";
@@ -45,9 +45,12 @@ export function InstalledFrom({origin, onKey}) {
     );
 }
 
-/** The text written: its line feeds at the end dropped, or one there, as asked. */
+/** The text written: its line feeds at the end dropped, or one there, as asked; an empty text left empty. */
 export const withEnding = (text, noTrailingLineFeed) =>
-    noTrailingLineFeed ? text.replace(/\n+$/, "") : text.endsWith("\n") ? text : `${text}\n`;
+    text === "" || noTrailingLineFeed ? text.replace(/\n+$/, "") : text.endsWith("\n") ? text : `${text}\n`;
+
+/** Whether a text read ends without a line feed: an empty one has no last line, its lines ended as usual once written. */
+const endsUnfed = (text) => text !== "" && !text.endsWith("\n");
 
 /**
  * A file of a volume in a dialog, as a key is: text shown as it is, else in hex, a
@@ -60,8 +63,10 @@ export const withEnding = (text, noTrailingLineFeed) =>
  * its key, shown by `onKey`, is what changes it. Removed from here as from its row
  * (`onDelete`).
  */
-export function VolumeFileDialog({path, node, dir, name, origin = null, onKey, onClose, onDelete, onSaved}) {
-    const {t} = useTranslation();
+export function VolumeFileDialog({path, node, dir, name, origin = null, stamp = "", onKey, onClose, onDelete, onSaved}) {
+    const {t, i18n} = useTranslation();
+    // A size not told, "–"; none, "0 B".
+    const size = (bytes) => (typeof bytes === "number" ? formatBytes(bytes, i18n.language) || "0 B" : "–");
     const [read, setRead] = useState(null);
     const [error, setError] = useState(null);
     const [showCertificate, setShowCertificate] = useState(false);
@@ -69,22 +74,35 @@ export function VolumeFileDialog({path, node, dir, name, origin = null, onKey, o
     // Whether the text written ends without a line feed: as the file read, then as asked.
     const [noTrailingLineFeed, setNoTrailingLineFeed] = useState(false);
     const [saving, setSaving] = useState(false);
+    // Read again as the listing says it changed (`stamp`), unless edited: what was read
+    // kept on a failure.
+    const [changes, setChanges] = useState(0);
+    const readStamp = useRef(stamp);
+    const busy = useRef(false);
+    const idle = editing === null && !saving;
+    busy.current = !idle;
+    useEffect(() => {
+        if (!idle || stamp === readStamp.current) return;
+        readStamp.current = stamp;
+        setChanges((n) => n + 1);
+    }, [stamp, idle]);
 
     useEffect(() => {
         let live = true;
+        const quiet = changes > 0;
         readFileHead(path, node, name, dir, SHOWN)
             .then(async ({blob, total, partial}) => {
                 const content = await parseBlobContent(blob, {hexLimit: HEX_SHOWN});
-                if (live) {
+                if (live && !(quiet && busy.current)) {
                     setRead({...content, total, partial, hexPartial: content.type === "binary" && blob.size > HEX_SHOWN});
-                    setNoTrailingLineFeed(content.type === "text" && !content.content.endsWith("\n"));
+                    setNoTrailingLineFeed(content.type === "text" && endsUnfed(content.content));
                 }
             })
-            .catch((err) => live && setError(err));
+            .catch((err) => live && !quiet && setError(err));
         return () => {
             live = false;
         };
-    }, [path, node, dir, name]);
+    }, [path, node, dir, name, changes]);
 
     const text = read?.type === "text";
     const installed = origin?.kind === "installed";
@@ -109,7 +127,7 @@ export function VolumeFileDialog({path, node, dir, name, origin = null, onKey, o
     const changed = editing !== null && withEnding(editing, noTrailingLineFeed) !== read?.content;
     const cancel = () => {
         setEditing(null);
-        setNoTrailingLineFeed(!read.content.endsWith("\n"));
+        setNoTrailingLineFeed(endsUnfed(read.content));
     };
     return (
         <Dialog
@@ -165,9 +183,9 @@ export function VolumeFileDialog({path, node, dir, name, origin = null, onKey, o
                         <p className="text-data text-ink-muted" data-file-type={read.type}>
                             {text ? t("keys.view.typeText") : t("keys.view.typeBinary")}
                             {/* In the units of its row in the list. */}
-                            {" · "}{formatBytes(read.total)}
-                            {read.partial && text && ` · ${t("volumeFiles.view.partial", {size: formatBytes(SHOWN)})}`}
-                            {read.hexPartial && ` · ${t("volumeFiles.view.partial", {size: formatBytes(HEX_SHOWN)})}`}
+                            {" · "}{size(read.total)}
+                            {read.partial && text && ` · ${t("volumeFiles.view.partial", {size: size(SHOWN)})}`}
+                            {read.hexPartial && ` · ${t("volumeFiles.view.partial", {size: size(HEX_SHOWN)})}`}
                             {text && !installed && !read.partial && !editable && ` · ${t("volumeFiles.view.crlf")}`}
                         </p>
                         <div className="flex items-center gap-1">

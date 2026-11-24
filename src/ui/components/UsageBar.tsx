@@ -1,4 +1,6 @@
+import { useTranslation } from "react-i18next";
 import { cn } from "../cn";
+import { formatPercent } from "../lib/format";
 
 export type UsageState = "up" | "warn" | "down";
 
@@ -20,7 +22,8 @@ export function usageState(percent: number, { warn = 50, down = 80 } = {}): Usag
  * A percentage with a small bar beside it, not under it: the row keeps the height of
  * one line. The bar is a `progressbar` for assistive technologies, its fill in the
  * state colour (`state`, else from `usageState`). `showValue` writes the value
- * before the bar, rounded to `digits`, or `text` in its place (a load, say).
+ * before the bar, rounded to `digits`, as the language of the page writes a percent,
+ * or `text` in its place (a load, say).
  *
  * The value stands right-aligned in a slot of fixed width, the bar after it of a
  * fixed width too: the whole is as wide on every row, so that down a column the
@@ -51,6 +54,7 @@ export function UsageBar({
   digits?: number;
   className?: string;
 }) {
+  const { i18n } = useTranslation();
   const slot = "inline-block w-[7ch] shrink-0 text-right tabular-nums";
   const track = "inline-block h-1 w-12 shrink-0 overflow-hidden rounded-full bg-surface-sunken";
   if (value === undefined || !Number.isFinite(value)) {
@@ -65,7 +69,7 @@ export function UsageBar({
   const tone = state ?? usageState(shown);
   return (
     <span className={cn("inline-flex items-center gap-2 whitespace-nowrap", className)}>
-      {showValue && <span className={slot}>{text ?? `${value.toFixed(digits)}%`}</span>}
+      {showValue && <span className={slot}>{text ?? formatPercent(value, i18n.language, digits)}</span>}
       <span
         role="progressbar"
         aria-label={label}

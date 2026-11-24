@@ -221,6 +221,48 @@ describe('OidcCallback Component', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/');
     });
 
+    describe('with the provider answer in the address', () => {
+        afterEach(() => window.history.replaceState(null, '', '/'));
+
+        test('processes the code even with a valid user still stored', async () => {
+            window.history.replaceState(null, '', '/auth-callback?code=abc&state=xyz');
+            mockUseOidc.mockReturnValue({
+                userManager: mockUserManager,
+                recreateUserManager: mockRecreateUserManager,
+            });
+            const previous = {...mockUser, access_token: 'old-token', profile: {preferred_username: 'alice'}};
+            const fresh = {...mockUser, access_token: 'new-token', profile: {preferred_username: 'bob'}};
+            mockUserManager.getUser.mockResolvedValue(previous);
+            mockUserManager.signinRedirectCallback.mockResolvedValue(fresh);
+            render(<OidcCallback/>);
+            await waitFor(() => expect(mockAuthDispatch).toHaveBeenCalledWith({type: 'LOGIN', data: 'bob'}));
+            expect(mockUserManager.getUser).not.toHaveBeenCalled();
+            expect(localStorage.getItem('authToken')).toBe('new-token');
+            expect(mockAuthDispatch).not.toHaveBeenCalledWith({type: 'SET_ACCESS_TOKEN', data: 'old-token'});
+        });
+
+        test('processes an error answer too, back to the choice', async () => {
+            window.history.replaceState(null, '', '/auth-callback?error=access_denied&state=xyz');
+            mockUseOidc.mockReturnValue({
+                userManager: mockUserManager,
+                recreateUserManager: mockRecreateUserManager,
+            });
+            mockUserManager.getUser.mockResolvedValue(mockUser);
+            mockUserManager.signinRedirectCallback.mockRejectedValue(new Error('access_denied'));
+            render(<OidcCallback/>);
+            await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/auth-choice'));
+            expect(mockUserManager.getUser).not.toHaveBeenCalled();
+        });
+    });
+
+    test('hasAuthorizationResponse', async () => {
+        const {hasAuthorizationResponse} = await import('../OidcCallback');
+        expect(hasAuthorizationResponse('?code=a&state=b')).toBe(true);
+        expect(hasAuthorizationResponse('?error=access_denied&state=b')).toBe(true);
+        expect(hasAuthorizationResponse('?code=a')).toBe(false);
+        expect(hasAuthorizationResponse('')).toBe(false);
+    });
+
     test('handles existing user with no expired property (treated as valid)', async () => {
         mockUseOidc.mockReturnValue({
             userManager: mockUserManager,

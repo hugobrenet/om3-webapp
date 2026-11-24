@@ -1,5 +1,5 @@
 import React from 'react';
-import {render, screen, fireEvent, waitFor, within} from '@testing-library/react';
+import {act, render, screen, fireEvent, waitFor, within} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import {MemoryRouter} from 'react-router-dom';
@@ -7,6 +7,27 @@ import Stores from '../Stores';
 
 const mockGrants = vi.hoisted(() => ({value: {}}));
 vi.mock('../../hooks/useGrants', () => ({useGrants: () => mockGrants.value}));
+
+// The changes the views read again on, counted here: a test makes them go up.
+const mockLive = vi.hoisted(() => ({counts: {pool: 0, cluster: 0, poll: {}}, listeners: new Set()}));
+const bump = (change) => act(() => {
+    change(mockLive.counts);
+    mockLive.listeners.forEach((listener) => listener());
+});
+vi.mock('../../hooks/useLiveChanges', async (importOriginal) => {
+    const {useSyncExternalStore} = await import('react');
+    const subscribe = (listener) => {
+        mockLive.listeners.add(listener);
+        return () => mockLive.listeners.delete(listener);
+    };
+    const use = (read) => useSyncExternalStore(subscribe, () => read(mockLive.counts));
+    return {
+        ...(await importOriginal()),
+        usePoolChanges: () => use((c) => c.pool),
+        useClusterConfigChanges: () => use((c) => c.cluster),
+        usePollTicks: (ms) => use((c) => c.poll[ms] ?? 0),
+    };
+});
 // The panel and the wizard, on their own tested elsewhere: here, what they are given.
 vi.mock('../RecordPanels', () => ({
     StoreDetailPanel: ({name}) => (name ? <div data-testid="store-panel">{name}</div> : null),
@@ -40,6 +61,7 @@ describe('Stores', () => {
     let requests;
 
     beforeEach(() => {
+        mockLive.counts = {pool: 0, cluster: 0, poll: {}};
         items = STORES;
         requests = [];
         mockGrants.value = {};
@@ -93,5 +115,31 @@ describe('Stores', () => {
         fireEvent.click(within(wizard).getByRole('button', {name: 'save tar3'}));
         await waitFor(() => expect(screen.getByTestId('store-panel')).toHaveTextContent('tar3'));
         expect(screen.getByRole('list', {name: 'Stores'}).querySelector('[data-store=tar3]')).not.toBeNull();
+    });
+
+    test('read again on each poll and each change of the cluster configuration, the panel kept; a failure keeping the cards, no error', async () => {
+        render(<Stores/>, {wrapper: MemoryRouter});
+        const list = await screen.findByRole('list', {name: 'Stores'});
+        fireEvent.click(within(list.querySelector('[data-store=tar1]')).getByRole('button', {name: 'Open the store tar1'}));
+        const runs = () => list.querySelector('[data-store=tar1] [data-figure=runs]');
+        expect(runs()).toHaveTextContent('6snapshots');
+        items = STORES.map((s) => (s.ref === 'tar1' ? {...s, stats: {...s.stats, runs: 7}} : s));
+        await bump((c) => { c.poll[30_000] = 1; });
+        await waitFor(() => expect(runs()).toHaveTextContent('7snapshots'));
+        expect(screen.queryByText('Reading the stores')).toBeNull();
+        items = STORES.filter((s) => s.ref !== 'tar0');
+        await bump((c) => { c.cluster += 1; });
+        await waitFor(() => expect(list.querySelector('[data-store=tar0]')).toBeNull());
+        expect(screen.getByTestId('store-panel')).toHaveTextContent('tar1');
+
+        const count = requests.length;
+        global.fetch.mockImplementation(async (url) => {
+            requests.push(String(url));
+            return new Response(JSON.stringify({detail: 'down'}), {status: 500, headers: {'Content-Type': 'application/json'}});
+        });
+        await bump((c) => { c.poll[30_000] += 1; });
+        await waitFor(() => expect(requests.length).toBe(count + 1));
+        expect(list.querySelectorAll('[data-store]')).toHaveLength(2);
+        expect(screen.queryByText(/Could not read the stores/)).toBeNull();
     });
 });

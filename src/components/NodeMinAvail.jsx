@@ -13,8 +13,8 @@ import {setOp} from "../app/keyop";
 /**
  * The minimum free memory and swap of a node (`node.min_avail_mem`,
  * `node.min_avail_swap`): below it, the node is overloaded and the daemon starts
- * nothing on it. A share of the total, a percentage or a size; memory at 50% at most;
- * 0 turns the check off.
+ * nothing on it. A share of the total, a percentage or a size; a size of memory read
+ * as 50% at most, a percentage as written; 0 turns the check off.
  */
 export const MIN_AVAIL = {
     mem: {keyword: "node.min_avail_mem", fallback: "2%", cap: 50},
@@ -54,18 +54,24 @@ export function useMinAvail(node) {
 const UNITS = {k: 1 / 1024, m: 1, g: 1024, t: 1024 * 1024};
 
 /**
- * The percentage of `totalMiB` a threshold amounts to, as the daemon reads it: a
- * percentage as is, a size as the whole percentage of the total, at `cap` most;
- * null when it cannot be read.
+ * The percentage of `totalMiB` a threshold amounts to, as the daemon reads it
+ * (sizeconv.Share): a percentage as is, a whole number from 0 to 100, never capped;
+ * a size as the whole percentage of the total, at `cap` most, none (0) of a total
+ * of 0, as a node without swap; null when it cannot be read, or the total is not
+ * known yet.
  */
 export function thresholdPct(text, totalMiB, cap) {
     const value = String(text ?? "").trim().toLowerCase();
     if (value === "") return null;
-    const pct = /^(\d+(?:\.\d+)?)\s*%?$/.exec(value);
-    if (pct) return Math.min(cap, Math.floor(Number(pct[1])));
+    const pct = /^(\d+)\s*%?$/.exec(value);
+    if (pct) {
+        const n = Number(pct[1]);
+        return n <= 100 ? n : null;
+    }
     const size = /^(\d+(?:\.\d+)?)\s*([kmgt])i?b?$/.exec(value);
-    if (size && totalMiB > 0) return Math.min(cap, Math.floor((Number(size[1]) * UNITS[size[2]] * 100) / totalMiB));
-    return null;
+    if (!size || typeof totalMiB !== "number") return null;
+    if (totalMiB <= 0) return 0;
+    return Math.min(cap, Math.floor((Number(size[1]) * UNITS[size[2]] * 100) / totalMiB));
 }
 
 /**

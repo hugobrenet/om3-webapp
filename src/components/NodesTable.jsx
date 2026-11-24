@@ -5,7 +5,7 @@ import {retainEventReception} from "../eventSourceManager";
 import useEventStore from "../hooks/useEventStore.js";
 import {useClusterNodeOrder} from "../hooks/useClusterNodeOrder";
 import {trackRefused} from "../app/action-tracker";
-import NodeRow from "../components/NodeRow.jsx";
+import NodeRow, {nodeReports} from "../components/NodeRow.jsx";
 import logger from '../utils/logger.js';
 import {URL_NODE_INFO} from "../config/apiPath.js";
 import {nodeMenuItems, postNodeAction} from "../app/node-actions";
@@ -28,6 +28,7 @@ import {facetCounts, matches, toggled} from "../app/facets";
 import {FilterRail, FilterToolbar} from "./FilterRail";
 import {rangeSelect, withShift} from "../app/range-select";
 import {useShareCheckedRows} from "../app/checked-rows";
+import {anyOf, useClusterConfigChanges, useNodeConfigChanges} from "../hooks/useLiveChanges";
 
 const ZERO_DATE = "0001-01-01T00:00:00Z";
 
@@ -104,9 +105,10 @@ const NodesTable = () => {
     const panel = usePanelSearch();
 
     // What each node says of itself beyond its status (GET /node/info): its env and
-    // its labels, read once, and again as the nodes of the cluster change.
+    // its labels, read once, and again as the nodes of the cluster or their configurations change.
     const [nodeInfo, setNodeInfo] = useState({});
     const nodeNames = Object.keys(nodeStatus).sort().join(",");
+    const configChanges = anyOf(useNodeConfigChanges(), useClusterConfigChanges());
     useEffect(() => {
         let live = true;
         // Not read, the columns stay empty: a failure to read it never fails the view.
@@ -123,7 +125,7 @@ const NodesTable = () => {
         return () => {
             live = false;
         };
-    }, [nodeNames]);
+    }, [nodeNames, configChanges]);
 
     const nodeEventTypes = useMemo(() => [
         "NodeStatusUpdated",
@@ -175,7 +177,7 @@ const NodesTable = () => {
         const checked = event.target.checked;
         const shift = withShift(event);
         setSelectedNodes((prev) => {
-            const next = rangeSelect(shownNodes, prev, anchor.current, nodename, checked, shift);
+            const next = rangeSelect(selectableNodes, prev, anchor.current, nodename, checked, shift);
             anchor.current = next.anchor;
             return next.selected;
         });
@@ -288,12 +290,17 @@ const NodesTable = () => {
         facet("version", t("nodes.columns.version")),
         facet("label", t("nodes.filters.label")),
     ];
-    // A node a filter hides leaves the selection, as on the other lists.
-    const shownKey = shownNodes.join(",");
+    // The nodes a tick, a range or all select: those shown that report, a "?" line
+    // left out, as its checkbox says.
+    const selectableNodes = shownNodes.filter((node) => nodeReports({
+        status: nodeStatus[node], monitor: nodeMonitor[node], stats: nodeStats[node],
+    }));
+    // A node a filter hides, or that stops reporting, leaves the selection, as on the other lists.
+    const selectableKey = selectableNodes.join(",");
     useEffect(() => {
-        const kept = new Set(shownKey.split(","));
+        const kept = new Set(selectableKey.split(","));
         setSelectedNodes((prev) => (prev.every((node) => kept.has(node)) ? prev : prev.filter((node) => kept.has(node))));
-    }, [shownKey]);
+    }, [selectableKey]);
 
     const handleSort = (column) => {
         if (sortColumn === column) {
@@ -426,10 +433,11 @@ const NodesTable = () => {
                             <HeaderCell className="w-8">
                                 <Checkbox
                                     aria-label={t("nodes.selectAll")}
-                                    checked={shownNodes.length > 0 && selectedNodes.length === shownNodes.length}
+                                    checked={selectableNodes.length > 0 && selectedNodes.length === selectableNodes.length}
+                                    disabled={selectableNodes.length === 0}
                                     onChange={(e) =>
-                                        // All, every node the filters keep.
-                                        setSelectedNodes(e.target.checked ? shownNodes : [])
+                                        // All, every node the filters keep that reports.
+                                        setSelectedNodes(e.target.checked ? selectableNodes : [])
                                     }
                                 />
                             </HeaderCell>

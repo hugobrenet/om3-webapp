@@ -161,6 +161,19 @@ describe('Login Component', () => {
         expect(mockNavigate).toHaveBeenCalledWith('/');
     });
 
+    test('a user or a password past Latin-1 sent in UTF-8, as the daemon compares them: no error before', async () => {
+        fetch.mockResolvedValueOnce({ok: false});
+        const {fillForm, getSubmitButton} = setupLogin();
+        fillForm('jürgen', 'pässwörd€');
+        fireEvent.click(getSubmitButton());
+        await waitFor(() => {
+            expect(fetch).toHaveBeenCalledWith(`${URL_TOKEN}?refresh=true`, {
+                method: 'POST',
+                headers: {Authorization: 'Basic asO8cmdlbjpww6Rzc3fDtnJk4oKs'},
+            });
+        });
+    });
+
     test('handles login error (invalid credentials)', async () => {
         fetch.mockResolvedValueOnce({ok: false});
 

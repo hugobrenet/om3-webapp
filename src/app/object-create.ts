@@ -70,6 +70,16 @@ export function objectPath(namespace: string, kind: string, name: string): strin
   return kind === "svc" ? n : `${kind}/${n}`;
 }
 
+/**
+ * An object of the cluster as `objectPath` writes it, from its key in the object
+ * status: a namespace configuration there `<namespace>/`, `/` for the root one, as om3
+ * lists it; the others as they are.
+ */
+export function knownPath(key: string): string {
+  if (!key.endsWith("/")) return key;
+  return objectPath(key === "/" ? "root" : key.slice(0, -1), "nscfg", "");
+}
+
 const ID_LINE = /^\s*id\s*=/;
 
 /**

@@ -5,11 +5,16 @@
  * children down, then its resources down, then what else it says (frozen). An object
  * up and provisioned, or of no status (a configuration, a secret), no reason.
  */
+import type { Say } from "./note-say";
 import { buildBoard, type InstanceStates, type NoteFix, type ObjectData } from "./statusboard";
 
 export interface Reason {
   level: "error" | "warn" | "info";
   text: string;
+  /** Its text in words of the catalog, said in the language of the page; none, a resource logged it. */
+  say?: Say;
+  /** What it is about, said before it: a rid, or a freeze. */
+  subject?: string;
   /** The other notes worth a look, warnings and errors, the panel says. */
   more: number;
   /** The action its note asks for, as the status board offers it. */
@@ -82,6 +87,8 @@ export function objectReason(path: string, events: ObjectEvents): Reason | null 
     return {
       level: pick.level,
       text: named ? `${subjectOf(pick)}: ${pick.text}` : pick.text,
+      ...(pick.say ? { say: pick.say } : {}),
+      ...(named ? { subject: subjectOf(pick) } : {}),
       more: board.notes.filter((g) => g !== pick && g.level !== "info").length,
       ...(pick.fix ? { fix: pick.fix } : {}),
     };
@@ -91,6 +98,7 @@ export function objectReason(path: string, events: ObjectEvents): Reason | null 
   return {
     level: "error",
     text: down.length > RIDS_MAX ? `${shown}… down` : `${shown} down`,
+    say: { key: down.length > RIDS_MAX ? "resourcesDownMore" : "resourcesDown", values: { rids: shown } },
     more: 0,
   };
 }

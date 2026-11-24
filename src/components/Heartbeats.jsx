@@ -97,10 +97,13 @@ const StatusText = ({status, children}) => (
 
 /**
  * The routine of the stream, its daemon thread, in a word: started when it runs,
- * stopped, or the state the daemon says when it is neither.
+ * stopped, unknown when the daemon says none, or the state the daemon says when it
+ * is another.
  */
 const routineWord = (state, t) =>
-    state === "running" || state === "stopped" ? t(`heartbeats.routine.${state}`) : (state || "unknown");
+    !state || state === "unknown"
+        ? t("heartbeats.routine.unknown")
+        : state === "running" || state === "stopped" ? t(`heartbeats.routine.${state}`) : state;
 
 /**
  * The direction of the stream between the node and the peer columns, in words the

@@ -32,7 +32,7 @@ const objectsUrl = (namespace, {kind, globalState} = {}) => {
 const totalOf = (byAvail) => Object.values(byAvail ?? {}).reduce((n, c) => n + c, 0);
 
 /** A size, "0" rather than nothing for none. */
-const size = (bytes, locale) => (bytes > 0 ? formatBytes(bytes, locale) : "0");
+const size = (bytes, locale) => (bytes > 0 ? formatBytes(bytes, locale) : "0 B");
 
 /** How much of a total is used, rounded: "<1%" for a little, never "0%" for some. */
 const percentOf = (used, total, locale) => {

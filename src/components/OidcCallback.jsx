@@ -8,6 +8,12 @@ import {useOidc} from "../context/OidcAuthContext.tsx";
 import logger from '../utils/logger.js';
 import {takeReturn} from '../app/after-login';
 
+/** Whether the query string carries an authorization response: a code or an error, with its state. */
+export function hasAuthorizationResponse(search) {
+    const params = new URLSearchParams(search);
+    return params.has('state') && (params.has('code') || params.has('error'));
+}
+
 const OidcCallback = () => {
     const {userManager, recreateUserManager} = useOidc();
     const authDispatch = useAuthDispatch();
@@ -73,7 +79,11 @@ const OidcCallback = () => {
         if (userManager) {
             logger.debug("Handling OIDC callback or session check");
 
-            if (typeof userManager.getUser === 'function') {
+            // The provider's answer in the address: the sign-in just made, processed
+            // whatever user is still stored, maybe another's, its renewal refused.
+            if (hasAuthorizationResponse(window.location.search)) {
+                handleSigninRedirect();
+            } else if (typeof userManager.getUser === 'function') {
                 userManager.getUser().then((user) => {
                     if (user && !user.expired) {
                         logger.info("Existing user session found:", user.profile?.preferred_username);

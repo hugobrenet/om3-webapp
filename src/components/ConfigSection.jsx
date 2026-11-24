@@ -20,7 +20,7 @@ import ConfigEvalDialog from "./ConfigEvalDialog";
 import {ConfigValidationResult, DraftValidation, ValidateButton, useConfigValidation} from "./ConfigValidation";
 import useEventStore from "../hooks/useEventStore.js";
 import {newId, withId} from "../app/object-create";
-import {designChanges, designStart, designText, parseDesign, rootOnlyKind} from "../app/object-design";
+import {designChanges, designStart, designText, parseDesign, rootOnlyKind, shownKeyword} from "../app/object-design";
 import {DesignViewToggle, ObjectDesigner} from "./ObjectDesigner";
 import {ConfigEditor} from "./ConfigEditor";
 import {useEditDraft} from "../app/edit-drafts";
@@ -289,8 +289,8 @@ const DesignConfigDialog = ({
     };
     const lines = [
         ...changes.delete.map((section) => t("actionTray.writes.deleteSection", {section})),
-        ...changes.unset.map((keyword) => t("actionTray.writes.unset", {keyword})),
-        ...changes.set.map(({keyword, value}) => t("actionTray.writes.set", {keyword, value})),
+        ...changes.unset.map((keyword) => t("actionTray.writes.unset", {keyword: shownKeyword(keyword)})),
+        ...changes.set.map(({keyword, value}) => t("actionTray.writes.set", {keyword: shownKeyword(keyword), value})),
     ];
     return (
         <Dialog
@@ -661,8 +661,8 @@ const ConfigSection = ({
             ? t("actionTray.writes.configCreate")
             : [
                 ...paramsToDelete.map((section) => t("actionTray.writes.deleteSection", {section})),
-                ...unsets.map((keyword) => t("actionTray.writes.unset", {keyword})),
-                ...sets.map(({keyword, value}) => t("actionTray.writes.set", {keyword, value})),
+                ...unsets.map((keyword) => t("actionTray.writes.unset", {keyword: shownKeyword(keyword)})),
+                ...sets.map(({keyword, value}) => t("actionTray.writes.set", {keyword: shownKeyword(keyword), value})),
             ].join("; ");
         const info = {action: "config", label, subject: decodedObjectName, path: decodedObjectName};
         const base = `${URL_OBJECT}/${namespace}/${kind}/${name}`;

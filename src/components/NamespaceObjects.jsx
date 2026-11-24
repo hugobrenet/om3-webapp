@@ -131,8 +131,8 @@ export function NamespaceObjects({namespace, list}) {
                                 aria-label={t("namespaces.objects.selectAll", {list: t(`objects.lists.${list}`)})}
                             />
                         </HeaderCell>
-                        {columns.map((label, i) => (
-                            <HeaderCell key={label} className={keys && i > 0 ? "text-right" : undefined}>{label}</HeaderCell>
+                        {columns.map((label) => (
+                            <HeaderCell key={label}>{label}</HeaderCell>
                         ))}
                     </HeaderRow>
                 </thead>

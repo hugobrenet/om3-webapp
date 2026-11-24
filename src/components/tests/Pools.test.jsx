@@ -1,12 +1,12 @@
 import React from 'react';
-import {render, screen, waitFor, fireEvent, within} from '@testing-library/react';
+import {act, render, screen, waitFor, fireEvent, within} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import axios from 'axios';
 import Pools from '../Pools';
 import i18n from '../../i18n';
 import {URL_POOL} from '../../config/apiPath.js';
-import {MemoryRouter} from 'react-router-dom';
+import {MemoryRouter, Route, Routes, useLocation, useNavigate} from 'react-router-dom';
 
 // The panel of a pool, on its own tested elsewhere: here, which pool it is given.
 vi.mock('../RecordPanels', () => ({
@@ -24,6 +24,27 @@ vi.mock('../SectionConfig', () => ({readNodes: async () => ['n1', 'n2']}));
 // The grants of the user: root adds a pool.
 const mockGrants = vi.hoisted(() => ({value: {}}));
 vi.mock('../../hooks/useGrants', () => ({useGrants: () => mockGrants.value}));
+
+// The changes the views read again on, counted here: a test makes them go up.
+const mockLive = vi.hoisted(() => ({counts: {pool: 0, cluster: 0, poll: {}}, listeners: new Set()}));
+const bump = (change) => act(() => {
+    change(mockLive.counts);
+    mockLive.listeners.forEach((listener) => listener());
+});
+vi.mock('../../hooks/useLiveChanges', async (importOriginal) => {
+    const {useSyncExternalStore} = await import('react');
+    const subscribe = (listener) => {
+        mockLive.listeners.add(listener);
+        return () => mockLive.listeners.delete(listener);
+    };
+    const use = (read) => useSyncExternalStore(subscribe, () => read(mockLive.counts));
+    return {
+        ...(await importOriginal()),
+        usePoolChanges: () => use((c) => c.pool),
+        useClusterConfigChanges: () => use((c) => c.cluster),
+        usePollTicks: (ms) => use((c) => c.poll[ms] ?? 0),
+    };
+});
 
 // ── Mocks ──────────────────────────────────────────────────────────────
 vi.mock('axios', () => ({
@@ -55,6 +76,7 @@ const naCells = () => screen.getAllByRole('cell').filter((cell) => cell.textCont
 
 describe('Pools Component', () => {
     beforeEach(() => {
+        mockLive.counts = {pool: 0, cluster: 0, poll: {}};
         vi.clearAllMocks();
         mockLocalStorage.getItem.mockReturnValue('mock-token');
     });
@@ -90,6 +112,44 @@ describe('Pools Component', () => {
         expect(wizard).toHaveAttribute('data-nodes', 'n1 n2');
         fireEvent.click(within(wizard).getByRole('button', {name: 'save fast'}));
         await waitFor(() => expect(screen.getByTestId('pool-panel')).toHaveTextContent('fast'), {timeout: 3000});
+        mockGrants.value = {};
+    });
+
+    test('the page left before the pool added is listed: read no more, the URL of the page shown left alone', async () => {
+        const tank = {name: 'tank', type: 'zpool', size: 100, used: 10, volume_count: 1, head: '/dev/tank'};
+        const fast = {name: 'fast', type: 'directory', size: 50, used: 0, volume_count: 0, head: '/srv'};
+        mockGrants.value = {root: null};
+        axios.get
+            .mockResolvedValueOnce({data: {items: [tank]}})
+            // Written, not applied yet.
+            .mockResolvedValueOnce({data: {items: [tank]}})
+            .mockResolvedValue({data: {items: [tank, fast]}});
+        let navigate;
+        let location;
+        const Spy = () => {
+            navigate = useNavigate();
+            location = useLocation();
+            return null;
+        };
+        render(
+            <MemoryRouter initialEntries={['/storage/pools']}>
+                <Spy/>
+                <Routes>
+                    <Route path="/storage/pools" element={<Pools/>}/>
+                    <Route path="/objects" element={<div>objects</div>}/>
+                </Routes>
+            </MemoryRouter>
+        );
+        fireEvent.click(await screen.findByRole('button', {name: 'Add pool'}));
+        fireEvent.click(within(await screen.findByRole('dialog', {name: 'New pool'})).getByRole('button', {name: 'save fast'}));
+        await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(2));
+        act(() => navigate('/objects?kind=svc'));
+        await screen.findByText('objects');
+        const reads = axios.get.mock.calls.length;
+        // Past the wait the list read again had.
+        await act(() => new Promise((resolve) => setTimeout(resolve, 1500)));
+        expect(location.pathname + location.search).toBe('/objects?kind=svc');
+        expect(axios.get).toHaveBeenCalledTimes(reads);
         mockGrants.value = {};
     });
 
@@ -608,5 +668,36 @@ describe('Pools Component', () => {
         expect(bar('none')).toBeNull();
 
         const overRow = screen.getByRole('row', {name: /^over /});
+    });
+});
+
+describe('Pools read again', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockLive.counts = {pool: 0, cluster: 0, poll: {}};
+        mockLocalStorage.getItem.mockReturnValue('mock-token');
+    });
+
+    test('as the pools change: no spinner, the sort and the panel kept; a failure keeping the list, no error', async () => {
+        axios.get.mockResolvedValue({data: {items: mockPools}});
+        render(<Pools/>, {wrapper: MemoryRouter});
+        fireEvent.click(await screen.findByText('pool2', {selector: 'td'}));
+        fireEvent.click(sortButton('Name'));
+        expect(header('Name')).toHaveAttribute('aria-sort', 'descending');
+
+        axios.get.mockResolvedValue({data: {items: [...mockPools, {name: 'pool4', type: 'zfs', volume_count: 1, used: 1, size: 10, head: 'node4'}]}});
+        await bump((c) => { c.pool += 1; });
+        expect(screen.queryByText('Loading pools')).toBeNull();
+        await screen.findByText('pool4', {selector: 'td'});
+        expect(axios.get).toHaveBeenCalledTimes(2);
+        expect(header('Name')).toHaveAttribute('aria-sort', 'descending');
+        expect(screen.getAllByRole('row').slice(1).map((r) => r.cells[0].textContent)).toEqual(['pool4', 'pool3', 'pool2', 'pool1']);
+        expect(screen.getByTestId('pool-panel')).toHaveTextContent('pool2');
+
+        axios.get.mockRejectedValue(new Error('down'));
+        await bump((c) => { c.pool += 1; });
+        await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(3));
+        expect(screen.getByText('pool4', {selector: 'td'})).toBeInTheDocument();
+        expect(screen.queryByText('Failed to load pools. Please try again.')).toBeNull();
     });
 });

@@ -22,7 +22,7 @@ import {usePgReadings} from "../hooks/usePgUsage";
 import {IO_FIGURES, sumUsage} from "../app/pg-usage";
 import {ioFigure} from "./ClusterUsage";
 import {formatCpu} from "../app/namespace-usage";
-import {formatBytes, formatDuration} from "../ui/lib/format";
+import {formatBytes, formatDuration, formatPercent} from "../ui/lib/format";
 import {ObjectIcon, om3ObjectKind} from "../ui/components/ObjectIcon";
 import {UsageBar} from "../ui/components/UsageBar";
 import {FrozenMark} from "../ui/components/FrozenMark";
@@ -201,7 +201,7 @@ function OpensvcUsage({nodes}) {
     // The whole hosts, every node told: what opensvc uses of what they use, and of what they have.
     const host = told.every((node) => hosts[node] !== undefined) ? sumUsage(told.map((node) => hosts[node])) : undefined;
     const share = (part, whole) => (typeof part === "number" && typeof whole === "number" && whole > 0
-        ? `${(100 * part / whole).toLocaleString(i18n.language, {maximumFractionDigits: part / whole < 0.1 ? 1 : 0})} %`
+        ? formatPercent(100 * part / whole, i18n.language, part / whole < 0.1 ? 1 : 0, false)
         : undefined);
     const cpuShare = host && share(all.cpu, host.cpu);
     const memoryShare = host && share(all.memory, host.memory);

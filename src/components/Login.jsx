@@ -9,6 +9,7 @@ import {Alert} from '../ui/components/Alert';
 import {SetAccessToken, SetAuthChoice, useAuthDispatch} from "../context/AuthProvider.jsx";
 import {URL_TOKEN, URL_REFRESH} from "../config/apiPath.js";
 import logger from '../utils/logger.js';
+import {basicAuthorization} from '../utils/basicAuth.js';
 import {takeReturn} from '../app/after-login';
 
 // --- Custom decodeToken using safe Base64url decoding for compatibility with tests ---
@@ -161,7 +162,7 @@ const Login = forwardRef((props, ref) => {
             const response = await fetch(`${URL_TOKEN}?refresh=true`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': 'Basic ' + btoa(`${username}:${password}`),
+                    'Authorization': basicAuthorization(username, password),
                 },
             });
 

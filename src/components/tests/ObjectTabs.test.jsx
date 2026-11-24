@@ -12,6 +12,15 @@ vi.mock('../../eventSourceManager.jsx', async (importOriginal) => ({
     retainEventReception: vi.fn(() => vi.fn()),
 }));
 
+// The poll ticks, moved by the tests.
+const ticks = vi.hoisted(() => ({store: null}));
+vi.mock('../../hooks/useLiveChanges', async (importOriginal) => {
+    const {create} = await import('zustand');
+    ticks.store = create(() => ({n: 0}));
+    return {...(await importOriginal()), usePollTicks: () => ticks.store((s) => s.n)};
+});
+const tick = () => act(() => ticks.store.setState((s) => ({n: s.n + 1})));
+
 const Search = () => <span data-testid="search">{useLocation().search}</span>;
 /** Rendered in a router: its badges open their records over the view. */
 const render = (ui) => renderInDom(<MemoryRouter>{ui}<Search/></MemoryRouter>);
@@ -101,6 +110,26 @@ describe('ObjectTabs', () => {
             expect(within(table).getAllByRole('row')).toHaveLength(2);
         });
 
+        test('read again as the runs pass and the configuration changes, kept on a failure', async () => {
+            answer({kind: 'ScheduleList', items: [schedule('n1', 'status')]});
+            render(<ObjectSchedules path="ns1/svc/web"/>);
+            await screen.findByRole('table', {name: 'Schedules'});
+            answer({kind: 'ScheduleList', items: [schedule('n1', 'status'), schedule('n1', 'sync_all')]});
+            tick();
+            await waitFor(() => expect(screen.getByText('sync_all')).toBeInTheDocument());
+            expect(read).toHaveLength(1);
+            answer({kind: 'ScheduleList', items: [schedule('n1', 'resync')]});
+            act(() => useEventStore.setState({instanceConfig: {'ns1/svc/web': {n1: {csum: 'b'}}}}));
+            await waitFor(() => expect(screen.getByText('resync')).toBeInTheDocument());
+            answer({detail: 'down'}, {ok: false, status: 500});
+            tick();
+            await waitFor(() => expect(read).toHaveLength(1));
+            await new Promise((r) => setTimeout(r, 20));
+            expect(screen.getByText('resync')).toBeInTheDocument();
+            expect(screen.queryByText(/Could not read it/)).not.toBeInTheDocument();
+            act(() => useEventStore.setState({instanceConfig: {}}));
+        });
+
         test('says why the schedules could not be read', async () => {
             answer({detail: 'forbidden'}, {ok: false, status: 403});
             render(<ObjectSchedules path="ns1/svc/web"/>);
@@ -181,6 +210,43 @@ describe('ObjectTabs', () => {
             expect(await screen.findByText('No resource reports information')).toBeInTheDocument();
         });
 
+        describe('the status of the resources changing', () => {
+            const status = (ip, container) => ({'ns1/svc/web': {n1: {resources: {'ip#0': {status: ip}, 'container#0': {status: container}}}}});
+
+            afterEach(() => {
+                act(() => useEventStore.setState({objectInstanceStatus: {}}));
+            });
+
+            test('its resource changing reads the key-values again, another one not', async () => {
+                act(() => useEventStore.setState({objectInstanceStatus: status('up', 'up')}));
+                answer({kind: 'ResourceInfoList', items});
+                render(<ObjectResources path="ns1/svc/web" rid="ip#0"/>);
+                await screen.findByRole('table', {name: 'Resource information'});
+                expect(retainEventReception).toHaveBeenCalledWith('tok', ['InstanceStatusUpdated'], 'ns1/svc/web');
+                act(() => useEventStore.setState({objectInstanceStatus: status('up', 'down')}));
+                await new Promise((r) => setTimeout(r, 20));
+                expect(read).toHaveLength(1);
+                answer({kind: 'ResourceInfoList', items: [info('n1', 'ip#0', 'ipaddr', '10.0.0.99')]});
+                act(() => useEventStore.setState({objectInstanceStatus: status('down', 'down')}));
+                await waitFor(() => expect(groups()).toEqual([['ip#0', ['ipaddr 10.0.0.99']]]));
+            });
+
+            test('the read failing: the key-values and the filter kept', async () => {
+                act(() => useEventStore.setState({objectInstanceStatus: status('up', 'up')}));
+                answer({kind: 'ResourceInfoList', items});
+                render(<ObjectResources path="ns1/svc/web"/>);
+                await screen.findByRole('table', {name: 'Resource information'});
+                fireEvent.change(screen.getByRole('searchbox', {name: 'Filter the resources'}), {target: {value: 'container'}});
+                answer({detail: 'down'}, {ok: false, status: 500});
+                act(() => useEventStore.setState({objectInstanceStatus: status('up', 'down')}));
+                await waitFor(() => expect(read).toHaveLength(1));
+                await new Promise((r) => setTimeout(r, 20));
+                expect(groups()).toEqual([['container#0', ['id abc123 –']]]);
+                expect(screen.getByRole('searchbox', {name: 'Filter the resources'})).toHaveValue('container');
+                expect(screen.queryByText(/Could not read it/)).not.toBeInTheDocument();
+            });
+        });
+
         describe('a resource deleted, which the daemon still reports from its cache', () => {
             const config = (csum, rids) => ({csum, resources: Object.fromEntries(rids.map((rid) => [rid, {}]))});
 
@@ -217,6 +283,19 @@ describe('ObjectTabs', () => {
                 act(() => useEventStore.setState({instanceConfig: {'ns1/svc/web': {n1: config('b', ['ip#0'])}}}));
                 await waitFor(() => expect(read).toHaveLength(2));
                 await waitFor(() => expect(groups().map(([rid]) => rid)).toEqual(['ip#0']));
+            });
+
+            test('a configuration changed and the read failing: the key-values kept', async () => {
+                act(() => useEventStore.setState({instanceConfig: {'ns1/svc/web': {n1: config('a', ['ip#0', 'container#0'])}}}));
+                answer({kind: 'ResourceInfoList', items});
+                render(<ObjectResources path="ns1/svc/web" node="n1"/>);
+                await screen.findByRole('table', {name: 'Resource information'});
+                answer({detail: 'down'}, {ok: false, status: 500});
+                act(() => useEventStore.setState({instanceConfig: {'ns1/svc/web': {n1: config('b', ['ip#0', 'container#0'])}}}));
+                await waitFor(() => expect(read).toHaveLength(1));
+                await new Promise((r) => setTimeout(r, 20));
+                expect(groups().map(([rid]) => rid)).toEqual(['container#0', 'ip#0']);
+                expect(screen.queryByText(/Could not read it/)).not.toBeInTheDocument();
             });
 
             test('the first configuration known reads nothing again', async () => {

@@ -790,6 +790,23 @@ describe('LogsViewer', () => {
             });
         });
 
+        test('the lines dropped from the top forgotten: read again with the older lines, shown again', async () => {
+            const ts = Date.now() * 1000;
+            const logs = Array.from({length: 5}, (_, i) => ({__REALTIME_TIMESTAMP: String(ts + i * 1000), MESSAGE: `Log ${i + 1}`}));
+            const asText = (entries) => entries.map((log) => `data: ${JSON.stringify(log)}\n\n`).join('');
+            global.fetch = vi.fn((url) => Promise.resolve(url.includes('follow=false')
+                ? {ok: true, status: 200, text: () => Promise.resolve(asText(logs))}
+                : {ok: true, status: 200, body: new MockReadableStream([asText(logs)], 0)}));
+            renderComponent({maxLogs: 3});
+            await screen.findByText('Log 5');
+            await waitFor(() => expect(screen.queryByText('Log 1')).not.toBeInTheDocument());
+            fireEvent.click(screen.getByRole('button', {name: 'Load older lines'}));
+            await screen.findByText('Log 1');
+            const messages = [...findLogsContainer().querySelectorAll('.log-line')].map((line) => line.lastElementChild.textContent);
+            // Each once: those kept not read twice.
+            expect(messages).toEqual(['Log 1', 'Log 2', 'Log 3', 'Log 4', 'Log 5']);
+        });
+
         test('handles empty log message', async () => {
             mockSuccessfulFetch([{__REALTIME_TIMESTAMP: Date.now() * 1000, MESSAGE: ''}]);
             renderComponent();

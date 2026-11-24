@@ -14,6 +14,8 @@ describe("why an object is not up", () => {
     expect(objectReason("system/svc/dns", eventsOf(dns))).toEqual({
       level: "error",
       text: "start failed: the orchestration gave up, clear the instance to retry",
+      // Its words for the page to say it in its language.
+      say: { key: "gaveUp", values: { state: "start failed" } },
       more: 0,
       // The action its note asks for: the clear of both its instances.
       fix: { action: "clear", nodes: ["dev3n1", "dev3n2"] },
@@ -39,7 +41,12 @@ describe("why an object is not up", () => {
     // Monitors never updated: a note says so, before the resources.
     expect(objectReason("root/svc/encap", events)?.text).toMatch(/^no instance monitor/);
     const monitored = { ...events, monitors: { n1: { state: "idle", updated_at: "2026-10-28T10:00:00Z" }, n2: { state: "idle", updated_at: "2026-10-28T10:00:00Z" } } };
-    expect(objectReason("root/svc/encap", monitored)).toEqual({ level: "error", text: "container#1, container#2 down", more: 0 });
+    expect(objectReason("root/svc/encap", monitored)).toEqual({
+      level: "error",
+      text: "container#1, container#2 down",
+      say: { key: "resourcesDown", values: { rids: "container#1, container#2" } },
+      more: 0,
+    });
     const many = {
       ...monitored,
       instances: { n1: status(Object.fromEntries(["a#1", "b#1", "c#1", "d#1"].map((rid) => [rid, { status: "down" }]))) },
@@ -65,11 +72,12 @@ describe("why an object is not up", () => {
     expect(objectReason("system/vol/dns", events("up"))).toEqual({
       level: "error",
       text: "down while its child system/svc/dns is up: the child needs the vol",
+      say: { key: "childUp", values: { child: "system/svc/dns" } },
       more: 0,
     });
-    expect(objectReason("system/vol/dns", events("down"))).toEqual({ level: "info", text: "children are down", more: 0 });
+    expect(objectReason("system/vol/dns", events("down"))).toEqual({ level: "info", text: "children are down", say: { key: "childrenDown" }, more: 0 });
     // Its child no object: no children, gray too.
-    expect(objectReason("system/vol/dns", events("undef"))).toEqual({ level: "info", text: "no children", more: 0 });
+    expect(objectReason("system/vol/dns", events("undef"))).toEqual({ level: "info", text: "no children", say: { key: "noChildren" }, more: 0 });
     // Not a vol: its resources down, whatever its children.
     expect(objectReason("system/svc/dns", events("down"))?.level).toBe("error");
   });
@@ -127,6 +135,8 @@ describe("why an object is not up", () => {
     expect(objectReason("root/svc/s", events({}, false))).toEqual({
       level: "info",
       text: "frozen: the daemon takes no initiative on the instance",
+      say: { key: "frozen" },
+      subject: "frozen",
       more: 0,
       fix: { action: "unfreeze", nodes: ["n1"] },
     });

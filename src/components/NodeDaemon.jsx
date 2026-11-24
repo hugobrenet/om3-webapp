@@ -23,6 +23,7 @@ import {tabPanelProps} from "../ui/components/tabs-ids";
 import {useLocalPaging} from "../app/paging";
 import {usePanelSearch} from "../app/panel-search";
 import {CrossLink} from "../app/CrossLink";
+import {usePollTicks} from "../hooks/useLiveChanges";
 import {
     DataTable,
     FilterField,
@@ -93,14 +94,21 @@ export function dnsRecordsOf(dump) {
     return NO_RECORDS;
 }
 
+/** Its components and zone, which no event says: polled. */
+const POLL_MS = 10_000;
+/** Its orchestrations and executions, polled less often: a thousand of each kept, some 650 KB. */
+const LISTS_POLL_MS = 30_000;
+
 const byStartDesc = (a, b) => String(b.started_at ?? "").localeCompare(String(a.started_at ?? ""));
 
 export function NodeDaemon({node}) {
     const {t, i18n} = useTranslation();
-    const status = useApiResource(URL_CLUSTER_STATUS_NODES);
-    const orchestrations = useApiResource(nodeUrl(node, "daemon/orchestration"));
-    const execs = useApiResource(nodeUrl(node, "daemon/exec"));
-    const dns = useApiResource(nodeUrl(node, "daemon/dns/dump"));
+    const options = {changes: usePollTicks(POLL_MS)};
+    const lists = {changes: usePollTicks(LISTS_POLL_MS)};
+    const status = useApiResource(URL_CLUSTER_STATUS_NODES, options);
+    const orchestrations = useApiResource(nodeUrl(node, "daemon/orchestration"), lists);
+    const execs = useApiResource(nodeUrl(node, "daemon/exec"), lists);
+    const dns = useApiResource(nodeUrl(node, "daemon/dns/dump"), options);
     const dnsRecords = dnsRecordsOf(dns.data);
 
     // The action asked for, waiting for its confirmation: its question and its request.
@@ -498,7 +506,7 @@ export function NodeDaemon({node}) {
                     <thead>
                         <HeaderRow>
                             <HeaderCell>{t("common.type")}</HeaderCell>
-                            <HeaderCell className="text-right">{t("nodeDaemon.columns.ttl")}</HeaderCell>
+                            <HeaderCell>{t("nodeDaemon.columns.ttl")}</HeaderCell>
                             <HeaderCell>{t("nodeDaemon.columns.content")}</HeaderCell>
                         </HeaderRow>
                     </thead>
@@ -515,7 +523,7 @@ export function NodeDaemon({node}) {
                                 )}
                                 <Row>
                                     <Cell>{r.qtype}</Cell>
-                                    <Cell numeric className="text-right">{r.ttl}</Cell>
+                                    <Cell numeric>{r.ttl}</Cell>
                                     <Cell className="font-mono text-data">{r.content}</Cell>
                                 </Row>
                             </React.Fragment>

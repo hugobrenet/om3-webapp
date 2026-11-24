@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState, useMemo} from "react";
+import React, {useCallback, useEffect, useRef, useState, useMemo} from "react";
 import axios from "axios";
 import {useTranslation} from "react-i18next";
 import {URL_POOL} from "../config/apiPath.js";
@@ -11,13 +11,11 @@ import {UsageBar} from "../ui/components/UsageBar";
 import {PlusIcon} from "../ui/icons";
 import {usePanelSearch} from "../app/panel-search";
 import {useGrants} from "../hooks/useGrants";
+import {usePoolChanges} from "../hooks/useLiveChanges";
 import {PoolDetailPanel} from "./RecordPanels";
 import {PoolWizard} from "./PoolWizard";
 import {readNodes} from "./SectionConfig";
-
-/** A pool written or deleted: the list read again until it says so, the daemons applying the configuration. */
-const SETTLE_TRIES = 10;
-const SETTLE_EVERY_MS = 1000;
+import {useSettle} from "../hooks/useSettle";
 
 /**
  * @typedef {Object} Pool
@@ -77,21 +75,15 @@ const Pools = () => {
         }
     }, []);
 
-    /** The list read until `settled` says the pool is there, or gone. */
-    const settle = async (settled) => {
-        for (let i = 0; i < SETTLE_TRIES; i += 1) {
-            if (settled(await refresh())) return true;
-            await new Promise((resolve) => setTimeout(resolve, SETTLE_EVERY_MS));
-        }
-        return false;
-    };
+    // The list read until the pool is there, or gone: no more once the page is left.
+    const settle = useSettle();
     const added = async (name) => {
         setAdding(null);
-        if (await settle((items) => items.some((p) => p.name === name))) select(name);
+        if (await settle(refresh, (items) => items.some((p) => p.name === name))) select(name);
     };
     const deleted = async (name) => {
         select(undefined);
-        await settle((items) => !items.some((p) => p.name === name));
+        await settle(refresh, (items) => !items.some((p) => p.name === name));
     };
     const startAdding = async () => {
         let nodes = [];
@@ -103,13 +95,20 @@ const Pools = () => {
         setAdding({nodes});
     };
 
+    // Read again as the usage changes, a vol created or deleted.
+    const changes = usePoolChanges();
+    const shown = useRef(false);
     useEffect(() => {
         let isMounted = true;
+        // Read again, a list shown: a failure keeps it.
+        const again = changes > 0 && shown.current;
 
         const fetchPools = async () => {
             try {
-                setLoading(true);
-                setError(false);
+                if (!again) {
+                    setLoading(true);
+                    setError(false);
+                }
                 const token = localStorage.getItem("authToken");
                 const res = await axios.get(URL_POOL, {
                     headers: {
@@ -119,11 +118,13 @@ const Pools = () => {
 
                 const items = Array.isArray(res.data.items) ? res.data.items : [];
                 if (isMounted) {
+                    shown.current = true;
                     setPools(items);
+                    setError(false);
                     setLoading(false);
                 }
             } catch (err) {
-                if (isMounted) {
+                if (isMounted && !again) {
                     setPools([]);
                     setError(true);
                     setLoading(false);
@@ -136,7 +137,7 @@ const Pools = () => {
         return () => {
             isMounted = false;
         };
-    }, []);
+    }, [changes]);
 
     // Memoize sorted pools to optimize performance
     /** @type {Pool[]} */

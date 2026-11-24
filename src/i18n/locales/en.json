@@ -711,7 +711,8 @@
     },
     "routine": {
       "running": "started",
-      "stopped": "stopped"
+      "stopped": "stopped",
+      "unknown": "unknown"
     },
     "direction": {
       "tx": "sends to",
@@ -1131,8 +1132,8 @@
       "vol_other": "Show the {{count}} {{status}} volumes of {{namespace}}",
       "sec_one": "Show the {{count}} secret of {{namespace}}",
       "sec_other": "Show the {{count}} secrets of {{namespace}}",
-      "cfg_one": "Show the {{count}} configuration of {{namespace}}",
-      "cfg_other": "Show the {{count}} configurations of {{namespace}}"
+      "cfg_one": "Show the {{count}} config of {{namespace}}",
+      "cfg_other": "Show the {{count}} configs of {{namespace}}"
     },
     "usage": {
       "claimed": "{{name}}: {{used}} of {{total}} claimed ({{percent}})",
@@ -1326,8 +1327,8 @@
         "svc_other": "Show the {{count}} services of {{namespace}}",
         "vol_one": "Show the {{count}} volume of {{namespace}}",
         "vol_other": "Show the {{count}} volumes of {{namespace}}",
-        "cfg_one": "Show the {{count}} configuration of {{namespace}}",
-        "cfg_other": "Show the {{count}} configurations of {{namespace}}",
+        "cfg_one": "Show the {{count}} config of {{namespace}}",
+        "cfg_other": "Show the {{count}} configs of {{namespace}}",
         "sec_one": "Show the {{count}} secret of {{namespace}}",
         "sec_other": "Show the {{count}} secrets of {{namespace}}"
       },
@@ -1847,7 +1848,7 @@
       "label": "Object lists",
       "services": "Services",
       "volumes": "Volumes",
-      "configs": "Configurations",
+      "configs": "Configs",
       "secrets": "Secrets",
       "users": "Users",
       "namespaces": "Namespaces",
@@ -1874,7 +1875,9 @@
       "unprovisioned": "Unprovisioned",
       "rail": "Filters",
       "clear": "Clear",
-      "clearOf": "Clear the {{filter}} filter"
+      "clearOf": "Clear the {{filter}} filter",
+      "active_one": "{{count}} on",
+      "active_other": "{{count}} on"
     },
     "feedback": {
       "authTokenNotFound": "Authentication token not found"
@@ -2085,7 +2088,8 @@
       "snapshots": "Snapshots",
       "restore": "Restore",
       "console": "Console",
-      "display": "Display"
+      "display": "Display",
+      "tombstones": "Tombstones"
     },
     "crossLink": "Show the {{kind}} here",
     "kinds": {
@@ -2124,7 +2128,7 @@
       "node": "Nodes",
       "svc": "Services",
       "vol": "Volumes",
-      "cfg": "Configurations",
+      "cfg": "Configs",
       "sec": "Secrets",
       "usr": "Users",
       "nscfg": "Namespace configurations",
@@ -2136,6 +2140,46 @@
     }
   },
   "statusBoard": {
+    "said": {
+      "separator": ", ",
+      "withSubject": "{{subject}}: {{note}}",
+      "rpoNever": "rpo breached: no copy was ever received here, and taking over here would lose all the data",
+      "rpoSince": "rpo breached since {{at}}: the copy here is older than the max delay of the resource allows, and taking over here would lose more data",
+      "childUp": "down while its child {{child}} is up: the child needs the vol",
+      "childrenUp": "down while its children {{children}} are up: they need the vol",
+      "childrenDown": "children are down",
+      "noChildren": "no children",
+      "excess": "{{up}} instances up, {{topology}} allows {{allowed}}: the shared resources may be written by several nodes at once. Stop the instances in excess.",
+      "nonOptimalPrefers": "non-optimal: the placement policy prefers {{nodes}}",
+      "nonOptimal": "non-optimal: the instances are not running on the nodes the placement policy prefers",
+      "mixed": "mixed resource states: {{parts}}",
+      "mixedNone": "mixed resource states",
+      "mixedUp": "{{rids}} up",
+      "mixedDown": "{{rids}} down",
+      "mixedWarn": "{{rids}} warn",
+      "mixedUnsynced": "{{rids}} down, the data not replicated",
+      "incompatible": "the nodes run incompatible agent versions",
+      "noMonitor": "no instance monitor: the daemon is down, or has not started monitoring the instance",
+      "gaveUp": "{{state}}: the orchestration gave up, clear the instance to retry",
+      "frozen": "the daemon takes no initiative on the instance",
+      "nodeFrozen": "the daemon takes no initiative on the instances of the node",
+      "stopped": "stopped on purpose: the daemon does not start it back",
+      "unprovisioned": "the instance is not provisioned, or partly",
+      "resourcesDown": "{{rids}} down",
+      "resourcesDownMore": "{{rids}}… down"
+    },
+    "noteSubjects": {
+      "children": "children",
+      "instances": "instances",
+      "placement": "placement",
+      "overall": "overall",
+      "agents": "agents",
+      "monitor": "monitor",
+      "frozen": "frozen",
+      "nodeFrozen": "node frozen",
+      "stopped": "stopped",
+      "provisioned": "provisioned"
+    },
     "caption": "Status of {{path}} by node",
     "notes_one": "Notes ({{count}})",
     "notes_other": "Notes ({{count}})",
@@ -2424,9 +2468,11 @@
     "audit": {
       "intro": "Streams the log records of the daemon subsystems, up to debug and trace, as om daemon audit does. One audit at a time on a daemon; it stops as you leave this view.",
       "rootOnly": "Auditing the daemon needs the root grant.",
+      "grantsLoading": "Reading your grants",
       "level": "From level",
       "subsystems": "Subsystems",
       "subsystemsPlaceholder": "All of them; type to search",
+      "allSubsystems": "every subsystem",
       "suffixHint": "Type to search the known subsystems. Glob patterns too: imon:* for every object monitor, imon:prod/svc/web for one, hb:1 for a heartbeat.",
       "start": "Start",
       "stop": "Stop",
@@ -2513,6 +2559,9 @@
   "actionTray": {
     "label": "Actions asked",
     "title": "Actions",
+    "arrived": "New action: {{what}}",
+    "arrivedMore_one": "New actions: {{what}} and {{count}} more",
+    "arrivedMore_other": "New actions: {{what}} and {{count}} more",
     "running_one": "{{count}} running",
     "running_other": "{{count}} running",
     "ended_one": "{{count}} ended",
@@ -2567,7 +2616,12 @@
       "keyRename": "Rename key {{key}} to {{to}}"
     },
     "noNews": "no news of it within {{seconds}} s",
-    "logs": "Logs of {{action}} {{subject}}"
+    "logs": "Logs of {{action}} {{subject}}",
+    "abort": "Abort {{action}} {{subject}}",
+    "abortQuestion": "Abort {{action}} {{subject}}? What it has yet to do is not done; a run under way on a node goes on to its end.",
+    "abortConfirm": "Abort",
+    "abortCancel": "Keep it",
+    "aborting": "Aborting…"
   },
   "paramActions": {
     "resize": {
@@ -2867,7 +2921,7 @@
     "off": "off (0)",
     "choices": "Usual values",
     "now": "Free now: {{pct}}%.",
-    "invalid": "A percentage, as 10%, or a size, as 2Gi.",
+    "invalid": "A whole percentage from 0 to 100, as 10%, or a size, as 2Gi.",
     "previewOverloaded": "With a minimum of {{pct}}%, the node would be overloaded now.",
     "previewFine": "With a minimum of {{pct}}%, the node would not be overloaded now.",
     "previewOff": "No minimum: the node is never overloaded by it.",
@@ -2995,6 +3049,29 @@
       "warning": "A lock held here holds every client of the cluster asking it: release it once done, or keep its lease short.",
       "held": "Not granted: {{message}}. Set a wait to queue for it, or try again later."
     }
+  },
+  "clusterTombstones": {
+    "intro": "The records the nodes keep of the deletes and purges: the version of the configuration deleted, so that a node still holding it does not bring the object back. A node drops its record once every node it concerns was seen deleting its instance, or a day later.",
+    "refresh": "Refresh",
+    "loading": "Reading the tombstones",
+    "table": "Tombstones",
+    "object": "Object",
+    "kind": "Kind",
+    "deletedAt": "Deleted",
+    "version": "Configuration deleted",
+    "recordedBy": "Recorded by",
+    "holders": "Still published by",
+    "orchestration": "Orchestration",
+    "kinds": {
+      "deleted": "deleted",
+      "purged": "purged"
+    },
+    "recreated": "recreated",
+    "noHolder": "none",
+    "none": "No tombstone: no delete nor purge in the last day, or all of them done on every node.",
+    "forbidden": "Reading the tombstones is refused to this session.",
+    "stale": "Not read again ({{message}}): the tombstones below are as last read.",
+    "footer": "Read again {{seconds}} s after each read, while this page is shown. A node still publishing the configuration deleted holds a version the record makes it drop."
   },
   "resources": {
     "caption": "The resources of the cluster",
@@ -3419,7 +3496,7 @@
         "read": "Read",
         "write": "Write"
       },
-      "cell": "{{node}} · {{metric}}: {{value}}, {{share}} % of the busiest node",
+      "cell": "{{node}} · {{metric}}: {{value}}, {{share}}% of the busiest node",
       "cellPending": "{{node}} · {{metric}}: waiting for a second reading"
     },
     "relay": {
@@ -3516,6 +3593,8 @@
   },
   "objectDesigner": {
     "byDefault": "default: {{value}}",
+    "readAs": "{{value}} (read as {{read}})",
+    "notBool": "{{value}} (not a boolean: refused by om)",
     "strategyChoose": "Choose one: its keywords are then offered.",
     "strategyImplied": "{{strategy}}, as the keywords set say.",
     "strategyBySelector": "{{strategy}}, as a keyword of the configuration chooses.",
@@ -3622,10 +3701,10 @@
       "resources": "This lists every resource of every service and volume, on every node: filesystems, IP addresses, disks, containers, applications. Problems only keeps what is down or in warn, leaving out the passive nodes of a failover service, down as they should be.",
       "objects-services": "Services (svc) are the applications the cluster keeps running. Each one is built from resources, such as an IP address, a filesystem and a container. A service has one instance on each node it is allowed to run on.",
       "objects-volumes": "Volumes (vol) are storage that a service asks for. The cluster creates each volume in a storage pool when the service is provisioned.",
-      "objects-configs": "Configurations (cfg) hold settings and files that are not secret. Services use them as files or environment variables. The cluster's own configuration is listed here too.",
-      "objects-secrets": "Secrets (sec) are like configurations, but stored encrypted. Use them for passwords, certificates and private keys.",
+      "objects-configs": "Configs (cfg) hold settings and files that are not secret. Services use them as files or environment variables. The cluster's own configuration is listed here too.",
+      "objects-secrets": "Secrets (sec) are like configs, but stored encrypted. Use them for passwords, certificates and private keys.",
       "objects-users": "Users (usr) are accounts that can sign in to this webapp and the API, each with its own permissions (grants).",
-      "objects-any": "All the objects in the cluster, of every kind: services, volumes, configurations, secrets and users."
+      "objects-any": "All the objects in the cluster, of every kind: services, volumes, configs, secrets and users."
     }
   },
   "glossary": {
@@ -4247,7 +4326,7 @@
         "down": "down",
         "warn": "warn",
         "na": "n/a",
-        "unknown": "unknown"
+      "unknown": "unknown"
       },
       "waiting": "Waiting for the agent…"
     },

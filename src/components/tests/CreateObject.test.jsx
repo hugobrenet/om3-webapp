@@ -224,6 +224,26 @@ describe('CreateObject', () => {
         expect(posts()[0].body).toMatch(/^\[DEFAULT\]\nid = [0-9a-f-]+\n$/);
     });
 
+    test('a namespace configuration that exists is said, listed by om as its namespace and a slash', () => {
+        // ns1/ the configuration of ns1, / the one of root.
+        const paths = ['ns1/svc/web', 'ns1/', '/'];
+        const {unmount} = open({defaultNamespace: 'ns1', paths});
+        fireEvent.click(card('[data-kind=nscfg]'));
+        expect(screen.getByText('ns1/nscfg/namespace already exists.')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Free')).toBeNull();
+        next();
+        expect(screen.queryByRole('group', {name: 'Start from'})).toBeNull();
+        unmount();
+        const root = open({defaultNamespace: 'root', paths});
+        fireEvent.click(card('[data-kind=nscfg]'));
+        expect(screen.getByText('nscfg/namespace already exists.')).toBeInTheDocument();
+        root.unmount();
+        // A namespace with none: free.
+        open({defaultNamespace: 'ns2', paths});
+        fireEvent.click(card('[data-kind=nscfg]'));
+        expect(screen.getByLabelText('Free')).toBeInTheDocument();
+    });
+
     test('a namespace configuration takes the name om gives it, in a namespace new', async () => {
         open({defaultNamespace: 'ns2'});
         fireEvent.click(card('[data-kind=nscfg]'));
@@ -622,6 +642,41 @@ describe('CreateObject', () => {
             expect(offered().map((o) => o.getAttribute('data-pick'))).toEqual(['backend5']);
             fireEvent.mouseDown(offered()[0]);
             expect(network).toHaveValue('backend3 backend5');
+        });
+
+        test('a value written that its list holds not, a boolean as om reads it or a reference, chosen as written, not as the default', async () => {
+            KW('DEFAULT', [
+                {section: 'DEFAULT', option: 'nodes'},
+                {section: 'DEFAULT', option: 'orchestrate', default: 'no', candidates: ['no', 'ha']},
+                {section: 'DEFAULT', option: 'disable', default: 'false', converter: 'bool'},
+                {section: 'DEFAULT', option: 'standby', converter: 'bool'},
+                {section: 'DEFAULT', option: 'monitor', converter: 'bool'},
+                {section: 'DEFAULT', option: 'shared', converter: 'bool'},
+            ]);
+            const TEXT = '[DEFAULT]\nnodes = n1\norchestrate = {env.orch}\ndisable = yes\nstandby = 0\nmonitor = on\nshared = {env.shared}\n';
+            await design();
+            view('text');
+            fireEvent.change(screen.getByLabelText('Configuration'), {target: {value: TEXT}});
+            view('design');
+            const choice = (name) => screen.getByRole('combobox', {name: `Value of ${name}`});
+            const shown = (name) => choice(name).selectedOptions[0].textContent;
+            expect(await screen.findByRole('combobox', {name: 'Value of disable'})).toHaveValue('yes');
+            // What om reads said beside what is written; a word it refuses said so; a reference as written.
+            expect(shown('disable')).toBe('yes (read as true)');
+            expect(shown('standby')).toBe('0 (read as false)');
+            expect(shown('monitor')).toBe('on (not a boolean: refused by om)');
+            expect(shown('shared')).toBe('{env.shared}');
+            expect(choice('orchestrate')).toHaveValue('{env.orch}');
+            expect(shown('orchestrate')).toBe('{env.orch}');
+            // Another keyword changed: these written as they were.
+            fireEvent.change(screen.getByRole('textbox', {name: 'Value of nodes'}), {target: {value: 'n1 n2'}});
+            view('text');
+            expect(screen.getByLabelText('Configuration')).toHaveValue(TEXT.replace('nodes = n1', 'nodes = n1 n2'));
+            // One chosen in its list: that one written instead.
+            view('design');
+            fireEvent.change(choice('disable'), {target: {value: 'false'}});
+            view('text');
+            expect(screen.getByLabelText('Configuration')).toHaveValue(TEXT.replace('nodes = n1', 'nodes = n1 n2').replace('disable = yes', 'disable = false'));
         });
 
         test('an example taken as the value, by a click or the right arrow; a default left to apply', async () => {

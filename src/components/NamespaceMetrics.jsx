@@ -1,6 +1,6 @@
 import React, {useCallback, useMemo, useState} from "react";
 import {useTranslation} from "react-i18next";
-import {formatBytes} from "../utils/cgroupMetrics";
+import {formatBytes} from "../ui/lib/format";
 import {formatCpuPercent, namespaceOf} from "../app/namespace-usage";
 import {namespaceUsage} from "../app/pg-usage";
 import {PG_POLL_MS, useClusterNodes, usePgReadings} from "../hooks/usePgUsage";
@@ -10,7 +10,17 @@ import {CrossLink} from "../app/CrossLink";
 import {Alert} from "../ui/components/Alert";
 
 /** A cpu in cpus as a percentage of one, "–" until a second reading tells it. */
-export const cpuText = (cpus) => formatCpuPercent(cpus === null || cpus === undefined ? null : cpus * 100);
+export const cpuText = (cpus, locale) => formatCpuPercent(cpus === null || cpus === undefined ? null : cpus * 100, locale);
+
+/**
+ * A memory used, or its limit, in bytes, in the language of the page: "–" not read,
+ * unlimited (Infinity) said so, none "0 B".
+ */
+export const memoryText = (bytes, t, locale) => {
+    if (bytes === undefined || bytes === null || Number.isNaN(bytes)) return "–";
+    if (bytes === Infinity) return t("clusterUsage.unlimited");
+    return formatBytes(bytes, locale) || "0 B";
+};
 
 /** The value a column sorts a row by; none, a figure not read yet, goes last. */
 const SORT = {
@@ -61,7 +71,8 @@ export const TotalTile = ({label, value}) => (
  * so it shows on the second one.
  */
 const NamespaceMetrics = ({namespace}) => {
-    const {t} = useTranslation();
+    const {t, i18n} = useTranslation();
+    const locale = i18n.language;
     const nodes = useClusterNodes();
     const {usage, errors} = usePgReadings(nodes);
     // Read once every node answered, or failed to: the figures of those that answered.
@@ -107,8 +118,8 @@ const NamespaceMetrics = ({namespace}) => {
                 {sortedRows.length > 0 && (
                     <section aria-label={t("metrics.totals.label")}>
                         <dl className="grid grid-cols-2 gap-3">
-                            <TotalTile label={t("metrics.totals.cpu")} value={cpuText(total.cpu)}/>
-                            <TotalTile label={t("metrics.totals.memory")} value={formatBytes(total.memory)}/>
+                            <TotalTile label={t("metrics.totals.cpu")} value={cpuText(total.cpu, locale)}/>
+                            <TotalTile label={t("metrics.totals.memory")} value={memoryText(total.memory, t, locale)}/>
                         </dl>
                     </section>
                 )}
@@ -131,9 +142,9 @@ const NamespaceMetrics = ({namespace}) => {
                             <Row key={row.path}>
                                 <Cell className="whitespace-nowrap"><CrossLink kind="object" id={row.path}>{row.path}</CrossLink></Cell>
                                 <Cell numeric>{row.instances.length}</Cell>
-                                <Cell numeric>{cpuText(row.cpu)}</Cell>
-                                <Cell numeric>{formatBytes(row.memory)}</Cell>
-                                <Cell numeric>{formatBytes(row.limit)}</Cell>
+                                <Cell numeric>{cpuText(row.cpu, locale)}</Cell>
+                                <Cell numeric>{memoryText(row.memory, t, locale)}</Cell>
+                                <Cell numeric>{memoryText(row.limit, t, locale)}</Cell>
                             </Row>
                         )) : (
                             <EmptyRow colSpan={COLUMNS.length}>{t("metrics.empty", {namespace})}</EmptyRow>

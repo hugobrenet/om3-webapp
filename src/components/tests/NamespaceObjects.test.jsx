@@ -49,7 +49,7 @@ const headers = () => within(screen.getByRole('table')).getAllByRole('columnhead
 describe('NamespaceObjects', () => {
     test('a tab a kind, no users: the users are the cluster\'s; the namespace configuration a tab of its own', () => {
         render(<Tabs namespace="prod"/>);
-        expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Services2!', 'Volumes1', 'Configurations1', 'Secrets1']);
+        expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Services2!', 'Volumes1', 'Configs1', 'Secrets1']);
     });
 
     test('the services: name, orchestrate, topology and status, as in the objects table', () => {
@@ -69,6 +69,15 @@ describe('NamespaceObjects', () => {
         renderList('configs');
         expect(headers()).toEqual(['Object', 'Keys', 'Size']);
         expect(rows().map(texts)).toEqual([['app', '2', '2 KiB']]);
+        // Each title over its values: both aligned left, the number of keys read as such.
+        const titles = within(screen.getByRole('table')).getAllByRole('columnheader').slice(1);
+        const cells = within(rows()[0]).getAllByRole('cell').slice(1);
+        for (const [i, title] of titles.entries()) {
+            expect(title).toHaveClass('text-left');
+            expect(title).not.toHaveClass('text-right');
+            expect(cells[i]).toHaveClass('text-left');
+            expect(cells[i]).not.toHaveClass('text-right');
+        }
     });
 
     test('the name of an object a badge opening it over the view; the row opens nothing', () => {
@@ -109,7 +118,7 @@ describe('NamespaceObjects', () => {
 
     test('all of a kind selected at once; keys only deleted, purged or aborted', async () => {
         renderList('configs');
-        fireEvent.click(screen.getByRole('checkbox', {name: 'Select all the Configurations'}));
+        fireEvent.click(screen.getByRole('checkbox', {name: 'Select all the Configs'}));
         expect(screen.getByRole('checkbox', {name: 'Select object prod/cfg/app'})).toBeChecked();
         fireEvent.click(screen.getByRole('button', {name: 'Actions'}));
         const items = within(await screen.findByRole('menu')).getAllByRole('menuitem').map((item) => entryName(item).trim().toLowerCase());

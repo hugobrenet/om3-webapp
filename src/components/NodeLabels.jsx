@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {Alert} from "../ui/components/Alert";
 import {Button, IconButton} from "../ui/components/Button";
@@ -8,6 +8,7 @@ import {getResponseErrorMessage} from "../services/api.jsx";
 import {trackRefused, trackWrite} from "../app/action-tracker";
 import {refusalReason} from "./objectActions";
 import {setOp} from "../app/keyop";
+import {anyOf, useClusterConfigChanges, useNodeConfigChanges} from "../hooks/useLiveChanges";
 
 const authHeaders = () => ({Authorization: `Bearer ${localStorage.getItem("authToken") ?? ""}`});
 
@@ -31,27 +32,41 @@ const labelsOf = (items = []) => Object.fromEntries(items
 
 /**
  * The labels of `node` and those of the cluster: read from the node configuration
- * (its own) and the cluster configuration (the defaults its own override).
+ * (its own) and the cluster configuration (the defaults its own override). Read
+ * again as either changes, by om or another user: what was read kept shown
+ * meanwhile, and when a read again fails; only the last read asked shown.
  */
 export function useNodeLabels(node) {
     const [state, setState] = useState(null);
+    const asked = useRef(0);
     const reload = useCallback(async () => {
+        asked.current += 1;
+        const mine = asked.current;
+        const read = async (url) => {
+            const response = await fetch(url, {headers: authHeaders()});
+            return response.ok ? labelsOf((await response.json()).items) : null;
+        };
+        let own = null;
+        let cluster = null;
         try {
-            const [own, cluster] = await Promise.all([
-                fetch(`${URL_NODE}/${encodeURIComponent(node)}/config`, {headers: authHeaders()}),
-                fetch(`${URL_CLUSTER}/config`, {headers: authHeaders()}),
+            [own, cluster] = await Promise.all([
+                read(`${URL_NODE}/${encodeURIComponent(node)}/config`),
+                read(`${URL_CLUSTER}/config`),
             ]);
-            setState({
-                own: own.ok ? labelsOf((await own.json()).items) : {},
-                cluster: cluster.ok ? labelsOf((await cluster.json()).items) : {},
-            });
         } catch {
-            setState({own: {}, cluster: {}});
+            // Neither read: what was shown kept.
         }
+        if (mine !== asked.current) return;
+        setState((shown) => ({own: own ?? shown?.own ?? {}, cluster: cluster ?? shown?.cluster ?? {}}));
     }, [node]);
+    // Another node: nothing of the one before shown while its labels are read.
+    useEffect(() => {
+        setState(null);
+    }, [node]);
+    const changes = anyOf(useNodeConfigChanges(node), useClusterConfigChanges());
     useEffect(() => {
         void reload();
-    }, [reload]);
+    }, [reload, changes]);
     return {labels: state, reload};
 }
 

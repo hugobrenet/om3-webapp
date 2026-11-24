@@ -49,10 +49,10 @@
       "confirm": "Redémarrer"
     },
     "clear": {
-      "title": "Confirmer l'effacement",
-      "checkboxAria": "Confirmer l'effacement",
-      "checkbox": "Je comprends que cela effacera l'état et les journaux du nœud.",
-      "confirmAria": "Confirmer l'effacement"
+      "title": "Confirmer la réinitialisation",
+      "checkboxAria": "Confirmer la réinitialisation",
+      "checkbox": "Je comprends que cela réinitialisera l'état et les journaux du nœud.",
+      "confirmAria": "Confirmer la réinitialisation"
     },
     "drain": {
       "title": "Confirmer le drainage",
@@ -291,7 +291,7 @@
       "pgUpdate": "Mettre à jour les pg",
       "info": "Infos",
       "status": "Statut",
-      "clear": "Effacer",
+      "clear": "Réinitialiser",
       "drain": "Drainer",
       "scsiScan": "Scan SCSI",
       "asset": "Inventaire",
@@ -632,7 +632,7 @@
       "beating": "Actif",
       "id": "ID",
       "driver": "Pilote",
-      "clearAll": "Effacer tous les filtres"
+      "clearAll": "Réinitialiser tous les filtres"
     },
     "marks": {
       "healthySingleNode": "Sain (nœud unique)",
@@ -711,7 +711,8 @@
     },
     "routine": {
       "running": "démarrée",
-      "stopped": "arrêtée"
+      "stopped": "arrêtée",
+      "unknown": "inconnue"
     },
     "direction": {
       "tx": "envoie à",
@@ -1055,7 +1056,7 @@
     "levels": "Niveaux",
     "allLevels": "Tous les niveaux",
     "levelsGroup": "Niveaux de journal",
-    "filtersActive": "Filtres actifs - Cliquez sur une ligne pour les effacer",
+    "filtersActive": "Filtres actifs - Cliquez sur une ligne pour les réinitialiser",
     "resetFilters": "Réinitialiser les filtres",
     "count": "{{shown}} / {{total}} lignes",
     "lines": "Lignes de journal",
@@ -1131,8 +1132,8 @@
       "vol_other": "Afficher les {{count}} volumes {{status}} de {{namespace}}",
       "sec_one": "Afficher le secret de {{namespace}}",
       "sec_other": "Afficher les {{count}} secrets de {{namespace}}",
-      "cfg_one": "Afficher la configuration de {{namespace}}",
-      "cfg_other": "Afficher les {{count}} configurations de {{namespace}}"
+      "cfg_one": "Afficher la config de {{namespace}}",
+      "cfg_other": "Afficher les {{count}} configs de {{namespace}}"
     },
     "usage": {
       "claimed": "{{name}} : {{used}} sur un quota de {{total}} ({{percent}})",
@@ -1326,8 +1327,8 @@
         "svc_other": "Afficher les {{count}} services de {{namespace}}",
         "vol_one": "Afficher le volume de {{namespace}}",
         "vol_other": "Afficher les {{count}} volumes de {{namespace}}",
-        "cfg_one": "Afficher la configuration de {{namespace}}",
-        "cfg_other": "Afficher les {{count}} configurations de {{namespace}}",
+        "cfg_one": "Afficher la config de {{namespace}}",
+        "cfg_other": "Afficher les {{count}} configs de {{namespace}}",
         "sec_one": "Afficher le secret de {{namespace}}",
         "sec_other": "Afficher les {{count}} secrets de {{namespace}}"
       },
@@ -1847,7 +1848,7 @@
       "label": "Listes d'objets",
       "services": "Services",
       "volumes": "Volumes",
-      "configs": "Configurations",
+      "configs": "Configs",
       "secrets": "Secrets",
       "users": "Utilisateurs",
       "namespaces": "Namespaces",
@@ -1855,7 +1856,7 @@
     },
     "columns": {
       "object": "Objet",
-      "orchestrate": "Orchestrate",
+      "orchestrate": "Orchestration",
       "topology": "Topologie",
       "keys": "Clés",
       "keysSize": "Taille",
@@ -1873,8 +1874,10 @@
       "kind": "Type",
       "unprovisioned": "Non provisionné",
       "rail": "Filtres",
-      "clear": "Effacer",
-      "clearOf": "Effacer le filtre {{filter}}"
+      "clear": "Réinitialiser",
+      "clearOf": "Réinitialiser le filtre {{filter}}",
+      "active_one": "{{count}} actif",
+      "active_other": "{{count}} actifs"
     },
     "feedback": {
       "authTokenNotFound": "Jeton d'authentification introuvable"
@@ -1902,7 +1905,7 @@
     "openNamespaceConfig": "Ouvrir la configuration de {{namespace}}",
     "count_one": "{{count}} objet",
     "count_other": "{{count}} objets",
-    "clearSelection": "Effacer"
+    "clearSelection": "Désélectionner"
   },
   "pools": {
     "columns": {
@@ -2085,7 +2088,8 @@
       "snapshots": "Instantanés",
       "restore": "Restauration",
       "console": "Console",
-      "display": "Écran"
+      "display": "Écran",
+      "tombstones": "Tombstones"
     },
     "crossLink": "Afficher la fiche ici ({{kind}})",
     "kinds": {
@@ -2124,7 +2128,7 @@
       "node": "Nœuds",
       "svc": "Services",
       "vol": "Volumes",
-      "cfg": "Configurations",
+      "cfg": "Configs",
       "sec": "Secrets",
       "usr": "Utilisateurs",
       "nscfg": "Configurations de namespace",
@@ -2136,6 +2140,46 @@
     }
   },
   "statusBoard": {
+    "said": {
+      "separator": ", ",
+      "withSubject": "{{subject}} : {{note}}",
+      "rpoNever": "rpo dépassé : aucune copie n'a jamais été reçue ici, une reprise ici perdrait toutes les données",
+      "rpoSince": "rpo dépassé depuis {{at}} : la copie ici est plus ancienne que ne le permet le délai maximal de la ressource, une reprise ici perdrait davantage de données",
+      "childUp": "down alors que son enfant {{child}} est up : l'enfant a besoin du vol",
+      "childrenUp": "down alors que ses enfants {{children}} sont up : ils ont besoin du vol",
+      "childrenDown": "les enfants sont down",
+      "noChildren": "aucun enfant",
+      "excess": "{{up}} instances up, {{topology}} en autorise {{allowed}} : les ressources partagées peuvent être écrites par plusieurs nœuds à la fois. Arrêtez les instances en trop.",
+      "nonOptimalPrefers": "non optimal : la politique de placement préfère {{nodes}}",
+      "nonOptimal": "non optimal : les instances ne tournent pas sur les nœuds que préfère la politique de placement",
+      "mixed": "états de ressources mêlés : {{parts}}",
+      "mixedNone": "états de ressources mêlés",
+      "mixedUp": "{{rids}} up",
+      "mixedDown": "{{rids}} down",
+      "mixedWarn": "{{rids}} warn",
+      "mixedUnsynced": "{{rids}} down, les données non répliquées",
+      "incompatible": "les nœuds exécutent des versions d'agent incompatibles",
+      "noMonitor": "aucun moniteur d'instance : le démon est arrêté, ou n'a pas commencé à surveiller l'instance",
+      "gaveUp": "{{state}} : l'orchestration a abandonné, réinitialisez l'instance pour réessayer",
+      "frozen": "le démon ne prend aucune initiative sur l'instance",
+      "nodeFrozen": "le démon ne prend aucune initiative sur les instances du nœud",
+      "stopped": "arrêtée volontairement : le démon ne la redémarre pas",
+      "unprovisioned": "l'instance n'est pas provisionnée, ou partiellement",
+      "resourcesDown": "{{rids}} down",
+      "resourcesDownMore": "{{rids}}… down"
+    },
+    "noteSubjects": {
+      "children": "enfants",
+      "instances": "instances",
+      "placement": "placement",
+      "overall": "état global",
+      "agents": "agents",
+      "monitor": "moniteur",
+      "frozen": "gelé",
+      "nodeFrozen": "nœud gelé",
+      "stopped": "arrêtée",
+      "provisioned": "provisionnement"
+    },
     "caption": "État de {{path}} par nœud",
     "notes_one": "Notes ({{count}})",
     "notes_other": "Notes ({{count}})",
@@ -2424,9 +2468,11 @@
     "audit": {
       "intro": "Diffuse les journaux des sous-systèmes du démon, jusqu'au debug et au trace, comme om daemon audit. Un audit à la fois sur un démon ; il s'arrête quand vous quittez cette vue.",
       "rootOnly": "Auditer le démon demande le droit root.",
+      "grantsLoading": "Lecture de vos droits",
       "level": "À partir du niveau",
       "subsystems": "Sous-systèmes",
       "subsystemsPlaceholder": "Tous ; tapez pour chercher",
+      "allSubsystems": "tous les sous-systèmes",
       "suffixHint": "Tapez pour chercher parmi les sous-systèmes connus. Les motifs glob aussi : imon:* pour tous les moniteurs d'objet, imon:prod/svc/web pour un seul, hb:1 pour un heartbeat.",
       "start": "Démarrer",
       "stop": "Arrêter",
@@ -2513,6 +2559,9 @@
   "actionTray": {
     "label": "Actions demandées",
     "title": "Actions",
+    "arrived": "Nouvelle action : {{what}}",
+    "arrivedMore_one": "Nouvelles actions : {{what}} et {{count}} autre",
+    "arrivedMore_other": "Nouvelles actions : {{what}} et {{count}} autres",
     "running_one": "{{count}} en cours",
     "running_other": "{{count}} en cours",
     "ended_one": "{{count}} terminée",
@@ -2567,7 +2616,12 @@
       "keyRename": "Renommer la clé {{key}} en {{to}}"
     },
     "noNews": "aucune nouvelle sous {{seconds}} s",
-    "logs": "Journaux de {{action}} {{subject}}"
+    "logs": "Journaux de {{action}} {{subject}}",
+    "abort": "Interrompre {{action}} {{subject}}",
+    "abortQuestion": "Interrompre {{action}} {{subject}} ? Ce qu'il lui reste à faire ne sera pas fait ; une exécution en cours sur un nœud va jusqu'à son terme.",
+    "abortConfirm": "Interrompre",
+    "abortCancel": "Laisser continuer",
+    "aborting": "Interruption…"
   },
   "paramActions": {
     "resize": {
@@ -2650,7 +2704,7 @@
       "description": "Envoyer au collecteur le rapport système (modifications des fichiers suivis)."
     },
     "clear": {
-      "label": "Effacer le moniteur",
+      "label": "Réinitialiser le moniteur",
       "description": "Réinitialiser l'état d'échec du moniteur du nœud."
     },
     "restartDaemon": {
@@ -2751,7 +2805,7 @@
       "startStandby": "Activer les ressources destinées à rester actives sur un nœud de secours.",
       "freeze": "Bloquer les démarrages automatiques et les actions du moniteur sur ce nœud.",
       "unfreeze": "Débloquer les démarrages automatiques et les actions du moniteur sur ce nœud.",
-      "clear": "Effacer l'état en échec de son moniteur, pour que le démon agisse à nouveau dessus.",
+      "clear": "Réinitialiser l'état en échec de son moniteur, pour que le démon agisse à nouveau dessus.",
       "provision": "Allouer les ressources système de ses ressources sur ce nœud.",
       "unprovision": "Libérer les ressources système de ses ressources sur ce nœud : leurs données sont perdues.",
       "install": "Réinstaller ce que déclarent ses volumes et systèmes de fichiers, sans rien démarrer.",
@@ -2867,7 +2921,7 @@
     "off": "désactivé (0)",
     "choices": "Valeurs usuelles",
     "now": "Libre actuellement : {{pct}} %.",
-    "invalid": "Un pourcentage, comme 10%, ou une taille, comme 2Gi.",
+    "invalid": "Un pourcentage entier de 0 à 100, comme 10%, ou une taille, comme 2Gi.",
     "previewOverloaded": "Avec un minimum de {{pct}} %, le nœud serait surchargé maintenant.",
     "previewFine": "Avec un minimum de {{pct}} %, le nœud ne serait pas surchargé maintenant.",
     "previewOff": "Pas de minimum : ce critère ne rend jamais le nœud surchargé.",
@@ -2996,6 +3050,29 @@
       "held": "Non accordé : {{message}}. Indiquez une attente pour patienter dans la file, ou réessayez plus tard."
     }
   },
+  "clusterTombstones": {
+    "intro": "Les enregistrements que les nœuds gardent des suppressions et des purges : la version de la configuration supprimée, pour qu'un nœud qui la détient encore ne fasse pas revenir l'objet. Un nœud efface son enregistrement une fois que chaque nœud concerné a supprimé son instance, ou un jour plus tard.",
+    "refresh": "Actualiser",
+    "loading": "Lecture des tombstones",
+    "table": "Tombstones",
+    "object": "Objet",
+    "kind": "Type",
+    "deletedAt": "Supprimé",
+    "version": "Configuration supprimée",
+    "recordedBy": "Enregistré par",
+    "holders": "Encore publiée par",
+    "orchestration": "Orchestration",
+    "kinds": {
+      "deleted": "supprimé",
+      "purged": "purgé"
+    },
+    "recreated": "recréé",
+    "noHolder": "aucun",
+    "none": "Aucun tombstone : aucune suppression ni purge dans la dernière journée, ou toutes achevées sur chaque nœud.",
+    "forbidden": "La lecture des tombstones est refusée à cette session.",
+    "stale": "Non relus ({{message}}) : les tombstones ci-dessous sont ceux de la dernière lecture.",
+    "footer": "Relus {{seconds}} s après chaque lecture, tant que cette page est affichée. Un nœud qui publie encore la configuration supprimée détient une version que l'enregistrement lui fait abandonner."
+  },
   "resources": {
     "caption": "Les ressources du cluster",
     "loading": "Lecture des ressources",
@@ -3034,7 +3111,7 @@
       "all": "Sélectionner toutes les ressources",
       "one": "Sélectionner {{rid}} de {{path}} sur {{node}}",
       "hint": "Sélectionnez des ressources pour agir dessus",
-      "clear": "Effacer",
+      "clear": "Désélectionner",
       "actions": "Actions sur les ressources sélectionnées",
       "subject_one": "{{count}} ressource, sur {{instances}}",
       "subject_other": "{{count}} ressources, sur {{instances}}",
@@ -3175,7 +3252,7 @@
       "selection": "Instantanés sélectionnés",
       "selected_one": "{{count}} sélectionné",
       "selected_other": "{{count}} sélectionnés",
-      "clear": "Effacer",
+      "clear": "Désélectionner",
       "deleteSelected_one": "Supprimer {{count}} instantané",
       "deleteSelected_other": "Supprimer {{count}} instantanés",
       "confirmManyTitle_one": "Supprimer {{count}} instantané ?",
@@ -3233,7 +3310,7 @@
         "all": "Tout"
       },
       "around": "Autour du",
-      "clear": "Effacer la période",
+      "clear": "Réinitialiser la période",
       "before": "Dernier avant : {{id}}, {{date}}",
       "after": "premier après : {{id}}, {{date}}",
       "noneBefore": "Aucun avant",
@@ -3516,6 +3593,8 @@
   },
   "objectDesigner": {
     "byDefault": "par défaut : {{value}}",
+    "readAs": "{{value}} (lu comme {{read}})",
+    "notBool": "{{value}} (pas un booléen : refusé par om)",
     "strategyChoose": "Choisissez-en une : ses mots-clés sont alors proposés.",
     "strategyImplied": "{{strategy}}, d'après les mots-clés renseignés.",
     "strategyBySelector": "{{strategy}}, choisie par un mot-clé de la configuration.",
@@ -3622,10 +3701,10 @@
       "resources": "Cette page liste chaque ressource de chaque service et volume, sur chaque nœud : systèmes de fichiers, adresses IP, disques, conteneurs, applications. « Problèmes seulement » ne garde que ce qui est down ou en warn, hors nœuds passifs d'un service failover, down comme prévu.",
       "objects-services": "Les services (svc) sont les applications que le cluster maintient en marche. Chacun est composé de ressources, comme une adresse IP, un système de fichiers et un conteneur. Un service a une instance sur chaque nœud où il est autorisé à tourner.",
       "objects-volumes": "Les volumes (vol) sont l'espace de stockage demandé par un service. Le cluster crée chaque volume dans un pool de stockage quand le service est provisionné.",
-      "objects-configs": "Les configurations (cfg) contiennent des réglages et des fichiers qui ne sont pas secrets. Les services les utilisent comme fichiers ou variables d'environnement. La configuration du cluster lui-même est listée ici aussi.",
-      "objects-secrets": "Les secrets (sec) fonctionnent comme les configurations, mais sont stockés chiffrés. Utilisez-les pour les mots de passe, certificats et clés privées.",
+      "objects-configs": "Les configs (cfg) contiennent des réglages et des fichiers qui ne sont pas secrets. Les services les utilisent comme fichiers ou variables d'environnement. La configuration du cluster lui-même est listée ici aussi.",
+      "objects-secrets": "Les secrets (sec) fonctionnent comme les configs, mais sont stockés chiffrés. Utilisez-les pour les mots de passe, certificats et clés privées.",
       "objects-users": "Les utilisateurs (usr) sont des comptes qui peuvent se connecter à cette webapp et à l'API, chacun avec ses propres droits (grants).",
-      "objects-any": "Tous les objets du cluster, de tous les types : services, volumes, configurations, secrets et utilisateurs."
+      "objects-any": "Tous les objets du cluster, de tous les types : services, volumes, configs, secrets et utilisateurs."
     }
   },
   "glossary": {
@@ -3853,7 +3932,7 @@
         "definition": "Annuler l'action en cours sur tout le cluster : les étapes qu'il lui reste. Une exécution déjà lancée sur un nœud, un démarrage ou un arrêt, va à son terme."
       },
       "actionClear": {
-        "term": "Effacer",
+        "term": "Réinitialiser",
         "definition": "Réinitialiser un état d'échec (comme start failed) pour que le cluster agisse de nouveau dessus."
       }
     }

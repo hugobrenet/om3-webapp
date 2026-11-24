@@ -71,7 +71,7 @@ function useAmount() {
     const locale = i18n.language;
     return (type, value) => {
         if (value === undefined) return "–";
-        if (type === "pool" || type === "memory") return value > 0 ? formatBytes(value, locale) : "0";
+        if (type === "pool" || type === "memory") return value > 0 ? formatBytes(value, locale) : "0 B";
         if (type === "cpu") return formatCpu(value, locale);
         return value.toLocaleString(locale);
     };

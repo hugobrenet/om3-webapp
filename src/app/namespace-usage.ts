@@ -11,6 +11,7 @@
  * the total then.
  */
 
+import { formatPercent } from "../ui/lib/format";
 import { continued, isContinuationLine } from "./ini";
 
 /** A `[claim#N]` section of a namespace configuration. */
@@ -272,11 +273,12 @@ export function kindCounts(objectStatus: Record<string, { avail?: string } | und
 
 /**
  * A cpu usage as a percentage of one cpu, the notation of the om3 cpu limits (800%
- * is eight cpus), to one decimal: 0.002 cpu reads 0.2 %. A usage not known yet
- * (no rate before a second reading) reads "–".
+ * is eight cpus), to one decimal, as the locale writes a percent: 0.002 cpu reads
+ * 0.2%, "0,2 %" in French. A usage not known yet (no rate before a second reading)
+ * reads "–".
  */
-export function formatCpuPercent(percent: number | null | undefined): string {
-  return percent === null || percent === undefined ? "–" : `${percent.toFixed(1)} %`;
+export function formatCpuPercent(percent: number | null | undefined, locale: string): string {
+  return percent === null || percent === undefined ? "–" : formatPercent(percent, locale, 1);
 }
 
 /**

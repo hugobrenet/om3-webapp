@@ -4,7 +4,9 @@ import {
   formatDate,
   formatDateTime,
   formatDuration,
+  formatMHz,
   formatPercent,
+  formatBytes,
   formatRelativeTime,
   formatSizeMiB,
   parseCollectorDate,
@@ -25,6 +27,36 @@ describe("parseCollectorDate", () => {
     expect(parseCollectorDate(undefined)).toBeNull();
     expect(parseCollectorDate("")).toBeNull();
     expect(parseCollectorDate("not a date")).toBeNull();
+  });
+});
+
+describe("formatMHz", () => {
+  test("below a gigahertz in megahertz, from one in gigahertz", () => {
+    expect(formatMHz(800, "en")).toBe("800 MHz");
+    expect(formatMHz(2000, "en")).toBe("2 GHz");
+    expect(formatMHz(2400, "fr")).toBe("2,4 GHz");
+    expect(formatMHz(3193, "en")).toBe("3.19 GHz");
+    expect(formatMHz(0, "en")).toBe("");
+  });
+});
+
+describe("formatBytes", () => {
+  test("below a kibibyte, in bytes: a small key not said empty", () => {
+    expect(formatBytes(1, "en")).toBe("1 B");
+    expect(formatBytes(31, "en")).toBe("31 B");
+    expect(formatBytes(511, "en")).toBe("511 B");
+    expect(formatBytes(1023, "en")).toBe("1,023 B");
+  });
+
+  test("from a kibibyte, in kibibytes, then as the mebibytes", () => {
+    expect(formatBytes(1024, "en")).toBe("1 KiB");
+    expect(formatBytes(374 * 1024, "en")).toBe("374 KiB");
+    expect(formatBytes(1024 * 1024, "en")).toBe("1 MiB");
+  });
+
+  test("nothing for nothing: the caller says its zero", () => {
+    expect(formatBytes(0, "en")).toBe("");
+    expect(formatBytes(undefined, "en")).toBe("");
   });
 });
 
@@ -110,10 +142,18 @@ describe("formatDuration", () => {
 });
 
 describe("formatPercent", () => {
-  test("up to two decimals by default", () => {
-    expect(formatPercent(12.3456, "en")).toBe("12.35 %");
-    expect(formatPercent(50, "en")).toBe("50 %");
-    expect(formatPercent(12.3456, "en", 0)).toBe("12 %");
+  test("as the locale writes it: no space in English, one before it in French", () => {
+    expect(formatPercent(63, "en")).toBe("63.0%");
+    expect(formatPercent(63, "fr")).toMatch(/^63,0[\u00a0\u202f]%$/);
+    expect(formatPercent(0, "en")).toBe("0.0%");
+  });
+
+  test("its decimals always, or at most; a cpu's past a hundred", () => {
+    expect(formatPercent(12.3456, "en", 2)).toBe("12.35%");
+    expect(formatPercent(12.3456, "en", 0)).toBe("12%");
+    expect(formatPercent(50, "en", 1, false)).toBe("50%");
+    expect(formatPercent(4.25, "en", 1, false)).toBe("4.3%");
+    expect(formatPercent(800, "en")).toBe("800.0%");
   });
 });
 

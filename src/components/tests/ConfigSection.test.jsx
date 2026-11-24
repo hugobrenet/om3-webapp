@@ -456,7 +456,7 @@ describe('ConfigSection Component', () => {
             await act(() => user.click(within(dialog).getByRole('button', {name: 'Apply 1 change'})));
             await waitFor(() => expect(posts()).toHaveLength(1));
             const [url, options] = posts()[0];
-            expect(url).toBe(`${URL_OBJECT}/dev/nscfg/namespace/config/file?set=orchestrate=no&wait=30s`);
+            expect(url).toBe(`${URL_OBJECT}/dev/nscfg/namespace/config/file?set=DEFAULT.orchestrate=no&wait=30s`);
             expect(options.body).toMatch(/^\[DEFAULT\]\nid = /);
             expect(global.fetch.mock.calls.some(([, o]) => o?.method === 'PATCH')).toBe(false);
             await waitFor(() => expect(tray()).toEqual([['Create the configuration', 'dev/nscfg/namespace', 'succeeded', null]]));
@@ -964,7 +964,7 @@ describe('ConfigSection Component', () => {
             fireEvent.change(orchestrate, {target: {value: 'no'}});
             expect(within(within(dialog).getByRole('region', {name: 'Changes'})).getByText('Set orchestrate = no')).toBeInTheDocument();
             await act(() => user.click(within(dialog).getByRole('button', {name: 'Apply 1 change'})));
-            await waitFor(() => expect(patches()).toEqual([`${URL_OBJECT}/root/cfg/cfg1/config?set=orchestrate=no&wait=30s`]));
+            await waitFor(() => expect(patches()).toEqual([`${URL_OBJECT}/root/cfg/cfg1/config?set=DEFAULT.orchestrate=no&wait=30s`]));
             await waitFor(() => expect(getDialogByTitle('Configuration design')).toBeUndefined());
             expect(tray()[0]).toEqual(['Set orchestrate = no', 'root/cfg/cfg1', 'succeeded', null]);
         });
@@ -994,7 +994,7 @@ describe('ConfigSection Component', () => {
             // A comment added since: the design the same, written over it.
             daemon.setFile(`# a comment\n${STORED}`, '2026-11-13T10:00:00.2Z');
             await act(() => user.click(within(dialog).getByRole('button', {name: 'Apply 1 change'})));
-            await waitFor(() => expect(patches()).toEqual([`${URL_OBJECT}/root/cfg/cfg1/config?set=orchestrate=no&wait=30s&if_unmodified_since=2026-11-13T10:00:00.2Z`]));
+            await waitFor(() => expect(patches()).toEqual([`${URL_OBJECT}/root/cfg/cfg1/config?set=DEFAULT.orchestrate=no&wait=30s&if_unmodified_since=2026-11-13T10:00:00.2Z`]));
         });
 
         test('the design changed by someone else since it opened: nothing written, started over on the file as it is', async () => {
@@ -1045,7 +1045,7 @@ describe('ConfigSection Component', () => {
             fireEvent.click(dialog.querySelector('[data-segment=design]'));
             expect(within(within(dialog).getByRole('navigation', {name: 'Sections'})).getByRole('button', {name: /^fs#1/})).toHaveAttribute('aria-current', 'true');
             await act(() => user.click(within(dialog).getByRole('button', {name: 'Apply 1 change'})));
-            await waitFor(() => expect(patches()).toEqual([`${URL_OBJECT}/root/cfg/cfg1/config?set=orchestrate=no&wait=30s`]));
+            await waitFor(() => expect(patches()).toEqual([`${URL_OBJECT}/root/cfg/cfg1/config?set=DEFAULT.orchestrate=no&wait=30s`]));
         });
 
         test('a keyword removed unset, a resource removed deleted, in the same request', async () => {
@@ -1054,7 +1054,7 @@ describe('ConfigSection Component', () => {
             await act(() => user.click(within(dialog).getByRole('button', {name: 'Remove nodes'})));
             await act(() => user.click(within(dialog).getByRole('button', {name: 'Remove fs#1'})));
             await act(() => user.click(within(dialog).getByRole('button', {name: 'Apply 2 changes'})));
-            await waitFor(() => expect(patches()).toEqual([`${URL_OBJECT}/root/cfg/cfg1/config?unset=nodes&delete=fs#1&wait=30s`]));
+            await waitFor(() => expect(patches()).toEqual([`${URL_OBJECT}/root/cfg/cfg1/config?unset=DEFAULT.nodes&delete=fs#1&wait=30s`]));
         });
 
         test('cancelled, nothing written; opened again, read again from the file', async () => {

@@ -609,40 +609,19 @@ const updateBuffer = (bufferName, key, value) => {
         buffers.instanceMonitorDeleted = notDeleted(buffers.instanceMonitorDeleted, key.slice(i + 1), key.slice(0, i));
     }
 
-    if (bufferName === 'objectStatus') {
-        const existing = buffers.objectStatus[key];
-        buffers.objectStatus[key] = existing ? {...existing, ...value} : value;
-        debugLog(`📝 Buffer[objectStatus]: ${key}`, {
-            incoming: value,
-            existing: existing,
-            merged: buffers.objectStatus[key]
-        });
-    } else if (bufferName === 'instanceStatus') {
+    // Each event holds the whole value (object.Status, instance.Config, node.Stats…):
+    // the last one of the batch is the value, nothing merged from an earlier one, a
+    // field it omits (once empty) is gone, as the store replaces it at the flush.
+    if (bufferName === 'instanceStatus' || bufferName === 'instanceConfig') {
         const [path, node] = key.split(':');
-        if (!buffers.instanceStatus[path]) {
-            buffers.instanceStatus[path] = {};
+        if (!buffers[bufferName][path]) {
+            buffers[bufferName][path] = {};
         }
-        // The whole status in each event: the last one is the status, nothing merged
-        // from an earlier one, a field it omits (once empty) is gone.
-        buffers.instanceStatus[path][node] = value;
-        debugLog(`📝 Buffer[instanceStatus]: ${path}:${node}`, value);
-    } else if (bufferName === 'instanceConfig') {
-        const [path, node] = key.split(':');
-        if (!buffers.instanceConfig[path]) {
-            buffers.instanceConfig[path] = {};
-        }
-        const existing = buffers.instanceConfig[path][node];
-        buffers.instanceConfig[path][node] = existing ? {...existing, ...value} : value;
-        debugLog(`📝 Buffer[instanceConfig]: ${path}:${node}`, value);
-    } else if (bufferName === 'instanceMonitor') {
-        const existing = buffers.instanceMonitor[key];
-        buffers.instanceMonitor[key] = existing ? {...existing, ...value} : value;
-        debugLog(`📝 Buffer[instanceMonitor]: ${key}`, value);
+        buffers[bufferName][path][node] = value;
     } else {
-        const existing = buffers[bufferName][key];
-        buffers[bufferName][key] = existing ? {...existing, ...value} : value;
-        debugLog(`📝 Buffer[${bufferName}]: ${key}`, value);
+        buffers[bufferName][key] = value;
     }
+    debugLog(`📝 Buffer[${bufferName}]: ${key}`, value);
 
     // Always schedule flush
     scheduleFlush();
@@ -964,6 +943,9 @@ export const createLoggerEventSource = (url, token, filters) => {
 
     // Attach cleanup function for testing
     currentLoggerEventSource._cleanup = cleanup;
+    // The events chosen, the ones logged: its address asks more (the deletions, every
+    // event of an object), not to be read back from it on a token renewed.
+    currentLoggerEventSource._filters = filters;
 
     // Store reference for cleanup
     const loggerEventSourceRef = currentLoggerEventSource;
@@ -1065,8 +1047,8 @@ export const updateLoggerEventSourceToken = (newToken) => {
 
     if (currentLoggerEventSource) {
         logger.info('🔄 Token updated, restarting Logger EventSource');
-        const currentUrl = currentLoggerEventSource.url;
-        createLoggerEventSource(currentUrl, newToken, filtersOf(currentUrl));
+        const {url, _filters} = currentLoggerEventSource;
+        createLoggerEventSource(url, newToken, _filters ?? filtersOf(url));
     }
 };
 

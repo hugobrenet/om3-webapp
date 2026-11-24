@@ -459,6 +459,9 @@ export function parseDesign(text: string, start: DesignSection[] = designStart()
   return sections;
 }
 
+/** A keyword as om shows it: one of DEFAULT by its key alone, as it is sent with its section. */
+export const shownKeyword = (keyword: string): string => (keyword.startsWith("DEFAULT.") ? keyword.slice("DEFAULT.".length) : keyword);
+
 /** The changes a design makes to the one it started from, as om config update takes them. */
 export interface DesignChanges {
   set: { keyword: string; value: string }[];
@@ -469,10 +472,12 @@ export interface DesignChanges {
 /**
  * What turns the configuration of `before` into that of `after`: the sections gone
  * deleted, the keys gone unset, the keys new or changed set, a section new its type
- * first; a key new without a value not written. A keyword of DEFAULT is its key alone.
+ * first; a key new without a value not written. A keyword of DEFAULT is named with its
+ * section too: om3 reads a key alone with a dot in it as section.option, a scope with
+ * dots (nodes@n1.acme.com) then cut where none is, the daemon failing (key.Parse).
  */
 export function designChanges(before: DesignSection[], after: DesignSection[]): DesignChanges {
-  const keyword = (section: string, key: string) => (section === "DEFAULT" ? key : `${section}.${key}`);
+  const keyword = (section: string, key: string) => `${section}.${key}`;
   const names = new Set(after.map((section) => section.name));
   const changes: DesignChanges = {
     set: [],

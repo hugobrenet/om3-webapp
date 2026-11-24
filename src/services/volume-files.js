@@ -88,8 +88,12 @@ function unreachable(url) {
 /**
  * The first `limit` bytes of a file of a volume, and its whole size: what its dialog
  * shows. A range asked; a node answering the whole file, read up to the limit alone.
+ * Partial when more of it came than the limit, whatever the headers say: a node
+ * ignoring the range may tell no length, or that of the body compressed. Its size
+ * then told by the range answered, else by the bytes read when they are all of it,
+ * else by the length when it says more than the limit; unknown otherwise.
  *
- * @returns {Promise<{blob: Blob, total: number, partial: boolean}>}
+ * @returns {Promise<{blob: Blob, total: number | undefined, partial: boolean}>}
  */
 export async function readFileHead(path, node, name, dir = "", limit = 1024 * 1024) {
     const url = uploadUrl(await requestDownloadTicket(path, node, name, dir));
@@ -100,20 +104,35 @@ export async function readFileHead(path, node, name, dir = "", limit = 1024 * 10
         throw unreachable(url);
     }
     if (!response.ok) throw Object.assign(new Error((await response.text()).trim() || `HTTP ${response.status}`), {status: response.status});
-    const range = /\/(\d+)$/.exec(response.headers.get("Content-Range") ?? "");
-    const total = range ? Number(range[1]) : Number(response.headers.get("Content-Length") ?? 0);
     const reader = response.body.getReader();
     const chunks = [];
     let read = 0;
-    while (read < limit) {
+    // A byte past the limit: the file goes on beyond what is kept.
+    let more = false;
+    for (;;) {
         const {value, done} = await reader.read();
         if (done) break;
+        if (value.length === 0) continue;
+        if (read >= limit) {
+            more = true;
+            break;
+        }
         chunks.push(value);
         read += value.length;
+        if (read > limit) {
+            more = true;
+            break;
+        }
     }
     await reader.cancel().catch(() => {});
     const blob = new Blob(chunks).slice(0, limit);
-    return {blob, total, partial: total > blob.size};
+    const range = /\/(\d+)$/.exec(response.headers.get("Content-Range") ?? "");
+    const length = Number(response.headers.get("Content-Length") ?? NaN);
+    let total;
+    if (range) total = Number(range[1]);
+    else if (!more) total = read;
+    else if (length > limit) total = length;
+    return {blob, total, partial: more || (total !== undefined && total > blob.size)};
 }
 
 /** Saves a file of a volume, its own ticket asked: the node answers it as an attachment, the page staying. */

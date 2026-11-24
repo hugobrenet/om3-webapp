@@ -2,7 +2,7 @@ import React from 'react';
 import {render as renderInDom, screen, within, act} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
-import NamespaceMetrics from '../NamespaceMetrics';
+import NamespaceMetrics, {memoryText} from '../NamespaceMetrics';
 import useEventStore from '../../hooks/useEventStore';
 import {PG_FIRST_RATE_MS, PG_POLL_MS, resetPgUsage} from '../../hooks/usePgUsage';
 import i18n from '../../i18n';
@@ -86,8 +86,8 @@ describe('NamespaceMetrics', () => {
         await screen.findByRole('row', {name: /prod\/svc\/web/});
         // web on both nodes, db on n1 only; dev's objects and the one without a cgroup left out.
         expect(paths().sort()).toEqual(['prod/svc/db', 'prod/svc/web']);
-        expect(row('prod/svc/web')).toEqual(['prod/svc/web', '2', '–', '2.0 MiB', 'unlimited']);
-        expect(row('prod/svc/db')).toEqual(['prod/svc/db', '1', '–', '2.0 MiB', '–']);
+        expect(row('prod/svc/web')).toEqual(['prod/svc/web', '2', '–', '2 MiB', 'unlimited']);
+        expect(row('prod/svc/db')).toEqual(['prod/svc/db', '1', '–', '2 MiB', '–']);
     });
 
     test('the cpu from the second reading of the nodes, read shortly after the first, summed over them', async () => {
@@ -102,7 +102,7 @@ describe('NamespaceMetrics', () => {
         expect(Math.abs(parseFloat(row('prod/svc/web')[2]) - 75)).toBeLessThan(3);
         const totals = screen.getByRole('region', {name: 'Namespace total'});
         expect(Math.abs(parseFloat(within(totals).getByText('Namespace cpu').nextElementSibling.textContent) - 75)).toBeLessThan(3);
-        expect(within(totals).getByText('Namespace memory').nextElementSibling).toHaveTextContent('4.0 MiB');
+        expect(within(totals).getByText('Namespace memory').nextElementSibling).toHaveTextContent('4 MiB');
     });
 
     test('the busiest first by default; the columns sort, a figure from the largest', async () => {
@@ -126,7 +126,7 @@ describe('NamespaceMetrics', () => {
         render(<NamespaceMetrics namespace="prod"/>);
         expect(await screen.findByRole('alert')).toHaveTextContent('Failed to fetch metrics: n2: HTTP 503');
         await screen.findByRole('row', {name: /prod\/svc\/web/});
-        expect(row('prod/svc/web')).toEqual(['prod/svc/web', '1', '–', '1.0 MiB', 'unlimited']);
+        expect(row('prod/svc/web')).toEqual(['prod/svc/web', '1', '–', '1 MiB', 'unlimited']);
     });
 
     test('says when the namespace has no cgroup, without a total', async () => {
@@ -154,5 +154,17 @@ describe('NamespaceMetrics', () => {
         const calls = global.fetch.mock.calls.length;
         await nextReading();
         expect(global.fetch.mock.calls.length).toBe(calls);
+    });
+});
+
+describe('memoryText', () => {
+    test('in the language of the page: unlimited said, none 0 B, not read a dash', () => {
+        const fr = i18n.getFixedT('fr');
+        expect(memoryText(Infinity, fr, 'fr')).toBe('illimitée');
+        expect(memoryText(Infinity, i18n.getFixedT('en'), 'en')).toBe('unlimited');
+        expect(memoryText(3 * 1024 ** 3, fr, 'fr')).toBe('3 GiB');
+        expect(memoryText(1536 * 1024 ** 2, fr, 'fr')).toBe('1,5 GiB');
+        expect(memoryText(0, fr, 'fr')).toBe('0 B');
+        expect(memoryText(undefined, fr, 'fr')).toBe('–');
     });
 });

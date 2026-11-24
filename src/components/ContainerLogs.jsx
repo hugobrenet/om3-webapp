@@ -48,6 +48,8 @@ export function ContainerLogs({path, rid, nodes, upNodes = []}) {
     const [search, setSearch] = useState("");
     const containerRef = useRef(null);
     const nextId = useRef(0);
+    // The node the lines shown were read from.
+    const linesNode = useRef(null);
 
     const shown = useMemo(() => {
         const term = search.toLowerCase();
@@ -66,9 +68,22 @@ export function ContainerLogs({path, rid, nodes, upNodes = []}) {
         [node, namespace, kind, name, rid]);
 
     // The stream of the node chosen, while not paused; read again when lost, its
-    // last lines then not read twice (`lines=0`).
+    // last lines then not read twice (`lines=0`). Another node, chosen or taken on its
+    // own (the instances known, the resource up elsewhere, the one chosen gone): the
+    // lines of the one before dropped, its own last lines read.
     useEffect(() => {
-        if (!node || paused) return undefined;
+        if (!node) return undefined;
+        // Paused too: no line of a node under the name of another.
+        const another = linesNode.current !== node;
+        if (another) {
+            linesNode.current = node;
+            setLines([]);
+            setLost(false);
+            setAbsent(false);
+            setError("");
+            resetNew();
+        }
+        if (paused) return undefined;
         const controller = new AbortController();
         const {signal} = controller;
         let timer = null;
@@ -134,7 +149,7 @@ export function ContainerLogs({path, rid, nodes, upNodes = []}) {
             timer = setTimeout(() => void read(0, next), Math.min(RECONNECT_BASE_MS * 2 ** Math.min(next, 5), RECONNECT_MAX_MS));
         };
 
-        void read(lines.length === 0 ? TAIL_LINES : 0, 0);
+        void read(another || lines.length === 0 ? TAIL_LINES : 0, 0);
         return () => {
             controller.abort();
             if (timer) clearTimeout(timer);
@@ -142,16 +157,10 @@ export function ContainerLogs({path, rid, nodes, upNodes = []}) {
         };
         // The lines read already only decide how much to read back: not a reason to read again.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [node, nodeUp, paused, url, t, countNew]);
+    }, [node, nodeUp, paused, url, t, countNew, resetNew]);
 
-    const choose = (next) => {
-        setLines([]);
-        setLost(false);
-        setAbsent(false);
-        setError("");
-        resetNew();
-        setNode(next);
-    };
+    // Its lines dropped and its own read by the stream, as the node changes.
+    const choose = (next) => setNode(next);
 
     const clear = () => {
         setLines([]);

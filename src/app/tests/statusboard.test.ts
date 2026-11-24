@@ -106,7 +106,13 @@ describe("status board", () => {
     expect(volume?.rowNotes).toHaveLength(1);
     expect(board.rows.find((r) => r.name === "container#janitor")?.cellNotes).toEqual([[], []]);
     expect(instance?.cellNotes[1]).toEqual([
-      { marker: "", level: "error", text: "start failed: the orchestration gave up, clear the instance to retry", nodes: "dev3n2" },
+      {
+        marker: "",
+        level: "error",
+        text: "start failed: the orchestration gave up, clear the instance to retry",
+        say: { key: "gaveUp", values: { state: "start failed" } },
+        nodes: "dev3n2",
+      },
     ]);
     expect(instance?.rowNotes).toHaveLength(2);
     expect(board.rows.map((r) => r.kind)).toEqual([

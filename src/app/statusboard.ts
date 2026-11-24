@@ -13,6 +13,8 @@
  * The rules are om's: keep them in step with `core/statusboard/main.go`.
  */
 
+import type { Say } from "./note-say";
+
 /** How a piece of the board is colored, as om colorizes it. */
 export type Tone = "optimal" | "error" | "warning" | "secondary" | "primary" | "frozen";
 
@@ -55,6 +57,8 @@ export interface RowNote {
   marker: string;
   level: Level;
   text: string;
+  /** Its text in words of the catalog, said in the language of the page; none, a resource logged it. */
+  say?: Say;
   /** The nodes the note is about: "all", their names, or none. */
   nodes: string;
 }
@@ -100,6 +104,8 @@ export interface NoteGroup {
   level: Level;
   heads: NoteHead[];
   text: string;
+  /** Its text in words of the catalog, said in the language of the page; none, a resource logged it. */
+  say?: Say;
   fix?: NoteFix;
 }
 
@@ -165,6 +171,11 @@ const MIX_LISTED = 6;
  * the data not replicated.
  */
 export function mixedStates(st: InstanceStatus | undefined): string {
+  return mixed(st).text;
+}
+
+/** The mix of an instance in warn (mixedStates), its text and the key the page says it by. */
+function mixed(st: InstanceStatus | undefined): { text: string; say: Say } {
   const by: Record<"up" | "down" | "warn" | "unsynced", string[]> = { up: [], down: [], warn: [], unsynced: [] };
   const all: [string, ResourceStatus][] = [
     ...Object.entries(st?.resources ?? {}),
@@ -183,12 +194,14 @@ export function mixedStates(st: InstanceStatus | undefined): string {
   const list = (rids: string[]) =>
     rids.length > MIX_LISTED ? `${rids.slice(0, MIX_LISTED).join(" ")} +${rids.length - MIX_LISTED}` : rids.join(" ");
   const parts = [
-    by.up.length > 0 && `${list(by.up)} up`,
-    by.down.length > 0 && `${list(by.down)} down`,
-    by.warn.length > 0 && `${list(by.warn)} warn`,
-    by.unsynced.length > 0 && `${list(by.unsynced)} down, the data not replicated`,
-  ].filter(Boolean);
-  return parts.length > 0 ? `mixed resource states: ${parts.join(", ")}` : "mixed resource states";
+    by.up.length > 0 && said("mixedUp", `${list(by.up)} up`, { rids: list(by.up) }),
+    by.down.length > 0 && said("mixedDown", `${list(by.down)} down`, { rids: list(by.down) }),
+    by.warn.length > 0 && said("mixedWarn", `${list(by.warn)} warn`, { rids: list(by.warn) }),
+    by.unsynced.length > 0 && said("mixedUnsynced", `${list(by.unsynced)} down, the data not replicated`, { rids: list(by.unsynced) }),
+  ].filter((part) => part !== false);
+  return parts.length > 0
+    ? said("mixed", `mixed resource states: ${parts.map((part) => part.text).join(", ")}`, { parts: parts.map((part) => part.say) })
+    : said("mixedNone", "mixed resource states");
 }
 
 export interface InstanceConfig {
@@ -363,6 +376,7 @@ interface Note {
   subject: string;
   nodes: string[];
   text: string;
+  say?: Say;
   /** A note a resource logged, which the cells point to. */
   fromResource: boolean;
   fix?: NoteFix;
@@ -385,19 +399,28 @@ const LEVEL_TONE: Record<Level, Tone> = { error: "error", warn: "warning", info:
  * The notes of a resource on a node: what it logged, in its order, then its RPO
  * breached, which it does not log.
  */
-function notesOn(rs: ResourceStatus): { level: Level; text: string }[] {
-  const l = (rs.log ?? []).map((e) => ({ level: toLevel(e.level), text: e.message ?? "" }));
+function notesOn(rs: ResourceStatus): { level: Level; text: string; say?: Say }[] {
+  const l: { level: Level; text: string; say?: Say }[] = (rs.log ?? []).map((e) => ({ level: toLevel(e.level), text: e.message ?? "" }));
   if (isPast(rs.rpo_breached_at)) {
     const at = rs.rpo_breached_at as string;
+    const since = new Date(at).toISOString().replace(/\.\d+Z$/, "Z");
     l.push({
       level: "error",
-      text:
-        Date.parse(at) === 0
-          ? "rpo breached: no copy was ever received here, and taking over here would lose all the data"
-          : `rpo breached since ${new Date(at).toISOString().replace(/\.\d+Z$/, "Z")}: the copy here is older than the max delay of the resource allows, and taking over here would lose more data`,
+      ...(Date.parse(at) === 0
+        ? said("rpoNever", "rpo breached: no copy was ever received here, and taking over here would lose all the data")
+        : said(
+            "rpoSince",
+            `rpo breached since ${since}: the copy here is older than the max delay of the resource allows, and taking over here would lose more data`,
+            { at: since },
+          )),
     });
   }
   return l;
+}
+
+/** A note of the board: its text in English, and the key and values the page says it by. */
+function said(key: string, text: string, values?: Say["values"], count?: number): { text: string; say: Say } {
+  return { text, say: { key, ...(values ? { values } : {}), ...(count === undefined ? {} : { count }) } };
 }
 
 /**
@@ -408,7 +431,7 @@ function notesOn(rs: ResourceStatus): { level: Level; text: string }[] {
  */
 export function resourceNotes(byNode: readonly (readonly [string, ResourceStatus])[]): RowNote[] {
   const rank: Record<Level, number> = { error: 0, warn: 1, info: 2 };
-  const groups = new Map<string, { level: Level; text: string; nodes: string[]; at: number }>();
+  const groups = new Map<string, { level: Level; text: string; say?: Say; nodes: string[]; at: number }>();
   for (const [node, rs] of byNode) {
     for (const n of notesOn(rs)) {
       const key = `${n.level}\0${n.text}`;
@@ -424,6 +447,7 @@ export function resourceNotes(byNode: readonly (readonly [string, ResourceStatus
       marker: "",
       level: g.level,
       text: g.text,
+      ...(g.say ? { say: g.say } : {}),
       nodes: total <= 1 ? "" : g.nodes.length === total ? "all" : g.nodes.join(" "),
     }));
 }
@@ -610,11 +634,11 @@ export function buildBoard(digest: Digest): Board {
 
   const notes: Note[] = [];
   const noteByKey = new Map<string, Note>();
-  const noteOf = (rid: string, node: string, level: Level, text: string): Note => {
+  const noteOf = (rid: string, node: string, level: Level, text: string, say?: Say): Note => {
     const key = `${rid}\0${level}\0${text}`;
     let n = noteByKey.get(key);
     if (n === undefined) {
-      n = { id: notes.length, marker: "", level, subject: rid, nodes: [], text, fromResource: true };
+      n = { id: notes.length, marker: "", level, subject: rid, nodes: [], text, ...(say ? { say } : {}), fromResource: true };
       noteByKey.set(key, n);
       notes.push(n);
     }
@@ -739,7 +763,7 @@ export function buildBoard(digest: Digest): Board {
       const pieces: Piece[] = [statusIcon(rs.status)];
       const f = flags(rid, s, rs);
       if (f.length > 0) pieces.push(span(" "), ...f);
-      const refs = notesOn(rs).map((n) => noteOf(rid, node, n.level, n.text));
+      const refs = notesOn(rs).map((n) => noteOf(rid, node, n.level, n.text, n.say));
       const unique = refs.filter((n, i) => refs.indexOf(n) === i);
       if (unique.length > 0) pieces.push(span(" "), { notes: unique });
       return pieces;
@@ -817,8 +841,8 @@ export function buildBoard(digest: Digest): Board {
   }
 
   // The notes about the object and its instances, which no resource marker points to.
-  const add = (level: Level, subject: string, about: string[], text: string, fix?: NoteFix) => {
-    notes.push({ id: notes.length, marker: "", level, subject, nodes: about, text, fromResource: false, ...(fix ? { fix } : {}) });
+  const add = (level: Level, subject: string, about: string[], { text, say }: { text: string; say: Say }, fix?: NoteFix) => {
+    notes.push({ id: notes.length, marker: "", level, subject, nodes: about, text, say, fromResource: false, ...(fix ? { fix } : {}) });
   };
   /** The action on the instances of these nodes, on the object when they are all of them. */
   const fixOn = (action: NoteFix["action"], about: string[]): NoteFix => ({
@@ -833,18 +857,22 @@ export function buildBoard(digest: Digest): Board {
       "children",
       [],
       up.length === 1
-        ? `down while its child ${up[0] ?? ""} is up: the child needs the vol`
-        : `down while its children ${up.join(", ")} are up: they need the vol`,
+        ? said("childUp", `down while its child ${up[0] ?? ""} is up: the child needs the vol`, { child: up[0] ?? "" })
+        : said("childrenUp", `down while its children ${up.join(", ")} are up: they need the vol`, { children: up.join(", ") }),
     );
   }
-  if (children === "down") add("info", "children", [], "children are down");
-  if (children === "none") add("info", "children", [], "no children");
+  if (children === "down") add("info", "children", [], said("childrenDown", "children are down"));
+  if (children === "none") add("info", "children", [], said("noChildren", "no children"));
   if (excess > 0) {
     add(
       "error",
       "instances",
       nodesWith((s) => s.status?.avail === "up"),
-      `${up} instances up, ${obj.topology ?? ""} allows ${allowed}: the shared resources may be written by several nodes at once. Stop the instances in excess.`,
+      said(
+        "excess",
+        `${up} instances up, ${obj.topology ?? ""} allows ${allowed}: the shared resources may be written by several nodes at once. Stop the instances in excess.`,
+        { up, topology: obj.topology ?? "", allowed },
+      ),
     );
   }
   if (actor && obj.placement_state === "non-optimal") {
@@ -854,55 +882,56 @@ export function buildBoard(digest: Digest): Board {
       "placement",
       [],
       leaders.length > 0
-        ? `non-optimal: the placement policy prefers ${leaders.join(" ")}`
-        : "non-optimal: the instances are not running on the nodes the placement policy prefers",
+        ? said("nonOptimalPrefers", `non-optimal: the placement policy prefers ${leaders.join(" ")}`, { nodes: leaders.join(" ") })
+        : said("nonOptimal", "non-optimal: the instances are not running on the nodes the placement policy prefers"),
     );
   }
   const hasResourceIssue = [...noteByKey.values()].some((n) => n.level !== "info");
   if (actor && obj.overall === "warn" && !hasResourceIssue) {
     // The mix that makes it warn, said node by node, the nodes of a same mix together.
-    const byText = new Map<string, string[]>();
+    const byText = new Map<string, { say: Say; about: string[] }>();
     for (const node of nodesWith((s) => s.status?.overall === "warn")) {
-      const text = mixedStates(stateOf(node).status);
-      byText.set(text, [...(byText.get(text) ?? []), node]);
+      const { text, say } = mixed(stateOf(node).status);
+      byText.set(text, { say, about: [...(byText.get(text)?.about ?? []), node] });
     }
-    for (const [text, about] of byText) add("warn", "overall", about, text);
+    for (const [text, { say, about }] of byText) add("warn", "overall", about, { text, say });
   }
-  if (digest.isCompat === false) add("error", "agents", [], "the nodes run incompatible agent versions");
+  if (digest.isCompat === false) add("error", "agents", [], said("incompatible", "the nodes run incompatible agent versions"));
   const noMonitor = nodesWith((s) => isZeroTime(s.monitor?.updated_at));
   if (noMonitor.length > 0)
-    add("warn", "monitor", noMonitor, "no instance monitor: the daemon is down, or has not started monitoring the instance");
+    add("warn", "monitor", noMonitor, said("noMonitor", "no instance monitor: the daemon is down, or has not started monitoring the instance"));
   for (const node of nodesWith((s) => (s.monitor?.state ?? "").endsWith("failed"))) {
-    add("error", "monitor", [node], `${stateOf(node).monitor?.state ?? ""}: the orchestration gave up, clear the instance to retry`, {
+    const state = stateOf(node).monitor?.state ?? "";
+    add("error", "monitor", [node], said("gaveUp", `${state}: the orchestration gave up, clear the instance to retry`, { state }), {
       action: "clear",
       nodes: [node],
     });
   }
   const frozen = nodesWith(isFrozen);
-  if (frozen.length > 0) add("info", "frozen", frozen, "the daemon takes no initiative on the instance", fixOn("unfreeze", frozen));
+  if (frozen.length > 0) add("info", "frozen", frozen, said("frozen", "the daemon takes no initiative on the instance"), fixOn("unfreeze", frozen));
   const nodeFrozen = nodes.filter((n) => frozenNodes.has(n) && states[n] !== undefined);
   if (nodeFrozen.length > 0)
-    add("info", "node frozen", nodeFrozen, "the daemon takes no initiative on the instances of the node");
+    add("info", "node frozen", nodeFrozen, said("nodeFrozen", "the daemon takes no initiative on the instances of the node"));
   const stopped = nodesWith(isStopped);
   // Started where the topology allows it: a failover object by its orchestration,
   // down, its stopped instance left alone while another runs it.
   const startFix =
     obj.topology === "flex" ? fixOn("start", stopped) : obj.avail !== "up" ? { action: "start" as const, nodes: [] } : undefined;
-  if (stopped.length > 0) add("info", "stopped", stopped, "stopped on purpose: the daemon does not start it back", startFix);
+  if (stopped.length > 0) add("info", "stopped", stopped, said("stopped", "stopped on purpose: the daemon does not start it back"), startFix);
   const unprovisioned = nodesWith((s) => runs(s) && isUnprovisioned(s));
-  if (unprovisioned.length > 0) add("error", "provisioned", unprovisioned, "the instance is not provisioned, or partly", fixOn("provision", unprovisioned));
+  if (unprovisioned.length > 0) add("error", "provisioned", unprovisioned, said("unprovisioned", "the instance is not provisioned, or partly"), fixOn("provision", unprovisioned));
 
   // The notes by level, errors first; the same text at the same level shares a
   // group, and a group with a resource note gets a marker, which its cells show.
   const rank: Record<Level, number> = { error: 0, warn: 1, info: 2 };
   const sorted = notes.map((n, i) => ({ n, i })).sort((a, b) => rank[a.n.level] - rank[b.n.level] || a.i - b.i).map((x) => x.n);
-  const groups: { level: Level; text: string; notes: Note[]; fix?: NoteFix }[] = [];
+  const groups: { level: Level; text: string; say?: Say; notes: Note[]; fix?: NoteFix }[] = [];
   const byText = new Map<string, (typeof groups)[number]>();
   for (const n of sorted) {
     const key = `${n.level}\0${n.text}`;
     let g = byText.get(key);
     if (g === undefined) {
-      g = { level: n.level, text: n.text, notes: [] };
+      g = { level: n.level, text: n.text, ...(n.say ? { say: n.say } : {}), notes: [] };
       byText.set(key, g);
       groups.push(g);
     }
@@ -928,7 +957,13 @@ export function buildBoard(digest: Digest): Board {
     l.filter((n, i) => l.indexOf(n) === i).sort((a, b) => (position.get(a) ?? 0) - (position.get(b) ?? 0));
   const nodesText = (l: string[]) =>
     l.length === 0 ? "" : l.length === nodes.length && nodes.length > 1 ? "all" : l.join(" ");
-  const toRowNote = (n: Note): RowNote => ({ marker: n.marker, level: n.level, text: n.text, nodes: nodesText(n.nodes) });
+  const toRowNote = (n: Note): RowNote => ({
+    marker: n.marker,
+    level: n.level,
+    text: n.text,
+    ...(n.say ? { say: n.say } : {}),
+    nodes: nodesText(n.nodes),
+  });
   const resolve = (pieces: Piece[]): Text =>
     pieces.flatMap((p) => {
       if (!isRef(p)) return [p];
@@ -988,6 +1023,7 @@ export function buildBoard(digest: Digest): Board {
     notes: listed.map((g) => ({
       level: g.level,
       text: g.text,
+      ...(g.say ? { say: g.say } : {}),
       ...(g.fix ? { fix: g.fix } : {}),
       heads: g.notes.map((n, i) => ({
         // The first head of an entry has its marker, or a dot for a note no cell points to.

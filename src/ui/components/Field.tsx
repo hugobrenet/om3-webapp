@@ -37,7 +37,13 @@ export const Checkbox = forwardRef<
   Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & { label?: ReactNode }
 >(function Checkbox({ label, className, ...props }, ref) {
   const box = (
-    <input ref={ref} type="checkbox" className={cn("h-4 w-4 accent-(--accent)", className)} {...props} />
+    // Disabled, dimmed: the native box barely changes in dark mode, a disabled one looking enabled.
+    <input
+      ref={ref}
+      type="checkbox"
+      className={cn("h-4 w-4 accent-(--accent) disabled:cursor-not-allowed disabled:opacity-40", className)}
+      {...props}
+    />
   );
   if (label === undefined) return box;
   return (

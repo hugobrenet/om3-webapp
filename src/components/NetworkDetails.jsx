@@ -11,7 +11,10 @@ import {Button} from "../ui/components/Button";
 import {Input} from "../ui/components/Field";
 import {Spinner} from "../ui/components/Spinner";
 import {ChevronDownIcon} from "../ui/icons";
+import {cn} from "../ui/cn";
+import {filtersOnClass} from "./FilterRail";
 import {CrossLink} from "../app/CrossLink";
+import {useNetworkChanges} from "./NetworkPanel";
 
 /**
  * The addresses of a network. A page of its own under its route, or, `embedded`, the
@@ -32,6 +35,7 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
     const params = useParams();
     const networkName = name ?? params.networkName;
     const containerRef = useRef(null);
+    const changes = useNetworkChanges();
 
     // Scroll to top on component mount and when networkName changes
     useEffect(() => {
@@ -43,9 +47,13 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
 
     useEffect(() => {
         let isMounted = true;
+        // Read again: no spinner, a failure keeping what was read, said only when nothing was.
+        const again = changes > 0;
         const fetchIpDetails = async () => {
-            setIsLoading(true);
-            setError(false);
+            if (!again) {
+                setIsLoading(true);
+                setError(false);
+            }
             try {
                 const token = localStorage.getItem("authToken");
                 const res = await axios.get(URL_NETWORK_IP, {
@@ -58,6 +66,7 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
                     (item) => item.network?.name === networkName
                 );
                 if (isMounted) {
+                    setError(false);
                     setIpDetails(filteredItems);
                     setNetworkType(
                         filteredItems.length > 0
@@ -67,7 +76,7 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
                 }
             } catch (err) {
                 logger.error("Error retrieving network IP details", err);
-                if (isMounted) {
+                if (isMounted && !again) {
                     setError(true);
                     setIpDetails([]);
                     setNetworkType(null);
@@ -90,7 +99,7 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
         return () => {
             isMounted = false;
         };
-    }, [networkName]);
+    }, [networkName, changes]);
 
     // Debounced filter handlers
     const debouncedSetNodeFilter = useMemo(
@@ -134,6 +143,7 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
     }, [ipDetails, nodeFilter, pathFilter, ridFilter]);
 
     const notAvailable = t("common.notAvailable");
+    const activeFilters = [nodeFilter, pathFilter, ridFilter].filter((value) => value !== "").length;
 
     return (
         <div ref={containerRef} className={embedded ? "space-y-3" : "p-4 space-y-3"}>
@@ -149,13 +159,18 @@ const NetworkDetails = ({name, embedded = false} = {}) => {
             <div className="flex flex-wrap items-center gap-3 max-md:flex-col max-md:items-stretch max-md:gap-2" data-filters="">
                 <Button
                     size="sm"
-                    className="max-md:self-start"
+                    className={cn("max-md:self-start", filtersOnClass(activeFilters))}
                     onClick={() => setShowFilters(!showFilters)}
                     icon={<ChevronDownIcon className={showFilters ? "rotate-180" : undefined}/>}
-                    aria-label={showFilters ? t("networks.details.hideFilters") : t("networks.details.showFilters")}
+                    aria-label={[
+                        showFilters ? t("networks.details.hideFilters") : t("networks.details.showFilters"),
+                        activeFilters > 0 ? t("objects.filters.active", {count: activeFilters}) : null,
+                    ].filter(Boolean).join(" · ")}
                     aria-expanded={showFilters}
                 >
                     {showFilters ? t("networks.details.hideFilters") : t("networks.details.showFilters")}
+                    {/* Hidden, the filters on said all the same: the list is not whole. */}
+                    {activeFilters > 0 && <span aria-hidden="true" className="text-accent tabular-nums">{activeFilters}</span>}
                 </Button>
                 {showFilters && [
                     ["node", t("common.node"), nodeFilter, debouncedSetNodeFilter],

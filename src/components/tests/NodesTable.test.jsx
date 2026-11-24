@@ -38,7 +38,8 @@ const {
 }));
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
-vi.mock('../NodeRow.jsx', () => ({
+vi.mock('../NodeRow.jsx', async (importOriginal) => ({
+    ...(await importOriginal()),
     default: (props) => (
         <tr data-testid={`row-${props.nodename}`}>
             <td><input type="checkbox" aria-label={`select ${props.nodename}`} checked={props.isSelected} onChange={(e) => props.onSelect(e, props.nodename)}/>
@@ -131,6 +132,26 @@ vi.mock('../../eventSourceManager', () => ({
     closeLoggerEventSource: mockCloseLoggerEventSource,
 }));
 
+// The changes of the configurations of the nodes and the cluster, counted here: a test makes them go up.
+const mockLive = vi.hoisted(() => ({counts: {node: 0, cluster: 0}, listeners: new Set()}));
+const bump = (change) => act(() => {
+    change(mockLive.counts);
+    mockLive.listeners.forEach((listener) => listener());
+});
+vi.mock('../../hooks/useLiveChanges', async (importOriginal) => {
+    const {useSyncExternalStore} = await import('react');
+    const subscribe = (listener) => {
+        mockLive.listeners.add(listener);
+        return () => mockLive.listeners.delete(listener);
+    };
+    const use = (read) => useSyncExternalStore(subscribe, () => read(mockLive.counts));
+    return {
+        ...(await importOriginal()),
+        useNodeConfigChanges: () => use((c) => c.node),
+        useClusterConfigChanges: () => use((c) => c.cluster),
+    };
+});
+
 vi.mock('../../utils/logger', () => ({
     default: mockLogger,
 }));
@@ -175,6 +196,7 @@ describe('NodesTable', () => {
         });
 
         localStorage.setItem('authToken', 'test-token');
+        mockLive.counts = {node: 0, cluster: 0};
         useActionTracker.setState({tracked: [], revealed: 0});
         vi.clearAllMocks();
     });
@@ -218,6 +240,55 @@ describe('NodesTable', () => {
             expect(await screen.findByTestId('row-node-4')).toBeInTheDocument();
             expect(screen.getByTestId('row-node-1')).toBeInTheDocument();
             expect(mockRetainEventReception.mock.calls[0][1]).toContain('NodeMonitorDeleted');
+        } finally {
+            mockClusterOrder.value = null;
+        }
+    });
+
+    test('a node that reports nothing is not selected by all, nor by a range, nor acted on', async () => {
+        // node-0 and node-4, of the cluster configuration, report nothing: first and last of the list.
+        mockClusterOrder.value = ['node-0', 'node-1', 'node-2', 'node-3', 'node-4'];
+        global.fetch = vi.fn().mockResolvedValue({ok: true, json: async () => ({})});
+        try {
+            renderWithRouter(<NodesTable/>);
+            await screen.findByTestId('row-node-4');
+            const all = screen.getByRole('checkbox', {name: 'Select all nodes'});
+            fireEvent.click(all);
+            expect(screen.getByText('3 selected')).toBeInTheDocument();
+            expect(all).toBeChecked();
+            expect(screen.getByRole('checkbox', {name: 'select node-0'})).not.toBeChecked();
+            expect(screen.getByRole('checkbox', {name: 'select node-4'})).not.toBeChecked();
+            fireEvent.click(all);
+            // A range over the "?" lines: the nodes that report alone.
+            fireEvent.click(screen.getByRole('checkbox', {name: 'select node-1'}));
+            fireEvent.click(screen.getByRole('checkbox', {name: 'select node-3'}), {shiftKey: true});
+            expect(screen.getByText('3 selected')).toBeInTheDocument();
+            fireEvent.click(all);
+            fireEvent.click(all);
+            fireEvent.click(screen.getByRole('button', {name: 'Actions'}));
+            fireEvent.click(await screen.findByRole('menuitem', {name: /^Freeze$/i}));
+            fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
+            await waitFor(() => expect(actionPosts()).toHaveLength(3));
+            expect(actionPosts().map(([url]) => url).join(' ')).not.toMatch(/node-0|node-4/);
+        } finally {
+            mockClusterOrder.value = null;
+        }
+    });
+
+    test('a node selected that stops reporting leaves the selection', async () => {
+        const store = setStore();
+        const {rerender} = renderWithRouter(<NodesTable/>);
+        fireEvent.click(await screen.findByRole('checkbox', {name: 'select node-1'}));
+        fireEvent.click(screen.getByRole('checkbox', {name: 'select node-2'}));
+        expect(screen.getByText('2 selected')).toBeInTheDocument();
+        mockClusterOrder.value = ['node-1', 'node-2', 'node-3'];
+        try {
+            const {['node-2']: _s, ...nodeStatus} = store.nodeStatus;
+            const {['node-2']: _t, ...nodeStats} = store.nodeStats;
+            const {['node-2']: _m, ...nodeMonitor} = store.nodeMonitor;
+            setStore({nodeStatus, nodeStats, nodeMonitor});
+            rerender(<BrowserRouter><NodesTable/></BrowserRouter>);
+            await waitFor(() => expect(screen.getByText('1 selected')).toBeInTheDocument());
         } finally {
             mockClusterOrder.value = null;
         }
@@ -334,6 +405,36 @@ describe('NodesTable', () => {
         await waitFor(() => expect(order()).toEqual(['node-2', 'node-1', 'node-3']));
         fireEvent.click(screen.getByRole('button', {name: /^Labels/}));
         await waitFor(() => expect(order()).toEqual(['node-2', 'node-3', 'node-1']));
+    });
+
+    test('the env and the labels read again as the configuration of a node or of the cluster changes, the filters kept; a failed read keeps them', async () => {
+        let info = {
+            'node-1': {env: 'PRD', labels: {zone: 'b'}},
+            'node-2': {env: 'DEV', labels: {}},
+            'node-3': {env: 'PRD', labels: {}},
+        };
+        let refuse = false;
+        global.fetch = vi.fn(async () => (refuse ? {ok: false, status: 500, json: async () => ({})} : {ok: true, json: async () => structuredClone(info)}));
+        renderWithRouter(<NodesTable/>);
+        await screen.findByText('node-1');
+        await waitFor(() => expect(screen.getByRole('checkbox', {name: /^PRD/})).toBeInTheDocument());
+        fireEvent.click(screen.getByRole('checkbox', {name: /^PRD/}));
+        const shown = () => screen.queryAllByTestId(/^row-/).map((row) => row.dataset.testid);
+        await waitFor(() => expect(shown()).toEqual(['row-node-1', 'row-node-3']));
+        info = {...info, 'node-3': {env: 'DEV', labels: {zone: 'a'}}};
+        bump((c) => {
+            c.node += 1;
+        });
+        await waitFor(() => expect(shown()).toEqual(['row-node-1']));
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(screen.getByRole('checkbox', {name: /^PRD/})).toBeChecked();
+        refuse = true;
+        bump((c) => {
+            c.cluster += 1;
+        });
+        await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(3));
+        await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+        expect(shown()).toEqual(['row-node-1']);
     });
 
     test('renders all node names', async () => {

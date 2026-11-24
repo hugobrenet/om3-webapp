@@ -121,10 +121,23 @@ export const useActionTracker = create<TrackerState>((set) => ({
   },
 }));
 
+/**
+ * The orchestrations seen ended, by their id: a monitor still saying one a moment
+ * after its end, or after it was dismissed, follows it no more (observeMonitors).
+ */
+const endedIds = new Set<string>();
+const MAX_ENDED_IDS = 1000;
+
 const update = (id: string, change: Partial<Tracked>) => {
   useActionTracker.setState((s) => ({
     tracked: s.tracked.map((t) => (t.id === id ? { ...t, ...change } : t)),
   }));
+  if (change.state !== undefined && change.state !== "running") {
+    const ended = useActionTracker.getState().tracked.find((t) => t.id === id);
+    if (ended?.followedId !== undefined) endedIds.add(ended.followedId);
+    // The oldest forgotten: their monitors long done with them.
+    if (endedIds.size > MAX_ENDED_IDS) endedIds.delete(endedIds.values().next().value as string);
+  }
 };
 
 const isLive = (id: string) => useActionTracker.getState().tracked.some((t) => t.id === id);
@@ -339,7 +352,7 @@ async function waitEnd<T extends { state: string }>(
   read: () => Promise<Answer>,
   id: string,
   { queued = false, seen }: { queued?: boolean; seen?: () => void } = {},
-): Promise<T | { lost: string }> {
+): Promise<T | { lost: string } | { forbidden: true }> {
   let errors = 0;
   // Queued, its monitor has yet to read it: unknown by its id until then.
   let unseenSince = queued ? Date.now() : null;
@@ -350,6 +363,8 @@ async function waitEnd<T extends { state: string }>(
       const response = await read();
       // A daemon holding it all the same (a wait run out): read again.
       if (response.status === 408) continue;
+      // A user the daemon lets read none (root only): read again, refused again.
+      if (response.status === 401 || response.status === 403) return { forbidden: true };
       if (response.status === 410) {
         // Ended long ago and dropped: how it went is no longer known.
         if (unseenSince === null) return { lost: "gone" };
@@ -408,10 +423,16 @@ async function followOrchestration(id: string, orchestrationId: string, node: st
       update(id, { queued: false });
     },
   });
+  if ("forbidden" in end) {
+    // Its end said by its event alone, or, missed, by its monitors (observeMonitors).
+    unread.add(id);
+    checkUnread();
+  }
   running = false;
   stop();
   await stepsLoop;
-  if (!isLive(id)) return;
+  // Its runs refused as it was: read no more.
+  if (!isLive(id) || "forbidden" in end) return;
   await refreshSteps();
   // Ended meanwhile by the event saying so (observeOrchestration).
   if (!isRunning(id)) return;
@@ -427,6 +448,10 @@ async function followExec(id: string, execId: string, node: string) {
   const url = daemonUrl(node, `exec/id/${encodeURIComponent(execId)}`);
   const end = await waitEnd<ExecItem>(() => pacedFetch(url, { headers: headers() }), id);
   if (!isLive(id)) return;
+  if ("forbidden" in end) {
+    update(id, { state: "unknown", error: "HTTP 403", endedAt: Date.now() });
+    return;
+  }
   if ("lost" in end) {
     update(id, { state: "unknown", error: end.lost || undefined, endedAt: Date.now() });
     return;
@@ -931,4 +956,98 @@ export async function followRunningOrchestrations() {
   } catch {
     // The events say the next ones.
   }
+}
+
+/** What a monitor, of an instance or of a node, says of the orchestration it runs. */
+export interface MonitorOrchestration {
+  /** The object of an instance monitor; none for a node monitor. */
+  path?: string;
+  node: string;
+  globalExpect?: string | null;
+  orchestrationId?: string | null;
+  /** Since when it expects it: when the orchestration started. */
+  since?: string | null;
+  /** Its part of the orchestration done, the others' to end it. */
+  done?: boolean;
+}
+
+const NIL_ID = "00000000-0000-0000-0000-000000000000";
+
+/** The orchestration the monitor runs, if it runs one. */
+const runningId = (monitor: MonitorOrchestration) =>
+  monitor.globalExpect && monitor.globalExpect !== "none" && monitor.orchestrationId && monitor.orchestrationId !== NIL_ID && !monitor.done
+    ? monitor.orchestrationId
+    : null;
+
+/**
+ * The orchestrations followed whose reads the daemon refuses (root only): their end
+ * said by their event, `…OrchestrationEnd`, the entry ids.
+ */
+const unread = new Set<string>();
+/** The monitors last said by the stream of the cluster. */
+let lastMonitors: MonitorOrchestration[] = [];
+/** The orchestrations unread no monitor runs any more, the check of their end due. */
+const unseen = new Map<string, ReturnType<typeof setTimeout>>();
+/**
+ * How long an orchestration unread no monitor runs any more waits for the event of
+ * its end, which the daemon sends after the monitors let it go: not come by then
+ * (missed, the stream closed meanwhile), it ended unknown how.
+ */
+export const END_EVENT_GRACE_MS = 15_000;
+
+const carried = (orchestrationId: string | undefined) =>
+  orchestrationId !== undefined && lastMonitors.some((monitor) => runningId(monitor) === orchestrationId);
+
+function checkUnread() {
+  for (const id of [...unread]) {
+    const entry = useActionTracker.getState().tracked.find((t) => t.id === id);
+    if (entry?.state !== "running") {
+      unread.delete(id);
+      clearTimeout(unseen.get(id));
+      unseen.delete(id);
+      continue;
+    }
+    if (carried(entry.followedId)) {
+      clearTimeout(unseen.get(id));
+      unseen.delete(id);
+      continue;
+    }
+    if (unseen.has(id)) continue;
+    unseen.set(
+      id,
+      setTimeout(() => {
+        unseen.delete(id);
+        const still = useActionTracker.getState().tracked.find((t) => t.id === id);
+        if (still?.state !== "running" || carried(still.followedId)) return;
+        unread.delete(id);
+        update(id, { state: "unknown", error: "gone", endedAt: Date.now() });
+      }, END_EVENT_GRACE_MS),
+    );
+  }
+}
+
+/**
+ * The orchestrations the monitors of the cluster run, as the stream of the cluster
+ * says them, its cache first: those running before the page opened, or while its
+ * stream was closed, followed as the others, whatever the user may read (the list
+ * of the daemon, followRunningOrchestrations, is root's only). An object's said by
+ * each of its instances, followed once; a node's by its node. Those followed unread
+ * that no monitor runs any more ended, their end event missed (checkUnread).
+ */
+export function observeMonitors(monitors: MonitorOrchestration[]) {
+  lastMonitors = monitors;
+  for (const monitor of monitors) {
+    const orchestrationId = runningId(monitor);
+    if (!orchestrationId || endedIds.has(orchestrationId) || followed(orchestrationId)) continue;
+    const started = monitor.since ? Date.parse(monitor.since) : NaN;
+    follow({
+      orchestrationId,
+      action: expectAction(monitor.globalExpect),
+      subject: monitor.path || monitor.node,
+      // An object's answered for by any node; a node's by itself.
+      ...(monitor.path ? { path: monitor.path } : { node: monitor.node }),
+      ...(Number.isNaN(started) ? {} : { startedAt: started }),
+    });
+  }
+  checkUnread();
 }

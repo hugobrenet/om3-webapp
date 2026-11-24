@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {useTranslation} from "react-i18next";
 import useEventStore from "../hooks/useEventStore.js";
 import {apiFetch, authHeaders, getResponseErrorMessage, problemOf} from "../services/api.jsx";
@@ -15,6 +15,7 @@ import {Spinner} from "../ui/components/Spinner";
 import {RelativeTime} from "../ui/components/RelativeTime";
 import {Table, HeaderRow, HeaderCell, Row, Cell, EmptyRow} from "../ui/components/Table";
 import {RefreshIcon} from "../ui/icons";
+import {useStoreChanges} from "./StorePanel";
 
 /*
  * The snapshots of the sync resources of an object, as `om <path> sync snapshot
@@ -68,21 +69,27 @@ export function ObjectSnapshots({path}) {
     const [reads, setReads] = useState(0);
     const reload = useCallback(() => setReads((n) => n + 1), []);
     const [restoring, setRestoring] = useState(null);
+    // Read again as runs and prunes change them, quietly: the same node, read already, nothing asked.
+    const changes = useStoreChanges();
+    const shown = useRef(null);
 
     useEffect(() => {
         if (node === "") return undefined;
         let live = true;
-        setState((s) => ({...s, loading: true, error: ""}));
+        const key = `${path} ${node} ${reads}`;
+        const again = shown.current === key;
+        if (!again) setState((s) => ({...s, loading: true, error: ""}));
         apiFetch(instanceUrl(path, node, "sync/snapshots"), {headers: authHeaders(), cache: "no-cache"})
             .then((body) => {
                 if (!live) return;
+                shown.current = key;
                 // Each item holds its snapshot in its data, the node asked in its meta.
                 // The latest first: the one a restore is most often asked from.
                 const snapshots = (body?.items ?? []).map((item) => item?.data ?? {}).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
                 setState({snapshots, error: "", unsupported: false, loading: false});
             })
             .catch((err) => {
-                if (!live) return;
+                if (!live || again) return;
                 setState({
                     snapshots: null,
                     error: unsupported(err) ? "" : refusalReason({status: err.status, detail: problemOf(err) || err.message}),
@@ -93,7 +100,7 @@ export function ObjectSnapshots({path}) {
         return () => {
             live = false;
         };
-    }, [path, node, reads]);
+    }, [path, node, reads, changes]);
 
     if (nodes.length === 0) return <p className="text-ink-muted">{t("snapshots.noStore")}</p>;
 

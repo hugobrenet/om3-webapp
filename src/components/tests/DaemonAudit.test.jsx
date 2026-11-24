@@ -6,7 +6,8 @@ import useEventStore from '../../hooks/useEventStore.js';
 
 const mockGrants = vi.hoisted(() => ({value: {root: null}}));
 vi.mock('../../hooks/useGrants', () => ({
-    useIsRoot: () => Object.prototype.hasOwnProperty.call(mockGrants.value, 'root'),
+    // Undefined, the grants not read yet.
+    useIsRoot: () => (mockGrants.value === undefined ? undefined : Object.prototype.hasOwnProperty.call(mockGrants.value, 'root')),
 }));
 
 /** A record of the stream, as the daemon writes it. */
@@ -140,6 +141,8 @@ describe('DaemonAudit', () => {
         fireEvent.click(screen.getByRole('button', {name: 'Start'}));
         await waitFor(() => expect(requests).toHaveLength(1));
         expect(requests[0].url).toBe('/api/node/name/n1/daemon/audit?level=debug');
+        // Said in words, not its key.
+        expect(screen.getByRole('status')).toHaveTextContent('Auditing every subsystem, from debug');
     });
 
     test('refused while another runs: said, and taken over on demand, preempting it', async () => {
@@ -186,6 +189,14 @@ describe('DaemonAudit', () => {
         await waitFor(() => expect(streams).toHaveLength(1));
         unmount();
         expect(fetch.mock.calls[0][1].signal.aborted).toBe(true);
+    });
+
+    test('the grants not read yet: waited for, root only not said, no audit offered', () => {
+        mockGrants.value = undefined;
+        render(<DaemonAudit node="n1"/>);
+        expect(screen.getByRole('status', {name: 'Reading your grants'})).toBeInTheDocument();
+        expect(screen.queryByText('Auditing the daemon needs the root grant.')).toBeNull();
+        expect(screen.queryByRole('button', {name: 'Start'})).not.toBeInTheDocument();
     });
 
     test('root only: said, no audit offered', () => {

@@ -16,9 +16,18 @@ export function formatSizeMiB(value: number | undefined, locale: string): string
   return `${gib.toLocaleString(locale, { maximumFractionDigits: gib < 10 ? 1 : 0 })} GiB`;
 }
 
+/** A frequency in megahertz, a cpu's: from a gigahertz, in gigahertz, two decimals at most. */
+export function formatMHz(value: number | undefined, locale: string): string {
+  if (value === undefined || value <= 0) return "";
+  if (value < 1000) return `${value.toLocaleString(locale, { maximumFractionDigits: 0 })} MHz`;
+  return `${(value / 1000).toLocaleString(locale, { maximumFractionDigits: 2 })} GHz`;
+}
+
 /** Sizes in bytes, as the om3 daemon gives them: a disk, a region. */
 export function formatBytes(value: number | undefined, locale: string): string {
   if (value === undefined || value <= 0) return "";
+  // Below the kibibyte, in bytes: a key of 31 B shown as "0 KiB" would say it empty.
+  if (value < 1024) return `${value.toLocaleString(locale, { maximumFractionDigits: 0 })} B`;
   // Below the mebibyte, in kibibytes: a DVD drive's 374 KiB shown as "0 MiB" would say nothing.
   if (value < 1024 * 1024) return `${(value / 1024).toLocaleString(locale, { maximumFractionDigits: 0 })} KiB`;
   return formatSizeMiB(Math.round(value / 1024 / 1024), locale);
@@ -130,7 +139,15 @@ export function formatDuration(seconds: number, locale: string): string {
   return parts.join(" ");
 }
 
-/** A percent, with up to two decimals, in the locale. */
-export function formatPercent(value: number, locale: string, digits = 2): string {
-  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(value)} %`;
+/**
+ * A percent (`value` from 0 to 100, past it a cpu's), as the locale writes one: "63.0%"
+ * in English, "63,0 %" in French. `digits` decimals, always (`fixed`, the figures of a
+ * column lined up), or at most.
+ */
+export function formatPercent(value: number, locale: string, digits = 1, fixed = true): string {
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    minimumFractionDigits: fixed ? digits : 0,
+    maximumFractionDigits: digits,
+  }).format(value / 100);
 }

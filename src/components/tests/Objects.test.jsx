@@ -758,20 +758,24 @@ describe('Objects Component', () => {
         expect(within(menu).getByRole('menuitem', {name: 'Restart'}).querySelector('.text-state-down')).toBeNull();
     });
 
-    test('a selection of configurations offers what applies to keys only: abort, delete, purge', async () => {
+    test.each([
+        ['configs', 'test-ns/cfg/conf1'],
+        ['users', 'test-ns/usr/usr1'],
+    ])('a selection of %s offers what applies to keys only: abort, delete, purge', async (list, path) => {
         setup({
             objectStatus: {
                 ...defaultState.objectStatus,
-                'test-ns/cfg/conf1': {avail: 'n/a', frozen: 'unfrozen', provisioned: 'true'},
+                [path]: {avail: 'n/a', frozen: 'unfrozen', provisioned: 'true'},
             },
-        }, '?list=configs');
+        }, `?list=${list}`);
         await waitForLoad();
-        selectRow('test-ns/cfg/conf1');
+        selectRow(path);
         openActionsMenu();
         const menu = await screen.findByRole('menu');
         expect(within(menu).getAllByRole('menuitem').map(entryName)).toEqual(['Abort', 'Delete', 'Purge']);
-        expect(within(menu).getByRole('menuitem', {name: 'Delete'})).toBeEnabled();
-        expect(within(menu).getByRole('menuitem', {name: 'Abort'})).toBeEnabled();
+        for (const name of ['Abort', 'Delete', 'Purge']) {
+            expect(within(menu).getByRole('menuitem', {name})).toBeEnabled();
+        }
     });
 
     test('a selection of secrets offers no purge: a secret is deleted', async () => {
@@ -904,6 +908,31 @@ describe('Objects Component', () => {
             expect(headers.slice(1, 5)).toEqual(['Object', 'Orchestrate', 'Topology', 'Status']);
             const kinds = within(filterGroup('Kind')).getAllByRole('checkbox').map(optionText);
             expect(kinds).toEqual(expect.arrayContaining(['ccfg', 'cfg', 'sec', 'svc', 'usr', 'vol']));
+        });
+
+        test('the volumes opened from the services, from the menu: sorted by their size, the columns theirs', async () => {
+            const vols = {
+                objectStatus: {
+                    'test-ns/svc/web': {avail: 'up', frozen: 'unfrozen', provisioned: 'true', orchestrate: 'ha', topology: 'failover'},
+                    'test-ns/vol/big': {avail: 'up', frozen: 'unfrozen', provisioned: 'true', orchestrate: '', topology: 'failover'},
+                    'test-ns/vol/small': {avail: 'up', frozen: 'unfrozen', provisioned: 'true', orchestrate: '', topology: 'failover'},
+                },
+                objectInstanceStatus: {},
+            };
+            const fetch = vi.fn((url) => Promise.resolve({ok: true, json: () => Promise.resolve(String(url).endsWith('/api/pool/volume')
+                ? {items: [{path: 'test-ns/vol/big', size: 4294967296}, {path: 'test-ns/vol/small', size: 104857600}]}
+                : {})}));
+            const {rerender} = setup(vols, '?list=services', {isWideScreen: true, isMobile: false}, {fetch});
+            await waitForLoad();
+            vi.mocked(useLocation).mockReturnValue({search: '?list=volumes', pathname: '/objects'});
+            rerender(<MemoryRouter><Objects/></MemoryRouter>);
+            const header = await screen.findByRole('columnheader', {name: /^Size/});
+            await waitFor(() => expect(within(objectRow('test-ns/vol/big')).getAllByRole('cell').map((c) => c.textContent)).toContain('4 GiB'));
+            fireEvent.click(within(header).getByRole('button'));
+            expect(screen.getByRole('columnheader', {name: /^Size/})).toHaveAttribute('aria-sort', 'ascending');
+            await waitFor(() => expect(objectNamesInOrder()).toEqual(['test-ns/vol/small', 'test-ns/vol/big']));
+            fireEvent.click(within(screen.getByRole('columnheader', {name: /^Size/})).getByRole('button'));
+            await waitFor(() => expect(objectNamesInOrder()).toEqual(['test-ns/vol/big', 'test-ns/vol/small']));
         });
 
         test('another list, opened from the menu, drops the selection', async () => {
@@ -1361,6 +1390,33 @@ describe('Objects Component', () => {
             expect(mockRemoveObjects).toHaveBeenCalledTimes(1);
             expect([...mockRemoveObjects.mock.calls[0][0]].sort())
                 .toEqual(['test-ns/svc/test1', 'test-ns/svc/test2', 'test-ns/svc/test4']);
+        });
+
+        test('a slow action leaves the next selection and its dialog alone when it ends', async () => {
+            setup();
+            await waitForLoad();
+            let answer;
+            global.fetch = vi.fn(() => new Promise((resolve) => {
+                answer = resolve;
+            }));
+            selectRow('test-ns/svc/test1');
+            openActionsMenu();
+            await clickMenuItem('Restart');
+            await confirmDialog();
+            await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+            // The selection let go as the action is confirmed.
+            await waitFor(() => expect(screen.queryByText('1 selected')).not.toBeInTheDocument());
+            // Another object ticked, another action chosen, while the first still runs.
+            selectRow('test-ns/svc/test2');
+            openActionsMenu();
+            await clickMenuItem('Stop');
+            await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+            answer({ok: true, clone: () => ({json: async () => ({orchestration_id: 'o1', node: 'node1'})})});
+            await waitFor(() => expect(tray()).toEqual([['restart', 'test-ns/svc/test1', 'running', null]]));
+            await waitFor(() => expect(mockForceFlush).toHaveBeenCalled());
+            // The first ended: the second dialog and selection kept.
+            expect(screen.getByRole('dialog')).toBeInTheDocument();
+            expect(screen.getByText('1 selected')).toBeInTheDocument();
         });
 
         test('an action refused is said in the actions tray, with its status', async () => {

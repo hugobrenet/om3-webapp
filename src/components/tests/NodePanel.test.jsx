@@ -10,6 +10,7 @@ import node from './fixtures/node-dev3n1.json';
 import daemon from './fixtures/daemon-dev3n1.json';
 import {useActionTracker} from '../../app/action-tracker';
 import {propertyGroups} from '../NodePanel';
+import {thresholdPct} from '../NodeMinAvail';
 import {parseLabel} from '../NodeLabels';
 
 /** What the actions tray holds, the latest first: label, subject, state, reason. */
@@ -38,6 +39,27 @@ vi.mock('../../hooks/useGrants', () => ({
     useGrants: () => mockGrants.value,
     useIsRoot: () => Object.prototype.hasOwnProperty.call(mockGrants.value, 'root'),
 }));
+
+// The changes the views read again on, counted here: a test makes them go up.
+const mockLive = vi.hoisted(() => ({counts: {node: 0, cluster: 0, poll: {}}, listeners: new Set()}));
+const bump = (change) => act(() => {
+    change(mockLive.counts);
+    mockLive.listeners.forEach((listener) => listener());
+});
+vi.mock('../../hooks/useLiveChanges', async (importOriginal) => {
+    const {useSyncExternalStore} = await import('react');
+    const subscribe = (listener) => {
+        mockLive.listeners.add(listener);
+        return () => mockLive.listeners.delete(listener);
+    };
+    const use = (read) => useSyncExternalStore(subscribe, () => read(mockLive.counts));
+    return {
+        ...(await importOriginal()),
+        useNodeConfigChanges: () => use((c) => c.node),
+        useClusterConfigChanges: () => use((c) => c.cluster),
+        usePollTicks: (ms) => use((c) => c.poll[ms] ?? 0),
+    };
+});
 
 vi.mock('../NodeActionDialog', () => ({
     NodeActionDialog: ({pending: pendingAction, onConfirm: handleConfirm, target}) => (pendingAction === null ? null : (
@@ -75,6 +97,7 @@ describe('NodeDetailPanel', () => {
         sessionStorage.clear();
         reloadRecordHistory();
         requests = [];
+        mockLive.counts = {node: 0, cluster: 0, poll: {}};
         config = CONFIG;
         api = structuredClone({...node, ...daemon});
         global.fetch = vi.fn(async (url, options = {}) => {
@@ -223,6 +246,18 @@ describe('NodeDetailPanel', () => {
         expect(node).not.toHaveTextContent('rc40');
     });
 
+    test('the memory in mebibytes as the probe reads it, whatever its name; the cpu frequency in megahertz, gigahertz from one', async () => {
+        api['system/property'].items.push(
+            {data: {name: 'mem_bytes', source: 'probe', title: 'mem bytes', value: 6144, error: ''}},
+            {data: {name: 'cpu_freq', source: 'probe', title: 'cpu freq', value: 2400, error: ''}},
+        );
+        renderPanel();
+        const memory = await within(panel()).findByRole('region', {name: 'Memory'});
+        expect(memory).toHaveTextContent('Size6 GiB');
+        expect(memory).not.toHaveTextContent('KiB');
+        expect(within(panel()).getByRole('region', {name: 'CPU'})).toHaveTextContent('Frequency2.4 GHz');
+    });
+
     test('the last boot an age, its date hovered', async () => {
         // The clock set, the age the same whatever the day the test runs: the
         // timers left real, for the panel to be waited for.
@@ -277,6 +312,36 @@ describe('NodeDetailPanel', () => {
         expect(useActionTracker.getState().tracked[0]).toMatchObject({state: 'succeeded', label: 'Update 3 labels'});
     });
 
+    test('the labels read again as the node or the cluster configuration changes elsewhere, a failure keeping them', async () => {
+        api.config = {items: [{keyword: 'labels.az', value: 'fr1'}]};
+        api['cluster/config'] = {items: [{keyword: 'labels.toto', value: 'tata'}]};
+        renderPanel();
+        const labels = await within(panel()).findByRole('region', {name: /^Labels/});
+        const shown = () => [...labels.querySelectorAll('[data-label]')].map((b) => [...b.children].map((c) => c.textContent).join(' '));
+        await waitFor(() => expect(shown()).toEqual(['az fr1', 'toto tata']));
+        // By om on the node: NodeConfigUpdated.
+        api.config = {items: [{keyword: 'labels.az', value: 'fr2'}, {keyword: 'labels.rack', value: 'r12'}]};
+        bump((c) => {
+            c.node += 1;
+        });
+        await waitFor(() => expect(shown()).toEqual(['az fr2', 'rack r12', 'toto tata']));
+        // In the cluster configuration: ClusterConfigUpdated.
+        api['cluster/config'] = {items: [{keyword: 'labels.toto', value: 'titi'}]};
+        bump((c) => {
+            c.cluster += 1;
+        });
+        await waitFor(() => expect(shown()).toEqual(['az fr2', 'rack r12', 'toto titi']));
+        // A read again failing: what was shown kept.
+        delete api.config;
+        const reads = requests.filter((r) => r.url === '/api/node/name/dev3n1/config').length;
+        bump((c) => {
+            c.node += 1;
+        });
+        await waitFor(() => expect(requests.filter((r) => r.url === '/api/node/name/dev3n1/config').length).toBe(reads + 1));
+        await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+        expect(shown()).toEqual(['az fr2', 'rack r12', 'toto titi']);
+    });
+
     test('the health says the minimum free memory; root sets it, said whether the node would be overloaded, written to its configuration', async () => {
         api.config = {items: [
             {keyword: 'node.min_avail_mem', value: '10', evaluated_text: '10%'},
@@ -301,6 +366,15 @@ describe('NodeDetailPanel', () => {
         fireEvent.change(field, {target: {value: '3Gi'}});
         // 3 GiB of 5.8 GiB: 51%, read as 50% at most.
         expect(dialog).toHaveTextContent('With a minimum of 50%, the node would be overloaded now.');
+        // A percentage as written, as the daemon reads it: not capped.
+        fireEvent.change(field, {target: {value: '80%'}});
+        expect(dialog).toHaveTextContent('With a minimum of 80%, the node would be overloaded now.');
+        // Not a whole percentage from 0 to 100: the daemon would set no minimum.
+        for (const refused of ['12.5%', '120%']) {
+            fireEvent.change(field, {target: {value: refused}});
+            expect(dialog).toHaveTextContent('A whole percentage from 0 to 100, as 10%, or a size, as 2Gi.');
+            expect(within(dialog).getByRole('button', {name: 'Save'})).toBeDisabled();
+        }
         fireEvent.change(field, {target: {value: 'lots'}});
         expect(within(dialog).getByRole('button', {name: 'Save'})).toBeDisabled();
         fireEvent.change(field, {target: {value: '50%'}});
@@ -310,6 +384,48 @@ describe('NodeDetailPanel', () => {
         })));
         await waitFor(() => expect(screen.queryByRole('dialog', {name: 'Minimum free memory of dev3n1'})).toBeNull());
         expect(useActionTracker.getState().tracked[0]).toMatchObject({state: 'succeeded', label: 'Set node.min_avail_mem = 50%'});
+    });
+
+    test('a node that reports nothing offers no action, then does once it reports', async () => {
+        useEventStore.setState({nodeStatus: {}, nodeMonitor: {}, nodeStats: {}});
+        renderPanel();
+        const actions = within(panel()).getByRole('button', {name: 'Node actions'});
+        expect(actions).toBeDisabled();
+        fireEvent.click(actions);
+        expect(screen.queryByRole('menu', {name: 'Node actions'})).toBeNull();
+        act(() => useEventStore.setState({nodeStatus: {dev3n1: {agent: 'v3.0.0-rc46'}}}));
+        expect(within(panel()).getByRole('button', {name: 'Node actions'})).toBeEnabled();
+    });
+
+    test('a minimum of free memory over 50% written as a percentage tints the memory, as the daemon then holds the node overloaded', async () => {
+        api.config = {items: [
+            {keyword: 'node.min_avail_mem', value: '80%', evaluated_text: '80%'},
+            {keyword: 'node.min_avail_swap', value: '', evaluated_text: '10%'},
+        ]};
+        // 60% free: over a minimum read as 50%, under the 80% the daemon holds.
+        useEventStore.setState({nodeStats: {dev3n1: {score: 63, load_15m: 0.39, mem_avail: 60, mem_total: 5920, swap_avail: 0, swap_total: 0}}});
+        renderPanel();
+        const health = within(panel()).getByRole('region', {name: 'Health'});
+        await waitFor(() => expect(health).toHaveTextContent('60% of 5.8 GiB· minimum 80%'));
+        expect(within(health).getByText('60% of 5.8 GiB')).toHaveClass('text-state-warn');
+    });
+
+    test('thresholdPct reads a minimum as the daemon does', () => {
+        // A percentage as is, never capped; a whole number from 0 to 100.
+        expect(thresholdPct('80%', 5920, 50)).toBe(80);
+        expect(thresholdPct('80', 5920, 50)).toBe(80);
+        expect(thresholdPct('0', 5920, 50)).toBe(0);
+        expect(thresholdPct('100%', 5920, 50)).toBe(100);
+        expect(thresholdPct('101%', 5920, 50)).toBeNull();
+        expect(thresholdPct('12.5%', 5920, 50)).toBeNull();
+        // A size, its share of the total, capped.
+        expect(thresholdPct('1g', 4096, 50)).toBe(25);
+        expect(thresholdPct('3g', 4096, 50)).toBe(50);
+        expect(thresholdPct('8g', 4096, 100)).toBe(100);
+        // A size of a total of 0, a node without swap: no minimum; of a total not known: none read.
+        expect(thresholdPct('1g', 0, 100)).toBe(0);
+        expect(thresholdPct('1g', undefined, 100)).toBeNull();
+        expect(thresholdPct('lots', 4096, 50)).toBeNull();
     });
 
     test('its actions stand in the title bar, an accent button the size of the close one, each confirmed then posted', async () => {
@@ -630,6 +746,137 @@ describe('NodeDetailPanel', () => {
         expect(field).toHaveAttribute('placeholder', label);
         expect(field.style.width).toBe(`calc(${label.length}ch + 3.5rem)`);
         expect(field).toHaveClass('min-w-56', 'max-w-full');
+    });
+
+    describe('read again as it changes, the user doing nothing', () => {
+        const reads = (path) => requests.filter((r) => r.method === 'GET' && r.url.split('?')[0] === `/api/node/name/dev3n1/${path}`).length;
+        const tick = (ms) => bump((c) => {
+            c.poll[ms] = (c.poll[ms] ?? 0) + 1;
+        });
+        /** The daemon refusing every read from now on. */
+        const failReads = () => {
+            const answer = global.fetch.getMockImplementation();
+            global.fetch.mockImplementation(async (url, options = {}) => ((options.method ?? 'GET') === 'GET'
+                ? new Response(JSON.stringify({detail: 'down'}), {status: 500})
+                : answer(url, options)));
+        };
+
+        /** A read refused, and what came of it rendered. */
+        const failed = async () => {
+            await waitFor(() => expect(global.fetch.mock.calls.length).toBeGreaterThan(requests.length));
+            await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+        };
+
+        test('the schedules, polled every 30s: their runs read again; a failed read keeps them', async () => {
+            renderPanel('?peek=node:dev3n1&peektab=schedules');
+            await within(panel()).findByRole('table', {name: 'Schedules'});
+            expect(reads('schedule')).toBe(1);
+            api.schedule.items[0].data.action = 'renamed_task';
+            tick(30_000);
+            expect(await within(panel()).findByRole('row', {name: /renamed_task/})).toBeInTheDocument();
+            expect(within(panel()).queryByRole('status')).toBeNull();
+            failReads();
+            tick(30_000);
+            await failed();
+            expect(within(panel()).getByRole('row', {name: /renamed_task/})).toBeInTheDocument();
+            expect(within(panel()).queryByRole('alert')).toBeNull();
+        });
+
+        test('the inventory, polled every 30s and on a change of the node configuration, its filter kept', async () => {
+            renderPanel('?peek=node:dev3n1&peektab=inventory&view=packages');
+            const packages = await within(panel()).findByRole('table', {name: 'Packages'});
+            const search = within(panel()).getByRole('searchbox', {name: 'Filter the packages'});
+            fireEvent.change(search, {target: {value: 'new-pkg'}});
+            api['system/package'] = {items: [...api['system/package'].items, {data: {name: 'new-pkg', version: '2', arch: 'all', type: 'deb'}}]};
+            tick(30_000);
+            await waitFor(() => expect(within(packages).getAllByRole('row').slice(1).map((row) => row.cells[0].textContent)).toEqual(['new-pkg']));
+            expect(search).toHaveValue('new-pkg');
+            const before = reads('system/hardware');
+            bump((c) => {
+                c.node += 1;
+            });
+            await waitFor(() => expect(reads('system/hardware')).toBe(before + 1));
+            failReads();
+            tick(30_000);
+            await failed();
+            expect(within(packages).getAllByRole('row').slice(1).map((row) => row.cells[0].textContent)).toEqual(['new-pkg']);
+        });
+
+        test('the daemon, polled: its zone every 10s, its orchestrations and executions every 30s; a failed read keeps them', async () => {
+            renderPanel('?peek=node:dev3n1&peektab=daemon&view=dns');
+            const zone = await within(panel()).findByRole('table', {name: 'DNS zone'});
+            const before = ['daemon/orchestration', 'daemon/exec', 'daemon/dns/dump'].map(reads);
+            api['daemon/dns/dump'] = {items: [{qname: 'fresh.svc.cluster1.', qtype: 'A', ttl: 60, content: '10.0.0.9'}]};
+            tick(10_000);
+            await waitFor(() => expect(within(zone).getByText('fresh.svc.cluster1.')).toBeInTheDocument());
+            expect(['daemon/orchestration', 'daemon/exec', 'daemon/dns/dump'].map(reads)).toEqual([before[0], before[1], before[2] + 1]);
+            tick(30_000);
+            await waitFor(() => expect(['daemon/orchestration', 'daemon/exec'].map(reads)).toEqual([before[0] + 1, before[1] + 1]));
+            failReads();
+            tick(10_000);
+            await failed();
+            expect(within(zone).getByText('fresh.svc.cluster1.')).toBeInTheDocument();
+            expect(within(panel()).queryByText(/down/)).toBeNull();
+        });
+
+        test('the configuration file, written elsewhere: read again on a change of the node or the cluster configuration, a draft kept', async () => {
+            renderPanel('?peek=node:dev3n1&peektab=config');
+            expect(await within(panel()).findByLabelText('Node configuration file')).toHaveTextContent('env = TST');
+            config = CONFIG.replace('env = TST', 'env = PRD');
+            bump((c) => {
+                c.node += 1;
+            });
+            await waitFor(() => expect(within(panel()).getByLabelText('Node configuration file')).toHaveTextContent('env = PRD'));
+            failReads();
+            bump((c) => {
+                c.cluster += 1;
+            });
+            await failed();
+            expect(within(panel()).getByLabelText('Node configuration file')).toHaveTextContent('env = PRD');
+            expect(within(panel()).queryByRole('alert')).toBeNull();
+        });
+
+        test('an edit of the configuration file keeps its draft while the file changes elsewhere', async () => {
+            renderPanel('?peek=node:dev3n1&peektab=config');
+            await within(panel()).findByLabelText('Node configuration file');
+            fireEvent.click(within(panel()).getByRole('button', {name: 'Edit the configuration file'}));
+            const editor = await within(panel()).findByRole('textbox', {name: 'Node configuration file'});
+            fireEvent.change(editor, {target: {value: `${CONFIG}max_parallel = 4\n`}});
+            config = CONFIG.replace('env = TST', 'env = PRD');
+            const before = reads('config/file');
+            bump((c) => {
+                c.node += 1;
+                c.cluster += 1;
+            });
+            await waitFor(() => expect(reads('config/file')).toBe(before + 1));
+            expect(within(panel()).getByRole('textbox', {name: 'Node configuration file'})).toHaveValue(`${CONFIG}max_parallel = 4\n`);
+        });
+
+        test('the properties and the minimums of the health, read again on a change of the configuration, an edit of the organisation kept', async () => {
+            api.config = {items: [{keyword: 'node.enclosure', value: ''}]};
+            mockGrants.value = {root: null};
+            renderPanel();
+            const hardware = await within(panel()).findByRole('region', {name: 'Hardware'});
+            const properties = reads('system/property');
+            const thresholds = reads('config');
+            api['system/property'].items.push({data: {name: 'loc_city', source: 'config', title: 'loc, city', value: 'Lyon', error: ''}});
+            bump((c) => {
+                c.cluster += 1;
+            });
+            expect(await within(panel()).findByRole('region', {name: 'Location'})).toHaveTextContent('Lyon');
+            // Read again by the health and by the labels.
+            await waitFor(() => expect(reads('config')).toBe(thresholds + 2));
+            expect(reads('system/property')).toBe(properties + 1);
+            fireEvent.click(within(hardware).getByRole('button', {name: 'Edit the organisation properties'}));
+            const enclosure = await within(panel()).findByRole('textbox', {name: 'Enclosure'});
+            fireEvent.change(enclosure, {target: {value: 'rack 12'}});
+            bump((c) => {
+                c.node += 1;
+            });
+            await waitFor(() => expect(reads('system/property')).toBe(properties + 2));
+            expect(within(panel()).getByRole('textbox', {name: 'Enclosure'})).toHaveValue('rack 12');
+            expect(within(panel()).getByRole('region', {name: 'Changes of the organisation properties'})).toHaveTextContent('1 change');
+        });
     });
 
     describe('daemon tab', () => {

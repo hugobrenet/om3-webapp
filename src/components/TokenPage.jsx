@@ -9,6 +9,7 @@ import {Spinner} from "../ui/components/Spinner";
 import {EyeIcon, EyeOffIcon, KeyIcon} from "../ui/icons";
 import {URL_AUTH_WHOAMI, URL_TOKEN} from "../config/apiPath.js";
 import {getResponseErrorMessage} from "../services/api.jsx";
+import {basicAuthorization} from "../utils/basicAuth.js";
 import {useGrants} from "../hooks/useGrants";
 
 /** The lifetime of a token by default: a join one must outlive the drain of the node. */
@@ -56,7 +57,7 @@ const NOT_A_LOGIN = {
  * of the history of the shell.
  */
 export default function TokenPage() {
-    const {t} = useTranslation();
+    const {t, i18n} = useTranslation();
     const [params] = useSearchParams();
     const role = params.get("role") ?? "";
     const [duration, setDuration] = useState(DEFAULT_DURATION[role] ?? "10m");
@@ -99,7 +100,7 @@ export default function TokenPage() {
             const response = await fetch(`${URL_TOKEN}?${query}`, {
                 method: "POST",
                 headers: {
-                    Authorization: useCredentials ? `Basic ${btoa(`${username}:${password}`)}` : `Bearer ${refresh}`,
+                    Authorization: useCredentials ? basicAuthorization(username, password) : `Bearer ${refresh}`,
                 },
             });
             if (!response.ok) {
@@ -203,7 +204,7 @@ export default function TokenPage() {
                     <div className="flex items-center gap-2">
                         <h2 id="token-result" className="font-semibold">{t("tokenPage.token")}</h2>
                         {token.expires && (
-                            <span className="text-data text-ink-muted">{t("tokenPage.expires", {at: new Date(token.expires).toLocaleString()})}</span>
+                            <span className="text-data text-ink-muted">{t("tokenPage.expires", {at: new Date(token.expires).toLocaleString(i18n.language)})}</span>
                         )}
                         <span className="ml-auto flex items-center gap-1">
                             <IconButton label={shown ? t("tokenPage.hide") : t("tokenPage.reveal")} aria-pressed={shown}

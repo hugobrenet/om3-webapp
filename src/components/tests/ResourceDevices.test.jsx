@@ -1,10 +1,16 @@
 import React from 'react';
-import {render, screen, within, fireEvent, waitFor} from '@testing-library/react';
+import {act, render, screen, within, fireEvent, waitFor} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
 import {ResourceDevices, ResourceFiles} from '../ResourceDevices';
 import {devicesUrl, hasDevices, resourceDevices, resourceFileUrl, resourceFiles} from '../../app/resource-devices';
 import useEventStore from '../../hooks/useEventStore';
+import {DEVICES_SETTLE_MS} from '../ResourceDevices';
+
+vi.mock('../../eventSourceManager.jsx', async (importOriginal) => ({
+    ...(await importOriginal()),
+    retainEventReception: vi.fn(() => vi.fn()),
+}));
 
 vi.mock('../../utils/logger.js', () => ({
     default: {error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn()},
@@ -113,6 +119,63 @@ describe('ResourceDevices', () => {
         await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(4));
     });
 
+    describe('read again as the resource changes', () => {
+        const status = (fs1, fs2) => ({'prod/svc/web': {
+            n1: {resources: {'fs#1': {status: fs1}, 'fs#2': {status: fs2}}},
+            n2: {resources: {'fs#1': {status: fs1}, 'fs#2': {status: fs2}}},
+        }});
+
+        beforeEach(() => {
+            useEventStore.setState({objectInstanceStatus: status('up', 'up'), instanceConfig: {}});
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+            act(() => useEventStore.setState({objectInstanceStatus: {}, instanceConfig: {}}));
+        });
+
+        test('its status changing on its nodes: read once settled; another resource changing, nothing read', async () => {
+            vi.useFakeTimers({shouldAdvanceTime: true});
+            let dev = '/dev/sdb';
+            global.fetch = vi.fn((url) => json({items: [device(url.includes('/n1/') ? 'n1' : 'n2', 'fs#1', 'sub', dev)]}));
+            render(<MemoryRouter><ResourceDevices path="prod/svc/web" rid="fs#1" nodes={['n1', 'n2']}/></MemoryRouter>);
+            await waitFor(() => expect(cells(screen.getByRole('table'))).toHaveLength(2));
+            expect(global.fetch).toHaveBeenCalledTimes(2);
+            act(() => useEventStore.setState({objectInstanceStatus: status('up', 'down')}));
+            await act(() => vi.advanceTimersByTimeAsync(DEVICES_SETTLE_MS * 2));
+            expect(global.fetch).toHaveBeenCalledTimes(2);
+            dev = '/dev/sdc';
+            // n1, then n2: one read of each.
+            act(() => useEventStore.setState({objectInstanceStatus: {'prod/svc/web': {...status('down', 'down')['prod/svc/web'], n2: status('up', 'down')['prod/svc/web'].n2}}}));
+            await act(() => vi.advanceTimersByTimeAsync(DEVICES_SETTLE_MS / 2));
+            act(() => useEventStore.setState({objectInstanceStatus: status('down', 'down')}));
+            await act(() => vi.advanceTimersByTimeAsync(DEVICES_SETTLE_MS / 2));
+            expect(global.fetch).toHaveBeenCalledTimes(2);
+            await act(() => vi.advanceTimersByTimeAsync(DEVICES_SETTLE_MS));
+            expect(global.fetch).toHaveBeenCalledTimes(4);
+            await waitFor(() => expect(cells(screen.getByRole('table')).map((row) => row[2])).toEqual(['/dev/sdc', '/dev/sdc']));
+        });
+
+        test('its configuration changing: read again, a node failing keeping what it read, no spinner', async () => {
+            vi.useFakeTimers({shouldAdvanceTime: true});
+            global.fetch = vi.fn((url) => json({items: [device(url.includes('/n1/') ? 'n1' : 'n2', 'fs#1', 'sub', '/dev/sdb')]}));
+            render(<MemoryRouter><ResourceDevices path="prod/svc/web" rid="fs#1" nodes={['n1', 'n2']}/></MemoryRouter>);
+            await waitFor(() => expect(cells(screen.getByRole('table'))).toHaveLength(2));
+            global.fetch = vi.fn((url) => (url.includes('/n2/')
+                ? json({title: 'Internal Server Error', detail: 'boom', status: 500}, 500)
+                : json({items: [device('n1', 'fs#1', 'sub', '/dev/sdd')]})));
+            act(() => useEventStore.setState({instanceConfig: {'prod/svc/web': {n1: {csum: 'b'}}}}));
+            await act(() => vi.advanceTimersByTimeAsync(DEVICES_SETTLE_MS));
+            expect(screen.getByRole('button', {name: 'Read again'})).toBeEnabled();
+            await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+            await waitFor(() => expect(cells(screen.getByRole('table'))).toEqual([
+                ['on n1', 'Sub', '/dev/sdd', 'fs.ext4'],
+                ['on n2', 'Sub', '/dev/sdb', 'fs.ext4'],
+            ]));
+            expect(screen.queryByText(/Could not read the devices/)).toBeNull();
+        });
+    });
+
     test('none: said so; no node holding it: said so, nothing read', async () => {
         global.fetch = vi.fn(() => json({items: []}));
         const {unmount} = render(<MemoryRouter><ResourceDevices path="prod/svc/web" rid="fs#1" nodes={['n1']}/></MemoryRouter>);
@@ -154,6 +217,26 @@ describe('ResourceFiles', () => {
         expect(screen.getByText(/Owner 0:0, mode 644/)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: `Hide ${NAME} on n2`}));
         expect(screen.queryByLabelText(`Content of ${NAME}`)).toBeNull();
+    });
+
+    test('its checksum changing: read again, what was read kept on a failure', async () => {
+        const file = (text) => Promise.resolve({ok: true, status: 200, headers: new Headers(), text: () => Promise.resolve(text)});
+        global.fetch = vi.fn(() => file('/dev/sdb\n'));
+        render(<MemoryRouter><ResourceFiles path="prod/svc/web" rid="disk#1" nodes={['n1']}/></MemoryRouter>);
+        fireEvent.click(screen.getByRole('button', {name: `Show ${NAME} on n1`}));
+        expect((await screen.findByLabelText(`Content of ${NAME}`)).textContent).toBe('/dev/sdb\n');
+        const csum = (value) => act(() => useEventStore.setState({objectInstanceStatus: {'prod/svc/web': {
+            n1: {resources: {'disk#1': {files: [{name: NAME, csum: value, mtime: '2026-11-16T10:00:00Z'}]}}},
+        }}}));
+        global.fetch = vi.fn(() => file('/dev/sdc\n'));
+        csum('cd34');
+        await waitFor(() => expect(screen.getByLabelText(`Content of ${NAME}`).textContent).toBe('/dev/sdc\n'));
+        global.fetch = vi.fn(() => json({title: 'Internal Server Error', detail: 'boom', status: 500}, 500));
+        csum('ef56');
+        await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+        await new Promise((r) => setTimeout(r, 20));
+        expect(screen.getByLabelText(`Content of ${NAME}`).textContent).toBe('/dev/sdc\n');
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 
     test('not on its node: said so, not as a failure', async () => {

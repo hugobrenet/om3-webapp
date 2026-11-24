@@ -44,6 +44,10 @@ describe('objectUtils', () => {
             // Test with cfg kind
             expect(isActionAllowedForSelection('delete', ['cfg/obj1'])).toBe(true);
             expect(isActionAllowedForSelection('freeze', ['cfg/obj1'])).toBe(false);
+            // A cfg and a usr are purged, a sec is only deleted.
+            expect(isActionAllowedForSelection('purge', ['cfg/obj1'])).toBe(true);
+            expect(isActionAllowedForSelection('purge', ['usr/obj1'])).toBe(true);
+            expect(isActionAllowedForSelection('purge', ['sec/obj1'])).toBe(false);
 
             // Test with vol kind
             expect(isActionAllowedForSelection('freeze', ['vol/obj1'])).toBe(true);
@@ -89,12 +93,12 @@ describe('objectUtils', () => {
         test('should have correct action lists for each kind', () => {
             // The cluster object's actions are the cluster's.
             expect(ALLOWED_ACTIONS_BY_KIND.ccfg).toEqual(['abort', 'freeze', 'unfreeze']);
-            expect(ALLOWED_ACTIONS_BY_KIND.cfg).toEqual(['abort', 'delete']);
+            expect(ALLOWED_ACTIONS_BY_KIND.cfg).toEqual(['abort', 'delete', 'purge']);
             expect(ALLOWED_ACTIONS_BY_KIND.vol).toEqual([
                 'abort', 'delete', 'freeze', 'provision', 'purge', 'unfreeze', 'unprovision'
             ]);
             expect(ALLOWED_ACTIONS_BY_KIND.sec).toEqual(['abort', 'delete']);
-            expect(ALLOWED_ACTIONS_BY_KIND.usr).toEqual(['abort', 'delete']);
+            expect(ALLOWED_ACTIONS_BY_KIND.usr).toEqual(['abort', 'delete', 'purge']);
             expect(ALLOWED_ACTIONS_BY_KIND.default).toEqual([
                 'start', 'stop', 'restart', 'freeze', 'unfreeze', 'delete',
                 'provision', 'unprovision', 'purge', 'switch', 'giveback', 'abort'

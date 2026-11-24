@@ -363,6 +363,7 @@ const Resources = () => {
                             onSearch={(e) => setFilter(e.target.value)}
                             searchLabel={t("resources.filter")}
                             compactAction={refresh}
+                            active={problemsOnly ? 1 : 0}
                         >
                             {problems}
                         </FilterToolbar>
