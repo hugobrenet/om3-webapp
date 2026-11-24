@@ -2068,6 +2068,10 @@
     "thisVersion": "cette version"
   },
   "panel": {
+    "back": "Précédent",
+    "backTo": "Revenir à {{name}}",
+    "forward": "Suivant",
+    "forwardTo": "Aller à {{name}}",
     "resize": "Redimensionner le panneau",
     "tabs": {
       "label": "Vues de {{name}}",

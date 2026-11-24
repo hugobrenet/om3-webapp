@@ -11,6 +11,8 @@ import { isPeekStep, stepIcon, type PeekKind } from "./peek";
 import { rememberLastRecord, useRecordHistory } from "./record-history";
 import { PanelHeaderContext } from "./panel-header";
 import { TableCardsContext } from "../ui/components/table-cards";
+import { ArrowLeftIcon, ArrowRightIcon } from "../ui/icons";
+import { usePanelNav } from "./panel-nav";
 
 /**
  * Title of a record panel: the icon of its kind and its name.
@@ -53,6 +55,31 @@ export function PanelTitle({
       <ObjectIcon kind={icon} />
       <h2 className="truncate text-title font-semibold">{title}</h2>
       {slotRef !== undefined && <div ref={slotRef} className="flex shrink-0 items-center gap-1" />}
+    </div>
+  );
+}
+
+const NAV_BUTTON =
+  "flex h-7 w-7 shrink-0 items-center justify-center rounded-(--radius-control) border border-line text-ink-muted hover:text-ink disabled:opacity-40 disabled:hover:text-ink-muted";
+
+/**
+ * Back to the record shown before this one, Forward to the one shown after it: a
+ * resource opened from its object, Back gives the object again, on the tab it was
+ * left on (`panel-nav.ts`). Each named by the record it goes to; none, disabled.
+ */
+function PanelNav() {
+  const { t } = useTranslation();
+  const nav = usePanelNav();
+  const back = nav.back === null ? t("panel.back") : t("panel.backTo", { name: nav.back });
+  const forward = nav.forward === null ? t("panel.forward") : t("panel.forwardTo", { name: nav.forward });
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      <button type="button" disabled={nav.back === null} onClick={nav.goBack} aria-label={back} title={back} className={NAV_BUTTON}>
+        <ArrowLeftIcon />
+      </button>
+      <button type="button" disabled={nav.forward === null} onClick={nav.goForward} aria-label={forward} title={forward} className={NAV_BUTTON}>
+        <ArrowRightIcon />
+      </button>
     </div>
   );
 }
@@ -120,7 +147,12 @@ export function RecordPanel({
       closeLabel={t("common.close")}
       resizeLabel={t("panel.resize")}
       closeOnOutsideClick={closeOnOutsideClick}
-      heading={<PanelTitle kind={kind} title={title} recordId={recordId} open={open} slotRef={setTitleSlot} />}
+      heading={
+        <>
+          {open && <PanelNav />}
+          <PanelTitle kind={kind} title={title} recordId={recordId} open={open} slotRef={setTitleSlot} />
+        </>
+      }
       reopenable
       expanded={full}
       onExpandedChange={(next) => {

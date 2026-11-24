@@ -2068,6 +2068,10 @@
     "thisVersion": "this version"
   },
   "panel": {
+    "back": "Back",
+    "backTo": "Back to {{name}}",
+    "forward": "Forward",
+    "forwardTo": "Forward to {{name}}",
     "resize": "Resize the panel",
     "tabs": {
       "label": "Views of {{name}}",
