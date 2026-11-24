@@ -2616,7 +2616,12 @@
       "keyRename": "Rename key {{key}} to {{to}}"
     },
     "noNews": "no news of it within {{seconds}} s",
-    "logs": "Logs of {{action}} {{subject}}"
+    "logs": "Logs of {{action}} {{subject}}",
+    "abort": "Abort {{action}} {{subject}}",
+    "abortQuestion": "Abort {{action}} {{subject}}? What it has yet to do is not done; a run under way on a node goes on to its end.",
+    "abortConfirm": "Abort",
+    "abortCancel": "Keep it",
+    "aborting": "Aborting…"
   },
   "paramActions": {
     "resize": {

@@ -2616,7 +2616,12 @@
       "keyRename": "Renommer la clé {{key}} en {{to}}"
     },
     "noNews": "aucune nouvelle sous {{seconds}} s",
-    "logs": "Journaux de {{action}} {{subject}}"
+    "logs": "Journaux de {{action}} {{subject}}",
+    "abort": "Interrompre {{action}} {{subject}}",
+    "abortQuestion": "Interrompre {{action}} {{subject}} ? Ce qu'il lui reste à faire ne sera pas fait ; une exécution en cours sur un nœud va jusqu'à son terme.",
+    "abortConfirm": "Interrompre",
+    "abortCancel": "Laisser continuer",
+    "aborting": "Interruption…"
   },
   "paramActions": {
     "resize": {

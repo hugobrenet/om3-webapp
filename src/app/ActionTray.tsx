@@ -10,7 +10,10 @@ import AskAssistantLink from "../components/AskAssistantLink";
 import { untrustedT } from "../utils/untrustedText";
 import { MAX_LINK_PROMPT } from "../config/ai-agent.js";
 import useEventStore from "../hooks/useEventStore.js";
+import { postAction } from "../components/objectActions";
+import { authHeaders } from "../services/api.jsx";
 import { type TrackState, type TrackStep, type Tracked, useActionTracker } from "./action-tracker";
+import { postNodeAction } from "./node-actions";
 
 /*
  * The actions asked, as they go: a button of the header, whatever the view, its
@@ -137,12 +140,78 @@ export function failedActionQuestion(t: (key: string, options?: Record<string, u
   return parts.join(" ");
 }
 
+/**
+ * Whether the entry is an orchestration in progress the tray can abort: an object's,
+ * the cluster's by its object, or a node's, by the node answering for it. Not an
+ * abort itself, nor one whose node is not known.
+ */
+export function abortable(entry: Tracked): boolean {
+  return (
+    entry.kind === "orchestration" &&
+    entry.state === "running" &&
+    entry.action !== "abort" &&
+    (entry.path !== undefined || (entry.node !== "" && entry.node !== "localhost"))
+  );
+}
+
+/**
+ * Aborts the orchestration of the entry, as the badge of an object or a node does:
+ * the abort of its object (the cluster's, `om cluster abort`), else of its node.
+ * What comes of it, the tray says, the abort an action as the others.
+ */
+export async function abortOrchestration(entry: Tracked): Promise<void> {
+  if (entry.path !== undefined) await postAction({ path: entry.path, action: "abort" });
+  else await postNodeAction(entry.node, "abort", authHeaders());
+}
+
+/**
+ * The question the abort button of an entry asks, under its line: aborted on its
+ * yes, its button focused as it shows, which reads the question out; `onClose`, on
+ * its no, or once the abort is posted.
+ */
+function AbortQuestion({ entry, action, onClose }: { entry: Tracked; action: string; onClose: () => void }) {
+  const { t } = useTranslation();
+  const [pending, setPending] = useState(false);
+  const confirm = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    confirm.current?.focus();
+  }, []);
+
+  const question = t("actionTray.abortQuestion", { action, subject: entry.subject });
+  return (
+    <div role="group" aria-label={question} className="space-y-1 pl-6 text-data">
+      <p>{question}</p>
+      <div className="flex gap-2">
+        <button
+          ref={confirm}
+          type="button"
+          disabled={pending}
+          onClick={() => {
+            setPending(true);
+            void abortOrchestration(entry).finally(onClose);
+          }}
+          className="h-7 rounded-(--radius-control) bg-state-down px-2 font-medium text-surface-raised disabled:opacity-60"
+        >
+          {pending ? t("actionTray.aborting") : t("actionTray.abortConfirm")}
+        </button>
+        <button type="button" onClick={onClose} className="h-7 rounded-(--radius-control) border border-line px-2">
+          {t("actionTray.abortCancel")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** `onLeave`, called as a link of the entry leaves for another page: the dialog closes. */
 function Entry({ entry, now, onLeave }: { entry: Tracked; now: number; onLeave: () => void }) {
   const { t } = useTranslation();
   const dismiss = useActionTracker((s) => s.dismiss);
   // Its logs in a modal: an orchestration's on every node, an exec's on its node.
   const [logs, setLogs] = useState(false);
+  // The abort asked, its question shown under the line; gone as the orchestration ends.
+  const [asking, setAsking] = useState(false);
+  const canAbort = abortable(entry);
   const action = entry.label ?? actionLabel(entry.action);
   const took = (entry.endedAt ?? now) - entry.startedAt;
   const state = t(`actionTray.states.${entry.state}`);
@@ -185,6 +254,20 @@ function Entry({ entry, now, onLeave }: { entry: Tracked; now: number; onLeave: 
         {(entry.state === "failed" || entry.state === "refused") && (
           <AskAssistantLink prompt={failedActionQuestion(t, entry)} onClick={onLeave} />
         )}
+        {canAbort && (
+          <button
+            type="button"
+            aria-expanded={asking}
+            title={t("actionTray.abort", { action, subject: entry.subject })}
+            onClick={() => {
+              setAsking(true);
+            }}
+            className="shrink-0 rounded-full p-1 text-ink-muted hover:text-state-down"
+          >
+            <BanIcon className="h-3 w-3" />
+            <span className="sr-only">{t("actionTray.abort", { action, subject: entry.subject })}</span>
+          </button>
+        )}
         {entry.followedId !== undefined && (
           <button
             type="button"
@@ -208,6 +291,15 @@ function Entry({ entry, now, onLeave }: { entry: Tracked; now: number; onLeave: 
           <span className="sr-only">{t("actionTray.dismiss", { action, subject: entry.subject })}</span>
         </button>
       </div>
+      {asking && canAbort && (
+        <AbortQuestion
+          entry={entry}
+          action={action}
+          onClose={() => {
+            setAsking(false);
+          }}
+        />
+      )}
       {entry.warnings !== undefined && entry.warnings.length > 0 && (
         <ul aria-label={t("actionTray.warnings", { action })} className="space-y-1 pl-6 text-data text-state-warn">
           {entry.warnings.map((warning) => (
