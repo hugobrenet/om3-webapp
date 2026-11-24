@@ -362,6 +362,21 @@ export function splitLabels(nodes: string[], labels: Map<string, string>) {
   return { common: joinWords((ref ?? []).filter(isCommon)), varying };
 }
 
+/** The plain letters of the markers beyond the ninth, as SUPERSCRIPT_LETTERS. */
+const PLAIN_LETTERS = [..."ABDEGHIJKLMNOPRTUVW"];
+
+/** A marker in plain characters, ¹ as 1, ᴬ as A: as a screen reader says it. */
+export function plainMarker(marker: string): string {
+  return [...marker]
+    .map((c) => {
+      const digit = SUPERSCRIPTS.indexOf(c);
+      if (digit >= 0) return String(digit);
+      const letter = SUPERSCRIPT_LETTERS.indexOf(c);
+      return letter >= 0 ? (PLAIN_LETTERS[letter] as string) : c;
+    })
+    .join("");
+}
+
 /** The marker of the n-th note: ¹ to ⁹, then ᴬ to ᵂ, then the numbers following. */
 export function marker(n: number): string {
   if (n > 9 && n - 10 < SUPERSCRIPT_LETTERS.length) return SUPERSCRIPT_LETTERS[n - 10] as string;

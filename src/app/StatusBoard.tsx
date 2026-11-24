@@ -17,6 +17,7 @@ import { Term } from "./Term";
 import { HoverCard } from "../ui/components/HoverCard";
 import { TOUCH_QUERY, useMediaQuery } from "../ui/lib/media";
 import type { Board, BoardRow, Level, NoteFix, RowNote, Span, Text, Tone } from "./statusboard";
+import { plainMarker } from "./statusboard";
 
 
 /** The rows of the board named by a word of the glossary, its key by the kind of row. */
@@ -28,6 +29,15 @@ const ROW_TERMS: Partial<Record<string, string>> = {
 };
 
 /** The inks of the webapp for om's colors. */
+/**
+ * A marker of a note, by a value, by the note, in a card: its superscript glyph, ¹
+ * as om writes it, which says a note is behind it; drawn larger than the text around
+ * it, the glyph being small of itself, to be read at a glance. On the baseline of its
+ * text, the glyph raised of itself: the sup's own raise (the preflight's) would lift
+ * it out of its line.
+ */
+const MARKER = "static align-baseline text-[1.125rem] leading-none font-semibold";
+
 const TONES: Record<Tone, string> = {
   optimal: "text-state-up",
   error: "text-state-down",
@@ -243,7 +253,7 @@ export function NotesList({ notes, className = "max-w-sm" }: { notes: RowNote[];
                 <Icon aria-hidden="true" className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", ink)} />
                 <span className="sr-only">{t(`statusBoard.levels.${n.level}`)}</span>
                 <span className="min-w-0">
-              {n.marker !== "" && <sup className={cn("mr-0.5 font-medium", ink)}>{n.marker}</sup>}
+              {n.marker !== "" && <sup className={cn(MARKER, "mr-1", ink)}>{n.marker}</sup>}
                   <span className="text-ink">{noteText(t, n)}</span>
                   {n.nodes !== "" && <span className="ml-1.5 text-ink-muted">{n.nodes}</span>}
             </span>
@@ -298,12 +308,12 @@ function Pieces({ text, kind, inert = false, notes = [] }: { text: Text; kind: B
               </SymbolHelp>
           );
         if (s.note) {
-          // At the top of the value, not raised by the half of an em of a sup (the
-          // preflight's): it would stand out of the badge of the value.
+          // In the value, its glyph raised of itself, not by the sup (MARKER): it would
+          // stand out of the badge of the value.
           const marker = (
-              <sup key={i} className={cn("static self-start text-[0.6875rem] leading-none font-medium", TONES[s.tone ?? "secondary"])}>
+              <sup key={i} className={cn(MARKER, TONES[s.tone ?? "secondary"])}>
                 <span aria-hidden="true">{s.text}</span>
-                <span className="sr-only">{t("statusBoard.seeNote", { marker: s.text })}</span>
+                <span className="sr-only">{t("statusBoard.seeNote", { marker: plainMarker(s.text) })}</span>
               </sup>
           );
           const of = notes.filter((n) => n.marker === s.text);
@@ -1039,7 +1049,7 @@ export function StatusBoard({
                           {g.heads.map((h, j) => (
                               <p key={j} className="flex flex-wrap items-baseline gap-x-2">
                                 {h.marker !== "" && h.marker !== "·" && (
-                                    <sup className={cn("text-[0.75rem] font-medium", ink)}>{h.marker}</sup>
+                                    <sup className={cn(MARKER, ink)}>{h.marker}</sup>
                                 )}
                                 <span className="font-medium">{subjectText(t, h.subject)}</span>
                                 {h.nodes !== "" && (
