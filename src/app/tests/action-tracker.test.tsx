@@ -3,7 +3,9 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { ARRIVAL_SHOWN_MS, ActionTray, formatDuration } from "../ActionTray";
 import {
   type Tracked,
+  END_EVENT_GRACE_MS,
   followRunningOrchestrations,
+  observeMonitors,
   observeOrchestration,
   trackAccepted,
   trackPoll,
@@ -633,5 +635,78 @@ describe("every orchestration of the cluster, asked from here or elsewhere", () 
     // Read again (a reconnection): not twice.
     await followRunningOrchestrations();
     expect(tracked()).toHaveLength(1);
+  });
+});
+
+describe("the orchestrations the monitors run, whoever reads", () => {
+  // Root only: every read of an orchestration refused.
+  const forbidden = () =>
+    vi.fn((url: string) => {
+      if (url === "/api/cluster/status?selector=cluster") return json(200, { cluster: { config: { nodes: ["dev3n1"] } } });
+      return json(403, { detail: "need one of [root] grant" });
+    }) as unknown as typeof fetch;
+  const monitor = (id: string, more = {}) => ({
+    path: "ns/svc/s1",
+    node: "dev3n1",
+    globalExpect: "started",
+    orchestrationId: id,
+    since: "2026-11-24T10:00:00Z",
+    ...more,
+  });
+
+  test("one running before the page opened followed, once for all its instances, since it started", () => {
+    globalThis.fetch = forbidden();
+    const id = "cccccccc-0000-0000-0000-000000000001";
+    observeMonitors([monitor(id), monitor(id, { node: "dev3n2" })]);
+    expect(tracked()).toEqual([
+      expect.objectContaining({ action: "start", subject: "ns/svc/s1", path: "ns/svc/s1", followedId: id, state: "running", startedAt: Date.parse("2026-11-24T10:00:00Z") }),
+    ]);
+    observeMonitors([monitor(id)]);
+    expect(tracked()).toHaveLength(1);
+  });
+
+  test("a node's, by its node; none of a monitor idle, done, or of an orchestration ended", () => {
+    globalThis.fetch = forbidden();
+    const id = "cccccccc-0000-0000-0000-000000000002";
+    const ended = "cccccccc-0000-0000-0000-000000000003";
+    observeOrchestration("ObjectOrchestrationAccepted", { id: ended, node: "dev3n1", path: "ns/svc/s2", global_expect: "stopped" });
+    observeOrchestration("ObjectOrchestrationEnd", { id: ended, node: "dev3n1", path: "ns/svc/s2" });
+    useActionTracker.getState().dismiss(tracked()[0]!.id);
+    observeMonitors([
+      { node: "dev3n2", globalExpect: "drained", orchestrationId: id },
+      monitor("00000000-0000-0000-0000-000000000000", { globalExpect: "none" }),
+      monitor("cccccccc-0000-0000-0000-000000000004", { done: true }),
+      // Its end said, its monitor still saying it a moment.
+      monitor(ended, { path: "ns/svc/s2", globalExpect: "stopped" }),
+    ]);
+    expect(tracked()).toEqual([expect.objectContaining({ action: "drain", subject: "dev3n2", node: "dev3n2", followedId: id, state: "running" })]);
+  });
+
+  test("its reads refused, running until its end event says how it went", async () => {
+    globalThis.fetch = forbidden();
+    const id = "cccccccc-0000-0000-0000-000000000005";
+    observeMonitors([monitor(id)]);
+    // Refused (the reads gathered, one a second): no read again, no outcome unknown.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(tracked()[0]?.state).toBe("running");
+    observeOrchestration("ObjectOrchestrationEnd", { id, node: "dev3n1", path: "ns/svc/s1" });
+    expect(tracked()[0]?.state).toBe("succeeded");
+  });
+
+  test("its reads refused, its end event missed: ended unknown once no monitor runs it a while", async () => {
+    globalThis.fetch = forbidden();
+    const id = "cccccccc-0000-0000-0000-000000000006";
+    observeMonitors([monitor(id)]);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    vi.useFakeTimers();
+    try {
+      observeMonitors([monitor(id, { globalExpect: "none", orchestrationId: "00000000-0000-0000-0000-000000000000" })]);
+      vi.advanceTimersByTime(END_EVENT_GRACE_MS - 1);
+      expect(tracked()[0]?.state).toBe("running");
+      vi.advanceTimersByTime(1);
+      expect(tracked()[0]).toMatchObject({ state: "unknown", error: "gone" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

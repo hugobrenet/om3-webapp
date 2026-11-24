@@ -241,8 +241,10 @@ function Entry({ entry, now, onLeave }: { entry: Tracked; now: number; onLeave: 
             )}
           >
             {state}
+            {/* The node that accepted it, if known: not of one running before the page opened. */}
             {entry.state === "running" &&
               entry.kind === "orchestration" &&
+              entry.node !== "localhost" &&
               ` · ${t(entry.queued ? "actionTray.queuedOn" : "actionTray.acceptedBy", { node: entry.node })}`}
             {entry.error && entry.error !== "gone" && entry.error !== "queued" && ` · ${entry.error}`}
             {entry.error === "gone" && ` · ${t("actionTray.gone")}`}

@@ -9,7 +9,7 @@ import logger from "../utils/logger.js";
 import {childrenDown} from "../app/statusboard";
 import useEventStore from "./useEventStore.js";
 import {onSessionEnd} from "../app/session-end";
-import {followRunningOrchestrations, observeOrchestration} from "../app/action-tracker";
+import {followRunningOrchestrations, observeMonitors, observeOrchestration} from "../app/action-tracker";
 
 /** Pools and networks have no events: their usage is polled at this period. */
 export const SIDEBAR_USAGE_REFRESH_MS = 15000;
@@ -29,7 +29,8 @@ export const SIDEBAR_FLUSH_MS = 300;
  * The orchestrations of the cluster, for the actions tray to show them all, those
  * asked from elsewhere too (observeOrchestration): an object's said on every node,
  * a node's on its own. None replayed by the cache: those running when the stream
- * opens read from the daemon (followRunningOrchestrations).
+ * opens read from the daemon (followRunningOrchestrations), root only, and said by
+ * the monitors the cache replays, whoever reads (observeMonitors).
  */
 const ORCHESTRATION_EVENTS = [
     "ObjectOrchestrationAccepted",
@@ -48,6 +49,8 @@ const SIDEBAR_EVENTS = [
     // For the children of the vols only: a vol down nothing uses is no alert.
     "InstanceMonitorUpdated",
     "InstanceMonitorDeleted",
+    // The orchestration each node runs of its own, a drain say, for the actions tray.
+    "NodeMonitorUpdated",
     // The cluster configuration: its name, id, nodes and ai.agent_url, the nodes
     // gone out of the cluster dropped.
     "ClusterConfigUpdated",
@@ -65,7 +68,17 @@ const ZERO_TIME = "0001-01-01T00:00:00Z";
 /** Whether a node status says the node is frozen. */
 export const isFrozen = (status) => !!status?.frozen_at && status.frozen_at !== ZERO_TIME;
 
-const emptyState = () => ({objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null, nodeConfig: {}});
+const emptyState = () => ({objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null, nodeConfig: {}, orchestrations: {}});
+
+/** What a monitor says of the orchestration it runs, for the actions tray (observeMonitors). */
+const monitorOrchestration = (monitor, node, path) => ({
+    ...(path ? {path} : {}),
+    node,
+    globalExpect: monitor?.global_expect ?? null,
+    orchestrationId: monitor?.orchestration_id ?? null,
+    since: monitor?.global_expect_updated_at ?? null,
+    done: monitor?.orchestration_is_done === true,
+});
 
 /**
  * The entries of a map by node, of the nodes of the cluster configuration only: the
@@ -94,15 +107,27 @@ export function applySidebarEvent(state, type, data) {
             if (path) {
                 delete state.objects[path];
                 delete state.volChildren[path];
+                if (state.orchestrations) {
+                    for (const key of Object.keys(state.orchestrations)) {
+                        if (state.orchestrations[key].path === path) delete state.orchestrations[key];
+                    }
+                }
             }
             break;
         case "InstanceMonitorUpdated":
-            // The children of a vol instance, by node; the other monitors not kept.
+            // The children of a vol instance, by node; of the other monitors, their orchestration only.
             if (path && node && kindOf(path) === "vol") {
                 state.volChildren[path] = {...state.volChildren[path], [node]: data.instance_monitor?.children ?? {}};
             }
+            if (path && node && state.orchestrations) {
+                state.orchestrations[`${node}:${path}`] = monitorOrchestration(data.instance_monitor, node, path);
+            }
+            break;
+        case "NodeMonitorUpdated":
+            if (node && state.orchestrations) state.orchestrations[node] = monitorOrchestration(data.node_monitor, node);
             break;
         case "InstanceMonitorDeleted":
+            if (path && node && state.orchestrations) delete state.orchestrations[`${node}:${path}`];
             if (path && node && state.volChildren[path]) {
                 const {[node]: _gone, ...rest} = state.volChildren[path];
                 state.volChildren[path] = rest;
@@ -162,6 +187,7 @@ function useSidebarEventState(enabled) {
                 nodeConfig: {...ofClusterNodes(working.nodeConfig, working.clusterConfig)},
             };
             setState(snapshot);
+            observeMonitors(Object.values(working.orchestrations));
         };
 
         const onEvent = (type, from) => (event) => {

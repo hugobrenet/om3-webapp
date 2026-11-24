@@ -38,11 +38,12 @@ vi.mock('event-source-polyfill', () => ({
 }));
 vi.mock('../../utils/logger.js', () => ({default: {warn: vi.fn(), error: vi.fn(), debug: vi.fn(), info: vi.fn()}}));
 // The tray it hands the orchestrations to, tested with the tracker.
-const {observeOrchestration, followRunningOrchestrations} = vi.hoisted(() => ({
+const {observeOrchestration, observeMonitors, followRunningOrchestrations} = vi.hoisted(() => ({
     observeOrchestration: vi.fn(),
+    observeMonitors: vi.fn(),
     followRunningOrchestrations: vi.fn(() => Promise.resolve()),
 }));
-vi.mock('../../app/action-tracker', () => ({observeOrchestration, followRunningOrchestrations}));
+vi.mock('../../app/action-tracker', () => ({observeOrchestration, observeMonitors, followRunningOrchestrations}));
 
 describe('objectsAlert', () => {
     test('none while no actor is down and no object warns', () => {
@@ -87,6 +88,25 @@ describe('applySidebarEvent', () => {
         applySidebarEvent(state, 'NodeConfigUpdated', {labels: {node: 'n2'}, node_config: {env: 'PRD'}});
         applySidebarEvent(state, 'NodeConfigUpdated', {node: 'n3'});
         expect(state.nodeConfig).toEqual({n1: {env: 'TST', labels: {}}, n2: {env: 'PRD'}});
+    });
+
+    test('keeps the orchestration each monitor runs, of an instance or of a node, for the actions tray', () => {
+        const state = {objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null, orchestrations: {}};
+        const monitor = {global_expect: 'started', orchestration_id: 'o1', global_expect_updated_at: '2026-11-24T10:00:00Z', state: 'ready'};
+        applySidebarEvent(state, 'InstanceMonitorUpdated', {path: 'ns/svc/a', node: 'n1', instance_monitor: monitor});
+        applySidebarEvent(state, 'InstanceMonitorUpdated', {path: 'ns/svc/a', node: 'n2', instance_monitor: {...monitor, orchestration_is_done: true}});
+        applySidebarEvent(state, 'InstanceMonitorUpdated', {path: 'ns/svc/b', node: 'n1', instance_monitor: monitor});
+        applySidebarEvent(state, 'NodeMonitorUpdated', {labels: {node: 'n2'}, node_monitor: {global_expect: 'drained', orchestration_id: 'o2'}});
+        expect(state.orchestrations).toEqual({
+            'n1:ns/svc/a': {path: 'ns/svc/a', node: 'n1', globalExpect: 'started', orchestrationId: 'o1', since: '2026-11-24T10:00:00Z', done: false},
+            'n2:ns/svc/a': {path: 'ns/svc/a', node: 'n2', globalExpect: 'started', orchestrationId: 'o1', since: '2026-11-24T10:00:00Z', done: true},
+            'n1:ns/svc/b': {path: 'ns/svc/b', node: 'n1', globalExpect: 'started', orchestrationId: 'o1', since: '2026-11-24T10:00:00Z', done: false},
+            n2: {node: 'n2', globalExpect: 'drained', orchestrationId: 'o2', since: null, done: false},
+        });
+        // An instance gone, an object deleted: their monitors with them.
+        applySidebarEvent(state, 'InstanceMonitorDeleted', {path: 'ns/svc/a', node: 'n2'});
+        applySidebarEvent(state, 'ObjectDeleted', {path: 'ns/svc/b'});
+        expect(Object.keys(state.orchestrations)).toEqual(['n1:ns/svc/a', 'n2']);
     });
 
     test('applies object, node and heartbeat events, and object deletions', () => {
@@ -240,6 +260,20 @@ describe('useSidebarAlerts', () => {
         // Nothing of the menu's: no object, no node from them.
         expect(result.current['objects-any'].alert).toBeNull();
         expect(result.current.nodes.alert).toBeNull();
+    });
+
+    test('hands the orchestrations the monitors run to the actions tray, those of the cache too', async () => {
+        renderHook(() => useSidebarAlerts());
+        expect(sources[0].url).toContain('filter=NodeMonitorUpdated');
+        act(() => {
+            sources[0].emit('InstanceMonitorUpdated', {path: 'ns/svc/a', node: 'n1', instance_monitor: {global_expect: 'started', orchestration_id: 'o1'}});
+            sources[0].emit('NodeMonitorUpdated', {node: 'n1', node_monitor: {global_expect: 'none'}});
+        });
+        await flush();
+        expect(observeMonitors).toHaveBeenLastCalledWith([
+            expect.objectContaining({path: 'ns/svc/a', node: 'n1', globalExpect: 'started', orchestrationId: 'o1'}),
+            expect.objectContaining({node: 'n1', globalExpect: 'none'}),
+        ]);
     });
 
     test('updates the alerts from the events, without any user action', async () => {
