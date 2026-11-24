@@ -105,7 +105,6 @@ describe('WhoAmI', () => {
             // The release check opted in, unless a case says otherwise.
             if (key === 'om3.releaseCheck') return 'releaseCheck' in overrides ? overrides.releaseCheck : 'on';
             if (key === 'appVersion') return 'appVersion' in overrides ? overrides.appVersion : null;
-            if (key === 'appVersionTime') return 'appVersionTime' in overrides ? overrides.appVersionTime : null;
             return null;
         });
 
@@ -130,7 +129,10 @@ describe('WhoAmI', () => {
                 }
                 // Use override.githubData if provided, else default
                 const githubData = overrides.githubData || [{tag_name: 'v1.2.3'}];
+                const status = overrides.githubStatus ?? 200;
                 return Promise.resolve({
+                    ok: status >= 200 && status < 300,
+                    status,
                     json: () => Promise.resolve(githubData),
                 });
             }
@@ -253,106 +255,75 @@ describe('WhoAmI', () => {
     describe('app version', () => {
         const versionCases = [
             {
-                name: 'uses cache when valid (<1h)',
+                name: 'asks GitHub each time, a release told before replaced',
                 appVersion: '1.0.0',
-                appVersionTime: String(Date.now()),
-                expectedVersion: 'v1.0.0',
-                githubCalled: false,
-            },
-            {
-                name: 'fetches from GitHub when cache expired',
-                appVersion: '1.0.0',
-                appVersionTime: String(Date.now() - 4000000),
                 expectedVersion: 'v1.2.3',
-                githubCalled: true,
             },
             {
-                name: 'falls back to cache when GitHub fails',
+                name: 'falls back to the release told before when GitHub fails',
                 appVersion: '1.0.0',
-                appVersionTime: String(Date.now() - 4000000),
                 githubError: true,
                 expectedVersion: 'v1.0.0',
-                githubCalled: true,
             },
             {
-                name: 'shows Unknown when no cache and GitHub fails',
-                appVersion: null,
-                appVersionTime: null,
+                name: 'GitHub refusing (rate limited): its answer not read as a list, the release told before said',
+                appVersion: '1.0.0',
+                githubStatus: 403,
+                githubData: {message: 'API rate limit exceeded'},
+                expectedVersion: 'v1.0.0',
+            },
+            {
+                name: 'a release told before older than this build not said when GitHub fails',
+                appVersion: '0.1.0',
                 githubError: true,
                 expectedVersion: 'vUnknown',
-                githubCalled: true,
             },
             {
-                name: 'cacheTime missing but appVersion present',
-                appVersion: '1.0.0',
-                appVersionTime: null,
-                githubError: false,
-                expectedVersion: 'v1.2.3',
-                githubCalled: true,
-            },
-            {
-                name: 'cacheTime invalid (NaN)',
-                appVersion: '1.0.0',
-                appVersionTime: 'invalid',
-                githubError: false,
-                expectedVersion: 'v1.2.3',
-                githubCalled: true,
-            },
-            {
-                name: 'appVersion null but cacheTime present',
+                name: 'shows Unknown when none told before and GitHub fails',
                 appVersion: null,
-                appVersionTime: String(Date.now()),
-                githubError: false,
-                expectedVersion: 'v1.2.3',
-                githubCalled: true,
+                githubError: true,
+                expectedVersion: 'vUnknown',
             },
             {
-                name: 'appVersion null and cacheTime null but GitHub succeeds',
+                name: 'the highest version published, not the first listed, nor a draft',
                 appVersion: null,
-                appVersionTime: null,
-                githubError: false,
-                expectedVersion: 'v1.2.3',
-                githubCalled: true,
+                githubData: [
+                    {tag_name: 'v1.0.0-rc9'},
+                    {tag_name: 'v1.0.0-rc17'},
+                    {tag_name: 'v1.0.0-rc16'},
+                    {tag_name: 'v1.0.0', draft: true},
+                ],
+                expectedVersion: 'v1.0.0-rc17',
             },
             {
                 name: 'GitHub returns empty array -> Unknown',
                 appVersion: null,
-                appVersionTime: null,
-                githubData: [], // data[0] is undefined
+                githubData: [],
                 expectedVersion: 'vUnknown',
-                githubCalled: true,
             },
             {
                 name: 'GitHub returns object without tag_name -> Unknown',
                 appVersion: null,
-                appVersionTime: null,
-                githubData: [{}], // data[0] exists but tag_name undefined
+                githubData: [{}],
                 expectedVersion: 'vUnknown',
-                githubCalled: true,
             },
             {
                 name: 'GitHub tag_name does not start with v',
                 appVersion: null,
-                appVersionTime: null,
-                githubData: [{tag_name: '1.0.0'}], // no 'v' prefix
+                githubData: [{tag_name: '1.0.0'}],
                 expectedVersion: 'v1.0.0',
-                githubCalled: true,
             },
         ];
 
         it.each(versionCases)(
             '$name',
-            async ({appVersion, appVersionTime, githubError, githubData, expectedVersion, githubCalled}) => {
-                setupMocks({appVersion, appVersionTime, githubError, githubData});
+            async ({appVersion, githubError, githubData, githubStatus, expectedVersion}) => {
+                setupMocks({appVersion, githubError, githubData, githubStatus});
                 renderComponent();
                 await waitFor(() => {
                     expect(screen.getByText(expectedVersion)).toBeInTheDocument();
                 });
-                if (!githubCalled) {
-                    expect(fetch).not.toHaveBeenCalledWith(
-                        expect.stringContaining('github')
-                    );
-                }
+                expect(global.fetch.mock.calls.some(([url]) => String(url).includes('github'))).toBe(true);
             }
         );
     });
