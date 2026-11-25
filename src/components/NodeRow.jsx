@@ -2,6 +2,7 @@ import React from "react";
 import {Row, Cell} from "../ui/components/Table";
 import {Checkbox} from "../ui/components/Field";
 import {FrozenMark} from "../ui/components/FrozenMark";
+import {AlertMark} from "../ui/components/AlertMark";
 import {UsageBar} from "../ui/components/UsageBar";
 import {formatPercent} from "../ui/lib/format";
 import {RssIcon, TagIcon} from "../ui/icons";
@@ -192,6 +193,10 @@ const NodeRow = ({
                         </span>
                     )}
                     <FrozenMark frozen={isFrozen}/>
+                    {/* The mark of the menu's Nodes entry: the node it is about. */}
+                    {status?.is_overloaded === true && (
+                        <AlertMark level="warn" text={t("nodes.row.overloaded")} testId={`overloaded-${nodename}`}/>
+                    )}
                 </span>
             </Cell>
             {layout.metricsGrouped ? (

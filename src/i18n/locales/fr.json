@@ -313,8 +313,8 @@
     "objectsWarn_other": "{{count}} objets en warn",
     "linksDown_one": "{{count}} lien de heartbeat sur {{total}} down",
     "linksDown_other": "{{count}} liens de heartbeat sur {{total}} down",
-    "nodesOverloaded_one": "{{count}} nœud sur {{total}} surchargé",
-    "nodesOverloaded_other": "{{count}} nœuds sur {{total}} surchargés"
+    "nodesOverloaded_one": "{{count}} nœud sur {{total}} surchargé : {{nodes}}",
+    "nodesOverloaded_other": "{{count}} nœuds sur {{total}} surchargés : {{nodes}}"
   },
   "auth": {
     "login": {
@@ -1521,6 +1521,7 @@
       "select": "Sélectionner le nœud {{node}}",
       "connected": "Connecté à ce nœud",
       "versionDiff": "Agent {{version}}, la plupart des nœuds sont en {{common}}",
+      "overloaded": "Surchargé : mémoire ou swap sous son minimum",
       "booted": "démarré",
       "updated": "mis à jour"
     },

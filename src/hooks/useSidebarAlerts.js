@@ -390,14 +390,17 @@ export function heartbeatAlert(heartbeatStatus) {
     return {level: down === total ? "down" : "warn", text: i18n.t("alerts.linksDown", {count: down, total})};
 }
 
-/** Nodes: orange when one is overloaded, red when all are (is_overloaded of the node status). */
+/**
+ * Nodes: orange when one is overloaded, red when all are (is_overloaded of the node
+ * status), the overloaded ones named: which to look at.
+ */
 export function nodesAlert(nodeStatus) {
-    const nodes = Object.values(nodeStatus || {});
-    const overloaded = nodes.filter((status) => status?.is_overloaded === true).length;
-    if (overloaded === 0) return null;
+    const nodes = Object.entries(nodeStatus || {});
+    const overloaded = nodes.filter(([, status]) => status?.is_overloaded === true).map(([name]) => name).sort();
+    if (overloaded.length === 0) return null;
     return {
-        level: overloaded === nodes.length ? "down" : "warn",
-        text: i18n.t("alerts.nodesOverloaded", {count: overloaded, total: nodes.length}),
+        level: overloaded.length === nodes.length ? "down" : "warn",
+        text: i18n.t("alerts.nodesOverloaded", {count: overloaded.length, total: nodes.length, nodes: overloaded.join(", ")}),
     };
 }
 

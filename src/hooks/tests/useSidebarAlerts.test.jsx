@@ -183,7 +183,7 @@ describe('alerts in French', () => {
         const i18n = (await import('../../i18n')).default;
         await i18n.changeLanguage('fr');
         try {
-            expect(nodesAlert({n1: {is_overloaded: true}, n2: {}}).text).toBe('1 nœud sur 2 surchargé');
+            expect(nodesAlert({n1: {is_overloaded: true}, n2: {}}).text).toBe('1 nœud sur 2 surchargé : n1');
             expect(objectsAlert({'ns1/svc/a': {avail: 'down'}}).text).toBe('1 objet down');
         } finally {
             await i18n.changeLanguage('en');
@@ -199,9 +199,9 @@ describe('nodesAlert', () => {
 
     test('orange when one node is overloaded, red when all are', () => {
         expect(nodesAlert({n1: {is_overloaded: true}, n2: {is_overloaded: false}}))
-            .toEqual({level: 'warn', text: '1 of 2 nodes overloaded'});
+            .toEqual({level: 'warn', text: '1 of 2 nodes overloaded: n1'});
         expect(nodesAlert({n1: {is_overloaded: true}, n2: {is_overloaded: true}}))
-            .toEqual({level: 'down', text: '2 of 2 nodes overloaded'});
+            .toEqual({level: 'down', text: '2 of 2 nodes overloaded: n1, n2'});
     });
 });
 
@@ -289,7 +289,7 @@ describe('useSidebarAlerts', () => {
         });
         await flush();
         expect(result.current['objects-any'].alert).toBeNull();
-        expect(result.current.nodes.alert).toEqual({level: 'down', text: '1 of 1 nodes overloaded'});
+        expect(result.current.nodes.alert).toEqual({level: 'down', text: '1 of 1 nodes overloaded: n1'});
         expect(result.current.links.alert).toEqual({level: 'down', text: '1 of 1 heartbeat links down'});
 
         act(() => {
