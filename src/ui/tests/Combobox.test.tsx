@@ -124,6 +124,25 @@ describe("Combobox", () => {
     expect(input).toHaveAttribute("aria-expanded", "false");
   });
 
+  test("the list opens on the chosen option: Enter keeps it, the arrows move from it", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<Harness initial="n2" onChange={onChange} />);
+    const input = screen.getByRole("combobox");
+    await user.click(input);
+    expect(input).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "Node Two" }).id);
+    await user.keyboard("{Enter}");
+    expect(onChange).toHaveBeenLastCalledWith("n2");
+    expect(input).toHaveValue("Node Two");
+    // Reopened after another choice, on that one, not on the first nor on the last active.
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(onChange).toHaveBeenLastCalledWith("s1");
+    await user.keyboard("{ArrowDown}");
+    expect(input).toHaveAttribute("aria-activedescendant", screen.getByRole("option", { name: "Service" }).id);
+    await user.keyboard("{ArrowUp}{Enter}");
+    expect(onChange).toHaveBeenLastCalledWith("n2");
+  });
+
   test("the first Enter chooses without submitting, the next one submits", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
