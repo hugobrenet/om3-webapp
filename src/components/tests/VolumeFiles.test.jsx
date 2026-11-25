@@ -212,6 +212,24 @@ describe("VolumeFiles", () => {
             expect(screen.queryByRole("button", {name: "Delete debian.iso"})).toBeNull();
         });
 
+        test("a truncated listing left for another directory: its notice gone, the tab not broken while the other is read", async () => {
+            up({n1: "up"});
+            let answerIsos;
+            listFiles.mockImplementation((_p, _n, dir) => (dir === "isos"
+                ? new Promise((resolve) => {
+                    answerIsos = () => resolve({items: ISOS, truncated: false});
+                })
+                : Promise.resolve({items: TOP, truncated: true})));
+            render(<VolumeFiles path={PATH}/>);
+            expect(await screen.findByText("Only the first 3 entries are shown.")).toBeInTheDocument();
+            await userEvent.click(screen.getByRole("button", {name: "isos/"}));
+            expect(screen.queryByText(/Only the first/)).toBeNull();
+            expect(screen.getByRole("navigation", {name: "Directory"})).toBeInTheDocument();
+            await act(async () => answerIsos());
+            expect(screen.getByText("debian.iso")).toBeInTheDocument();
+            expect(screen.queryByText(/Only the first/)).toBeNull();
+        });
+
         test("a directory created where shown; a name with a slash or hidden refused before asking", async () => {
             up({n1: "up"});
             render(<VolumeFiles path={PATH}/>, {at: "/objects?view=isos"});
