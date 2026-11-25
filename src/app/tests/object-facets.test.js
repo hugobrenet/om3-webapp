@@ -17,11 +17,17 @@ const opts = {
 };
 
 describe('globalStatesOf', () => {
-    test('its availability, n/a for any other; unprovisioned besides when it is', () => {
+    test('its availability, n/a for any other; unprovisioned besides when one of its instances is', () => {
         expect(globalStatesOf({avail: 'up'})).toEqual(['up']);
         expect(globalStatesOf({avail: 'stdby up'})).toEqual(['n/a']);
         expect(globalStatesOf({avail: 'down', provisioned: false})).toEqual(['down', 'unprovisioned']);
         expect(globalStatesOf({avail: 'warn', provisioned: 'false'})).toEqual(['warn', 'unprovisioned']);
+        // Provisioned on a node, not on another.
+        expect(globalStatesOf({avail: 'up', provisioned: 'mixed'})).toEqual(['up', 'unprovisioned']);
+        // Nothing to provision, or not known: not unprovisioned.
+        for (const provisioned of ['true', true, 'n/a', 'undef', undefined]) {
+            expect(globalStatesOf({avail: 'up', provisioned})).toEqual(['up']);
+        }
     });
 });
 

@@ -1037,6 +1037,30 @@ describe('Objects Component', () => {
             });
         });
 
+        test('Global state filter: Unprovisioned keeps an object one of whose instances is not, provisioned on another node (mixed)', async () => {
+            setup({
+                objectStatus: {
+                    ...defaultState.objectStatus,
+                    'test-ns/svc/partly': {avail: 'up', frozen: 'unfrozen', provisioned: 'mixed'},
+                },
+                objectInstanceStatus: {
+                    ...defaultState.objectInstanceStatus,
+                    'test-ns/svc/partly': {
+                        node1: {avail: 'up', frozen_at: '0001-01-01T00:00:00Z', provisioned: 'true'},
+                        node2: {avail: 'n/a', frozen_at: '0001-01-01T00:00:00Z', provisioned: 'false'},
+                    },
+                },
+            });
+            await waitForLoad();
+            await selectFilter('Global state', 'Unprovisioned');
+            await waitFor(() => {
+                for (const v of ['test-ns/svc/partly', 'test-ns/svc/unprovisioned(?!-bool)', 'test-ns/svc/unprovisioned-bool']) {
+                    expect(screen.getByRole('row', {name: new RegExp(v)})).toBeInTheDocument();
+                }
+                expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument();
+            });
+        });
+
         test('combining multiple Global state selections matches any of them', async () => {
             setup();
             await waitForLoad();

@@ -7,10 +7,19 @@ import {facetCounts} from "./facets";
 
 const AVAILS = ["up", "down", "warn"];
 
-/** The global states an object has: its availability, n/a when none of up, down, warn; and unprovisioned when it is. */
+/**
+ * Whether an instance of the object is not provisioned: all of them (false), or some
+ * (mixed, provisioned on a node, not on another).
+ */
+const hasUnprovisioned = (status) => [false, "false", "mixed"].includes(status?.provisioned);
+
+/**
+ * The global states an object has: its availability, n/a when none of up, down, warn;
+ * and unprovisioned when one of its instances is.
+ */
 export function globalStatesOf(status) {
     const states = [AVAILS.includes(status?.avail) ? status.avail : "n/a"];
-    if (status?.provisioned === false || status?.provisioned === "false") states.push("unprovisioned");
+    if (hasUnprovisioned(status)) states.push("unprovisioned");
     return states;
 }
 

@@ -18,7 +18,7 @@ import {Button, buttonClass} from "../ui/components/Button";
 import {cn} from "../ui/cn";
 import {Checkbox} from "../ui/components/Field";
 import {useMediaQuery} from "../ui/lib/media";
-import {objectFacets} from "../app/object-facets";
+import {globalStatesOf, objectFacets} from "../app/object-facets";
 import {FilterRail, FilterToolbar} from "./FilterRail";
 import {BADGE, KeyCells, NotProvisionedMark, OrchestrateBadge, PropertyCells, SideText, StatusMarks, volumeUsage} from "./ObjectCells";
 import {MoreRows, useRowsOnDemand} from "../ui/components/RowsOnDemand";
@@ -691,31 +691,12 @@ const Objects = () => {
                 continue;
             }
 
-            // Check global state filter (multiple selection), on the lists that have one
+            // Check global state filter (multiple selection), on the lists that have one: the
+            // states the facets count, unprovisioned an instance of it not provisioned.
             if (hasGlobalState && deferredSelectedGlobalStates.length > 0) {
                 const status = objects[name];
                 if (!status) continue;
-
-                const rawAvail = status.avail;
-                const validStatuses = ["up", "down", "warn"];
-                const avail = validStatuses.includes(rawAvail) ? rawAvail : "n/a";
-                const provisioned = status.provisioned;
-
-                let matchesAnyGlobalState = false;
-                for (let j = 0; j < deferredSelectedGlobalStates.length; j++) {
-                    const selectedState = deferredSelectedGlobalStates[j];
-                    if (selectedState === "unprovisioned") {
-                        if (provisioned === "false" || provisioned === false) {
-                            matchesAnyGlobalState = true;
-                            break;
-                        }
-                    } else if (avail === selectedState) {
-                        matchesAnyGlobalState = true;
-                        break;
-                    }
-                }
-
-                if (!matchesAnyGlobalState) continue;
+                if (!globalStatesOf(status).some((state) => deferredSelectedGlobalStates.includes(state))) continue;
             }
 
             result.push(name);
