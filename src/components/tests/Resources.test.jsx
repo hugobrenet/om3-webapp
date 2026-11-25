@@ -241,6 +241,33 @@ describe('Resources', () => {
         expect(global.fetch).toHaveBeenCalledTimes(2);
     });
 
+    test('a burst that goes on, a busy cluster\'s, read all the same 10 s after its first report, then again', async () => {
+        vi.useFakeTimers({shouldAdvanceTime: true});
+        // The reads of the list alone: who the user is read once, by the first view.
+        const reads = () => global.fetch.mock.calls.filter(([url]) => url.startsWith('/api/resource')).length;
+        renderView();
+        await waitFor(() => expect(rows()).toHaveLength(4));
+        expect(reads()).toBe(1);
+        answers = [{status: 200, body: {kind: 'ResourceList', items: ITEMS}}];
+        // A report each second, never 2 s of quiet.
+        const report = async (i) => {
+            act(() => useEventStore.setState({objectInstanceStatus: {'ns1/svc/web': {n1: {avail: i % 2 ? 'up' : 'down'}}}}));
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(1000);
+            });
+        };
+        for (let i = 0; i < 9; i++) await report(i);
+        expect(reads()).toBe(1);
+        // Read 10 s after the first report, the reports going on.
+        await report(9);
+        await waitFor(() => expect(reads()).toBe(2));
+        // The next burst waits 10 s from its own first report, the one after the read.
+        for (let i = 10; i < 19; i++) await report(i);
+        expect(reads()).toBe(2);
+        await report(19);
+        await waitFor(() => expect(reads()).toBe(3));
+    });
+
     test('not read: said, read again on demand', async () => {
         answers = [{status: 500, body: {detail: 'boom'}}, {status: 200, body: {kind: 'ResourceList', items: ITEMS}}];
         renderView();
