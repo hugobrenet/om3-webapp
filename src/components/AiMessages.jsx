@@ -137,7 +137,14 @@ function Message({message, feedback, status}) {
         >
             <p className="mb-1 text-data font-semibold text-ink-muted">{user ? t("ai.message.you") : t("ai.message.assistant")}</p>
             {!user && <AiSteps message={message} status={status}/>}
-            {message.text && !user && <AiMarkdown text={message.text} objects={status?.objects}/>}
+            {message.text && !user && (
+                <AiMarkdown
+                    text={message.text}
+                    objects={status?.objects}
+                    streaming={message.status === "running"}
+                    cut={["stopped", "failed"].includes(message.status)}
+                />
+            )}
             {message.text && user && <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.text}</div>}
             {message.status === "awaiting_confirmation" && (
                 <p className="mt-1 text-data text-state-warn">{t("ai.message.awaiting")}</p>

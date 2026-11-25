@@ -4112,7 +4112,8 @@
       "awaiting": "Waiting for your decision on the action below.",
       "stopped": "Incomplete response — stopped. No automatic retry.",
       "failed": "Incomplete response — failed. No automatic retry.",
-      "tokens": "Tokens: {{total}}"
+      "tokens": "Tokens: {{total}}",
+      "copyCode": "Copy the code"
     },
     "feedback": {
       "rate": "Rate this answer",

