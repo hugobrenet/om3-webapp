@@ -487,6 +487,34 @@ describe('ObjectStatus', () => {
         expect(mockApiFetch.mock.calls.filter(([url]) => url.includes('/cluster/status'))).toEqual([]);
     });
 
+    test('reads overlapping: the last asked wins, an older answering after it dropped', async () => {
+        answer(dns);
+        render(<ObjectStatus path="system/svc/dns"/>);
+        await screen.findByRole('table');
+        const avail = () => screen.getByText('Avail').closest('dt').nextSibling;
+        const reads = () => mockApiFetch.mock.calls.filter(([url]) => url.includes('/object/')).length;
+        const before = reads();
+        // The read of a first event held back, its object as it was then: down.
+        let answerOlder;
+        mockApiFetch.mockImplementationOnce(() => new Promise((resolve) => {
+            answerOlder = () => resolve({data: dns});
+        }));
+        act(() => {
+            useEventStore.setState((s) => ({objectStatus: {...s.objectStatus, 'system/svc/dns': {avail: 'warn'}}}));
+        });
+        await waitFor(() => expect(reads()).toBe(before + 1));
+        // The read of a later event answered first: up.
+        const up = structuredClone(dns);
+        up.avail = 'up';
+        mockApiFetch.mockImplementationOnce(() => Promise.resolve({data: up}));
+        act(() => {
+            useEventStore.setState((s) => ({objectStatus: {...s.objectStatus, 'system/svc/dns': {avail: 'up'}}}));
+        });
+        await waitFor(() => expect(avail()).toHaveTextContent('up'));
+        await act(async () => answerOlder());
+        expect(avail()).toHaveTextContent('up');
+    });
+
     test('says why the status could not be read', async () => {
         mockApiFetch.mockRejectedValue(new Error('403 forbidden'));
         render(<ObjectStatus path="system/svc/dns"/>);
