@@ -4112,7 +4112,8 @@
       "awaiting": "En attente de votre décision sur l'action ci-dessous.",
       "stopped": "Réponse incomplète — arrêtée. Pas de nouvel essai automatique.",
       "failed": "Réponse incomplète — en échec. Pas de nouvel essai automatique.",
-      "tokens": "Jetons : {{total}}"
+      "tokens": "Jetons : {{total}}",
+      "copyCode": "Copier le code"
     },
     "feedback": {
       "rate": "Évaluer cette réponse",

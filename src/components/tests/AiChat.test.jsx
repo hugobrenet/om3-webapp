@@ -302,6 +302,54 @@ describe('AI chatbot page', () => {
         expect(screen.queryByText('<img src=x onerror="alert(1)">')).not.toBeInTheDocument();
         expect(container.querySelector('img')).toBeNull();
     });
+    test('offers to copy a code block of the answer once it is complete, not while it streams', async () => {
+        Object.defineProperty(navigator, 'clipboard', {value: {writeText: vi.fn().mockResolvedValue(undefined)}, configurable: true});
+        let finish;
+        mocks.client.run.mockImplementation(async (_id, _input, {onEvent}) => {
+            for (const event of text('Run:\n\n```shell\nom cluster freeze\n')) onEvent(event);
+            await new Promise((resolve) => {
+                finish = resolve;
+            });
+            onEvent({type: 'TEXT_MESSAGE_CONTENT', messageId: 'turn-9:2', delta: '```\n'});
+            return completed();
+        });
+        try {
+            const {container} = await renderReady();
+            await submit('freeze the cluster');
+            await waitFor(() => expect(container.querySelector('pre code')).toHaveTextContent('om cluster freeze'));
+            expect(screen.queryByRole('button', {name: 'Copy the code'})).toBeNull();
+            await act(async () => {
+                finish();
+            });
+            expect(await screen.findByRole('button', {name: 'Copy the code'})).toBeInTheDocument();
+        } finally {
+            finish?.();
+            Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true});
+        }
+    });
+    test('offers no copy of the command a stopped answer cut short, but of the blocks it closed', async () => {
+        Object.defineProperty(navigator, 'clipboard', {value: {writeText: vi.fn().mockResolvedValue(undefined)}, configurable: true});
+        mocks.client.run.mockImplementation(
+            (_id, _input, options) =>
+                new Promise((_resolve, reject) => {
+                    for (const event of text('```\nom node ls\n```\n\n```shell\nrm -rf /var/lib/open')) options.onEvent(event);
+                    options.signal.addEventListener('abort', () => reject(new DOMException('Canceled', 'AbortError')), {once: true});
+                })
+        );
+        try {
+            const {container} = await renderReady();
+            await submit('clean the node');
+            await waitFor(() => expect(container.querySelectorAll('pre')).toHaveLength(2));
+            fireEvent.click(screen.getByRole('button', {name: 'Stop'}));
+            expect(await screen.findByText(/Incomplete response — stopped/)).toBeInTheDocument();
+            const buttons = screen.getAllByRole('button', {name: 'Copy the code'});
+            expect(buttons).toHaveLength(1);
+            expect(container.querySelectorAll('pre')[0].parentElement).toContainElement(buttons[0]);
+            expect((await axe(container)).violations).toHaveLength(0);
+        } finally {
+            Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true});
+        }
+    });
     test('renders saved assistant responses using the same Markdown policy', async () => {
         mocks.client.getMessages.mockResolvedValue({
             messages: [{...oldMessage, role: 'assistant', text: '**Saved diagnostic**'}],
