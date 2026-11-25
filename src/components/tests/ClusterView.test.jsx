@@ -1,5 +1,5 @@
 import React from 'react';
-import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {vi, describe, test, expect, beforeEach, afterEach} from 'vitest';
 import {MemoryRouter, useLocation} from 'react-router-dom';
@@ -30,10 +30,12 @@ let relaySlots = [];
 
 describe('ClusterView', () => {
     let resourcesFail;
+    let storesFail;
     let pgTold;
 
     beforeEach(() => {
         resourcesFail = false;
+        storesFail = false;
         relaySlots = [];
         pgTold = true;
         resetPgUsage();
@@ -59,11 +61,13 @@ describe('ClusterView', () => {
             },
             pools: [{name: 'default', size: 100, used: 30}, {name: 'tank', size: 100, used: 100}],
             networks: [{name: 'lo', size: 1, used: 0}, {name: 'backend', size: 256, used: 200}],
+            usageReads: {pools: {read: true, error: null}, networks: {read: true, error: null}},
         });
         vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
             const u = String(url);
             const json = (body, status = 200) => new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}});
             if (u.startsWith('/api/store')) {
+                if (storesFail) return json({detail: 'boom'}, 500);
                 return json({items: [
                     {ref: 'tar1', type: 'tar', url: '/srv', share: ['*'], stats: {runs: 6, last_created_at: '2026-10-20T10:00:00Z'}},
                     {ref: 'from test/sec/stores store#tar2', type: 'tar', url: 'sftp://x', share: ['test'], stats: {runs: 11, check_error: 'refused'}},
@@ -375,6 +379,44 @@ describe('ClusterView', () => {
         resourcesFail = true;
         render(<ClusterView/>, {wrapper: MemoryRouter});
         await waitFor(() => expect(card('resources')).toHaveTextContent('Could not read the resources'));
+    });
+
+    test('the networks, the pools and the stores: no count while read, nor when not read, but why; the list last read kept', async () => {
+        const count = (id) => within(card(id)).getByRole('heading', {level: 2}).textContent;
+        useMenuState.setState({pools: [], networks: [], usageReads: {pools: {read: false, error: null}, networks: {read: false, error: null}}});
+        let answerStores;
+        global.fetch.mockImplementation(async (url) => (String(url).startsWith('/api/store')
+            ? new Promise((resolve) => {
+                answerStores = () => resolve(new Response(JSON.stringify({detail: 'boom'}), {status: 500}));
+            })
+            : new Response('{}', {status: 404})));
+        render(<ClusterView/>, {wrapper: MemoryRouter});
+        // Read: "Reading…", no 0.
+        for (const id of ['networks', 'pools', 'stores']) {
+            expect(card(id)).toHaveTextContent('Reading…');
+            expect(count(id)).not.toMatch(/\d/);
+        }
+        expect(card('stores')).not.toHaveTextContent('0 snapshots');
+        // Not read: why, no count, no "None." nor "0 snapshots".
+        act(() => useMenuState.setState({usageReads: {pools: {read: false, error: 'Request failed with status code 403'}, networks: {read: false, error: 'Network Error'}}}));
+        await act(async () => answerStores());
+        await waitFor(() => expect(card('stores')).toHaveTextContent('Could not read the stores'));
+        expect(card('networks')).toHaveTextContent('Could not read the networks: Network Error');
+        expect(card('pools')).toHaveTextContent('Could not read the pools: Request failed with status code 403');
+        for (const id of ['networks', 'pools', 'stores']) {
+            expect(card(id)).not.toHaveTextContent('Reading…');
+            expect(count(id)).not.toMatch(/\d/);
+        }
+        expect(card('pools')).not.toHaveTextContent('None.');
+        expect(card('stores')).not.toHaveTextContent('0 snapshots');
+        // Read once, then not: the list last read kept, counted, why the last read failed said over it.
+        act(() => useMenuState.setState({
+            pools: [{name: 'tank', size: 100, used: 100}],
+            usageReads: {pools: {read: true, error: 'Network Error'}, networks: {read: false, error: 'Network Error'}},
+        }));
+        expect(count('pools')).toMatch(/1$/);
+        expect(card('pools')).toHaveTextContent('Could not read the pools: Network Error');
+        expect(card('pools')).toHaveTextContent('1 full');
     });
 
     test('a resource down of an instance stopped on purpose: no problem, as the status board tells it', async () => {

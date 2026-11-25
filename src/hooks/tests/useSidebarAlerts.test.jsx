@@ -443,5 +443,28 @@ describe('useSidebarAlerts', () => {
             vi.advanceTimersByTime(SIDEBAR_USAGE_REFRESH_MS);
         });
         expect(useMenuState.getState().pools).toEqual([{size: 10, used: 10}]);
+        // Read once, the last read failed: both said.
+        expect(useMenuState.getState().usageReads).toEqual({pools: {read: true, error: 'down'}, networks: {read: true, error: 'down'}});
+    });
+
+    test('says each list read or not, and why: not read yet, an empty list is not "none"', async () => {
+        useMenuState.setState({usageReads: {pools: {read: false, error: null}, networks: {read: false, error: null}}});
+        axios.get.mockImplementation((url) => (url === URL_POOL
+            ? Promise.reject(new Error('Request failed with status code 403'))
+            : Promise.resolve({data: {items: []}})));
+        renderHook(() => useSidebarAlerts());
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(useMenuState.getState().usageReads).toEqual({
+            pools: {read: false, error: 'Request failed with status code 403'},
+            networks: {read: true, error: null},
+        });
+        // Nothing changed at the next poll: the same state, nothing drawn again.
+        const before = useMenuState.getState().usageReads;
+        await act(async () => {
+            vi.advanceTimersByTime(SIDEBAR_USAGE_REFRESH_MS);
+        });
+        expect(useMenuState.getState().usageReads).toBe(before);
     });
 });

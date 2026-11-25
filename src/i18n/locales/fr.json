@@ -3466,6 +3466,11 @@
       "quiet": "down, sans problème",
       "ok": "ok"
     },
+    "unread": {
+      "networks": "Impossible de lire les réseaux : {{message}}",
+      "pools": "Impossible de lire les pools : {{message}}",
+      "stores": "Impossible de lire les dépôts : {{message}}"
+    },
     "reading": "Lecture…",
     "links": {
       "heartbeats": "Heartbeats",

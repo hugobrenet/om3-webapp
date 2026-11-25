@@ -3466,6 +3466,11 @@
       "quiet": "down, no issue",
       "ok": "ok"
     },
+    "unread": {
+      "networks": "Could not read the networks: {{message}}",
+      "pools": "Could not read the pools: {{message}}",
+      "stores": "Could not read the stores: {{message}}"
+    },
     "reading": "Reading…",
     "links": {
       "heartbeats": "Heartbeats",
