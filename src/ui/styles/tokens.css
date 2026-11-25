@@ -63,6 +63,12 @@
   --code-keyword: #7a3e9d;
   --code-comment: #6f7a82;
   --code-punct: #8a5a12;
+  /* A code span within a text: the ink of the mode, faint (14 %), over whatever surface;
+     set in each mode, without color-mix, which a browser lacking it would read as the
+     ink itself. On the answers of the assistant, against their surface: 1.32:1 light,
+     1.46:1 dark, 1.38:1 and 1.35:1 in contrast, where the former sunken background read
+     1.09:1, 1.06:1, 1.22:1 and 1.00:1; the ink on it 9.5:1 at least. */
+  --code-span: rgb(26 34 41 / 0.14);
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
@@ -151,6 +157,7 @@
   --code-keyword: #c79ae6;
   --code-comment: #8b969c;
   --code-punct: #d9b36a;
+  --code-span: rgb(227 232 230 / 0.14);
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
@@ -224,6 +231,7 @@
   --code-keyword: #5a1f7d;
   --code-comment: #3b454c;
   --code-punct: #5c3a00;
+  --code-span: rgb(0 0 0 / 0.14);
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
@@ -279,6 +287,7 @@
   --code-keyword: #e0b8ff;
   --code-comment: #b8c2c8;
   --code-punct: #f0cf8a;
+  --code-span: rgb(255 255 255 / 0.14);
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;

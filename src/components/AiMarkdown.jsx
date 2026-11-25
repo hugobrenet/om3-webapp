@@ -83,9 +83,10 @@ function CodeBlock({node, children}) {
                 <pre>{children}</pre>
             </InBlock.Provider>
             {copyable && (
-                // The box hides the text that scrolls under the button; the
-                // button stands out of the block, as it does elsewhere.
-                <div className="absolute top-0 right-0 rounded-(--radius-control) bg-surface-sunken p-1">
+                // The box hides the text that scrolls under the button, within
+                // the border of the block; the button stands out of the block,
+                // as it does elsewhere.
+                <div className="absolute top-px right-px rounded-(--radius-control) bg-surface-sunken p-1">
                     <div className="rounded-(--radius-control) bg-surface">
                         <CopyButton text={text} label={t("ai.message.copyCode")}/>
                     </div>
@@ -135,10 +136,12 @@ const PROSE = cn(
     "[&_p]:my-2 [&_ul]:my-2 [&_ol]:my-2 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-5 [&_ol]:pl-5",
     "[&_h1]:mt-3 [&_h1]:mb-1 [&_h1]:text-title [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-title [&_h2]:font-semibold",
     "[&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:font-semibold [&_h4]:mt-3 [&_h4]:mb-1 [&_h4]:font-semibold [&_h5]:font-semibold [&_h6]:font-semibold",
-    "[&_code]:rounded-sm [&_code]:bg-surface-sunken [&_code]:px-1 [&_code]:font-mono [&_code]:text-data",
+    "[&_code]:rounded-sm [&_code]:bg-code-span [&_code]:px-1 [&_code]:font-mono [&_code]:text-data",
     // A code block is held in a box with its copy button, which takes its
-    // margins; the right of the block is left to the button.
-    "[&_pre]:overflow-x-auto [&_pre]:rounded-(--radius-control) [&_pre]:bg-surface-sunken [&_pre]:py-2 [&_pre]:pl-2 [&_pre]:pr-9 [&_pre]:whitespace-pre",
+    // margins; the right of the block is left to the button. Its border and
+    // the background of a code span tell code from text in the dark mode too,
+    // where the sunken surface hardly differs from the answer's.
+    "[&_pre]:overflow-x-auto [&_pre]:rounded-(--radius-control) [&_pre]:border [&_pre]:border-line [&_pre]:bg-surface-sunken [&_pre]:py-2 [&_pre]:pl-2 [&_pre]:pr-9 [&_pre]:whitespace-pre",
     "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
     "[&_blockquote]:border-l-2 [&_blockquote]:border-line [&_blockquote]:pl-3 [&_blockquote]:text-ink-muted",
     "[&_table]:w-full [&_table]:border-collapse [&_table]:text-data",
