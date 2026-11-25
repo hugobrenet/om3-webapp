@@ -1705,6 +1705,7 @@
       "apply_other": "Appliquer {{count}} modifications",
       "applying": "Application…",
       "revert": "Rétablir {{name}}",
+      "unread": "Les valeurs de l'organisation n'ont pu être lues, rien contre quoi les modifier : {{message}}",
       "refused": "Non appliqué : {{message}}",
       "tray_one": "Mettre à jour {{count}} propriété de l'organisation",
       "tray_other": "Mettre à jour {{count}} propriétés de l'organisation"
@@ -2946,6 +2947,7 @@
   },
   "nodeLabels": {
     "title": "Étiquettes",
+    "unread": "Impossible de lire les labels : {{message}}",
     "none": "Aucune étiquette.",
     "edit": "Modifier les étiquettes",
     "fromCluster": "Défini dans la configuration du cluster : en le réglant ici, le nœud aura sa propre valeur.",

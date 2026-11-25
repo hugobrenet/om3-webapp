@@ -99,7 +99,8 @@ describe('NodeDetailPanel', () => {
         requests = [];
         mockLive.counts = {node: 0, cluster: 0, poll: {}};
         config = CONFIG;
-        api = structuredClone({...node, ...daemon});
+        // The node and the cluster configurations read, with no keyword: no label, the organisation not set.
+        api = structuredClone({config: {items: []}, 'cluster/config': {items: []}, ...node, ...daemon});
         global.fetch = vi.fn(async (url, options = {}) => {
             const method = options.method ?? 'GET';
             requests.push({method, url, body: options.body});
@@ -238,6 +239,31 @@ describe('NodeDetailPanel', () => {
         expect(useActionTracker.getState().tracked.some((e) => e.label === 'Update 2 organisation properties' && e.state === 'succeeded')).toBe(true);
     });
 
+    test('the organisation values not read: no blank form to edit against, why said, read again on demand', async () => {
+        api['system/property'].items.push({data: {name: 'loc_city', source: 'config', title: 'loc, city', value: 'Paris', error: ''}});
+        api.config = {items: [{keyword: 'node.loc_city', value: 'Paris'}]};
+        mockGrants.value = {root: null};
+        // The read of the values to edit refused; the labels, without kw, read.
+        let refuse = true;
+        const answer = global.fetch.getMockImplementation();
+        global.fetch.mockImplementation(async (url, options) => (refuse && url.includes('/config?kw=')
+            ? new Response(JSON.stringify({detail: 'config not readable'}), {status: 500})
+            : answer(url, options)));
+        renderPanel();
+        const location = await within(panel()).findByRole('region', {name: 'Location'});
+        fireEvent.click(within(location).getByRole('button', {name: 'Edit the organisation properties'}));
+        const unread = await within(panel()).findByText(/The values of the organisation could not be read, nothing to edit them against: config not readable/);
+        // No form: no field, no bar of changes, the pencils kept.
+        expect(within(panel()).queryByRole('textbox', {name: 'City'})).toBeNull();
+        expect(within(panel()).queryByRole('region', {name: 'Changes of the organisation properties'})).toBeNull();
+        expect(within(location).getByRole('button', {name: 'Edit the organisation properties'})).toBeInTheDocument();
+        // Read again: the form, its values those written.
+        refuse = false;
+        fireEvent.click(within(unread.closest('[role="alert"]')).getByRole('button', {name: 'Retry'}));
+        expect(await within(panel()).findByRole('textbox', {name: 'City'})).toHaveValue('Paris');
+        expect(within(panel()).queryByText(/could not be read, nothing to edit/)).toBeNull();
+    });
+
     test('the agent version the one the node runs, not the one cached at the last asset push', async () => {
         api['system/property'].items.push({data: {name: 'version', source: 'probe', title: 'agent version', value: '.0.0-rc40-0-g791130387', error: ''}});
         renderPanel();
@@ -312,6 +338,21 @@ describe('NodeDetailPanel', () => {
         expect(useActionTracker.getState().tracked[0]).toMatchObject({state: 'succeeded', label: 'Update 3 labels'});
     });
 
+    test('the labels not read: why, not "no labels", and no edit against nothing; read again on demand', async () => {
+        delete api['cluster/config'];
+        mockGrants.value = {root: null};
+        renderPanel();
+        const labels = await within(panel()).findByRole('region', {name: /^Labels/});
+        await waitFor(() => expect(labels).toHaveTextContent('Could not read the labels: not found'));
+        expect(labels).not.toHaveTextContent('No labels');
+        expect(within(labels).queryByRole('button', {name: 'Edit the labels'})).toBeNull();
+        api['cluster/config'] = {items: [{keyword: 'labels.toto', value: 'tata'}]};
+        fireEvent.click(within(labels).getByRole('button', {name: 'Retry'}));
+        await waitFor(() => expect(labels.querySelector('[data-label=toto]')).not.toBeNull());
+        expect(labels).not.toHaveTextContent('Could not read');
+        expect(within(labels).getByRole('button', {name: 'Edit the labels'})).toBeInTheDocument();
+    });
+
     test('the labels read again as the node or the cluster configuration changes elsewhere, a failure keeping them', async () => {
         api.config = {items: [{keyword: 'labels.az', value: 'fr1'}]};
         api['cluster/config'] = {items: [{keyword: 'labels.toto', value: 'tata'}]};
@@ -340,6 +381,12 @@ describe('NodeDetailPanel', () => {
         await waitFor(() => expect(requests.filter((r) => r.url === '/api/node/name/dev3n1/config').length).toBe(reads + 1));
         await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
         expect(shown()).toEqual(['az fr2', 'rack r12', 'toto titi']);
+        // Why said over them, read again on demand.
+        expect(labels).toHaveTextContent('Could not read the labels: not found');
+        api.config = {items: [{keyword: 'labels.az', value: 'fr3'}]};
+        fireEvent.click(within(labels).getByRole('button', {name: 'Retry'}));
+        await waitFor(() => expect(shown()).toEqual(['az fr3', 'toto titi']));
+        expect(labels).not.toHaveTextContent('Could not read');
     });
 
     test('the health says the minimum free memory; root sets it, said whether the node would be overloaded, written to its configuration', async () => {
@@ -725,10 +772,15 @@ describe('NodeDetailPanel', () => {
         localStorage.removeItem('authToken');
     });
 
-    test('a read refused is said in its section', async () => {
+    test('a read refused is said in its section, read again on demand', async () => {
+        const answer = global.fetch.getMockImplementation();
         global.fetch.mockImplementation(async () => new Response(JSON.stringify({detail: 'forbidden'}), {status: 403}));
         renderPanel('?peek=node:dev3n1&peektab=schedules');
-        expect(await within(panel()).findByRole('alert')).toHaveTextContent('Could not read it');
+        const alert = await within(panel()).findByRole('alert');
+        expect(alert).toHaveTextContent('Could not read it');
+        global.fetch.mockImplementation(answer);
+        fireEvent.click(within(alert).getByRole('button', {name: 'Retry'}));
+        await waitFor(() => expect(within(panel()).queryByRole('alert')).toBeNull());
     });
 
     test('closed, it leaves the URL; the history keeps it, as a node', async () => {

@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 import {URL_NODE} from "../config/apiPath.js";
 import {getResponseErrorMessage} from "../services/api.jsx";
 import {trackRefused, trackResponse, trackWrite} from "../app/action-tracker";
@@ -28,7 +28,8 @@ const REFRESH_TIMES = 10;
  * so that each change does not make a version of its own to spread. A value
  * emptied unsets its keyword, the property then back to its default. Applied, the
  * asset is pushed again for the properties to say the new values, read again by
- * `reload` until then.
+ * `reload` until then. The values written not read, no form: `readError` why, and
+ * `retry` reads them again.
  */
 export function useOrgEdit(node, {reload, t}) {
     const [editing, setEditing] = useState(false);
@@ -37,20 +38,33 @@ export function useOrgEdit(node, {reload, t}) {
     const [buffer, setBuffer] = useState({});
     const [applying, setApplying] = useState(false);
     const [error, setError] = useState(null);
+    const [readError, setReadError] = useState(null);
+    // The properties of the last edit asked: read again by retry.
+    const asked = useRef([]);
 
     const start = useCallback(async (properties) => {
+        asked.current = properties;
         setError(null);
+        setReadError(null);
         setBuffer({});
         const keywords = properties.map((p) => propertyKeyword(p.name));
         const query = new URLSearchParams(keywords.map((kw) => ["kw", kw]));
         try {
             const response = await fetch(`${URL_NODE}/${encodeURIComponent(node)}/config?${query}`, {headers: authHeaders()});
-            const {items = []} = response.ok ? await response.json() : {};
+            if (!response.ok) throw new Error((await getResponseErrorMessage(response)) || `HTTP ${response.status}`);
+            const {items = []} = await response.json();
             setWritten(Object.fromEntries(keywords.map((kw) => [kw, items.find((i) => i.keyword === kw)?.value ?? ""])));
-        } catch {
-            setWritten({});
+        } catch (err) {
+            // Not read: no form, its fields would stand for values not set, a change against nothing.
+            setReadError(err.message || String(err));
+            return;
         }
         setEditing(true);
+    }, [node]);
+    const retry = useCallback(() => start(asked.current), [start]);
+    // Another node: why the one before's values were not read, not said of it.
+    useEffect(() => {
+        setReadError(null);
     }, [node]);
 
     /** The value of a keyword in the form: the one changed, else the one written. */
@@ -106,7 +120,7 @@ export function useOrgEdit(node, {reload, t}) {
     };
 
     return {
-        editing, applying, error, start, discard, apply, change, revert, valueOf,
+        editing, applying, error, readError, start, retry, discard, apply, change, revert, valueOf,
         changed: (kw) => kw in buffer,
         count: Object.keys(buffer).length,
     };

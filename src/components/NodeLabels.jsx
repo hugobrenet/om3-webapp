@@ -34,40 +34,45 @@ const labelsOf = (items = []) => Object.fromEntries(items
  * The labels of `node` and those of the cluster: read from the node configuration
  * (its own) and the cluster configuration (the defaults its own override). Read
  * again as either changes, by om or another user: what was read kept shown
- * meanwhile, and when a read again fails; only the last read asked shown.
+ * meanwhile, and when a read again fails; only the last read asked shown. `error`,
+ * why the last read failed: none read, no labels to show, not "none".
  */
 export function useNodeLabels(node) {
     const [state, setState] = useState(null);
+    const [error, setError] = useState(null);
     const asked = useRef(0);
     const reload = useCallback(async () => {
         asked.current += 1;
         const mine = asked.current;
         const read = async (url) => {
             const response = await fetch(url, {headers: authHeaders()});
-            return response.ok ? labelsOf((await response.json()).items) : null;
+            if (!response.ok) throw new Error((await getResponseErrorMessage(response)) || `HTTP ${response.status}`);
+            return labelsOf((await response.json()).items);
         };
-        let own = null;
-        let cluster = null;
         try {
-            [own, cluster] = await Promise.all([
+            const [own, cluster] = await Promise.all([
                 read(`${URL_NODE}/${encodeURIComponent(node)}/config`),
                 read(`${URL_CLUSTER}/config`),
             ]);
-        } catch {
-            // Neither read: what was shown kept.
+            if (mine !== asked.current) return;
+            setState({own, cluster});
+            setError(null);
+        } catch (err) {
+            // Not both read: what was shown kept, if any, and why said.
+            if (mine !== asked.current) return;
+            setError(err.message || String(err));
         }
-        if (mine !== asked.current) return;
-        setState((shown) => ({own: own ?? shown?.own ?? {}, cluster: cluster ?? shown?.cluster ?? {}}));
     }, [node]);
     // Another node: nothing of the one before shown while its labels are read.
     useEffect(() => {
         setState(null);
+        setError(null);
     }, [node]);
     const changes = anyOf(useNodeConfigChanges(node), useClusterConfigChanges());
     useEffect(() => {
         void reload();
     }, [reload, changes]);
-    return {labels: state, reload};
+    return {labels: state, error, reload};
 }
 
 const BADGE = "inline-flex items-center gap-1 rounded-(--radius-control) border px-1.5 py-0.5 text-data";
@@ -77,11 +82,13 @@ const BADGE = "inline-flex items-center gap-1 rounded-(--radius-control) border 
  * space: no separator needed): its own solid, those it takes from
  * the cluster dashed and muted. Root edits them in a buffer: a value changed, a
  * label of its own removed, one of the cluster given a value of its own, a label
- * added; applied at once, in one write of the node configuration.
+ * added; applied at once, in one write of the node configuration. Not read, why,
+ * read again on demand, and no edit: against labels not read, a change would be
+ * made against nothing.
  */
 export function NodeLabels({node, mayEdit}) {
     const {t} = useTranslation();
-    const {labels, reload} = useNodeLabels(node);
+    const {labels, error: readError, reload} = useNodeLabels(node);
     const [editing, setEditing] = useState(false);
     // The changes by key: a value, or null for a label removed.
     const [buffer, setBuffer] = useState({});
@@ -90,7 +97,20 @@ export function NodeLabels({node, mayEdit}) {
     const [applying, setApplying] = useState(false);
     const [error, setError] = useState(null);
 
-    if (labels === null) return null;
+    const unread = readError && (
+        <Alert action={<Button size="sm" onClick={() => void reload()}>{t("common.retry")}</Button>}>
+            {t("nodeLabels.unread", {message: readError})}
+        </Alert>
+    );
+    // Not read yet: nothing; never read, why alone.
+    if (labels === null) {
+        return unread ? (
+            <section aria-labelledby={`node-labels-${node}`} className="space-y-2">
+                <h3 id={`node-labels-${node}`} className="font-semibold">{t("nodeLabels.title")}</h3>
+                {unread}
+            </section>
+        ) : null;
+    }
     const merged = {...labels.cluster, ...labels.own};
     const keys = [...new Set([...Object.keys(merged), ...Object.keys(buffer)])].sort((a, b) => a.localeCompare(b));
     const count = Object.keys(buffer).length;
@@ -207,13 +227,14 @@ export function NodeLabels({node, mayEdit}) {
                     {t("nodeLabels.title")}
                     <span className="ml-1.5 font-normal text-ink-muted tabular-nums">{Object.keys(merged).length}</span>
                 </h3>
-                {mayEdit && !editing && (
+                {mayEdit && !editing && !readError && (
                     <IconButton size="sm" label={t("nodeLabels.edit")} onClick={() => setEditing(true)}>
                         <PencilIcon className="h-3 w-3"/>
                     </IconButton>
                 )}
             </div>
-            {keys.length === 0 && !editing && <p className="text-ink-muted">{t("nodeLabels.none")}</p>}
+            {unread}
+            {keys.length === 0 && !editing && !readError && <p className="text-ink-muted">{t("nodeLabels.none")}</p>}
             <div className="flex flex-wrap gap-1.5">
                 {keys.map(badge)}
                 {/* A new one: a plus card among the badges, opening one field. A plus card keeps this look, out of the rule of the buttons (`Button`). */}

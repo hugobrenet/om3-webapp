@@ -1705,6 +1705,7 @@
       "apply_other": "Apply {{count}} changes",
       "applying": "Applying…",
       "revert": "Revert {{name}}",
+      "unread": "The values of the organisation could not be read, nothing to edit them against: {{message}}",
       "refused": "Not applied: {{message}}",
       "tray_one": "Update {{count}} organisation property",
       "tray_other": "Update {{count}} organisation properties"
@@ -2946,6 +2947,7 @@
   },
   "nodeLabels": {
     "title": "Labels",
+    "unread": "Could not read the labels: {{message}}",
     "none": "No label.",
     "edit": "Edit the labels",
     "fromCluster": "From the cluster configuration: set here, the node takes a value of its own.",
