@@ -491,9 +491,15 @@ const AiChat = ({status}) => {
     const [exporting, setExporting] = useState(false);
     const [exported, setExported] = useState(false);
     const [exportAlert, setExportAlert] = useState(null);
-    const exportRun = useRef(null);
-    // The conversation the browser prints, to be saved as a PDF, until its dialog closes.
-    const [printDoc, setPrintDoc] = useState(null);
+    // The whole history read for an export, {key, doc}, the key that of the
+    // transcript it was read for; the one being read, {key, run, promise}.
+    const [prepared, setPrepared] = useState(null);
+    const loading = useRef(null);
+    // The frame printing `prepared`, once its document is in it, and the key
+    // it holds; the offer to print once it is ready, after a click too early.
+    const printWindow = useRef(null);
+    const [frameKey, setFrameKey] = useState(null);
+    const [pdfOffer, setPdfOffer] = useState(false);
     // The page on display: the chat is read, and the turns that end now are seen.
     useEffect(() => attach(), [attach]);
     // The tools are read as the session: one that ends closes them, and they
@@ -567,36 +573,95 @@ const AiChat = ({status}) => {
         void chat.loadOlderMessages();
     };
 
-    // The conversation as a Markdown file, or printed to be saved as a PDF
-    // (`format`, "md" or "pdf"): its whole history, read again from the agent,
-    // the earlier messages not loaded included. Nothing runs or waits
-    // meanwhile, the turn of the moment not stored yet.
-    const exportConversation = async (format) => {
+    // What the transcript holds now: a history read for another is read again.
+    const historyKey = chat.conversation
+        ? `${chat.conversation.id}:${chat.messages.length}:${chat.messages.at(-1)?.id ?? ""}`
+        : null;
+    const exportOff = busy || waiting || !chat.messages.length;
+
+    // The whole history of the conversation, read again from the agent, the
+    // earlier messages not loaded included, once per state of the transcript:
+    // the document of the export, null when the read was dropped.
+    const loadHistory = () => {
         const conversation = chat.conversation;
-        if (!conversation || exportRun.current) return;
+        const key = historyKey;
+        if (prepared?.key === key) return Promise.resolve(prepared.doc);
+        if (loading.current?.key === key) return loading.current.promise;
+        loading.current?.run.abort();
         const run = new AbortController();
-        exportRun.current = run;
+        const promise = (async () => {
+            let messages;
+            try {
+                messages = await wholeHistory(client, conversation.id, {signal: run.signal});
+            } catch (error) {
+                // Dropped: another conversation, or the page left.
+                if (run.signal.aborted) return null;
+                throw error;
+            }
+            if (run.signal.aborted) return null;
+            const doc = {title: titleOf(conversation), clusterName, messages, exportedAt: new Date()};
+            setPrepared({key, doc});
+            return doc;
+        })();
+        loading.current = {key, run, promise};
+        const done = () => {
+            if (loading.current?.run === run) loading.current = null;
+        };
+        promise.then(done, done);
+        return promise;
+    };
+
+    // Opening the menu reads the history, and makes the print ready with it:
+    // Safari prints only on a click of the user, the click on the entry.
+    const prepareExport = () => {
+        if (exportOff || !chat.conversation) return;
+        loadHistory().catch(() => {
+            // Told if the user asks for the export.
+        });
+    };
+
+    // The print of the frame made ready, at once: within the click.
+    const printNow = () => {
+        setPdfOffer(false);
+        try {
+            printWindow.current.focus();
+            printWindow.current.print();
+        } catch {
+            setExportAlert({tone: "error", text: t("ai.export.printFailed")});
+        }
+    };
+
+    // The conversation as a Markdown file, or printed to be saved as a PDF
+    // (`format`, "md" or "pdf"). Nothing runs or waits meanwhile, the turn of
+    // the moment not stored yet. A print not ready at the click is offered
+    // once it is: Safari would not print it once the history is read.
+    const exportConversation = async (format) => {
+        if (!chat.conversation) return;
+        const ready = prepared?.key === historyKey && prepared.doc.messages.length > 0;
+        if (format === "pdf" && ready && frameKey === historyKey && printWindow.current) {
+            printNow();
+            return;
+        }
         setExporting(true);
         setExported(false);
         setExportAlert(null);
+        setPdfOffer(false);
         try {
-            const messages = await wholeHistory(client, conversation.id, {signal: run.signal});
-            if (run.signal.aborted) return;
+            const doc = await loadHistory();
+            if (doc === null) return;
             // Its turns stopped or failed only: the agent stored none.
-            if (!messages.length) {
+            if (!doc.messages.length) {
                 setExportAlert({tone: "info", text: t("ai.export.empty")});
                 return;
             }
-            const exportedAt = new Date();
-            const title = titleOf(conversation);
             if (format === "pdf") {
-                setPrintDoc({title, clusterName, messages, exportedAt});
+                setPdfOffer(true);
                 return;
             }
-            downloadText(conversationMarkdown({title, clusterName, messages, exportedAt, t, i18n}), exportFileName(title, exportedAt));
+            const exportedAt = new Date();
+            downloadText(conversationMarkdown({...doc, exportedAt, t, i18n}), exportFileName(doc.title, exportedAt));
             setExported(true);
         } catch (error) {
-            if (run.signal.aborted) return;
             // What the agent answered, as for a turn: a session ended says so.
             const text =
                 error instanceof ExportTooLong
@@ -606,22 +671,22 @@ const AiChat = ({status}) => {
                         : t("ai.export.failed");
             setExportAlert({tone: "error", text});
         } finally {
-            if (exportRun.current === run) {
-                exportRun.current = null;
-                setExporting(false);
-            }
+            setExporting(false);
         }
     };
     // Another conversation on display, or leaving the page, drops the export
-    // running and what the last one told: the user left it.
+    // running, its history and what the last one told: the user left it.
     useEffect(
         () => () => {
-            exportRun.current?.abort();
-            exportRun.current = null;
+            loading.current?.run.abort();
+            loading.current = null;
+            printWindow.current = null;
+            setPrepared(null);
+            setFrameKey(null);
+            setPdfOffer(false);
             setExporting(false);
             setExported(false);
             setExportAlert(null);
-            setPrintDoc(null);
         },
         [chat.conversation?.id]
     );
@@ -829,13 +894,20 @@ const AiChat = ({status}) => {
                                 {/* While one runs, the menu stays, with the focus, its entries off. */}
                                 {/* A title, the tooltip the browser shows after a while, as on the dock. */}
                                 {chat.conversation && (
-                                    <span title={t("ai.export.open")} className="inline-flex">
+                                    <span
+                                        title={t("ai.export.open")}
+                                        className="inline-flex"
+                                        onPointerDownCapture={prepareExport}
+                                        onKeyDownCapture={(event) => {
+                                            if (["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key)) prepareExport();
+                                        }}
+                                    >
                                         <MenuButton
                                             label={t("ai.export.open")}
                                             align="end"
-                                            disabled={busy || waiting || !chat.messages.length}
+                                            disabled={exportOff}
                                             icon={
-                                                exporting || printDoc ? (
+                                                exporting ? (
                                                     <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent"/>
                                                 ) : (
                                                     <DownloadIcon width={14} height={14}/>
@@ -846,14 +918,14 @@ const AiChat = ({status}) => {
                                                     key: "md",
                                                     label: t("ai.export.markdown"),
                                                     icon: <FileMarkdownIcon width={16} height={16}/>,
-                                                    disabled: exporting || Boolean(printDoc),
+                                                    disabled: exporting,
                                                     onSelect: () => void exportConversation("md"),
                                                 },
                                                 {
                                                     key: "pdf",
                                                     label: t("ai.export.pdf"),
                                                     icon: <FilePdfIcon width={16} height={16}/>,
-                                                    disabled: exporting || Boolean(printDoc),
+                                                    disabled: exporting,
                                                     onSelect: () => void exportConversation("pdf"),
                                                 },
                                             ]}
@@ -935,6 +1007,19 @@ const AiChat = ({status}) => {
                             />
                         )}
                         {chat.error && !replacing && <Alert className="mx-3 mb-2">{chat.error}</Alert>}
+                        {pdfOffer && frameKey === historyKey && (
+                            <Alert
+                                tone="info"
+                                className="mx-3 mb-2"
+                                action={
+                                    <Button size="sm" onClick={printNow}>
+                                        {t("ai.export.print")}
+                                    </Button>
+                                }
+                            >
+                                {t("ai.export.printReady")}
+                            </Alert>
+                        )}
                         {exportAlert && (
                             <Alert
                                 tone={exportAlert.tone}
@@ -978,12 +1063,13 @@ const AiChat = ({status}) => {
                 <AiPromptTips/>
             </Dialog>
             <AiToolsDialog open={ready && toolsOpen} client={client} onClose={() => setToolsOpen(false)}/>
-            {printDoc && (
+            {prepared && prepared.doc.messages.length > 0 && (
                 <AiPrintView
-                    doc={printDoc}
-                    onDone={(failed) => {
-                        setPrintDoc(null);
-                        if (failed) setExportAlert({tone: "error", text: t("ai.export.printFailed")});
+                    key={prepared.key}
+                    doc={prepared.doc}
+                    onReady={(frame) => {
+                        printWindow.current = frame;
+                        setFrameKey(prepared.key);
                     }}
                 />
             )}

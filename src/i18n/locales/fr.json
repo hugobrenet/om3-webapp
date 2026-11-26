@@ -4389,6 +4389,8 @@
       "failed": "La conversation n'a pas pu être exportée. Réessayez.",
       "tooLong": "La conversation est trop longue pour être exportée.",
       "printFailed": "Le navigateur n'a pas pu ouvrir l'impression : le PDF n'a pas été produit.",
+      "printReady": "La conversation est prête à être enregistrée en PDF.",
+      "print": "Ouvrir l'impression",
       "empty": "Rien à exporter : aucun tour de cette conversation n'est enregistré.",
       "dismiss": "Fermer",
       "cluster": "Cluster : {{name}}",

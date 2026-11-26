@@ -1,5 +1,5 @@
 import React from 'react';
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import AiChat from '../AiChat.jsx';
 import {MemoryRouter} from 'react-router-dom';
@@ -187,24 +187,23 @@ describe('the export of a conversation of the assistant', () => {
         expect(screen.queryByRole('alert')).toBeNull();
     });
 
-    test('prints the whole conversation alone, in the light theme, to be saved as a PDF', async () => {
-        // The user chose the dark theme.
+    // The frame the print is made ready in, once its document holds the sheet.
+    const frame = () => document.querySelector('iframe[aria-hidden="true"]');
+    const frameReady = async () => {
+        await waitFor(() => expect(frame()?.contentDocument?.querySelector('.ai-print')).toBeTruthy());
+        return frame();
+    };
+    // Opening the menu: the press reads the history and makes the print ready.
+    const openMenu = () => {
+        fireEvent.pointerDown(exportButton());
+        fireEvent.click(exportButton());
+    };
+    const pdfEntry = () => screen.findByRole('menuitem', {name: /^Download the conversation in PDF/});
+
+    test('prints the whole conversation within the click, made ready as the menu opens, the page as it is', async () => {
         localStorage.setItem('om3.theme', 'dark');
         document.documentElement.classList.add('dark');
         document.title = 'Lab cluster';
-        let printed = null;
-        // A browser whose print() blocks, afterprint told before it returns.
-        vi.spyOn(window, 'print').mockImplementation(() => {
-            const sheet = document.body.querySelector(':scope > .ai-print');
-            printed = {
-                text: sheet?.textContent,
-                html: sheet?.innerHTML,
-                loads: [...(sheet?.querySelectorAll('img, [src], a[href*="attacker"]') ?? [])].map((element) => element.outerHTML),
-                dark: document.documentElement.classList.contains('dark'),
-                title: document.title,
-            };
-            window.dispatchEvent(new Event('afterprint'));
-        });
         try {
             mocks.client.getMessages.mockImplementation(async (_id, {before = ''} = {}) =>
                 before
@@ -224,22 +223,28 @@ describe('the export of a conversation of the assistant', () => {
                     : PAGES['']
             );
             await resume();
-            await exportAs('pdf');
-            await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
-            expect(printed.dark).toBe(false);
-            expect(printed.title).toMatch(/^previous-diagnostic-\d{4}-\d\d-\d\d$/);
-            expect(printed.text).toContain('Previous diagnostic');
-            expect(printed.text).toContain('Cluster: Lab cluster');
-            expect(printed.text.indexOf('How many nodes?')).toBeLessThan(printed.text.indexOf('Per OS?'));
+            openMenu();
+            const ready = await frameReady();
+            const print = vi.spyOn(ready.contentWindow, 'print').mockImplementation(() => {});
+            fireEvent.click(await pdfEntry());
+            // At once, within the click, without reading the history again.
+            expect(print).toHaveBeenCalledTimes(1);
+            expect(mocks.client.getMessages).toHaveBeenCalledTimes(3);
+            const sheet = ready.contentDocument;
+            expect(sheet.documentElement).not.toHaveClass('dark');
+            expect(sheet.title).toMatch(/^previous-diagnostic-\d{4}-\d\d-\d\d$/);
+            expect(sheet.head.querySelectorAll('style').length).toBe(document.head.querySelectorAll('style').length);
+            const text = sheet.body.textContent;
+            expect(text).toContain('Previous diagnostic');
+            expect(text).toContain('Cluster: Lab cluster');
+            expect(text.indexOf('How many nodes?')).toBeLessThan(text.indexOf('Per OS?'));
             // The prompt as text, the answer through the renderer of the transcript.
-            expect(printed.text).toContain('<b>bold</b>');
-            expect(printed.html).toContain('<strong>484</strong>');
-            // The html shown as text, the image left out: nothing to load.
-            expect(printed.loads).toEqual([]);
-            expect(printed.text).toContain('Read the status of prod/svc/web (refused by the tool)');
-            expect(printed.text).toContain('Model: haiku');
-            // Then the page as it was.
-            await waitFor(() => expect(document.body.querySelector(':scope > .ai-print')).toBeNull());
+            expect(text).toContain('<b>bold</b>');
+            expect(sheet.body.innerHTML).toContain('<strong>484</strong>');
+            expect([...sheet.body.querySelectorAll('img, [src], a[href*="attacker"]')]).toEqual([]);
+            expect(text).toContain('Read the status of prod/svc/web (refused by the tool)');
+            expect(text).toContain('Model: haiku');
+            // The page is left as it is: its theme, its title.
             expect(document.documentElement).toHaveClass('dark');
             expect(document.title).toBe('Lab cluster');
             expect(saved).toHaveLength(0);
@@ -249,37 +254,52 @@ describe('the export of a conversation of the assistant', () => {
         }
     });
 
-    test('keeps the sheet of a print that did not block until the user is back, its entries off', async () => {
-        vi.spyOn(window, 'print').mockImplementation(() => {});
+    test('offers the print once ready, to a click before the history was read', async () => {
         await resume();
-        await exportAs('pdf');
-        await waitFor(() => expect(window.print).toHaveBeenCalledTimes(1));
-        // print() returned, the dialog still open: the sheet stays.
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        expect(document.body.querySelector(':scope > .ai-print')).not.toBeNull();
-        expect(document.title).toMatch(/^previous-diagnostic-/);
-        fireEvent.click(exportButton());
-        for (const entry of await screen.findAllByRole('menuitem')) expect(entry).toBeDisabled();
-        // Back on the page: the print ended.
-        fireEvent.keyDown(document.activeElement, {key: 'Escape'});
-        await waitFor(() => expect(document.body.querySelector(':scope > .ai-print')).toBeNull());
-        expect(document.title).not.toMatch(/^previous-diagnostic-/);
-        fireEvent.click(exportButton());
-        for (const entry of await screen.findAllByRole('menuitem')) expect(entry).toBeEnabled();
+        let release;
+        mocks.client.getMessages.mockImplementationOnce(
+            (_id, {signal}) =>
+                new Promise((resolve, reject) => {
+                    release = () => resolve(PAGES['1:1']);
+                    signal.addEventListener('abort', () => reject(new DOMException('Canceled', 'AbortError')), {once: true});
+                })
+        );
+        openMenu();
+        fireEvent.click(await pdfEntry());
+        // Read once for the press and the click.
+        await act(async () => release());
+        const ready = await frameReady();
+        const print = vi.spyOn(ready.contentWindow, 'print').mockImplementation(() => {});
+        expect(print).not.toHaveBeenCalled();
+        expect(screen.getByText('The conversation is ready to be saved as a PDF.')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: 'Open the print dialog'}));
+        expect(print).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText('The conversation is ready to be saved as a PDF.')).toBeNull();
     });
 
     test('tells a browser that cannot print, the page as it was', async () => {
-        vi.spyOn(window, 'print').mockImplementation(() => {
-            throw new Error('Not implemented: window.print');
-        });
         document.title = 'Lab cluster';
         await resume();
-        await exportAs('pdf');
+        openMenu();
+        const ready = await frameReady();
+        vi.spyOn(ready.contentWindow, 'print').mockImplementation(() => {
+            throw new Error('Not implemented: window.print');
+        });
+        fireEvent.click(await pdfEntry());
         expect(await screen.findByText('The browser could not open its print dialog: the PDF was not made.')).toBeInTheDocument();
-        expect(document.body.querySelector(':scope > .ai-print')).toBeNull();
         expect(document.title).toBe('Lab cluster');
     });
 
+    test('reads the history again once a turn changed the transcript', async () => {
+        await resume();
+        openMenu();
+        await frameReady();
+        fireEvent.keyDown(document.activeElement, {key: 'Escape'});
+        expect(mocks.client.getMessages).toHaveBeenCalledTimes(3);
+        // Pressed again, the transcript as it was: nothing read again.
+        fireEvent.pointerDown(exportButton());
+        expect(mocks.client.getMessages).toHaveBeenCalledTimes(3);
+    });
 
     test('is not offered while an action waits for the decision of the user', async () => {
         mocks.client.getConversationState.mockResolvedValue({

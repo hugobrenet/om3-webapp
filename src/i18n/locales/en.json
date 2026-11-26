@@ -4389,6 +4389,8 @@
       "failed": "The conversation could not be exported. Try again.",
       "tooLong": "The conversation is too long to be exported.",
       "printFailed": "The browser could not open its print dialog: the PDF was not made.",
+      "printReady": "The conversation is ready to be saved as a PDF.",
+      "print": "Open the print dialog",
       "empty": "Nothing to export: no turn of this conversation is stored.",
       "dismiss": "Dismiss",
       "cluster": "Cluster: {{name}}",

@@ -1,86 +1,86 @@
-import {useEffect, useRef} from "react";
+import {useEffect, useRef, useState} from "react";
 import {createPortal} from "react-dom";
 import {useTranslation} from "react-i18next";
 import AiMarkdown from "./AiMarkdown.jsx";
 import {exportDates, exportFileName, messageMeta, stepText, turnsOf, visibleText} from "../utils/conversationExport.js";
 import {untrustedT} from "../utils/untrustedText";
-import {cachedTheme, isDarkTheme} from "../ui/theme";
-
-/** What the user does on the page once a print that did not block ends. */
-const RESUMING = ["focus", "pointerdown", "keydown"];
 
 /**
- * A conversation of the assistant as the browser prints it, to save it as a
- * PDF: the same document as the Markdown export, drawn by the components of
- * the transcript. An answer goes through AiMarkdown, which shows no html, no
- * image and links to the web only; a prompt is plain text, as the transcript
- * shows it.
+ * A conversation of the assistant made ready to print, to save it as a PDF:
+ * the same document as the Markdown export, drawn by the components of the
+ * transcript, in a frame of its own out of sight. An answer goes through
+ * AiMarkdown, which shows no html, no image and links to the web only; a
+ * prompt is plain text, as the transcript shows it.
  *
- * Mounted with its document, it prints it at once, in the light theme, the
- * page under it hidden (`.ai-print` in main.css), its title the name the
- * browser offers for the file; then the page is as it was, and `onDone` is
- * called, with true when the browser could not print. The print ends on
- * `afterprint`; a browser whose print() returns before, without it, keeps the
- * sheet until the user is back on the page. `doc`: {title, clusterName,
- * messages, exportedAt, timeZone}.
+ * The frame takes the styles of the page and not its dark theme, and the
+ * name of the file as its title: printing it leaves the page as it is. Safari
+ * prints only on a click of the user: the frame is made beforehand, and
+ * `onReady` gives its window once the document is in it, for the click to
+ * print it at once (`window.print()`). `doc`: {title, clusterName, messages,
+ * exportedAt, timeZone}.
  */
-export default function AiPrintView({doc, onDone}) {
-    const {t, i18n} = useTranslation();
-    const done = useRef(onDone);
-    done.current = onDone;
-    const dates = exportDates(i18n, doc.timeZone);
+const FRAME_DOCUMENT = "<!DOCTYPE html><html><head></head><body></body></html>";
+
+export default function AiPrintView({doc, onReady}) {
+    const frame = useRef(null);
+    const [body, setBody] = useState(null);
+    const ready = useRef(onReady);
+    ready.current = onReady;
+
+    // The document of the frame, once loaded: the styles of the page, its
+    // language, the light theme, its title the name of the file. A frame
+    // without a source loads as it is inserted, before an effect could
+    // listen: it is given a document of its own, loaded after, and the load
+    // is listened to from its creation (onLoad).
+    const take = () => {
+        const frameDocument = frame.current?.contentDocument;
+        if (!frameDocument?.body || frameDocument.body === body) return;
+        frameDocument.documentElement.lang = document.documentElement.lang;
+        frameDocument.head.replaceChildren(
+            ...[...document.querySelectorAll('style, link[rel="stylesheet"]')].map((style) => style.cloneNode(true))
+        );
+        setBody(frameDocument.body);
+    };
 
     useEffect(() => {
-        const root = document.documentElement;
-        const title = document.title;
-        let restored = false;
-        const restore = () => {
-            if (restored) return;
-            restored = true;
-            window.removeEventListener("afterprint", finished);
-            for (const type of RESUMING) window.removeEventListener(type, finished, true);
-            document.title = title;
-            // The theme of the user now, which may have followed the system meanwhile.
-            root.classList.toggle("dark", isDarkTheme(cachedTheme()));
-        };
-        const finish = (failed) => {
-            restore();
-            done.current(failed);
-        };
-        function finished() {
-            finish(false);
-        }
-        root.classList.remove("dark");
-        document.title = exportFileName(visibleText(doc.title), doc.exportedAt, "");
-        window.addEventListener("afterprint", finished);
-        // Once the document is laid out. print() returns once the dialog
-        // closes in most browsers, afterprint told before; in the others,
-        // while it is open: the sheet stays until the user is back.
-        const timer = setTimeout(() => {
-            try {
-                window.print();
-            } catch {
-                // A browser without print, such as some embedded ones.
-                finish(true);
-                return;
-            }
-            if (!restored) for (const type of RESUMING) window.addEventListener(type, finished, {capture: true, once: true});
-        }, 0);
-        // Unmounted before it printed: the page is as it was, nothing told.
-        return () => {
-            clearTimeout(timer);
-            restore();
-        };
-        // The document printed is the one it mounted with.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        const frameDocument = body?.ownerDocument;
+        if (!frameDocument) return;
+        frameDocument.title = exportFileName(visibleText(doc.title), doc.exportedAt, "");
+        ready.current(frameDocument.defaultView);
+    }, [body, doc]);
+
+    // The sheet before the frame: it goes first, while its document holds it.
+    return (
+        <>
+            {body && createPortal(<PrintSheet doc={doc}/>, body)}
+            {createPortal(
+                <iframe
+                    ref={frame}
+                    srcDoc={FRAME_DOCUMENT}
+                    onLoad={take}
+                    title={doc.title}
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    // Out of sight, but laid out: a frame not displayed prints nothing.
+                    className="pointer-events-none fixed top-0 -left-[10000px] h-[297mm] w-[210mm] border-0"
+                />,
+                document.body
+            )}
+        </>
+    );
+}
+
+/** The document printed. */
+function PrintSheet({doc}) {
+    const {t, i18n} = useTranslation();
+    const dates = exportDates(i18n, doc.timeZone);
 
     const about = [];
     if (doc.clusterName) about.push(untrustedT(t, "ai.export.cluster", {name: visibleText(doc.clusterName)}));
     about.push(t("ai.export.exportedAt", {date: dates.format(doc.exportedAt)}));
     about.push(t("ai.export.timeZone", {zone: dates.zone}));
 
-    return createPortal(
+    return (
         <article className="ai-print">
             <h1 className="mb-1 text-title font-semibold">{visibleText(doc.title).trim() || t("ai.conversations.untitled")}</h1>
             <p className="mb-4 text-ink-muted">{about.join(" · ")}</p>
@@ -109,10 +109,10 @@ export default function AiPrintView({doc, onDone}) {
                 </section>
             ))}
             <p className="mt-3 border-t border-line pt-3 text-data text-ink-muted italic">{t("ai.export.unstored")}</p>
-        </article>,
-        document.body
+        </article>
     );
 }
+
 
 /** The steps of an answer, as the Markdown export lists them. */
 function PrintSteps({history}) {
