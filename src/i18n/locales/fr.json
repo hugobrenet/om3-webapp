@@ -4364,7 +4364,21 @@
     "activity": {
       "answering": "L'assistant répond",
       "ended": "L'assistant a terminé",
+      "failed": "La réponse de l'assistant a échoué",
       "waiting": "Une action de l'assistant attend votre décision"
+    },
+    "notice": {
+      "ended": "Votre analyse est terminée.",
+      "failed": "Votre analyse a échoué : sa réponse est incomplète.",
+      "waiting": "Votre analyse attend votre décision sur une action.",
+      "see": "Voir la réponse",
+      "seeAction": "Voir l'action",
+      "dismiss": "Fermer",
+      "tab": {
+        "ended": "✓ Analyse terminée",
+        "failed": "✕ Analyse en échec",
+        "waiting": "● Décision attendue"
+      }
     },
     "export": {
       "open": "Exporter la conversation",

@@ -4364,7 +4364,21 @@
     "activity": {
       "answering": "The assistant is answering",
       "ended": "The assistant has finished",
+      "failed": "The answer of the assistant failed",
       "waiting": "An action of the assistant waits for your decision"
+    },
+    "notice": {
+      "ended": "Your analysis is done.",
+      "failed": "Your analysis failed: its answer is incomplete.",
+      "waiting": "Your analysis waits for your decision on an action.",
+      "see": "See the answer",
+      "seeAction": "See the action",
+      "dismiss": "Dismiss",
+      "tab": {
+        "ended": "✓ Analysis done",
+        "failed": "✕ Analysis failed",
+        "waiting": "● Decision awaited"
+      }
     },
     "export": {
       "open": "Export the conversation",

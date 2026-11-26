@@ -8,7 +8,7 @@ import AiComposer from "./AiComposer.jsx";
 import AiMessages from "./AiMessages.jsx";
 import {Alert} from "../ui/components/Alert";
 import {Button} from "../ui/components/Button";
-import {ChevronDownIcon, ExternalLinkIcon, GripIcon, PlusIcon, SparklesIcon} from "../ui/icons";
+import {ChevronDownIcon, CloseIcon, ExternalLinkIcon, GripIcon, PlusIcon, SparklesIcon} from "../ui/icons";
 import {BREAKPOINTS, useMediaQuery} from "../ui/lib/media";
 import {typing, useShortcut} from "../ui/lib/shortcuts";
 import {cn} from "../ui/cn";
@@ -137,7 +137,8 @@ export default function AiDock({status}) {
         if (onPage && dock?.state === "open") fold();
     }, [onPage, dock?.state, fold]);
 
-    if (dock === null || shared === null || onPage || !available || dock.state === "folded") return null;
+    if (dock === null || shared === null || onPage || !available) return null;
+    if (dock.state === "folded") return <ActivityNotice onOpen={dock.open}/>;
     return (
         <DockPanel
             dock={dock}
@@ -147,6 +148,68 @@ export default function AiDock({status}) {
                 dock.fold();
             }}
         />
+    );
+}
+
+/**
+ * What the folded dock tells once a turn ended out of sight, or an action
+ * began to wait there for the decision of the user (`activity.notice`): a
+ * notice where the dock opens, moved with it, which opens it on the answer or
+ * the action, or goes, closed by its button or Escape, the focus then on the
+ * button of the dock. A view shows the chat, and it goes by itself; the menu
+ * and the button of the dock still tell it until the chat is seen. It takes no
+ * focus; its words are told by a region always there, to be announced.
+ */
+export function ActivityNotice({onOpen}) {
+    const {t} = useTranslation();
+    const notice = useAiActivity()?.notice ?? null;
+    const wide = useMediaQuery(BREAKPOINTS.sm);
+    const right = readDockRight();
+    // The notice the user closed: the next one shows.
+    const [closed, setClosed] = useState(null);
+    if (closed !== null && notice !== closed) setClosed(null);
+    const shown = notice !== null && notice !== closed ? notice : null;
+    const close = () => {
+        setClosed(notice);
+        document.querySelector("[data-ai-dock-button]")?.focus();
+    };
+    return (
+        <>
+            <p role="status" className="sr-only">
+                {shown ? t(`ai.notice.${shown}`) : ""}
+            </p>
+            {shown && (
+                <div
+                    onKeyDown={(event) => {
+                        if (event.key !== "Escape") return;
+                        event.stopPropagation();
+                        close();
+                    }}
+                    style={wide && right !== null ? {right} : undefined}
+                    className={cn(
+                        "fixed right-4 bottom-4 z-(--z-dock) flex max-w-[min(24rem,calc(100vw-2rem))] items-start gap-2 rounded-(--radius-panel) border bg-surface-raised p-3 shadow-xl max-sm:right-2",
+                        shown === "waiting" ? "border-state-warn" : shown === "failed" ? "border-state-down" : "border-line"
+                    )}
+                >
+                    <SparklesIcon width={16} height={16} className="mt-0.5 shrink-0 text-accent"/>
+                    <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+                        <p aria-hidden="true">{t(`ai.notice.${shown}`)}</p>
+                        <Button size="sm" onClick={onOpen}>
+                            {t(shown === "waiting" ? "ai.notice.seeAction" : "ai.notice.see")}
+                        </Button>
+                    </div>
+                    <button
+                        type="button"
+                        aria-label={t("ai.notice.dismiss")}
+                        title={t("ai.notice.dismiss")}
+                        onClick={close}
+                        className={ICON_BUTTON}
+                    >
+                        <CloseIcon width={14} height={14}/>
+                    </button>
+                </div>
+            )}
+        </>
     );
 }
 
@@ -182,6 +245,7 @@ export function AiDockButton() {
     return (
         <button
             type="button"
+            data-ai-dock-button=""
             aria-label={label}
             aria-expanded={open}
             title={label}
@@ -203,7 +267,7 @@ export function AiDockButton() {
                     className={cn(
                         // Ringed in the colour of the bar, its accent there.
                         "absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full border-2 border-accent",
-                        state === "waiting" ? "bg-state-warn" : state === "answering" ? "animate-pulse bg-ink" : "bg-ink"
+                        state === "waiting" ? "bg-state-warn" : state === "failed" ? "bg-state-down" : state === "answering" ? "animate-pulse bg-ink" : "bg-ink"
                     )}
                 />
             )}

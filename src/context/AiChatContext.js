@@ -22,7 +22,10 @@ export const AiChatContext = createContext(null);
 /**
  * What the assistant does while no view shows it, all false while one does:
  * `answering`, a turn runs; `ended`, a turn ended meanwhile, answered, stopped or
- * failed; `waiting`, an action waits for the decision of the user. The menu and
+ * failed, `failed` too when it failed; `waiting`, an action waits for the
+ * decision of the user; `notice`, what the folded dock tells once, `ended`,
+ * `failed` or `waiting` for an action that began to wait out of sight, null
+ * when nothing. The menu and
  * the button of the dock read it, rendered when it changes only.
  */
 export const AiActivityContext = createContext(null);
@@ -46,11 +49,11 @@ export const useAiActivity = () => useContext(AiActivityContext);
 /** The dock of the assistant, or null outside of a provider. */
 export const useAiDock = () => useContext(AiDockContext);
 
-/** What the assistant does, the most pressing first: `waiting`, `answering`, `ended`; null when nothing. */
+/** What the assistant does, the most pressing first: `waiting`, `answering`, `failed`, `ended`; null when nothing. */
 export function activityState(activity) {
     if (!activity) return null;
     if (activity.waiting) return 'waiting';
     if (activity.answering) return 'answering';
-    if (activity.ended) return 'ended';
+    if (activity.ended) return activity.failed ? 'failed' : 'ended';
     return null;
 }
