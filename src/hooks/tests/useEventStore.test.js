@@ -752,6 +752,7 @@ describe('useEventStore', () => {
                 useEventStore.setState({
                     objectStatus: {o1: {}}, objectInstanceStatus: {o1: {}},
                     instanceConfig: {o1: {}}, instanceMonitor: {'n1:o1': {}},
+                    networkStatus: {podnet1: {n1: {status: {dev: 'obr_podnet1'}, at: 1}}},
                 });
             });
             act(() => clearObjectCache());
@@ -760,6 +761,7 @@ describe('useEventStore', () => {
             expect(state.objectInstanceStatus).toEqual({});
             expect(state.instanceConfig).toEqual({});
             expect(state.instanceMonitor).toEqual({});
+            expect(state.networkStatus).toEqual({});
             expect(removeItem).toHaveBeenCalledWith('om3-event-storage');
             removeItem.mockRestore();
         });
@@ -1139,11 +1141,16 @@ describe('useEventStore', () => {
         });
     });
 
-    test('the setups of a network counted by its name, apart from the others', () => {
-        act(() => useEventStore.setState({networkSetups: {}}));
-        act(() => useEventStore.getState().bumpNetworkSetup('backend1'));
-        act(() => useEventStore.getState().bumpNetworkSetup('backend1'));
-        act(() => useEventStore.getState().bumpNetworkSetup('l2vx'));
-        expect(useEventStore.getState().networkSetups).toEqual({backend1: 2, l2vx: 1});
+    test('what the setup of a network made on each node kept as said, torn down kept as null, apart from the others', () => {
+        act(() => useEventStore.setState({networkStatus: {}}));
+        act(() => useEventStore.getState().setNetworkStatus('backend1', 'n1', {dev: 'obr_backend1'}));
+        act(() => useEventStore.getState().setNetworkStatus('backend1', 'n2', {dev: 'obr_backend1'}));
+        act(() => useEventStore.getState().setNetworkStatus('backend1', 'n2', null));
+        act(() => useEventStore.getState().setNetworkStatus('l2vx', 'n1', {dev: 'vx0'}));
+        const {networkStatus} = useEventStore.getState();
+        expect(networkStatus.backend1.n1.status).toEqual({dev: 'obr_backend1'});
+        expect(networkStatus.backend1.n2.status).toBeNull();
+        expect(networkStatus.l2vx.n1.status).toEqual({dev: 'vx0'});
+        expect(typeof networkStatus.backend1.n2.at).toBe('number');
     });
 });

@@ -105,8 +105,12 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
     const [digest, setDigest] = useState(null);
     const [error, setError] = useState(null);
     const timer = useRef(null);
+    const lastRead = useRef(0);
 
+    // The last read asked wins: one answering after it, older, of this object or of
+    // the one shown before, is dropped, its state as its failure.
     const load = useCallback(async () => {
+        const read = ++lastRead.current;
         const token = localStorage.getItem("authToken");
         const headers = {Authorization: `Bearer ${token}`};
         const {namespace, kind, name} = parseObjectPath(path);
@@ -115,9 +119,11 @@ const ObjectStatus = ({path, onOrchestrationLogs, linkNode, linkResource, openCe
             // The object alone, at each of its events: the frozen nodes come from
             // the stream of the menu, the agent versions read once (see below).
             const object = await apiFetch(url, {headers, cache: "no-cache"});
+            if (read !== lastRead.current) return;
             setDigest({path, object: object?.data ?? {}});
             setError(null);
         } catch (err) {
+            if (read !== lastRead.current) return;
             logger.error("[ObjectStatus] object not read:", err);
             setError(err.message || String(err));
         }

@@ -313,8 +313,8 @@
     "objectsWarn_other": "{{count}} objects in warn",
     "linksDown_one": "{{count}} of {{total}} heartbeat links down",
     "linksDown_other": "{{count}} of {{total}} heartbeat links down",
-    "nodesOverloaded_one": "{{count}} of {{total}} nodes overloaded",
-    "nodesOverloaded_other": "{{count}} of {{total}} nodes overloaded"
+    "nodesOverloaded_one": "{{count}} of {{total}} nodes overloaded: {{nodes}}",
+    "nodesOverloaded_other": "{{count}} of {{total}} nodes overloaded: {{nodes}}"
   },
   "auth": {
     "login": {
@@ -1521,6 +1521,7 @@
       "select": "Select node {{node}}",
       "connected": "Connected to this node",
       "versionDiff": "Agent {{version}}, most nodes run {{common}}",
+      "overloaded": "Overloaded: memory or swap below its minimum",
       "booted": "booted",
       "updated": "updated"
     },
@@ -1704,6 +1705,7 @@
       "apply_other": "Apply {{count}} changes",
       "applying": "Applying…",
       "revert": "Revert {{name}}",
+      "unread": "The values of the organisation could not be read, nothing to edit them against: {{message}}",
       "refused": "Not applied: {{message}}",
       "tray_one": "Update {{count}} organisation property",
       "tray_other": "Update {{count}} organisation properties"
@@ -1869,13 +1871,42 @@
     "filters": {
       "show": "Show filters",
       "hide": "Hide filters",
-      "globalState": "Global state",
+      "state": "State",
+      "config": "Config",
+      "fields": {
+        "avail": "Availability",
+        "overall": "Overall",
+        "provisioned": "Provisioned",
+        "frozen": "Frozen",
+        "placement_state": "Placement",
+        "topology": "Topology",
+        "orchestrate": "Orchestrate",
+        "placement_policy": "Placement policy",
+        "config_validation": "Validation"
+      },
+      "provisionedValues": {
+        "true": "provisioned",
+        "false": "unprovisioned"
+      },
+      "validationValues": {
+        "warning": "warnings",
+        "error": "errors",
+        "valid": "valid"
+      },
+      "notApplicable": "not applicable",
+      "undefined": "undefined",
+      "upInstances": "Up instances",
+      "upInstancesHint": "A count, or one after <, <=, > or >=: >0",
+      "upInstancesInvalid": "Not a count: 2, >0, <=1…",
       "namespace": "Namespace",
       "kind": "Kind",
-      "unprovisioned": "Unprovisioned",
       "rail": "Filters",
       "clear": "Clear",
       "clearOf": "Clear the {{filter}} filter",
+      "reverse": "Not",
+      "reverseOf": "Not {{field}}: keep the objects of none of the values chosen",
+      "reverseHint": "Keep the objects of none of the values chosen",
+      "notValues": "not {{values}}",
       "active_one": "{{count}} on",
       "active_other": "{{count}} on"
     },
@@ -2068,6 +2099,10 @@
     "thisVersion": "this version"
   },
   "panel": {
+    "back": "Back",
+    "backTo": "Back to {{name}}",
+    "forward": "Forward",
+    "forwardTo": "Forward to {{name}}",
     "resize": "Resize the panel",
     "tabs": {
       "label": "Views of {{name}}",
@@ -2941,6 +2976,7 @@
   },
   "nodeLabels": {
     "title": "Labels",
+    "unread": "Could not read the labels: {{message}}",
     "none": "No label.",
     "edit": "Edit the labels",
     "fromCluster": "From the cluster configuration: set here, the node takes a value of its own.",
@@ -3460,6 +3496,11 @@
       "warn": "warn",
       "quiet": "down, no issue",
       "ok": "ok"
+    },
+    "unread": {
+      "networks": "Could not read the networks: {{message}}",
+      "pools": "Could not read the pools: {{message}}",
+      "stores": "Could not read the stores: {{message}}"
     },
     "reading": "Reading…",
     "links": {

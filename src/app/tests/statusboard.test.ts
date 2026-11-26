@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { buildBoard, marker, mixedStates, resourceNotes, splitLabels, words, type Board, type ObjectData, type Text } from "../statusboard";
+import { buildBoard, marker, mixedStates, plainMarker, resourceNotes, splitLabels, words, type Board, type ObjectData, type Text } from "../statusboard";
 import { selectionEdges } from "../StatusBoard";
 import dns from "./fixtures/system-svc-dns.json";
 import foo001 from "./fixtures/root-svc-foo001.json";
@@ -405,5 +405,16 @@ describe("status board", () => {
     expect(selectionEdges(at, 2, 2)).toBeUndefined();
     // Alone, a cell is edged all round.
     expect(selectionEdges((r, c) => r === 0 && c === 0, 0, 0)?.boxShadow?.split(", ")).toHaveLength(4);
+  });
+});
+
+describe("plainMarker", () => {
+  test("a marker in plain characters, as a page draws it: digits, then letters", () => {
+    expect(plainMarker(marker(1))).toBe("1");
+    expect(plainMarker(marker(9))).toBe("9");
+    expect(plainMarker(marker(10))).toBe("A");
+    expect(plainMarker(marker(28))).toBe("W");
+    expect(plainMarker(marker(29))).toBe("29");
+    expect(plainMarker("·")).toBe("·");
   });
 });

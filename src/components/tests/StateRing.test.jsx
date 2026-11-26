@@ -2,7 +2,7 @@ import React from 'react';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {afterEach, describe, expect, test, vi} from 'vitest';
-import {StateRing} from '../StateRing';
+import {StateRing, labelLines} from '../StateRing';
 
 const PARTS = [
     ['up', 3, 'stroke-state-up', {word: 'up'}],
@@ -88,5 +88,34 @@ describe('StateRing links', () => {
         // Its label pointed at, or focused from the keyboard: its arc so too.
         fireEvent.focus(screen.getByRole('link', {name: 'Filtered: up'}));
         expect(arc('up')).toHaveStyle({strokeWidth: '13'});
+    });
+});
+
+describe('StateRing long labels', () => {
+    test('one line when it fits on its side of the ring; else its words wrapped, the count on the second line', () => {
+        expect(labelLines('down', 75, 8)).toEqual(['down']);
+        // After its comma when both halves fit; else as many words as fit first.
+        expect(labelLines('down, no issue', 92, 8)).toEqual(['down,', 'no issue']);
+        expect(labelLines('down, sans problème', 92, 8)).toEqual(['down, sans', 'problème']);
+        // A single word too long is left whole: nothing to wrap it at.
+        expect(labelLines('unprovisioned', 3, 8, 20)).toEqual(['unprovisioned']);
+    });
+
+    test('a long label drawn on two lines, read whole, the labels under it moved down', () => {
+        const parts = [
+            ['down', 1, 'stroke-state-down', {word: 'down'}],
+            ['quiet', 1, 'stroke-line-strong', {word: 'down, sans problème'}],
+            ['warn', 1, 'stroke-state-warn', {word: 'warn'}],
+            ['ok', 3, 'stroke-state-up', {word: 'ok'}],
+        ];
+        const {container} = render(<MemoryRouter><StateRing parts={parts}/></MemoryRouter>);
+        const text = (part) => container.querySelector(`[data-label="${part}"] text`);
+        const lines = [...text('quiet').children];
+        expect(lines.map((line) => line.textContent)).toEqual(['down, sans', ' problème 1']);
+        expect(lines[1]).toHaveAttribute('dy', '9');
+        expect(text('quiet').textContent).toBe('down, sans problème 1');
+        // On the right of the ring both, the one under it a line further down than one line needs.
+        const lineY = (part) => Number(container.querySelector(`[data-label="${part}"] polyline`).getAttribute('points').split(' ').at(-1).split(',')[1]);
+        expect(lineY('warn') - lineY('quiet')).toBeGreaterThanOrEqual(11 + 9);
     });
 });

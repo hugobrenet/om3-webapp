@@ -62,8 +62,12 @@ const QUIET_WORDS = {
     unused: "resources.unused",
 };
 
-/** A burst of instance reports reads the list once. */
+/**
+ * A burst of instance reports reads the list once, 2 s after its last report; a
+ * burst that goes on, a busy cluster's, read all the same 10 s after its first.
+ */
 const REREAD_DELAY_MS = 2000;
+const REREAD_MAX_WAIT_MS = 10000;
 const EVENTS = ["InstanceStatusUpdated"];
 
 /** The steps of the scaling down: past the last one, the table scrolls sideways. */
@@ -167,12 +171,20 @@ const Resources = () => {
     }, []);
     const reports = useEventStore((s) => s.objectInstanceStatus);
     const first = useRef(true);
+    // When the first report of the burst came, not read yet: the reading waits no longer than its maximum.
+    const burstStart = useRef(null);
     useEffect(() => {
         if (first.current) {
             first.current = false;
             return undefined;
         }
-        const timer = setTimeout(() => setRead((n) => n + 1), REREAD_DELAY_MS);
+        const now = Date.now();
+        burstStart.current ??= now;
+        const delay = Math.max(0, Math.min(REREAD_DELAY_MS, burstStart.current + REREAD_MAX_WAIT_MS - now));
+        const timer = setTimeout(() => {
+            burstStart.current = null;
+            setRead((n) => n + 1);
+        }, delay);
         return () => clearTimeout(timer);
     }, [reports]);
 

@@ -157,12 +157,19 @@ const useEventStore = create(
             configUpdates: [],
             pendingDeletes: {},
 
-            // A count, by network name, of the setups of the network the nodes said
-            // they made or undid: a view of the network reads them again as it moves.
-            networkSetups: {},
+            // What the setup of each network made on each node, as the nodes say it
+            // (NodeNetworkStatusUpdated), by network then node: its status, null once
+            // torn down (NodeNetworkStatusDeleted), and when it was said, for a view
+            // to tell it from what it read before (`at`).
+            networkStatus: {},
 
-            bumpNetworkSetup: (name) =>
-                set((state) => ({networkSetups: {...state.networkSetups, [name]: (state.networkSetups[name] ?? 0) + 1}})),
+            setNetworkStatus: (name, node, status) =>
+                set((state) => ({
+                    networkStatus: {
+                        ...state.networkStatus,
+                        [name]: {...state.networkStatus[name], [node]: {status, at: Date.now()}},
+                    },
+                })),
 
             removePendingDelete: (objectPath, node) => {
                 const key = `${objectPath}:${node}`;
@@ -473,11 +480,12 @@ const useEventStore = create(
 );
 
 /**
- * Forgets the objects held, in memory and in localStorage: on logout, so the next
- * user of the browser does not see the objects of the previous one.
+ * Forgets the objects held, in memory and in localStorage, and how the networks are
+ * set up on the nodes (root's): on logout, so the next user of the browser does not
+ * see what the previous one read.
  */
 export const clearObjectCache = () => {
-    useEventStore.setState({objectStatus: {}, objectInstanceStatus: {}, instanceMonitor: {}, instanceConfig: {}});
+    useEventStore.setState({objectStatus: {}, objectInstanceStatus: {}, instanceMonitor: {}, instanceConfig: {}, networkStatus: {}});
     useEventStore.persist.clearStorage();
 };
 

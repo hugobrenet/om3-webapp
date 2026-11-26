@@ -86,10 +86,10 @@ const HB_INK = {down: "text-state-down", warn: "text-state-warn", up: ""};
 /** A count or a name of the overview as a badge, opening its page filtered on it. */
 const FILTER_BADGE = "inline-flex items-center gap-1 rounded-full border border-line bg-surface px-1.5 text-data hover:border-line-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-accent has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-accent";
 
-/** The address of the objects of all the lists filtered by `params`: a kind, a namespace, a global state. */
+/** The address of the objects of all the lists filtered by `params`: a kind, a namespace, an availability. */
 const objectsUrl = (params) => `/objects?${new URLSearchParams({list: "any", ...params})}`;
-/** The services and the volumes by their global state, as the objects page filters it: n/a so written. */
-const availUrl = (state) => objectsUrl({kind: ACTORS.join(","), globalState: state === "na" ? "n/a" : state});
+/** The services and the volumes by their availability, as the objects page filters it: n/a so written. */
+const availUrl = (state) => objectsUrl({kind: ACTORS.join(","), avail: state === "na" ? "n/a" : state});
 
 /** The state of a node: dropped without a status, a node of the cluster configuration not heard from; else overloaded or optimal. */
 const nodeState = (status) => (status === undefined ? "dropped" : status.is_overloaded ? "overloaded" : "optimal");
@@ -265,7 +265,8 @@ function usePolled(url) {
         let live = true;
         const load = () => read(url).then(
             (data) => live && setState({items: data.items ?? [], error: null}),
-            (err) => live && setState((s) => ({items: s.items ?? [], error: err.message})),
+            // The items of the last read kept; none read, none: not an empty list.
+            (err) => live && setState((s) => ({items: s.items, error: err.message})),
         );
         void load();
         const timer = setInterval(load, OVERVIEW_REFRESH_MS);
@@ -427,6 +428,20 @@ function Fullest({items, kind}) {
 }
 
 /**
+ * A list of a card as it was read: "Reading…" until read once; its last read failed,
+ * why, the list last read kept under it; never read, no list, not an empty one.
+ */
+function ListRead({read, error, unread, children}) {
+    const {t} = useTranslation();
+    return (
+        <>
+            {error && <p className="text-data text-state-warn">{t(unread, {message: error})}</p>}
+            {read ? children : !error && <p className="text-ink-muted">{t("clusterView.reading")}</p>}
+        </>
+    );
+}
+
+/**
  * The overview of the cluster, the default view: a card for each entry of the menu,
  * what its page holds summed up, in a masonry, as wide as the window lets it:
  *
@@ -448,7 +463,7 @@ function Fullest({items, kind}) {
  */
 export default function ClusterView() {
     const {t, i18n} = useTranslation();
-    const {objects, nodeStatus, heartbeatStatus, pools, networks, volChildren, ready} = useMenuState();
+    const {objects, nodeStatus, heartbeatStatus, pools, networks, usageReads, volChildren, ready} = useMenuState();
     const stores = usePolled(URL_STORE);
     const relay = usePolled(URL_RELAY_STATUS);
     const relaySlots = slotCounts(servedSlots(relay.items ?? [], Date.now()));
@@ -606,7 +621,7 @@ export default function ClusterView() {
 
                 {/* The slots this node holds as a relay; not one, the usual case, said plainly. */}
                 <Card id="relay" icon="heartbeat" title={t("nav.sections.relay")} to="/relay">
-                    {relay.items === undefined ? (
+                    {relay.items === undefined && !relay.error ? (
                         <p className="text-data text-ink-muted">{t("clusterView.reading")}</p>
                     ) : relay.error ? (
                         <p className="text-data text-ink-muted">{t("clusterView.relay.unread")}</p>
@@ -702,16 +717,20 @@ export default function ClusterView() {
                     </ul>
                 </Card>
 
-                <Card id="networks" icon="network" title={t("nav.routes.networks")} to="/network" count={(networks ?? []).length}>
-                    <Fullest items={networks ?? []} kind="network"/>
+                <Card id="networks" icon="network" title={t("nav.routes.networks")} to="/network" count={usageReads?.networks.read ? (networks ?? []).length : undefined}>
+                    <ListRead read={usageReads?.networks.read} error={usageReads?.networks.error} unread="clusterView.unread.networks">
+                        <Fullest items={networks ?? []} kind="network"/>
+                    </ListRead>
                 </Card>
 
-                <Card id="pools" icon="pool" title={t("nav.routes.pools")} to="/pools" count={(pools ?? []).length}>
-                    <Fullest items={pools ?? []} kind="pool"/>
+                <Card id="pools" icon="pool" title={t("nav.routes.pools")} to="/pools" count={usageReads?.pools.read ? (pools ?? []).length : undefined}>
+                    <ListRead read={usageReads?.pools.read} error={usageReads?.pools.error} unread="clusterView.unread.pools">
+                        <Fullest items={pools ?? []} kind="pool"/>
+                    </ListRead>
                 </Card>
 
                 <Card id="stores" icon="store" title={t("nav.routes.stores")} to="/stores" count={stores.items?.length}>
-                    {stores.items === undefined ? <p className="text-ink-muted">{t("clusterView.reading")}</p> : (
+                    <ListRead read={stores.items !== undefined} error={stores.error} unread="clusterView.unread.stores">
                         <>
                             <p className="text-data text-ink-muted">
                                 {t("clusterView.stores.snapshots", {count: snapshots})}
@@ -730,12 +749,12 @@ export default function ClusterView() {
                                 ))}
                             </ul>
                         </>
-                    )}
+                    </ListRead>
                 </Card>
 
                 <Card id="resources" icon="app" title={t("nav.routes.resources")} to="/resources" count={resources.items?.length}>
                     {resources.error && <p className="text-data text-state-warn">{t("clusterView.resources.unread", {message: resources.error})}</p>}
-                    {resources.items === undefined && !resources.error ? <p className="text-ink-muted">{t("clusterView.reading")}</p> : (
+                    {resources.items === undefined ? !resources.error && <p className="text-ink-muted">{t("clusterView.reading")}</p> : (
                         <CountsRing
                             name="resources"
                             states={RESOURCE_STATES}

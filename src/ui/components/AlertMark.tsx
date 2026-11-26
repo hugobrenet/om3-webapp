@@ -7,7 +7,8 @@ export type AlertLevel = keyof typeof ALERT_TINT;
 
 /**
  * An alert, when something calls for attention: a round badge, orange or red, an
- * exclamation mark in it, what it is about for screen readers.
+ * exclamation mark in it, what it is about for screen readers and, on hover, for
+ * all: the mark alone does not say what to look at.
  * The menu entries and the tabs of the objects show the same one.
  */
 export function AlertMark({
@@ -25,6 +26,7 @@ export function AlertMark({
     <span
       role="img"
       aria-label={text}
+      title={text}
       data-testid={testId}
       data-level={level}
       className={cn(

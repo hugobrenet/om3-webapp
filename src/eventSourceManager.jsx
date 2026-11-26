@@ -687,12 +687,16 @@ export const createEventSource = (url, token, filters = DEFAULT_FILTERS) => {
         addEventListener(currentEventSource, eventType, (data) => {
             // Process each event type
             switch (eventType) {
-                // A network set up again on a node, or torn down: its panel reads what
-                // the setups made again. Rare, so not buffered.
+                // A network set up again on a node, its podnet's peers and tunnels
+                // with it, or torn down: kept as said, its panel drawing it. Rare, so
+                // not buffered.
                 case EVENT_TYPES.NODE_NETWORK_STATUS_UPDATED:
                 case EVENT_TYPES.NODE_NETWORK_STATUS_DELETED: {
                     const network = data.name || data.labels?.name;
-                    if (network) useEventStore.getState().bumpNetworkSetup(network);
+                    const node = data.node || data.labels?.node;
+                    if (!network || !node) break;
+                    const status = eventType === EVENT_TYPES.NODE_NETWORK_STATUS_UPDATED ? data.network_status ?? null : null;
+                    useEventStore.getState().setNetworkStatus(network, node, status);
                     break;
                 }
                 case EVENT_TYPES.NODE_STATUS_UPDATED:

@@ -14,7 +14,7 @@ import {useApiNode} from "../hooks/useApiNode";
 import {useDarkMode} from "../context/DarkModeContext";
 import {broadcastLogout} from "../app/session";
 import {LANGUAGES, LANGUAGE_NAMES, isLanguage, setLanguage} from "../i18n";
-import {useReleaseCheck} from "../app/release-check";
+import {compareVersions, latestRelease, releaseOf, useReleaseCheck} from "../app/release-check";
 import {APP_VERSION, isRelease} from "../app/version";
 import {setIntrosEnabled, showAllIntros, useHiddenIntros, useIntrosEnabled} from "../app/page-intro";
 
@@ -54,29 +54,26 @@ const WhoAmI = () => {
             return;
         }
         const fetchVersion = async () => {
+            // The release told before, while GitHub is asked, or if it cannot be: not one
+            // older than the release this build is of, the webapp upgraded since.
             const cached = localStorage.getItem('appVersion');
-            const cacheTime = localStorage.getItem('appVersionTime');
-            const now = Date.now();
+            const known = cached && compareVersions(cached, releaseOf(APP_VERSION)) >= 0 ? cached : '';
+            if (known) setAppVersion(known);
 
-            if (cached && cacheTime && (now - parseInt(cacheTime)) < 3600000) {
-                setAppVersion(cached);
-                return;
-            }
-
+            // Asked each time the page opens: the browser keeps GitHub's answer a minute,
+            // then asks again only whether it changed (its ETag), no more.
             try {
-                const response = await fetch('https://api.github.com/repos/opensvc/om3-webapp/releases', {
-                    headers: {'User-Agent': 'MonTestCurl'}
+                const response = await fetch('https://api.github.com/repos/opensvc/om3-webapp/releases?per_page=100', {
+                    headers: {Accept: 'application/vnd.github+json'},
                 });
-                const data = await response.json();
-                const latestVersion = data[0]?.tag_name || '';
-                const cleanVersion = latestVersion.startsWith('v') ? latestVersion.slice(1) : latestVersion;
-
-                setAppVersion(cleanVersion);
-                localStorage.setItem('appVersion', cleanVersion);
-                localStorage.setItem('appVersionTime', now.toString());
+                // Refused, rate limited say: nothing kept, the release told before still said.
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const latest = latestRelease(await response.json());
+                setAppVersion(latest);
+                if (latest) localStorage.setItem('appVersion', latest);
             } catch (error) {
                 logger.error('Error fetching version:', error);
-                setAppVersion(cached || '');
+                setAppVersion(known);
             }
         };
 

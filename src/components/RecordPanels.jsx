@@ -156,7 +156,6 @@ export function ObjectDetailPanel({path, tab, onTabChange, onClose}) {
             tabs={tabs}
             tab={tab}
             onTabChange={onTabChange}
-            closeOnOutsideClick={false}
         >
             {(active) => (
                 <>
@@ -432,7 +431,6 @@ export function NamespaceDetailPanel({name, tab, onTabChange, onClose}) {
             tab={tab}
             onTabChange={onTabChange}
             size="wide"
-            closeOnOutsideClick={false}
         >
             {(active) => (
                 <>

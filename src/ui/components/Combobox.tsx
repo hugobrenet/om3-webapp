@@ -16,7 +16,8 @@ export interface ComboboxOption {
  * everything; taking the focus selects that text, so that the first keystroke
  * filters instead of lengthening the value. Typing filters case-insensitively and
  * clears the current choice, which is restored only by choosing an option: with the
- * mouse, or with the arrows and Enter, which only chooses. Escape closes the list
+ * mouse, or with the arrows and Enter, which only chooses; the list opens on the
+ * chosen option, Enter keeping it, the arrows moving from it. Escape closes the list
  * without reaching the parent panel; with the list closed, Enter submits the
  * surrounding form as in any field.
  */
@@ -66,6 +67,14 @@ export function Combobox({
     list.current?.children[activeIndex]?.scrollIntoView({ block: "nearest" });
   }, [open, activeIndex]);
 
+  // The list opened on the chosen option, nothing typed: Enter keeps it, the arrows
+  // move from it. Already open, the option the pointer or the arrows reached stays.
+  function openList() {
+    if (open) return;
+    if (query === null) setActive(Math.max(options.findIndex((option) => option.value === value), 0));
+    setOpen(true);
+  }
+
   function choose(option: ComboboxOption) {
     onChange(option.value);
     setQuery(null);
@@ -101,7 +110,7 @@ export function Combobox({
           // The field arrives filled with the chosen option: selecting it straight away
           // allows filtering by typing, instead of lengthening the existing value.
           event.currentTarget.select();
-          setOpen(true);
+          openList();
         }}
         onMouseUp={(event) => {
           // A click puts the caret in the text and undoes the selection made on focus:
@@ -111,7 +120,7 @@ export function Combobox({
           if (query === null) event.currentTarget.select();
         }}
         onClick={() => {
-          setOpen(true);
+          openList();
         }}
         onBlur={() => {
           setOpen(false);
@@ -122,7 +131,7 @@ export function Combobox({
             case "ArrowUp": {
               event.preventDefault();
               if (!open) {
-                setOpen(true);
+                openList();
                 return;
               }
               const step = event.key === "ArrowDown" ? 1 : -1;

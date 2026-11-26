@@ -313,8 +313,8 @@
     "objectsWarn_other": "{{count}} objets en warn",
     "linksDown_one": "{{count}} lien de heartbeat sur {{total}} down",
     "linksDown_other": "{{count}} liens de heartbeat sur {{total}} down",
-    "nodesOverloaded_one": "{{count}} nœud sur {{total}} surchargé",
-    "nodesOverloaded_other": "{{count}} nœuds sur {{total}} surchargés"
+    "nodesOverloaded_one": "{{count}} nœud sur {{total}} surchargé : {{nodes}}",
+    "nodesOverloaded_other": "{{count}} nœuds sur {{total}} surchargés : {{nodes}}"
   },
   "auth": {
     "login": {
@@ -1521,6 +1521,7 @@
       "select": "Sélectionner le nœud {{node}}",
       "connected": "Connecté à ce nœud",
       "versionDiff": "Agent {{version}}, la plupart des nœuds sont en {{common}}",
+      "overloaded": "Surchargé : mémoire ou swap sous son minimum",
       "booted": "démarré",
       "updated": "mis à jour"
     },
@@ -1704,6 +1705,7 @@
       "apply_other": "Appliquer {{count}} modifications",
       "applying": "Application…",
       "revert": "Rétablir {{name}}",
+      "unread": "Les valeurs de l'organisation n'ont pu être lues, rien contre quoi les modifier : {{message}}",
       "refused": "Non appliqué : {{message}}",
       "tray_one": "Mettre à jour {{count}} propriété de l'organisation",
       "tray_other": "Mettre à jour {{count}} propriétés de l'organisation"
@@ -1869,13 +1871,42 @@
     "filters": {
       "show": "Afficher les filtres",
       "hide": "Masquer les filtres",
-      "globalState": "État global",
+      "state": "État",
+      "config": "Config",
+      "fields": {
+        "avail": "Disponibilité",
+        "overall": "Global",
+        "provisioned": "Provisionné",
+        "frozen": "Gelé",
+        "placement_state": "Placement",
+        "topology": "Topologie",
+        "orchestrate": "Orchestration",
+        "placement_policy": "Politique de placement",
+        "config_validation": "Validation"
+      },
+      "provisionedValues": {
+        "true": "provisionné",
+        "false": "non provisionné"
+      },
+      "validationValues": {
+        "warning": "avertissements",
+        "error": "erreurs",
+        "valid": "valide"
+      },
+      "notApplicable": "non applicable",
+      "undefined": "indéfini",
+      "upInstances": "Instances up",
+      "upInstancesHint": "Un nombre, ou un nombre après <, <=, > ou >= : >0",
+      "upInstancesInvalid": "Pas un nombre : 2, >0, <=1…",
       "namespace": "Namespace",
       "kind": "Type",
-      "unprovisioned": "Non provisionné",
       "rail": "Filtres",
       "clear": "Réinitialiser",
       "clearOf": "Réinitialiser le filtre {{filter}}",
+      "reverse": "Sauf",
+      "reverseOf": "Sauf {{field}} : garder les objets d'aucune des valeurs choisies",
+      "reverseHint": "Garder les objets d'aucune des valeurs choisies",
+      "notValues": "sauf {{values}}",
       "active_one": "{{count}} actif",
       "active_other": "{{count}} actifs"
     },
@@ -2068,6 +2099,10 @@
     "thisVersion": "cette version"
   },
   "panel": {
+    "back": "Précédent",
+    "backTo": "Revenir à {{name}}",
+    "forward": "Suivant",
+    "forwardTo": "Aller à {{name}}",
     "resize": "Redimensionner le panneau",
     "tabs": {
       "label": "Vues de {{name}}",
@@ -2941,6 +2976,7 @@
   },
   "nodeLabels": {
     "title": "Étiquettes",
+    "unread": "Impossible de lire les labels : {{message}}",
     "none": "Aucune étiquette.",
     "edit": "Modifier les étiquettes",
     "fromCluster": "Défini dans la configuration du cluster : en le réglant ici, le nœud aura sa propre valeur.",
@@ -3460,6 +3496,11 @@
       "warn": "warn",
       "quiet": "down, sans problème",
       "ok": "ok"
+    },
+    "unread": {
+      "networks": "Impossible de lire les réseaux : {{message}}",
+      "pools": "Impossible de lire les pools : {{message}}",
+      "stores": "Impossible de lire les dépôts : {{message}}"
     },
     "reading": "Lecture…",
     "links": {

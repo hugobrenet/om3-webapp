@@ -30,6 +30,7 @@ import {AUTH_RENEW_EVENT, prepareForNavigation} from "../eventSourceManager";
 import {isRenewalRefused} from "../context/serialRenewal";
 import {PeekPanel} from "./PeekPanel";
 import {PanelReopenKey} from "../app/PanelReopenKey";
+import {PanelNavTracker} from "../app/panel-nav";
 import {ShortcutsHelp} from "../app/ShortcutsHelp";
 import {PageIntro} from "./PageIntro";
 import {useShortcut} from "../ui/lib/shortcuts";
@@ -529,6 +530,8 @@ const App = () => {
                                     {/* What the page is about, for someone new to OpenSVC. */}
                                     {!bare && <PageIntro/>}
                                     <Suspense fallback={<Loading/>}>
+                                        {/* Which record each entry of the history showed: the Back and Forward of the panels. */}
+                                        <PanelNavTracker/>
                                         <Routes>
                                             <Route path="/" element={<Navigate to="/cluster" replace/>}/>
                                             <Route path="/cluster" element={<ProtectedRoute><ClusterView/></ProtectedRoute>}/>

@@ -81,7 +81,8 @@ export function VolumeFiles({path}) {
     // The listing of a directory of a node, shown only under its own: one answered
     // late, another directory or node shown meanwhile, never stands for it.
     const [listing, setListing] = useState(null);
-    const files = listing?.node === node && listing?.dir === dir ? listing.items : null;
+    const shownListing = listing?.node === node && listing?.dir === dir ? listing : null;
+    const files = shownListing?.items ?? null;
     const lastRead = useRef(0);
     const shown = useRef("");
     shown.current = `${node}\0${dir}`;
@@ -302,7 +303,7 @@ export function VolumeFiles({path}) {
             )}
             {entries === null && !error && <Spinner/>}
             {entries?.length === 0 && !error && <p className="text-ink-muted">{t(dir ? "volumeFiles.emptyDir" : "volumeFiles.none")}</p>}
-            {listing?.truncated && <Alert tone="info">{t("volumeFiles.truncated", {count: files.length})}</Alert>}
+            {shownListing?.truncated && <Alert tone="info">{t("volumeFiles.truncated", {count: files.length})}</Alert>}
             {entries?.length > 0 && (
                 <Table>
                     <thead>

@@ -686,6 +686,15 @@ export function ArrowLeftIcon(props: IconProps) {
   );
 }
 
+/** Onward, the way back reversed (fa-arrow-right). */
+export function ArrowRightIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path transform="matrix(-1 0 0 1 24 0)" d="M10.7 5.3a1.2 1.2 0 0 1 0 1.7l-3.8 3.8H19a1.2 1.2 0 1 1 0 2.4H6.9l3.8 3.8a1.2 1.2 0 1 1-1.7 1.7l-5.8-5.8a1.2 1.2 0 0 1 0-1.7L9 5.3a1.2 1.2 0 0 1 1.7 0Z" />
+    </Svg>
+  );
+}
+
 /** Pointing onward (`right16`, fa-caret-right). */
 export function CaretRightIcon(props: IconProps) {
   return (

@@ -190,7 +190,7 @@ describe("record panels", () => {
     const names = within(bar)
       .getAllByRole("button")
       .map((button) => button.getAttribute("title") ?? button.textContent);
-    expect(names).toEqual(["Actions", "Full screen", "Close"]);
+    expect(names).toEqual(["Back", "Forward", "Actions", "Full screen", "Close"]);
   });
 
   test("the panels open on the right, no control to move them, whatever an earlier choice", () => {

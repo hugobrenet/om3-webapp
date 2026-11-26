@@ -273,15 +273,25 @@ function useSidebarEventState(enabled) {
     return state;
 }
 
-/** Pool and network lists, polled; a failed request keeps the last known lists. */
+/** A list not read yet: none read, no failure. */
+const UNREAD = {read: false, error: null};
+const USAGE_UNREAD = {pools: UNREAD, networks: UNREAD};
+
+/**
+ * Pool and network lists, polled; a failed request keeps the last known lists.
+ * `usageReads`, of each, whether it was read once (`read`) and why its last read
+ * failed (`error`): none read, an empty list is not "none".
+ */
 function useUsageLists(enabled) {
     const [pools, setPools] = useState([]);
     const [networks, setNetworks] = useState([]);
+    const [usageReads, setUsageReads] = useState(USAGE_UNREAD);
 
     // A session ended: its lists dropped, the next session's read at the next poll.
     useEffect(() => onSessionEnd(() => {
         setPools([]);
         setNetworks([]);
+        setUsageReads(USAGE_UNREAD);
     }), []);
 
     useEffect(() => {
@@ -299,6 +309,17 @@ function useUsageLists(enabled) {
             if (cancelled) return;
             if (pool.status === "fulfilled") setPools(pool.value?.data?.items || []);
             if (network.status === "fulfilled") setNetworks(network.value?.data?.items || []);
+            // The same as before, the same object: the menu's state unchanged.
+            const status = (answer, before) => {
+                const next = answer.status === "fulfilled"
+                    ? {read: true, error: null}
+                    : {read: before.read, error: answer.reason?.message || String(answer.reason)};
+                return next.read === before.read && next.error === before.error ? before : next;
+            };
+            setUsageReads((before) => {
+                const next = {pools: status(pool, before.pools), networks: status(network, before.networks)};
+                return next.pools === before.pools && next.networks === before.networks ? before : next;
+            });
         };
         void refresh();
         const timer = setInterval(refresh, SIDEBAR_USAGE_REFRESH_MS);
@@ -308,7 +329,7 @@ function useUsageLists(enabled) {
         };
     }, [enabled]);
 
-    return {pools, networks};
+    return {pools, networks, usageReads};
 }
 
 /**
@@ -319,12 +340,12 @@ function useUsageLists(enabled) {
 /**
  * The state the menu keeps live, shared with the overview of the cluster: the
  * objects, the nodes and their heartbeats, and the configuration of the cluster,
- * from its event stream; the pools and the networks, polled. `ready`, a first
- * state read.
+ * from its event stream; the pools and the networks, polled, `usageReads` whether
+ * each was read and why it was not. `ready`, a first state read.
  */
 export const useMenuState = create(() => ({
     objects: {}, nodeStatus: {}, heartbeatStatus: {}, volChildren: {}, clusterConfig: null, nodeConfig: {},
-    pools: [], networks: [], ready: false,
+    pools: [], networks: [], usageReads: USAGE_UNREAD, ready: false,
 }));
 
 /** The kind of an object path, as om3 writes it: "ns/kind/name", "kind/name", a bare svc name, "ns/". */
@@ -390,14 +411,17 @@ export function heartbeatAlert(heartbeatStatus) {
     return {level: down === total ? "down" : "warn", text: i18n.t("alerts.linksDown", {count: down, total})};
 }
 
-/** Nodes: orange when one is overloaded, red when all are (is_overloaded of the node status). */
+/**
+ * Nodes: orange when one is overloaded, red when all are (is_overloaded of the node
+ * status), the overloaded ones named: which to look at.
+ */
 export function nodesAlert(nodeStatus) {
-    const nodes = Object.values(nodeStatus || {});
-    const overloaded = nodes.filter((status) => status?.is_overloaded === true).length;
-    if (overloaded === 0) return null;
+    const nodes = Object.entries(nodeStatus || {});
+    const overloaded = nodes.filter(([, status]) => status?.is_overloaded === true).map(([name]) => name).sort();
+    if (overloaded.length === 0) return null;
     return {
-        level: overloaded === nodes.length ? "down" : "warn",
-        text: i18n.t("alerts.nodesOverloaded", {count: overloaded, total: nodes.length}),
+        level: overloaded.length === nodes.length ? "down" : "warn",
+        text: i18n.t("alerts.nodesOverloaded", {count: overloaded.length, total: nodes.length, nodes: overloaded.join(", ")}),
     };
 }
 
@@ -412,12 +436,12 @@ const ofKind = (objects, kind) =>
  */
 export function useSidebarState({enabled = true} = {}) {
     const {objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, nodeConfig} = useSidebarEventState(enabled);
-    const {pools, networks} = useUsageLists(enabled);
+    const {pools, networks, usageReads} = useUsageLists(enabled);
     // Shared with the overview of the cluster, the header and the assistant: one
     // stream, one poll, for all.
     useEffect(() => {
-        useMenuState.setState({objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, nodeConfig, pools, networks, ready: true});
-    }, [objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, nodeConfig, pools, networks]);
+        useMenuState.setState({objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, nodeConfig, pools, networks, usageReads, ready: true});
+    }, [objects, nodeStatus, heartbeatStatus, volChildren, clusterConfig, nodeConfig, pools, networks, usageReads]);
     // The nodes gone out of the cluster: what the views keep of them goes.
     useEffect(() => {
         if (Array.isArray(clusterConfig?.nodes) && clusterConfig.nodes.length > 0) {

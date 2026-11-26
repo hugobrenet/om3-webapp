@@ -148,6 +148,17 @@ describe('NodeRow Component', () => {
         expect(screen.queryByText('frozen')).not.toBeInTheDocument();
     });
 
+    test('an overloaded node marked in its state cell, what it is about on hover; none else', () => {
+        const {unmount} = render(<NodeRow {...defaultProps} status={{...defaultProps.status, is_overloaded: true}}/>);
+        const mark = within(screen.getAllByRole('cell')[2]).getByRole('img', {name: 'Overloaded: memory or swap below its minimum'});
+        expect(mark).toHaveAttribute('title', 'Overloaded: memory or swap below its minimum');
+        expect(mark).toHaveAttribute('data-level', 'warn');
+        unmount();
+
+        render(<NodeRow {...defaultProps} status={{...defaultProps.status, is_overloaded: false}}/>);
+        expect(screen.queryByTestId('overloaded-node1')).not.toBeInTheDocument();
+    });
+
     test('renders daemon node indicator when nodename matches daemonNodename', () => {
         render(<NodeRow {...defaultProps} daemonNodename="node1"/>);
         const indicator = screen.getByRole('img', {name: 'Connected to this node'});

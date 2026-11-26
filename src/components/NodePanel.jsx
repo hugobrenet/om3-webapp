@@ -149,11 +149,17 @@ export function Section({id, title, count, children, tools}) {
     );
 }
 
-/** What a resource holds once read: a spinner while it is read, its error if it failed. */
+/** What a resource holds once read: a spinner while it is read, its error if it failed, read again on demand. */
 export function Loaded({resource, children}) {
     const {t} = useTranslation();
     if (resource.loading && resource.data === null) return <Spinner label={t("nodePanel.loading")}/>;
-    if (resource.error) return <Alert tone="error">{t("nodePanel.loadError", {message: resource.error})}</Alert>;
+    if (resource.error) {
+        return (
+            <Alert tone="error" action={resource.reload && <Button size="sm" onClick={resource.reload}>{t("common.retry")}</Button>}>
+                {t("nodePanel.loadError", {message: resource.error})}
+            </Alert>
+        );
+    }
     return children;
 }
 
@@ -455,6 +461,12 @@ function NodeStatusTab({node, onOrchestrationLogs}) {
                     </Button>
                     {org.error && <Alert className="w-full">{t("nodePanel.orgEdit.refused", {message: org.error})}</Alert>}
                 </div>
+            )}
+            {/* The values written not read: no form to edit against nothing, why, and read again on demand. */}
+            {org.readError && (
+                <Alert className="mb-4" action={<Button size="sm" onClick={org.retry}>{t("common.retry")}</Button>}>
+                    {t("nodePanel.orgEdit.unread", {message: org.readError})}
+                </Alert>
             )}
             <div className="gap-x-6 @3xl:columns-2 [&>*]:mb-5 [&>*]:break-inside-avoid">
                 <Section id={`node-monitor-${node}`} title={t("nodePanel.status.monitor")}
@@ -1176,7 +1188,6 @@ export function NodeDetailPanel({node, tab, onTabChange, onClose}) {
             tabs={tabs}
             tab={tab}
             onTabChange={onTabChange}
-            closeOnOutsideClick={false}
         >
             {(active) => (
                 <>
