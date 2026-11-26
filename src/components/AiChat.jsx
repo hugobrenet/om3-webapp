@@ -10,6 +10,7 @@ import AiPromptTips from "./AiPromptTips.jsx";
 import AiToolsDialog from "./AiToolsDialog.jsx";
 import AiComposer from "./AiComposer.jsx";
 import AiMessages from "./AiMessages.jsx";
+import AiPrintView from "./AiPrintView.jsx";
 import {ConfigText} from "./ConfigText.jsx";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 import {URL_OBJECT} from "../config/apiPath.js";
@@ -18,11 +19,14 @@ import {Alert} from "../ui/components/Alert";
 import {Button, IconButton} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
 import {Input} from "../ui/components/Field";
+import {MenuButton} from "../ui/components/MenuButton";
 import {Spinner} from "../ui/components/Spinner";
-import {AlertTriangleIcon, InfoIcon, PencilIcon, PlusIcon, PuzzleIcon, SearchIcon, SidebarIcon, SparklesIcon, TrashIcon} from "../ui/icons";
+import {AlertTriangleIcon, DownloadIcon, FileMarkdownIcon, FilePdfIcon, InfoIcon, PencilIcon, PlusIcon, PuzzleIcon, SearchIcon, SidebarIcon, SparklesIcon, TrashIcon} from "../ui/icons";
 import {NARROW_QUERY, useMediaQuery} from "../ui/lib/media";
 import {cn} from "../ui/cn";
 import {untrustedT} from "../utils/untrustedText";
+import {conversationMarkdown, downloadText, ExportTooLong, exportFileName, wholeHistory} from "../utils/conversationExport.js";
+import {AiAgentError} from "../services/ai-agent.js";
 
 const PANEL = "flex min-h-0 min-w-0 flex-col rounded-(--radius-panel) border border-line bg-surface-raised";
 const PANEL_HEADER = "flex flex-wrap items-center gap-2 border-b border-line px-3 py-2";
@@ -465,7 +469,7 @@ function ConfirmationCard({confirmation, doc, busy, previewing, queued, onApprov
  * same conversation over them. `status`, the state of the cluster.
  */
 const AiChat = ({status}) => {
-    const {t} = useTranslation();
+    const {t, i18n} = useTranslation();
     const auth = useAuth();
     const shared = useSharedAiChat();
     if (shared === null) throw new Error("AiChat needs an AiChatProvider");
@@ -482,6 +486,14 @@ const AiChat = ({status}) => {
     const [deleting, setDeleting] = useState(null);
     // The dialog of the composer replacing the message queued tells the error.
     const [replacing, setReplacing] = useState(false);
+    // The export of the conversation on display: running, saved, or what
+    // stopped it, {tone, text}.
+    const [exporting, setExporting] = useState(false);
+    const [exported, setExported] = useState(false);
+    const [exportAlert, setExportAlert] = useState(null);
+    const exportRun = useRef(null);
+    // The conversation the browser prints, to be saved as a PDF, until its dialog closes.
+    const [printDoc, setPrintDoc] = useState(null);
     // The page on display: the chat is read, and the turns that end now are seen.
     useEffect(() => attach(), [attach]);
     // The tools are read as the session: one that ends closes them, and they
@@ -554,6 +566,65 @@ const AiChat = ({status}) => {
         };
         void chat.loadOlderMessages();
     };
+
+    // The conversation as a Markdown file, or printed to be saved as a PDF
+    // (`format`, "md" or "pdf"): its whole history, read again from the agent,
+    // the earlier messages not loaded included. Nothing runs or waits
+    // meanwhile, the turn of the moment not stored yet.
+    const exportConversation = async (format) => {
+        const conversation = chat.conversation;
+        if (!conversation || exportRun.current) return;
+        const run = new AbortController();
+        exportRun.current = run;
+        setExporting(true);
+        setExported(false);
+        setExportAlert(null);
+        try {
+            const messages = await wholeHistory(client, conversation.id, {signal: run.signal});
+            if (run.signal.aborted) return;
+            // Its turns stopped or failed only: the agent stored none.
+            if (!messages.length) {
+                setExportAlert({tone: "info", text: t("ai.export.empty")});
+                return;
+            }
+            const exportedAt = new Date();
+            const title = titleOf(conversation);
+            if (format === "pdf") {
+                setPrintDoc({title, clusterName, messages, exportedAt});
+                return;
+            }
+            downloadText(conversationMarkdown({title, clusterName, messages, exportedAt, t, i18n}), exportFileName(title, exportedAt));
+            setExported(true);
+        } catch (error) {
+            if (run.signal.aborted) return;
+            // What the agent answered, as for a turn: a session ended says so.
+            const text =
+                error instanceof ExportTooLong
+                    ? t("ai.export.tooLong")
+                    : error instanceof AiAgentError
+                        ? error.message
+                        : t("ai.export.failed");
+            setExportAlert({tone: "error", text});
+        } finally {
+            if (exportRun.current === run) {
+                exportRun.current = null;
+                setExporting(false);
+            }
+        }
+    };
+    // Another conversation on display, or leaving the page, drops the export
+    // running and what the last one told: the user left it.
+    useEffect(
+        () => () => {
+            exportRun.current?.abort();
+            exportRun.current = null;
+            setExporting(false);
+            setExported(false);
+            setExportAlert(null);
+            setPrintDoc(null);
+        },
+        [chat.conversation?.id]
+    );
 
     const confirmDialog = async () => {
         const result = await chat.deleteConversation(deleting?.id);
@@ -748,6 +819,41 @@ const AiChat = ({status}) => {
                                 </IconButton>
                             )}
                             <div className="ml-auto flex gap-2">
+                                {/* Told once saved, the button keeping the focus while it runs. */}
+                                <span role="status" className="sr-only">
+                                    {exporting ? t("ai.export.exporting") : exported ? t("ai.export.done") : ""}
+                                </span>
+                                {/* While one runs, the menu stays, with the focus, its entries off. */}
+                                {chat.conversation && (
+                                    <MenuButton
+                                        label={t("ai.export.open")}
+                                        align="end"
+                                        disabled={busy || waiting || !chat.messages.length}
+                                        icon={
+                                            exporting || printDoc ? (
+                                                <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent"/>
+                                            ) : (
+                                                <DownloadIcon width={14} height={14}/>
+                                            )
+                                        }
+                                        items={[
+                                            {
+                                                key: "md",
+                                                label: t("ai.export.markdown"),
+                                                icon: <FileMarkdownIcon width={16} height={16}/>,
+                                                disabled: exporting || Boolean(printDoc),
+                                                onSelect: () => void exportConversation("md"),
+                                            },
+                                            {
+                                                key: "pdf",
+                                                label: t("ai.export.pdf"),
+                                                icon: <FilePdfIcon width={16} height={16}/>,
+                                                disabled: exporting || Boolean(printDoc),
+                                                onSelect: () => void exportConversation("pdf"),
+                                            },
+                                        ]}
+                                    />
+                                )}
                                 <IconButton label={t("ai.tips.open")} onClick={() => setTipsOpen(true)}>
                                     <InfoIcon width={14} height={14}/>
                                 </IconButton>
@@ -823,6 +929,19 @@ const AiChat = ({status}) => {
                             />
                         )}
                         {chat.error && !replacing && <Alert className="mx-3 mb-2">{chat.error}</Alert>}
+                        {exportAlert && (
+                            <Alert
+                                tone={exportAlert.tone}
+                                className="mx-3 mb-2"
+                                action={
+                                    <Button size="sm" onClick={() => setExportAlert(null)}>
+                                        {t("ai.export.dismiss")}
+                                    </Button>
+                                }
+                            >
+                                {exportAlert.text}
+                            </Alert>
+                        )}
                         {chat.notice && <Alert tone="info" className="mx-3 mb-2">{chat.notice}</Alert>}
                         <AiComposer inputRef={composer} onReplacingChange={setReplacing}/>
                     </section>
@@ -853,6 +972,15 @@ const AiChat = ({status}) => {
                 <AiPromptTips/>
             </Dialog>
             <AiToolsDialog open={ready && toolsOpen} client={client} onClose={() => setToolsOpen(false)}/>
+            {printDoc && (
+                <AiPrintView
+                    doc={printDoc}
+                    onDone={(failed) => {
+                        setPrintDoc(null);
+                        if (failed) setExportAlert({tone: "error", text: t("ai.export.printFailed")});
+                    }}
+                />
+            )}
         </div>
     );
 };

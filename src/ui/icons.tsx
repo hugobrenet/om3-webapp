@@ -1,4 +1,4 @@
-import type { SVGProps } from "react";
+import { useId, type SVGProps } from "react";
 
 /**
  * Menu icons, drawn here rather than imported from a library.
@@ -601,6 +601,47 @@ export function FileIcon(props: IconProps) {
       <path d="M6.5 2H13v5.5c0 .8.7 1.5 1.5 1.5H20v11.5c0 .8-.7 1.5-1.5 1.5h-12c-.8 0-1.5-.7-1.5-1.5v-17C5 2.7 5.7 2 6.5 2Zm8 .4 5.1 5.1h-5.1V2.4Z" />
     </Svg>
   );
+}
+
+/**
+ * A file of a format, the file above with the name of its format cut out of
+ * it, as the downloads name it (fa-file-pdf): `label`, a few capitals.
+ */
+function FileFormatIcon({ label, ...props }: IconProps & { label: string }) {
+  // A mask of each icon its own: several are in the page at once.
+  const mask = `file-format-${useId().replace(/[^A-Za-z0-9_-]/g, "")}`;
+  return (
+    <Svg {...props}>
+      <mask id={mask}>
+        <rect width="24" height="24" fill="#fff" />
+        <text
+          x="12.5"
+          y="18.6"
+          textAnchor="middle"
+          fontFamily="system-ui, sans-serif"
+          fontSize={label.length > 2 ? 6.2 : 7.4}
+          fontWeight="700"
+          fill="#000"
+        >
+          {label}
+        </text>
+      </mask>
+      <path
+        mask={`url(#${mask})`}
+        d="M6.5 2H13v5.5c0 .8.7 1.5 1.5 1.5H20v11.5c0 .8-.7 1.5-1.5 1.5h-12c-.8 0-1.5-.7-1.5-1.5v-17C5 2.7 5.7 2 6.5 2Zm8 .4 5.1 5.1h-5.1V2.4Z"
+      />
+    </Svg>
+  );
+}
+
+/** A Markdown file, to download. */
+export function FileMarkdownIcon(props: IconProps) {
+  return <FileFormatIcon label="MD" {...props} />;
+}
+
+/** A PDF file, to download. */
+export function FilePdfIcon(props: IconProps) {
+  return <FileFormatIcon label="PDF" {...props} />;
 }
 
 /** Locked, safe (`safe16`, fa-lock). */

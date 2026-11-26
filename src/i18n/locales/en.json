@@ -4365,6 +4365,26 @@
       "answering": "The assistant is answering",
       "ended": "The assistant has finished",
       "waiting": "An action of the assistant waits for your decision"
+    },
+    "export": {
+      "open": "Export the conversation",
+      "markdown": "Download the conversation in Markdown",
+      "pdf": "Download the conversation in PDF",
+      "exporting": "Exporting the conversation…",
+      "done": "The conversation is exported.",
+      "failed": "The conversation could not be exported. Try again.",
+      "tooLong": "The conversation is too long to be exported.",
+      "printFailed": "The browser could not open its print dialog: the PDF was not made.",
+      "empty": "Nothing to export: no turn of this conversation is stored.",
+      "dismiss": "Dismiss",
+      "cluster": "Cluster: {{name}}",
+      "exportedAt": "Exported on {{date}}",
+      "timeZone": "Times in {{zone}}",
+      "steps": "Steps",
+      "stepsOmitted_one": "{{count}} step not kept in the history",
+      "stepsOmitted_other": "{{count}} steps not kept in the history",
+      "model": "Model: {{model}}",
+      "unstored": "The answers stopped or failed are not stored, nor exported."
     }
   }
 }
