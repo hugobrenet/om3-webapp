@@ -87,7 +87,7 @@ function CodeBlock({node, children}) {
                 // the border of the block; the button stands out of the block,
                 // as it does elsewhere.
                 <div className="absolute top-px right-px rounded-(--radius-control) bg-surface-sunken p-1">
-                    <div className="rounded-(--radius-control) bg-surface">
+                    <div className="rounded-(--radius-control) bg-surface" title={t("ai.message.copyCode")}>
                         <CopyButton text={text} label={t("ai.message.copyCode")}/>
                     </div>
                 </div>

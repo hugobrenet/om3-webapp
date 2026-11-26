@@ -757,6 +757,7 @@ const AiChat = ({status}) => {
                                                     <IconButton
                                                         size="sm"
                                                         label={untrustedT(t, "ai.conversations.delete", {title: titleOf(conversation)})}
+                                                        title={untrustedT(t, "ai.conversations.delete", {title: titleOf(conversation)})}
                                                         disabled={busy}
                                                         className="text-ink-muted hover:text-state-down"
                                                         onClick={() => {
@@ -779,6 +780,7 @@ const AiChat = ({status}) => {
                         <div className={PANEL_HEADER}>
                             <IconButton
                                 label={conversationsOpen ? t("ai.conversations.hide") : t("ai.conversations.show")}
+                                title={conversationsOpen ? t("ai.conversations.hide") : t("ai.conversations.show")}
                                 aria-expanded={conversationsOpen}
                                 aria-controls={CONVERSATIONS_PANEL}
                                 onClick={toggleConversations}
@@ -811,6 +813,7 @@ const AiChat = ({status}) => {
                                 <IconButton
                                     size="sm"
                                     label={t("ai.transcript.rename")}
+                                    title={t("ai.transcript.rename")}
                                     disabled={busy}
                                     className="text-ink-muted hover:text-ink"
                                     onClick={startRenaming}
@@ -824,40 +827,43 @@ const AiChat = ({status}) => {
                                     {exporting ? t("ai.export.exporting") : exported ? t("ai.export.done") : ""}
                                 </span>
                                 {/* While one runs, the menu stays, with the focus, its entries off. */}
+                                {/* A title, the tooltip the browser shows after a while, as on the dock. */}
                                 {chat.conversation && (
-                                    <MenuButton
-                                        label={t("ai.export.open")}
-                                        align="end"
-                                        disabled={busy || waiting || !chat.messages.length}
-                                        icon={
-                                            exporting || printDoc ? (
-                                                <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent"/>
-                                            ) : (
-                                                <DownloadIcon width={14} height={14}/>
-                                            )
-                                        }
-                                        items={[
-                                            {
-                                                key: "md",
-                                                label: t("ai.export.markdown"),
-                                                icon: <FileMarkdownIcon width={16} height={16}/>,
-                                                disabled: exporting || Boolean(printDoc),
-                                                onSelect: () => void exportConversation("md"),
-                                            },
-                                            {
-                                                key: "pdf",
-                                                label: t("ai.export.pdf"),
-                                                icon: <FilePdfIcon width={16} height={16}/>,
-                                                disabled: exporting || Boolean(printDoc),
-                                                onSelect: () => void exportConversation("pdf"),
-                                            },
-                                        ]}
-                                    />
+                                    <span title={t("ai.export.open")} className="inline-flex">
+                                        <MenuButton
+                                            label={t("ai.export.open")}
+                                            align="end"
+                                            disabled={busy || waiting || !chat.messages.length}
+                                            icon={
+                                                exporting || printDoc ? (
+                                                    <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent"/>
+                                                ) : (
+                                                    <DownloadIcon width={14} height={14}/>
+                                                )
+                                            }
+                                            items={[
+                                                {
+                                                    key: "md",
+                                                    label: t("ai.export.markdown"),
+                                                    icon: <FileMarkdownIcon width={16} height={16}/>,
+                                                    disabled: exporting || Boolean(printDoc),
+                                                    onSelect: () => void exportConversation("md"),
+                                                },
+                                                {
+                                                    key: "pdf",
+                                                    label: t("ai.export.pdf"),
+                                                    icon: <FilePdfIcon width={16} height={16}/>,
+                                                    disabled: exporting || Boolean(printDoc),
+                                                    onSelect: () => void exportConversation("pdf"),
+                                                },
+                                            ]}
+                                        />
+                                    </span>
                                 )}
-                                <IconButton label={t("ai.tips.open")} onClick={() => setTipsOpen(true)}>
+                                <IconButton label={t("ai.tips.open")} title={t("ai.tips.open")} onClick={() => setTipsOpen(true)}>
                                     <InfoIcon width={14} height={14}/>
                                 </IconButton>
-                                <IconButton label={t("ai.tools.open")} onClick={() => setToolsOpen(true)}>
+                                <IconButton label={t("ai.tools.open")} title={t("ai.tools.open")} onClick={() => setToolsOpen(true)}>
                                     <PuzzleIcon width={14} height={14}/>
                                 </IconButton>
                                 {/* Folded, the panel still lets a conversation start from here. */}
