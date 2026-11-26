@@ -574,8 +574,9 @@ const AiChat = ({status}) => {
     };
 
     // What the transcript holds now: a history read for another is read again.
+    // Its title too: a conversation renamed is read again, named as it is.
     const historyKey = chat.conversation
-        ? `${chat.conversation.id}:${chat.messages.length}:${chat.messages.at(-1)?.id ?? ""}`
+        ? JSON.stringify([chat.conversation.id, chat.messages.length, chat.messages.at(-1)?.id ?? "", titleOf(chat.conversation)])
         : null;
     const exportOff = busy || waiting || !chat.messages.length;
 
@@ -613,8 +614,13 @@ const AiChat = ({status}) => {
 
     // Opening the menu reads the history, and makes the print ready with it:
     // Safari prints only on a click of the user, the click on the entry.
+    // A print made ready a while ago is dated again: the date of the export its own.
     const prepareExport = () => {
         if (exportOff || !chat.conversation) return;
+        if (prepared?.key === historyKey && Date.now() - prepared.doc.exportedAt.getTime() > 60000) {
+            setPrepared({key: prepared.key, doc: {...prepared.doc, exportedAt: new Date()}});
+            return;
+        }
         loadHistory().catch(() => {
             // Told if the user asks for the export.
         });

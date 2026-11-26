@@ -543,6 +543,28 @@ describe('the dock of the assistant', () => {
             expect(screen.getByRole('button', {name: /The action of the assistant waits for your decision|waits for your decision/})).toBeInTheDocument();
         });
 
+        test('tells the end of a message queued once it ends too, not while it runs', async () => {
+            const runs = [];
+            mocks.client.run.mockImplementation(
+                (_id, _input, options) =>
+                    new Promise((resolve) => {
+                        for (const event of text(`Checking ${runs.length + 1}.`, `turn-${runs.length + 1}:2`)) options.onEvent(event);
+                        runs.push(resolve);
+                    })
+            );
+            await send();
+            await screen.findByRole('button', {name: 'Stop'});
+            fireEvent.change(screen.getByRole('textbox', {name: 'Message'}), {target: {value: 'second'}});
+            fireEvent.click(screen.getByRole('button', {name: 'Queue'}));
+            await act(async () => navigate('/'));
+            // The first ends, the message queued runs at once: nothing to tell yet.
+            await act(async () => runs[0]({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-1', tokens: null}));
+            await waitFor(() => expect(runs).toHaveLength(2));
+            expect(toast()).toBeNull();
+            await act(async () => runs[1]({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-2', tokens: null}));
+            await waitFor(() => expect(told()).toBe('Your analysis is done.'));
+        });
+
         test('tells nothing on the page of the assistant, which shows the answer', async () => {
             const run = hangingRun();
             await send();

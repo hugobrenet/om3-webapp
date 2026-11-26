@@ -18,6 +18,8 @@ import {untrustedT} from "../utils/untrustedText";
 const DOCK_RIGHT_KEY = "om3.ai.dock.right";
 /** The margin of the dock to the edges of the window, as `right-4`. */
 const DOCK_MARGIN = 16;
+/** The width of the notice of the folded dock, as `w-[24rem]`. */
+const NOTICE_WIDTH = 384;
 /** A step of the arrows of the keyboard moving the dock. */
 const DOCK_STEP = 32;
 
@@ -164,7 +166,9 @@ export function ActivityNotice({onOpen}) {
     const {t} = useTranslation();
     const notice = useAiActivity()?.notice ?? null;
     const wide = useMediaQuery(BREAKPOINTS.sm);
+    // Where the dock was moved, kept within a window narrower since.
     const right = readDockRight();
+    const kept = wide && right !== null ? Math.min(right, window.innerWidth - NOTICE_WIDTH - DOCK_MARGIN) : null;
     // The notice the user closed: the next one shows.
     const [closed, setClosed] = useState(null);
     if (closed !== null && notice !== closed) setClosed(null);
@@ -185,9 +189,9 @@ export function ActivityNotice({onOpen}) {
                         event.stopPropagation();
                         close();
                     }}
-                    style={wide && right !== null ? {right} : undefined}
+                    style={kept !== null && kept > DOCK_MARGIN ? {right: kept} : undefined}
                     className={cn(
-                        "fixed right-4 bottom-4 z-(--z-dock) flex max-w-[min(24rem,calc(100vw-2rem))] items-start gap-2 rounded-(--radius-panel) border bg-surface-raised p-3 shadow-xl max-sm:right-2",
+                        "fixed right-4 bottom-4 z-(--z-dock) flex w-[24rem] max-w-[calc(100vw-2rem)] items-start gap-2 rounded-(--radius-panel) border bg-surface-raised p-3 shadow-xl max-sm:right-2",
                         shown === "waiting" ? "border-state-warn" : shown === "failed" ? "border-state-down" : "border-line"
                     )}
                 >

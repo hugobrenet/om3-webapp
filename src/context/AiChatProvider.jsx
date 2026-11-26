@@ -152,8 +152,11 @@ export function AiChatProvider({children}) {
     useEffect(() => {
         const endedHere = answeringScope.current === scope && !answering;
         answeringScope.current = answering ? scope : null;
-        // A turn runs again: what the title told is over.
+        // A turn runs again, such as a message queued: what the title and the
+        // dock told is over, the end of this one to be told in turn.
         if (answering) {
+            setEnded(false);
+            setEndedFailed(false);
             tab.clear();
             return;
         }

@@ -290,6 +290,28 @@ describe('the export of a conversation of the assistant', () => {
         expect(document.title).toBe('Lab cluster');
     });
 
+    test('names the file after the title the conversation has at the export, renamed meanwhile', async () => {
+        mocks.client.renameConversation = vi.fn().mockResolvedValue({id: 'existing', title: 'Renamed diagnostic'});
+        await resume();
+        openMenu();
+        await frameReady();
+        fireEvent.keyDown(document.activeElement, {key: 'Escape'});
+        fireEvent.click(screen.getByRole('button', {name: 'Rename the conversation'}));
+        const field = screen.getByRole('textbox', {name: 'Conversation title'});
+        fireEvent.change(field, {target: {value: 'Renamed diagnostic'}});
+        fireEvent.keyDown(field, {key: 'Enter'});
+        await screen.findByRole('heading', {name: 'Renamed diagnostic'});
+        await exportAs('md');
+        await waitFor(() => expect(saved).toHaveLength(1));
+        expect(saved[0].name).toMatch(/^renamed-diagnostic-/);
+        const text = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsText(saved[0].blob);
+        });
+        expect(text.startsWith('# Renamed diagnostic\n')).toBe(true);
+    });
+
     test('reads the history again once a turn changed the transcript', async () => {
         await resume();
         openMenu();
