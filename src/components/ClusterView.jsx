@@ -86,10 +86,10 @@ const HB_INK = {down: "text-state-down", warn: "text-state-warn", up: ""};
 /** A count or a name of the overview as a badge, opening its page filtered on it. */
 const FILTER_BADGE = "inline-flex items-center gap-1 rounded-full border border-line bg-surface px-1.5 text-data hover:border-line-strong hover:bg-surface-sunken focus-visible:outline-2 focus-visible:outline-accent has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-accent";
 
-/** The address of the objects of all the lists filtered by `params`: a kind, a namespace, a global state. */
+/** The address of the objects of all the lists filtered by `params`: a kind, a namespace, an availability. */
 const objectsUrl = (params) => `/objects?${new URLSearchParams({list: "any", ...params})}`;
-/** The services and the volumes by their global state, as the objects page filters it: n/a so written. */
-const availUrl = (state) => objectsUrl({kind: ACTORS.join(","), globalState: state === "na" ? "n/a" : state});
+/** The services and the volumes by their availability, as the objects page filters it: n/a so written. */
+const availUrl = (state) => objectsUrl({kind: ACTORS.join(","), avail: state === "na" ? "n/a" : state});
 
 /** The state of a node: dropped without a status, a node of the cluster configuration not heard from; else overloaded or optimal. */
 const nodeState = (status) => (status === undefined ? "dropped" : status.is_overloaded ? "overloaded" : "optimal");

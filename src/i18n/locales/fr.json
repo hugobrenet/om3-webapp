@@ -1871,13 +1871,42 @@
     "filters": {
       "show": "Afficher les filtres",
       "hide": "Masquer les filtres",
-      "globalState": "État global",
+      "state": "État",
+      "config": "Config",
+      "fields": {
+        "avail": "Disponibilité",
+        "overall": "Global",
+        "provisioned": "Provisionné",
+        "frozen": "Gelé",
+        "placement_state": "Placement",
+        "topology": "Topologie",
+        "orchestrate": "Orchestration",
+        "placement_policy": "Politique de placement",
+        "config_validation": "Validation"
+      },
+      "provisionedValues": {
+        "true": "provisionné",
+        "false": "non provisionné"
+      },
+      "validationValues": {
+        "warning": "avertissements",
+        "error": "erreurs",
+        "valid": "valide"
+      },
+      "notApplicable": "non applicable",
+      "undefined": "indéfini",
+      "upInstances": "Instances up",
+      "upInstancesHint": "Un nombre, ou un nombre après <, <=, > ou >= : >0",
+      "upInstancesInvalid": "Pas un nombre : 2, >0, <=1…",
       "namespace": "Namespace",
       "kind": "Type",
-      "unprovisioned": "Non provisionné",
       "rail": "Filtres",
       "clear": "Réinitialiser",
       "clearOf": "Réinitialiser le filtre {{filter}}",
+      "reverse": "Sauf",
+      "reverseOf": "Sauf {{field}} : garder les objets d'aucune des valeurs choisies",
+      "reverseHint": "Garder les objets d'aucune des valeurs choisies",
+      "notValues": "sauf {{values}}",
       "active_one": "{{count}} actif",
       "active_other": "{{count}} actifs"
     },

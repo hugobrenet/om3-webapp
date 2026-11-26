@@ -2,7 +2,7 @@ import React from 'react';
 import '@testing-library/jest-dom';
 import {render, screen, fireEvent, waitFor, within, cleanup, act} from '@testing-library/react';
 import {MemoryRouter, useRouterLocation} from 'react-router-dom';
-import {vi} from 'vitest';
+import {beforeEach, vi} from 'vitest';
 import {axe} from 'vitest-axe';
 import Objects, {PROPERTY_COLUMNS, orderObjects} from '../Objects';
 import i18n from '../../i18n';
@@ -13,7 +13,10 @@ const {
     mockRemoveObjects,
     mockSetObjectStatuses,
     mockForceFlush,
+    mockValidations,
 } = vi.hoisted(() => ({
+    // The validation of the configuration of each object, by its name, as the tests set it.
+    mockValidations: {current: new Map()},
     mockNavigate: vi.fn(),
     mockRemoveObjects: vi.fn(),
     mockSetObjectStatuses: vi.fn(),
@@ -21,6 +24,12 @@ const {
 }));
 
 // ── Mocks ───────────────────────────────────────────────────────────────
+vi.mock('../../hooks/useConfigValidations', () => ({useConfigValidations: () => mockValidations.current}));
+// None known unless a test sets them, before its setup.
+beforeEach(() => {
+    mockValidations.current = new Map();
+});
+
 vi.mock('react-router-dom', async (importOriginal) => {
     const actual = await importOriginal();
     return {
@@ -202,10 +211,18 @@ const setup = (customState = {}, locationSearch = '', mediaQuery = true, {fetch}
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
 /** The checkbox popover of a multi-valued filter. */
-const filterGroup = (label) => screen.getByRole('group', {name: label});
+/**
+ * The popover of a filter, by its name; a section of a filter of several fields, "State ›
+ * Availability", the group of that field in it.
+ */
+const filterGroup = (label) => {
+    const [outer, section] = label.split(' › ');
+    const group = screen.getByRole('group', {name: outer});
+    return section ? within(group).getByRole('group', {name: section}) : group;
+};
 const queryFilterGroup = (label) => screen.queryByRole('group', {name: label});
 /** The summary that opens a filter popover, holding the filter name and its choice. */
-const filterSummary = (label) => filterGroup(label).closest('details').querySelector('summary');
+const filterSummary = (label) => filterGroup(label.split(' › ')[0]).closest('details').querySelector('summary');
 const filterOption = (label, optionText) =>
     within(filterGroup(label)).getByRole('checkbox', {name: new RegExp(`^${escapeRegExp(optionText)}$`, 'i')});
 
@@ -858,17 +875,20 @@ describe('Objects Component', () => {
             await waitFor(() => expect(reads()).toBe(2));
         });
 
-        test.each(['configs', 'secrets', 'users'])('list=%s has no global state filter, one in the URL filtering nothing', async (tab) => {
-            setup(mixed, `?list=${tab}&globalState=up`);
+        test.each(['configs', 'secrets', 'users'])('list=%s has no State filter nor up instances, those in the URL filtering nothing', async (tab) => {
+            setup(mixed, `?list=${tab}&avail=up&up=5`);
             await waitForLoad();
-            expect(queryFilterGroup('Global state')).not.toBeInTheDocument();
+            expect(queryFilterGroup('State')).not.toBeInTheDocument();
+            expect(screen.queryByLabelText('Up instances')).not.toBeInTheDocument();
             expect(objectNamesInOrder().length).toBeGreaterThan(0);
         });
 
-        test.each(['services', 'volumes', 'any'])('list=%s keeps the global state filter', async (tab) => {
-            setup(mixed, `?list=${tab}`);
+        test.each(['services', 'volumes', 'any'])('list=%s keeps the up instances, and the State filter with a choice to make', async (tab) => {
+            setup(mixed, `?list=${tab}&avail=up`);
             await waitForLoad();
-            expect(filterGroup('Global state')).toBeInTheDocument();
+            // A value chosen, the filter shown, not to act unseen.
+            expect(filterGroup('State')).toBeInTheDocument();
+            expect(screen.getByLabelText('Up instances')).toBeInTheDocument();
         });
 
         test('the services keep their status, placement and node columns', async () => {
@@ -980,7 +1000,7 @@ describe('Objects Component', () => {
                 visible: ['test-ns/svc/test1', 'test-ns/svc/test2'],
                 hidden: ['root/svc/test3'],
             },
-            {label: 'Global state', option: 'Up', visible: ['test-ns/svc/test1'], hidden: ['test-ns/svc/test2']},
+            {label: 'State › Availability', option: 'up', visible: ['test-ns/svc/test1'], hidden: ['test-ns/svc/test2']},
             {label: 'Kind', option: 'svc', visible: ['test-ns/svc/test1'], hidden: []},
             {
                 label: 'Name',
@@ -1012,21 +1032,24 @@ describe('Objects Component', () => {
             }
         );
 
-        const globalStateTests = [
-            {option: 'Down', visible: ['test-ns/svc/test2'], hidden: ['test-ns/svc/test1']},
-            {option: 'Warn', visible: ['root/svc/test3'], hidden: ['test-ns/svc/test1']},
-            {option: 'N/a', visible: ['test-ns/svc/test4'], hidden: ['test-ns/svc/test1']},
+        const stateTests = [
+            {section: 'Availability', option: 'down', visible: ['test-ns/svc/test2'], hidden: ['test-ns/svc/test1']},
+            {section: 'Availability', option: 'warn', visible: ['root/svc/test3'], hidden: ['test-ns/svc/test1']},
+            {section: 'Availability', option: 'not applicable', visible: ['test-ns/svc/test4'], hidden: ['test-ns/svc/test1']},
             {
-                option: 'Unprovisioned',
+                section: 'Provisioned',
+                option: 'unprovisioned',
                 visible: ['test-ns/svc/unprovisioned(?!-bool)', 'test-ns/svc/unprovisioned-bool'],
                 hidden: ['test1'],
             },
+            {section: 'Provisioned', option: 'provisioned', visible: ['test-ns/svc/test1', 'root/svc/test3'], hidden: ['unprovisioned']},
+            {section: 'Frozen', option: 'frozen', visible: ['test-ns/svc/test2'], hidden: ['test-ns/svc/test1']},
         ];
 
-        test.each(globalStateTests)('Global state filter: $option', async ({option, visible, hidden}) => {
+        test.each(stateTests)('State filter: $section $option', async ({section, option, visible, hidden}) => {
             setup();
             await waitForLoad();
-            await selectFilter('Global state', option);
+            await selectFilter(`State › ${section}`, option);
             await waitFor(() => {
                 visible.forEach((v) =>
                     expect(screen.getByRole('row', {name: new RegExp(v)})).toBeInTheDocument()
@@ -1037,7 +1060,7 @@ describe('Objects Component', () => {
             });
         });
 
-        test('Global state filter: Unprovisioned keeps an object one of whose instances is not, provisioned on another node (mixed)', async () => {
+        test('State filter: an object partly provisioned by Provisioned mixed, not by unprovisioned; a value of a field and one of another, both', async () => {
             setup({
                 objectStatus: {
                     ...defaultState.objectStatus,
@@ -1052,20 +1075,76 @@ describe('Objects Component', () => {
                 },
             });
             await waitForLoad();
-            await selectFilter('Global state', 'Unprovisioned');
-            await waitFor(() => {
-                for (const v of ['test-ns/svc/partly', 'test-ns/svc/unprovisioned(?!-bool)', 'test-ns/svc/unprovisioned-bool']) {
-                    expect(screen.getByRole('row', {name: new RegExp(v)})).toBeInTheDocument();
-                }
-                expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument();
-            });
+            await selectFilter('State › Provisioned', 'unprovisioned');
+            await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument());
+            expect(screen.queryByRole('row', {name: /test-ns\/svc\/partly/})).not.toBeInTheDocument();
+            await selectFilter('State › Provisioned', 'mixed');
+            await waitFor(() => expect(screen.getByRole('row', {name: /test-ns\/svc\/partly/})).toBeInTheDocument());
+            expect(screen.getByRole('row', {name: /test-ns\/svc\/unprovisioned-bool/})).toBeInTheDocument();
+            // And up: the one partly provisioned alone, the others not applicable.
+            await selectFilter('State › Availability', 'up');
+            await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/unprovisioned-bool/})).not.toBeInTheDocument());
+            expect(screen.getByRole('row', {name: /test-ns\/svc\/partly/})).toBeInTheDocument();
+            expect(filterSummary('State')).toHaveTextContent('StateAvailability: up · Provisioned: unprovisioned, mixed');
         });
 
-        test('combining multiple Global state selections matches any of them', async () => {
+        test('State filter: a field reversed keeps the objects of none of its values, said in the address; its last value unchosen, reversed no longer', async () => {
             setup();
             await waitForLoad();
-            await selectFilter('Global state', 'Up');
-            await selectFilter('Global state', 'Down');
+            expect(within(filterGroup('State')).queryByRole('button', {name: /^Not /})).not.toBeInTheDocument();
+            await selectFilter('State › Availability', 'up');
+            await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument());
+            const reverse = () => within(filterGroup('State')).getByRole('button', {name: /^Not Availability/});
+            expect(reverse()).toHaveAttribute('aria-pressed', 'false');
+            fireEvent.click(reverse());
+            await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument());
+            expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
+            expect(screen.getByRole('row', {name: /root\/svc\/test3/})).toBeInTheDocument();
+            expect(reverse()).toHaveAttribute('aria-pressed', 'true');
+            expect(filterSummary('State')).toHaveTextContent('StateAvailability: not up');
+            await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/objects?avail=up&not=avail', {replace: true}));
+            fireEvent.click(filterOption('State › Availability', 'up'));
+            await waitFor(() => expect(filterSummary('State')).toHaveTextContent('StateAll'));
+            expect(within(filterGroup('State')).queryByRole('button', {name: /^Not /})).not.toBeInTheDocument();
+            await selectFilter('State › Availability', 'up');
+            await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument());
+            expect(reverse()).toHaveAttribute('aria-pressed', 'false');
+        });
+
+        test('Config filter: the topology, the orchestration and the placement policy, out of State; the configurations with warnings', async () => {
+            mockValidations.current = new Map([['test-ns/svc/test1', 'warning'], ['test-ns/svc/test2', 'valid'], ['root/svc/test3', 'error']]);
+            setup({
+                objectStatus: {
+                    ...defaultState.objectStatus,
+                    'test-ns/svc/test1': {...defaultState.objectStatus['test-ns/svc/test1'], topology: 'flex', orchestrate: 'ha'},
+                    'test-ns/svc/test2': {...defaultState.objectStatus['test-ns/svc/test2'], topology: 'failover', orchestrate: 'no'},
+                },
+            });
+            await waitForLoad();
+            expect(within(filterGroup('State')).getAllByRole('group').map((g) => g.getAttribute('aria-label')))
+                .not.toEqual(expect.arrayContaining(['Topology', 'Orchestrate']));
+            expect(within(filterGroup('Config')).getAllByRole('group').map((g) => g.getAttribute('aria-label')))
+                .toEqual(['Topology', 'Orchestrate', 'Validation']);
+            expect(within(filterGroup('Config › Validation')).getAllByRole('checkbox').map(optionText)).toEqual(['warnings', 'errors', 'valid']);
+            await selectFilter('Config › Validation', 'warnings');
+            await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument());
+            expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
+            expect(screen.queryByRole('row', {name: /root\/svc\/test3/})).not.toBeInTheDocument();
+            expect(filterSummary('Config')).toHaveTextContent('ConfigValidation: warnings');
+            expect(filterSummary('State')).toHaveTextContent('StateAll');
+            await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/objects?validation=warning', {replace: true}));
+            // Cleared, the Config filter alone.
+            await selectFilter('State › Availability', 'up');
+            fireEvent.click(within(filterGroup('Config')).getByRole('button', {name: 'Clear the Config filter'}));
+            await waitFor(() => expect(filterSummary('Config')).toHaveTextContent('ConfigAll'));
+            expect(filterSummary('State')).toHaveTextContent('StateAvailability: up');
+        });
+
+        test('combining values of a field matches any of them', async () => {
+            setup();
+            await waitForLoad();
+            await selectFilter('State › Availability', 'up');
+            await selectFilter('State › Availability', 'down');
             await waitFor(() => {
                 expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
                 expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
@@ -1083,32 +1162,39 @@ describe('Objects Component', () => {
             });
         });
 
-        test('unchecking a Global state option removes that filter', async () => {
+        test('unchecking a State option removes that filter', async () => {
             setup();
             await waitForLoad();
-            await selectFilter('Global state', 'Up');
+            await selectFilter('State › Availability', 'up');
             await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument());
-            expect(filterSummary('Global state')).toHaveTextContent('Global stateUp');
-            fireEvent.click(filterOption('Global state', 'Up'));
-            await waitFor(() => expect(filterOption('Global state', 'Up')).not.toBeChecked());
-            expect(filterSummary('Global state')).toHaveTextContent('Global stateAll');
+            expect(filterSummary('State')).toHaveTextContent('StateAvailability: up');
+            fireEvent.click(filterOption('State › Availability', 'up'));
+            await waitFor(() => expect(filterOption('State › Availability', 'up')).not.toBeChecked());
+            expect(filterSummary('State')).toHaveTextContent('StateAll');
             await waitFor(() => expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument());
         });
 
-        test('filter popovers list the global states, namespaces and kinds on offer', async () => {
+        test('filter popovers list the values of each field the objects have, a section a field; the namespaces and kinds on offer', async () => {
             setup(TWO_KINDS, '?list=any');
             await waitForLoad();
-            expect(within(filterGroup('Global state')).getAllByRole('checkbox').map(optionText))
-                .toEqual(['Up', 'Down', 'Warn', 'N/a', 'Unprovisioned']);
+            // A section a field with a choice to make: the fixture's say no overall, one placement.
+            expect(within(filterGroup('State')).getAllByRole('group').map((g) => g.getAttribute('aria-label')))
+                .toEqual(['Availability', 'Provisioned', 'Frozen']);
+            expect(within(filterGroup('State › Availability')).getAllByRole('checkbox').map(optionText))
+                .toEqual(['up', 'down', 'warn', 'not applicable']);
+            expect(within(filterGroup('State › Provisioned')).getAllByRole('checkbox').map(optionText))
+                .toEqual(['provisioned', 'unprovisioned']);
+            expect(within(filterGroup('State › Frozen')).getAllByRole('checkbox').map(optionText))
+                .toEqual(['frozen', 'unfrozen']);
             expect(within(filterGroup('Namespace')).getAllByRole('checkbox').map(optionText))
                 .toEqual(['root', 'test-ns']);
             expect(within(filterGroup('Kind')).getAllByRole('checkbox').map(optionText))
                 .toEqual(['nscfg', 'svc']);
-            // Each global state carries its mark.
-            expect(filterOption('Global state', 'Up').closest('label').querySelector('[data-state="up"]')).not.toBeNull();
-            expect(filterOption('Global state', 'N/a').closest('label').querySelector('[data-state="na"]')).not.toBeNull();
+            // Each availability carries its mark.
+            expect(filterOption('State › Availability', 'up').closest('label').querySelector('[data-state="up"]')).not.toBeNull();
+            expect(filterOption('State › Availability', 'not applicable').closest('label').querySelector('[data-state="na"]')).not.toBeNull();
             // Unprovisioned: the P of the not-provisioned marks, decorative beside its word.
-            const p = filterOption('Global state', 'Unprovisioned').closest('label').querySelector('[data-mark="not-provisioned"]');
+            const p = filterOption('State › Provisioned', 'unprovisioned').closest('label').querySelector('[data-mark="not-provisioned"]');
             expect(p).toHaveTextContent(/^P$/);
             expect(p).toHaveAttribute('aria-hidden', 'true');
         });
@@ -1171,7 +1257,9 @@ describe('Objects Component', () => {
             await waitForLoad();
             expect(queryFilterGroup('Kind')).not.toBeInTheDocument();
             expect(queryFilterGroup('Namespace')).not.toBeInTheDocument();
-            expect(filterGroup('Global state')).toBeInTheDocument();
+            // Every object in the same state: no State filter either, but the instances up.
+            expect(queryFilterGroup('State')).not.toBeInTheDocument();
+            expect(screen.getByLabelText('Up instances')).toBeInTheDocument();
         });
 
         test('a filter on a value no object of the tab has stays shown, not to act unseen', async () => {
@@ -1189,7 +1277,7 @@ describe('Objects Component', () => {
         setup();
         await waitForLoad();
         await selectFilter('Namespace', 'test-ns');
-        await selectFilter('Global state', 'Up');
+        await selectFilter('State › Availability', 'up');
         await waitFor(() => {
             expect(screen.getByRole('row', {name: /test1/})).toBeInTheDocument();
             expect(screen.queryByRole('row', {name: /test2/})).not.toBeInTheDocument();
@@ -1209,14 +1297,14 @@ describe('Objects Component', () => {
         );
     });
 
-    test('unchecking a Global state option restores filtered objects', async () => {
+    test('unchecking a State option restores filtered objects', async () => {
         setup();
         await waitForLoad();
-        await selectFilter('Global state', 'Up');
+        await selectFilter('State › Availability', 'up');
         await waitFor(() =>
             expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument()
         );
-        fireEvent.click(filterOption('Global state', 'Up'));
+        fireEvent.click(filterOption('State › Availability', 'up'));
         await waitFor(() =>
             expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument()
         );
@@ -1250,19 +1338,31 @@ describe('Objects Component', () => {
         const WIDE = {isWideScreen: true, isMobile: false, hasRail: true};
         const rail = () => screen.getByRole('complementary', {name: 'Filters'});
         const facet = (label) => within(rail()).getByRole('region', {name: label});
-        const values = (label) => within(facet(label)).getAllByRole('button')
-            .filter((b) => b.hasAttribute('aria-pressed'))
-            // The text of the value and its count, not that of its mark.
-            .map((b) => [b.textContent.slice((b.querySelector('[aria-hidden="true"]')?.textContent ?? '').length), b.getAttribute('aria-pressed')]);
+        // The values of a facet, or of a section of the State one ("State › Availability").
+        const values = (label) => {
+            const [outer, section] = label.split(' › ');
+            const region = section ? within(facet(outer)).getByRole('group', {name: section}) : facet(outer);
+            return within(region).getAllByRole('button')
+                .filter((b) => b.hasAttribute('aria-pressed'))
+                // The text of the value and its count, not that of its mark.
+                .map((b) => [b.textContent.slice((b.querySelector('[aria-hidden="true"]')?.textContent ?? '').length), b.getAttribute('aria-pressed')]);
+        };
 
         test('beside the table in the place of the popovers, each value counted', async () => {
             setup({}, '', WIDE);
             await waitForLoad();
-            expect(screen.queryByRole('group', {name: 'Global state'})).not.toBeInTheDocument();
-            expect(within(rail()).getAllByRole('region').map((r) => r.getAttribute('data-facet'))).toEqual(['Global state', 'Namespace']);
-            expect(values('Global state')).toEqual([
-                ['Up1', 'false'], ['Down1', 'false'], ['Warn1', 'false'], ['N/a3', 'false'], ['Unprovisioned2', 'false'],
+            expect(screen.queryByRole('group', {name: 'State'})).not.toBeInTheDocument();
+            expect(within(rail()).getAllByRole('region').map((r) => r.getAttribute('data-facet'))).toEqual(['State', 'Namespace']);
+            // A section a field with a choice to make, its values in the order of the field.
+            expect(within(facet('State')).getAllByRole('group').map((g) => g.getAttribute('data-facet-section')))
+                .toEqual(['Availability', 'Provisioned', 'Frozen']);
+            expect(values('State › Availability')).toEqual([
+                ['up1', 'false'], ['down1', 'false'], ['warn1', 'false'], ['not applicable3', 'false'],
             ]);
+            expect(values('State › Provisioned')).toEqual([['provisioned4', 'false'], ['unprovisioned2', 'false']]);
+            expect(values('State › Frozen')).toEqual([['frozen1', 'false'], ['unfrozen5', 'false']]);
+            // The instances up typed in, under the name.
+            expect(within(rail()).getByLabelText('Up instances')).toHaveAttribute('placeholder', '>0');
             expect(values('Namespace')).toEqual([['root1', 'false'], ['test-ns5', 'false']]);
         });
 
@@ -1284,14 +1384,29 @@ describe('Objects Component', () => {
         test('a value clicked filters the rows, the other facets counted under it; cleared, all again', async () => {
             setup({}, '', WIDE);
             await waitForLoad();
-            fireEvent.click(within(facet('Global state')).getByRole('button', {name: /^Up/}));
+            const availability = () => within(facet('State')).getByRole('group', {name: 'Availability'});
+            fireEvent.click(within(availability()).getByRole('button', {name: /^up/}));
             await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument());
             expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
             await waitFor(() => expect(values('Namespace')).toEqual([['root0', 'false'], ['test-ns1', 'false']]));
-            expect(within(facet('Global state')).getByRole('button', {name: /^Up/})).toHaveAttribute('aria-pressed', 'true');
-            fireEvent.click(within(facet('Global state')).getByRole('button', {name: 'Clear the Global state filter'}));
+            // The other fields counted under it: the one up provisioned and unfrozen.
+            expect(values('State › Provisioned')).toEqual([['provisioned1', 'false'], ['unprovisioned0', 'false']]);
+            expect(within(availability()).getByRole('button', {name: /^up/})).toHaveAttribute('aria-pressed', 'true');
+            fireEvent.click(within(facet('State')).getByRole('button', {name: 'Clear the State filter'}));
             await waitFor(() => expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument());
-            expect(within(facet('Global state')).queryByRole('button', {name: /^Clear/})).not.toBeInTheDocument();
+            expect(within(facet('State')).queryByRole('button', {name: /^Clear/})).not.toBeInTheDocument();
+        });
+
+        test('a field reversed from the rail, its values chosen struck', async () => {
+            setup({}, '', WIDE);
+            await waitForLoad();
+            const availability = () => within(facet('State')).getByRole('group', {name: 'Availability'});
+            fireEvent.click(within(availability()).getByRole('button', {name: /^up/}));
+            await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument());
+            fireEvent.click(within(availability()).getByRole('button', {name: /^Not Availability/}));
+            await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument());
+            expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
+            expect(within(availability()).getByRole('button', {name: /^up/}).querySelector('.truncate')).toHaveClass('line-through');
         });
 
         test('the name searched from the rail', async () => {
@@ -1878,7 +1993,7 @@ describe('Objects Component', () => {
         setup(TWO_KINDS, '?list=any');
         await waitForLoad();
         expect(filterGroup('Namespace')).toBeInTheDocument();
-        expect(filterGroup('Global state')).toBeInTheDocument();
+        expect(filterGroup('State')).toBeInTheDocument();
         expect(filterGroup('Kind')).toBeInTheDocument();
         expect(screen.getByLabelText('Name')).toBeInTheDocument();
     });
@@ -2148,26 +2263,79 @@ describe('Objects Component', () => {
         expect(filterSummary('Kind')).toHaveTextContent('Kindsvc');
     });
 
-    test('URL globalState param hydrates selected global states on mount', async () => {
-        setup({}, '?globalState=up,down');
+    test('URL params of the State fields hydrate the State filter on mount', async () => {
+        setup({}, '?avail=up,down');
         await waitForLoad();
         await waitFor(() => {
             expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
             expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
             expect(screen.queryByRole('row', {name: /root\/svc\/test3/})).not.toBeInTheDocument();
         });
-        expect(filterOption('Global state', 'Up')).toBeChecked();
-        expect(filterOption('Global state', 'Down')).toBeChecked();
-        expect(filterOption('Global state', 'Warn')).not.toBeChecked();
+        expect(filterOption('State › Availability', 'up')).toBeChecked();
+        expect(filterOption('State › Availability', 'down')).toBeChecked();
+        expect(filterOption('State › Availability', 'warn')).not.toBeChecked();
     });
 
-    test('unknown globalState URL value is offered as an option without a status mark, and can be removed', async () => {
-        setup({}, '?globalState=bogus');
+    test('URL not reverses the fields it names: the objects of none of their values', async () => {
+        setup({}, '?avail=up,down&not=avail');
         await waitForLoad();
-        const bogus = filterOption('Global state', 'Bogus');
+        await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument());
+        expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument();
+        expect(screen.getByRole('row', {name: /root\/svc\/test3/})).toBeInTheDocument();
+        expect(within(filterGroup('State')).getByRole('button', {name: /^Not Availability/})).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    test('URL frozen and avail both: an object frozen and up or down, the one down', async () => {
+        setup({}, '?avail=up,down&frozen=frozen');
+        await waitForLoad();
+        await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument());
+        expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument();
+        expect(filterOption('State › Frozen', 'frozen')).toBeChecked();
+    });
+
+    test('an older address\'s global state read as the State filter, the address written anew', async () => {
+        setup({}, '?globalState=n/a,unprovisioned');
+        await waitForLoad();
+        await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test4/})).not.toBeInTheDocument());
+        expect(screen.getByRole('row', {name: /test-ns\/svc\/unprovisioned-bool/})).toBeInTheDocument();
+        expect(filterOption('State › Availability', 'not applicable')).toBeChecked();
+        expect(filterOption('State › Provisioned', 'unprovisioned')).toBeChecked();
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/objects?avail=n%2Fa&provisioned=false', {replace: true}));
+    });
+
+    test('the instances up typed in: a count or a comparison; not one, said, filtering nothing', async () => {
+        setup({
+            objectStatus: {
+                ...defaultState.objectStatus,
+                'test-ns/svc/test1': {...defaultState.objectStatus['test-ns/svc/test1'], up_instances_count: 1},
+                'test-ns/svc/test2': {...defaultState.objectStatus['test-ns/svc/test2'], up_instances_count: 0},
+                'root/svc/test3': {...defaultState.objectStatus['root/svc/test3'], up_instances_count: 2},
+            },
+        });
+        await waitForLoad();
+        const field = screen.getByLabelText('Up instances');
+        fireEvent.change(field, {target: {value: '>0'}});
+        await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test2/})).not.toBeInTheDocument());
+        expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument();
+        expect(screen.getByRole('row', {name: /root\/svc\/test3/})).toBeInTheDocument();
+        // An object without a count, kept by none.
+        expect(screen.queryByRole('row', {name: /test-ns\/svc\/test4/})).not.toBeInTheDocument();
+        fireEvent.change(field, {target: {value: '2'}});
+        await waitFor(() => expect(screen.queryByRole('row', {name: /test-ns\/svc\/test1/})).not.toBeInTheDocument());
+        expect(screen.getByRole('row', {name: /root\/svc\/test3/})).toBeInTheDocument();
+        fireEvent.change(field, {target: {value: 'many'}});
+        await waitFor(() => expect(field).toHaveAttribute('aria-invalid', 'true'));
+        expect(field).toHaveAttribute('title', 'Not a count: 2, >0, <=1…');
+        await waitFor(() => expect(screen.getByRole('row', {name: /test-ns\/svc\/test2/})).toBeInTheDocument());
+    });
+
+    test('unknown avail URL value is offered as an option without a status mark, and can be removed', async () => {
+        setup({}, '?avail=bogus');
+        await waitForLoad();
+        const bogus = filterOption('State › Availability', 'bogus');
         expect(bogus).toBeChecked();
         expect(bogus.closest('label').querySelector('[data-state], svg')).toBeNull();
-        expect(filterSummary('Global state')).toHaveTextContent('Global stateBogus');
+        expect(filterSummary('State')).toHaveTextContent('StateAvailability: bogus');
         await waitFor(() => expect(screen.getByText(/No objects found/)).toBeInTheDocument());
         fireEvent.click(bogus);
         await waitFor(() => expect(screen.getByRole('row', {name: /test-ns\/svc\/test1/})).toBeInTheDocument());
@@ -2184,8 +2352,9 @@ describe('Objects Component', () => {
         vi.useFakeTimers();
         try {
             setup(TWO_KINDS, '?list=any');
-            fireEvent.click(filterOption('Global state', 'Up'));
-            fireEvent.click(filterOption('Global state', 'Unprovisioned'));
+            fireEvent.click(filterOption('State › Availability', 'up'));
+            fireEvent.click(filterOption('State › Provisioned', 'unprovisioned'));
+            fireEvent.change(screen.getByLabelText('Up instances'), {target: {value: '>=1'}});
             fireEvent.click(filterOption('Namespace', 'test-ns'));
             fireEvent.click(filterOption('Kind', 'svc'));
             fireEvent.change(screen.getByLabelText('Name'), {target: {value: ' te '}});
@@ -2193,7 +2362,7 @@ describe('Objects Component', () => {
                 vi.advanceTimersByTime(300);
             });
             expect(mockNavigate).toHaveBeenCalledWith(
-                '/objects?list=any&globalState=up%2Cunprovisioned&namespace=test-ns&kind=svc&name=te',
+                '/objects?list=any&avail=up&provisioned=false&up=%3E%3D1&namespace=test-ns&kind=svc&name=te',
                 {replace: true}
             );
         } finally {
@@ -2366,7 +2535,7 @@ describe('Objects Component', () => {
 
     describe('filter option toggle handlers (add branch coverage)', () => {
         test.each([
-            ['Global state', 'Up'],
+            ['State › Availability', 'up'],
             ['Namespace', 'test-ns'],
             ['Kind', 'svc'],
         ])('rapidly toggling a %s option twice re-adds it', async (label, option) => {

@@ -22,10 +22,10 @@ const LIST_OF = {svc: undefined, vol: "volumes", sec: "secrets", cfg: "configs"}
 
 const selectObjectStatus = (state) => state.objectStatus;
 
-const objectsUrl = (namespace, {kind, globalState} = {}) => {
+const objectsUrl = (namespace, {kind, avail} = {}) => {
     const params = new URLSearchParams({namespace});
     if (LIST_OF[kind]) params.set("list", LIST_OF[kind]);
-    if (globalState) params.set("globalState", globalState);
+    if (avail) params.set("avail", avail);
     return `/objects?${params}`;
 };
 

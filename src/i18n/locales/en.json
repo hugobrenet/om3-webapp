@@ -1871,13 +1871,42 @@
     "filters": {
       "show": "Show filters",
       "hide": "Hide filters",
-      "globalState": "Global state",
+      "state": "State",
+      "config": "Config",
+      "fields": {
+        "avail": "Availability",
+        "overall": "Overall",
+        "provisioned": "Provisioned",
+        "frozen": "Frozen",
+        "placement_state": "Placement",
+        "topology": "Topology",
+        "orchestrate": "Orchestrate",
+        "placement_policy": "Placement policy",
+        "config_validation": "Validation"
+      },
+      "provisionedValues": {
+        "true": "provisioned",
+        "false": "unprovisioned"
+      },
+      "validationValues": {
+        "warning": "warnings",
+        "error": "errors",
+        "valid": "valid"
+      },
+      "notApplicable": "not applicable",
+      "undefined": "undefined",
+      "upInstances": "Up instances",
+      "upInstancesHint": "A count, or one after <, <=, > or >=: >0",
+      "upInstancesInvalid": "Not a count: 2, >0, <=1…",
       "namespace": "Namespace",
       "kind": "Kind",
-      "unprovisioned": "Unprovisioned",
       "rail": "Filters",
       "clear": "Clear",
       "clearOf": "Clear the {{filter}} filter",
+      "reverse": "Not",
+      "reverseOf": "Not {{field}}: keep the objects of none of the values chosen",
+      "reverseHint": "Keep the objects of none of the values chosen",
+      "notValues": "not {{values}}",
       "active_one": "{{count}} on",
       "active_other": "{{count}} on"
     },

@@ -2,7 +2,7 @@
  * The facets of a list: for each value of each filter, how many items it would keep,
  * the other filters as they are, so that a value clicked shows that many. Each facet,
  * the values chosen (none keeps every item) and the values of an item (several: an
- * item kept by any of them).
+ * item kept by any of them); `reversed`, an item kept by none of them instead.
  */
 
 /**
@@ -16,8 +16,8 @@ export function facetCounts(items, {match = () => true, facets}) {
         if (!match(item)) continue;
         const values = names.map((name) => facets[name].valuesOf(item));
         const kept = names.map((name, i) => {
-            const {selected} = facets[name];
-            return selected.length === 0 || values[i].some((value) => selected.includes(value));
+            const {selected, reversed = false} = facets[name];
+            return selected.length === 0 || values[i].some((value) => selected.includes(value)) !== reversed;
         });
         names.forEach((name, i) => {
             if (!kept.every((ok, j) => j === i || ok)) return;

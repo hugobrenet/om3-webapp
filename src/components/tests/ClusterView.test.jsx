@@ -321,8 +321,8 @@ describe('ClusterView', () => {
         expect(kinds.indexOf('cfg')).toBeGreaterThan(kinds.indexOf('svc'));
         // Each count a badge opening the objects filtered on it: the services and volumes by state, the objects by kind.
         const href = (name) => within(card('objects')).getByRole('link', {name}).getAttribute('href');
-        expect(href('Open the page filtered on down: 1')).toBe('/objects?list=any&kind=svc%2Cvol&globalState=down');
-        expect(href('Open the page filtered on n/a: 1')).toBe('/objects?list=any&kind=svc%2Cvol&globalState=n%2Fa');
+        expect(href('Open the page filtered on down: 1')).toBe('/objects?list=any&kind=svc%2Cvol&avail=down');
+        expect(href('Open the page filtered on n/a: 1')).toBe('/objects?list=any&kind=svc%2Cvol&avail=n%2Fa');
         expect(href('Open the objects of kind cfg: 1')).toBe('/objects?list=any&kind=cfg');
     });
 

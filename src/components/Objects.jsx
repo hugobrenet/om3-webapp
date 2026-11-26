@@ -18,7 +18,8 @@ import {Button, buttonClass} from "../ui/components/Button";
 import {cn} from "../ui/cn";
 import {Checkbox} from "../ui/components/Field";
 import {useMediaQuery} from "../ui/lib/media";
-import {globalStatesOf, objectFacets} from "../app/object-facets";
+import {REVERSED_PARAM, STATE_FIELDS, VALIDATION_KEY, countKept, fieldValues, fieldsOf, objectFacets, parseCount, reversedOf, stateKept, statesOf} from "../app/object-facets";
+import {useConfigValidations} from "../hooks/useConfigValidations";
 import {FilterRail, FilterToolbar} from "./FilterRail";
 import {BADGE, KeyCells, NotProvisionedMark, OrchestrateBadge, PropertyCells, SideText, StatusMarks, volumeUsage} from "./ObjectCells";
 import {MoreRows, useRowsOnDemand} from "../ui/components/RowsOnDemand";
@@ -44,8 +45,6 @@ const MOBILE_QUERY = "(max-width:899.95px)";
 const WIDE_QUERY = "(min-width:1200px)";
 
 /** The zero timestamp of the API reads as "not set". */
-
-const capitalize = (value) => value.charAt(0).toUpperCase() + value.slice(1);
 
 const parseObjectName = (objectName) => {
     // A namespace configuration, as om3 writes it: "<namespace>/", "/" for the root one.
@@ -78,6 +77,7 @@ const NAMES_ONLY_LISTS = ["configs", "secrets", "users"];
 
 const selectObjectStatus = (state) => state.objectStatus;
 const selectObjectInstanceStatus = (state) => state.objectInstanceStatus;
+const selectInstanceConfig = (state) => state.instanceConfig;
 
 /** The kinds of the objects that run, an instance on each of their nodes. */
 const ACTOR_KINDS = ["svc", "vol"];
@@ -543,13 +543,25 @@ const withSelected = (values, selected) => [...values, ...selected.filter((value
  */
 const hasChoice = (values, selected) => values.length > 1 || selected.some((value) => !values.includes(value));
 
-const GLOBAL_STATE_MARKS = {
+/** The marks of the availabilities, as the table shows them. */
+const AVAIL_MARKS = {
     up: <StatusMark state="up"/>,
     down: <StatusMark state="down"/>,
     warn: <StatusMark state="warn"/>,
     "n/a": <StatusMark state="na"/>,
-    unprovisioned: <PMark decorative/>,
 };
+
+/** The mark of a value of a field of the State or Config filter: the availabilities', the P of those to provision, the validations'. */
+const stateMark = (key, value) => {
+    if (key === "avail" || key === "overall") return AVAIL_MARKS[value];
+    // A configuration with errors, or warnings: the marks of down and warn.
+    if (key === VALIDATION_KEY) return {error: AVAIL_MARKS.down, warning: AVAIL_MARKS.warn}[value];
+    if (key === "provisioned" && (value === "false" || value === "mixed")) return <PMark decorative/>;
+    return undefined;
+};
+
+/** Two choices of the State filter the same, field by field. */
+const sameStates = (a, b) => STATE_FIELDS.every(({key}) => (a[key] ?? []).join(",") === (b[key] ?? []).join(","));
 
 const Objects = () => {
     const {t} = useTranslation();
@@ -560,7 +572,6 @@ const Objects = () => {
     const {select: selectObject} = panel;
     const isMounted = useRef(true);
     const queryParams = new URLSearchParams(location.search);
-    const globalStates = useMemo(() => ["up", "down", "warn", "n/a", "unprovisioned"], []);
 
     // Parse multiple values from URL
     const parseMultipleValues = (param) => {
@@ -569,21 +580,26 @@ const Objects = () => {
         return value.split(',').filter(Boolean);
     };
 
-    const rawGlobalStates = parseMultipleValues("globalState");
+    // The State filter, a field each, an older address's global state read as it; the instances up typed in.
+    const rawStates = statesOf(queryParams);
+    // The fields of it reversed, keeping the objects of none of their values chosen.
+    const rawReversed = reversedOf(queryParams, rawStates);
+    const rawUpInstances = queryParams.get("up") ?? "";
     const rawNamespaces = parseMultipleValues("namespace");
     const rawKinds = parseMultipleValues("kind");
     const rawSearchQuery = queryParams.get("name") || "";
     const list = OBJECTS_TABS.includes(queryParams.get("list")) ? queryParams.get("list") : OBJECT_LISTS[0];
     const namesOnly = NAMES_ONLY_LISTS.includes(list);
-    // Their objects have no status: no global state to filter on. One the URL holds,
-    // from another tab, is kept for it but filters nothing here.
-    const hasGlobalState = !namesOnly;
+    // Their objects have no status: no state to filter on. One the URL holds, from
+    // another tab, is kept for it but filters nothing here.
+    const hasState = !namesOnly;
     // A tab of a kind lists that kind: the kind filter is All's only. One the URL
     // holds, from All, is kept for it but filters nothing here.
     const hasKindFilter = list === ALL_LIST;
 
     const objectStatus = useEventStore(selectObjectStatus);
     const objectInstanceStatus = useEventStore(selectObjectInstanceStatus);
+    const instanceConfig = useEventStore(selectInstanceConfig);
     const [selectedObjects, setSelectedObjects] = useState([]);
     useShareCheckedRows("objects", selectedObjects);
     // The actions on the selection: the Actions menu, its dialog, and the feedback strip.
@@ -593,7 +609,9 @@ const Objects = () => {
     const noteFix = useNoteFix();
     const [selectedNamespaces, setSelectedNamespaces] = useState(rawNamespaces);
     const [selectedKinds, setSelectedKinds] = useState(rawKinds);
-    const [selectedGlobalStates, setSelectedGlobalStates] = useState(rawGlobalStates);
+    const [selectedStates, setSelectedStates] = useState(rawStates);
+    const [reversedStates, setReversedStates] = useState(rawReversed);
+    const [upInstances, setUpInstances] = useState(rawUpInstances);
     // A new object, on its page (/create): in the namespace filtered on, of the kind of
     // the list; Cancel comes back here.
     const createUrl = useCallback((namespace) => {
@@ -610,7 +628,11 @@ const Objects = () => {
 
 
     const deferredSearchQuery = useDeferredValue(searchQuery);
-    const deferredSelectedGlobalStates = useDeferredValue(selectedGlobalStates);
+    const deferredSelectedStates = useDeferredValue(selectedStates);
+    const deferredReversedStates = useDeferredValue(reversedStates);
+    const deferredUpInstances = useDeferredValue(upInstances);
+    // The instances up typed in: none, or not a count, filtering nothing (said in its field).
+    const upComparison = parseCount(deferredUpInstances) ?? null;
     const deferredSelectedNamespaces = useDeferredValue(selectedNamespaces);
     const deferredSelectedKinds = useDeferredValue(selectedKinds);
 
@@ -627,6 +649,20 @@ const Objects = () => {
         () => (list === ALL_LIST ? allObjectNames : allObjectNames.filter((name) => listOf(name) === list)),
         [allObjectNames, list]
     );
+
+    // The configuration of each object of the list validated on one of its nodes, again
+    // once it changed; its status and its validation, what the State and Config filters read.
+    const validations = useConfigValidations(listObjectNames, {
+        instances: objectInstanceStatus, configs: instanceConfig, enabled: hasState,
+    });
+    const filterStatuses = useMemo(() => {
+        if (validations.size === 0) return objects;
+        const merged = {...objects};
+        for (const [name, level] of validations) {
+            if (merged[name]) merged[name] = {...merged[name], [VALIDATION_KEY]: level};
+        }
+        return merged;
+    }, [objects, validations]);
 
     const {namespaces, kinds} = useMemo(() => {
         const nsSet = new Set();
@@ -691,20 +727,18 @@ const Objects = () => {
                 continue;
             }
 
-            // Check global state filter (multiple selection), on the lists that have one: the
-            // states the facets count, unprovisioned an instance of it not provisioned.
-            if (hasGlobalState && deferredSelectedGlobalStates.length > 0) {
-                const status = objects[name];
-                if (!status) continue;
-                if (!globalStatesOf(status).some((state) => deferredSelectedGlobalStates.includes(state))) continue;
+            // The State filter, a field each, and the instances up, on the lists that have them: as the facets count.
+            if (hasState && (!stateKept(filterStatuses[name], deferredSelectedStates, deferredReversedStates)
+                || !countKept(objects[name]?.up_instances_count, upComparison))) {
+                continue;
             }
 
             result.push(name);
         }
 
         return result;
-    }, [listObjectNames, hasGlobalState, deferredSelectedGlobalStates, deferredSelectedNamespaces,
-        deferredSelectedKinds, hasKindFilter, deferredSearchQuery, objects]);
+    }, [listObjectNames, hasState, deferredSelectedStates, deferredReversedStates, upComparison, deferredSelectedNamespaces,
+        deferredSelectedKinds, hasKindFilter, deferredSearchQuery, objects, filterStatuses]);
 
     // Sorted by a column, its title clicked, as the nodes are: the namespaces by name
     // first. A column gone, the window narrowed or another tab, by name again.
@@ -746,7 +780,7 @@ const Objects = () => {
 
     // The rows drawn as the end of the table nears; the list or a filter changed, the first ones again.
     const drawn = useRowsOnDemand(rowObjectNames.length, [list, deferredSearchQuery, deferredSelectedNamespaces,
-        deferredSelectedKinds, deferredSelectedGlobalStates, sortColumn, sortDirection]);
+        deferredSelectedKinds, deferredSelectedStates, upComparison, sortColumn, sortDirection]);
     const {rows: drawnOf} = drawn;
     const visibleObjectNames = useMemo(() => drawnOf(rowObjectNames), [drawnOf, rowObjectNames]);
 
@@ -789,15 +823,16 @@ const Objects = () => {
         setSearchQuery(e.target.value);
     }, []);
 
-    const handleGlobalStateChange = useCallback((state) => {
-        setSelectedGlobalStates(prev => {
-            if (prev.includes(state)) {
-                return prev.filter(s => s !== state);
-            } else {
-                return [...prev, state];
-            }
-        });
-    }, []);
+    // A value of a field of the State filter chosen, or no longer: its last one, the field reversed no longer.
+    const handleStateChange = useCallback((key, value) => {
+        const values = selectedStates[key] ?? [];
+        const next = values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
+        setSelectedStates((prev) => ({...prev, [key]: next}));
+        if (next.length === 0) setReversedStates((prev) => prev.filter((k) => k !== key));
+    }, [selectedStates]);
+    // A field of the State filter reversed, or no longer.
+    const handleStateReverse = useCallback((key) => setReversedStates((prev) => (
+        prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key])), []);
 
     const handleNamespaceChange = useCallback((namespace) => {
         setSelectedNamespaces(prev => {
@@ -809,7 +844,12 @@ const Objects = () => {
         });
     }, []);
 
-    const clearGlobalStates = useCallback(() => setSelectedGlobalStates([]), []);
+    // The fields of a filter, State or Config, cleared: none of their values chosen, none reversed.
+    const clearFields = useCallback((group) => {
+        const keys = fieldsOf(group).map(({key}) => key);
+        setSelectedStates((prev) => ({...prev, ...Object.fromEntries(keys.map((key) => [key, []]))}));
+        setReversedStates((prev) => prev.filter((key) => !keys.includes(key)));
+    }, []);
     const clearNamespaces = useCallback(() => setSelectedNamespaces([]), []);
     const clearKinds = useCallback(() => setSelectedKinds([]), []);
 
@@ -827,7 +867,9 @@ const Objects = () => {
         const timer = setTimeout(() => {
             if (!isMounted.current) return;
             const currentParams = new URLSearchParams(location.search);
-            const currentGlobalStates = parseMultipleValues("globalState");
+            const currentStates = statesOf(currentParams);
+            const currentReversed = reversedOf(currentParams, currentStates);
+            const currentUp = currentParams.get("up") ?? "";
             const currentNamespaces = parseMultipleValues("namespace");
             const currentKinds = parseMultipleValues("kind");
             const currentName = currentParams.get("name") || "";
@@ -839,7 +881,11 @@ const Objects = () => {
                 return sortedA.every((val, idx) => val === sortedB[idx]);
             };
 
-            if (arraysEqual(currentGlobalStates, selectedGlobalStates) &&
+            // An older address's global state written again as the State filter.
+            if (!currentParams.has("globalState") &&
+                STATE_FIELDS.every(({key}) => arraysEqual(currentStates[key], selectedStates[key] ?? [])) &&
+                arraysEqual(currentReversed, reversedStates) &&
+                currentUp === upInstances.trim() &&
                 arraysEqual(currentNamespaces, selectedNamespaces) &&
                 arraysEqual(currentKinds, selectedKinds) &&
                 currentName === searchQuery) {
@@ -849,8 +895,14 @@ const Objects = () => {
             // The other parameters, the open panel's, stay as they are; the page goes,
             // the list filtered otherwise starting over from its first one.
             const newQueryParams = new URLSearchParams(location.search);
-            ["globalState", "namespace", "kind", "name", "offset"].forEach((key) => newQueryParams.delete(key));
-            if (selectedGlobalStates.length > 0) newQueryParams.set("globalState", selectedGlobalStates.join(','));
+            ["globalState", "up", REVERSED_PARAM, ...STATE_FIELDS.map(({param}) => param), "namespace", "kind", "name", "offset"]
+                .forEach((key) => newQueryParams.delete(key));
+            for (const {key, param} of STATE_FIELDS) {
+                if ((selectedStates[key] ?? []).length > 0) newQueryParams.set(param, selectedStates[key].join(','));
+            }
+            const reversedParams = STATE_FIELDS.filter(({key}) => reversedStates.includes(key)).map(({param}) => param);
+            if (reversedParams.length > 0) newQueryParams.set(REVERSED_PARAM, reversedParams.join(','));
+            if (upInstances.trim()) newQueryParams.set("up", upInstances.trim());
             if (selectedNamespaces.length > 0) newQueryParams.set("namespace", selectedNamespaces.join(','));
             if (selectedKinds.length > 0) newQueryParams.set("kind", selectedKinds.join(','));
             if (searchQuery.trim()) newQueryParams.set("name", searchQuery.trim());
@@ -862,13 +914,15 @@ const Objects = () => {
             }
         }, 300);
         return () => clearTimeout(timer);
-    }, [selectedGlobalStates, selectedNamespaces, selectedKinds, searchQuery, navigate, location.pathname, location.search]);
+    }, [selectedStates, reversedStates, upInstances, selectedNamespaces, selectedKinds, searchQuery, navigate, location.pathname, location.search]);
 
     // The address changed (a link, Back): its filters. Those the same kept as they are, a
     // row opened (sel=) or a panel tab changing the address alone: the rows drawn kept.
     useEffect(() => {
         const keep = (next) => (prev) => (prev.join(",") === next.join(",") ? prev : next);
-        setSelectedGlobalStates(keep(rawGlobalStates));
+        setSelectedStates((prev) => (sameStates(prev, rawStates) ? prev : rawStates));
+        setReversedStates(keep(rawReversed));
+        setUpInstances((prev) => (prev.trim() === rawUpInstances ? prev : rawUpInstances));
         setSelectedNamespaces(keep(rawNamespaces));
         setSelectedKinds(keep(rawKinds));
         setSearchQuery(rawSearchQuery);
@@ -886,6 +940,8 @@ const Objects = () => {
                 "InstanceMonitorUpdated",
                 // A node dropped has its instances deleted: their marks give way to a "?".
                 "InstanceConfigDeleted",
+                // A configuration changed: validated again, for the Config filter.
+                "InstanceConfigUpdated",
             ]);
             eventStarted.current = true;
         }
@@ -925,15 +981,22 @@ const Objects = () => {
     const allSelected = rowObjectNames.length > 0
         && rowObjectNames.every((name) => selectedObjects.includes(name));
 
-    const globalStateOptions = useMemo(
-        () => withSelected(globalStates, selectedGlobalStates).map((state) => ({
-            value: state,
-            // The availabilities are daemon values, shown as such; unprovisioned is a word of the view.
-            text: state === "unprovisioned" ? t("objects.filters.unprovisioned") : capitalize(state),
-            mark: GLOBAL_STATE_MARKS[state],
-        })),
-        [globalStates, selectedGlobalStates, t]
-    );
+    // The values of each field of the State filter, those the objects of the list have and those
+    // chosen: daemon values, but n/a and undef, and provisioned true and false, in words.
+    const stateOptions = useMemo(() => {
+        const statuses = listObjectNames.map((name) => filterStatuses[name]).filter(Boolean);
+        const textOf = (key, value) => {
+            if (key === "provisioned" && (value === "true" || value === "false")) return t(`objects.filters.provisionedValues.${value}`);
+            if (value === "n/a") return t("objects.filters.notApplicable");
+            if (value === "undef") return t("objects.filters.undefined");
+            if (key === VALIDATION_KEY) return t(`objects.filters.validationValues.${value}`, value);
+            return value;
+        };
+        return Object.fromEntries(STATE_FIELDS.map((field) => [field.key,
+            fieldValues(field, statuses, selectedStates[field.key]).map((value) => ({
+                value, text: textOf(field.key, value), mark: stateMark(field.key, value),
+            }))]));
+    }, [listObjectNames, filterStatuses, selectedStates, t]);
     const namespaceOptions = useMemo(
         () => withSelected(namespaces, selectedNamespaces).map((namespace) => ({value: namespace, text: namespace})),
         [namespaces, selectedNamespaces]
@@ -949,28 +1012,49 @@ const Objects = () => {
             search: deferredSearchQuery,
             namespaces: deferredSelectedNamespaces,
             kinds: deferredSelectedKinds,
-            globalStates: deferredSelectedGlobalStates,
+            states: deferredSelectedStates,
+            reversed: deferredReversedStates,
+            upInstances: upComparison,
         }, {
-            objects,
+            objects: filterStatuses,
             namespaceOf: extractNamespace,
             kindOf: (name) => parseObjectName(name).kind,
-            useGlobalState: hasGlobalState,
+            useState: hasState,
             useKind: hasKindFilter,
         }),
         [listObjectNames, deferredSearchQuery, deferredSelectedNamespaces, deferredSelectedKinds,
-            deferredSelectedGlobalStates, objects, hasGlobalState, hasKindFilter]
+            deferredSelectedStates, deferredReversedStates, upComparison, filterStatuses, hasState, hasKindFilter]
     );
     // The same facets in the rail and in the toolbar, each value counted under the others;
     // in the toolbar, a namespace or a kind with a choice to make only.
-    const globalStateFacet = hasGlobalState && {label: t("objects.filters.globalState"), options: globalStateOptions,
-        selected: selectedGlobalStates, counts: facetCounts.globalState, onToggle: handleGlobalStateChange, onClear: clearGlobalStates};
+    // The State and Config filters, a section a field of closed values, each counted under
+    // the others, each reversible: what the objects are in; what their configurations say.
+    const fieldsFacet = (group) => hasState && {
+        label: t(`objects.filters.${group}`),
+        sections: fieldsOf(group).map(({key}) => ({
+            key, label: t(`objects.filters.fields.${key}`), options: stateOptions[key],
+            selected: selectedStates[key] ?? [], counts: facetCounts[key], onToggle: (value) => handleStateChange(key, value),
+            reversed: reversedStates.includes(key), onReverse: () => handleStateReverse(key),
+        })),
+        selected: fieldsOf(group).flatMap(({key}) => selectedStates[key] ?? []),
+        onClear: () => clearFields(group),
+    };
+    const stateFacet = fieldsFacet("state");
+    const configFacet = fieldsFacet("config");
+    // A field of open values, typed in: the instances up, a count or a comparison.
+    const upInvalid = parseCount(upInstances) === undefined;
+    const typedFields = hasState ? [{
+        label: t("objects.filters.upInstances"), value: upInstances, onChange: (e) => setUpInstances(e.target.value),
+        placeholder: ">0", invalid: upInvalid, hint: t(upInvalid ? "objects.filters.upInstancesInvalid" : "objects.filters.upInstancesHint"),
+    }] : [];
     const kindFacet = hasKindFilter && {label: t("objects.filters.kind"), options: kindOptions, selected: selectedKinds,
         counts: facetCounts.kind, onToggle: handleKindChange, onClear: clearKinds};
     const namespaceFacet = {label: t("objects.filters.namespace"), options: namespaceOptions, selected: selectedNamespaces,
         counts: facetCounts.namespace, onToggle: handleNamespaceChange, onClear: clearNamespaces};
-    const railFacets = [globalStateFacet, kindFacet, namespaceFacet].filter(Boolean);
+    const railFacets = [stateFacet, configFacet, kindFacet, namespaceFacet].filter(Boolean);
     const toolbarFacets = [
-        globalStateFacet,
+        stateFacet,
+        configFacet,
         hasChoice(namespaces, selectedNamespaces) && namespaceFacet,
         kindFacet && hasChoice(kinds, selectedKinds) && kindFacet,
     ].filter(Boolean);
@@ -1049,6 +1133,7 @@ const Objects = () => {
                                 search={searchQuery}
                                 onSearch={handleSearchChange}
                                 searchLabel={t("common.name")}
+                                fields={typedFields}
                             />
                             {/* Narrow, on two lines rather than the actions out of the screen. */}
                             <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2">{legendButton}{listActions("end")}</div>
@@ -1176,6 +1261,7 @@ const Objects = () => {
                         onSearch={handleSearchChange}
                         searchLabel={t("common.name")}
                         facets={railFacets}
+                        fields={typedFields}
                     />
                 )}
 
