@@ -142,7 +142,6 @@ function Message({message, feedback, status}) {
                     text={message.text}
                     objects={status?.objects}
                     streaming={message.status === "running"}
-                    cut={["stopped", "failed"].includes(message.status)}
                 />
             )}
             {message.text && user && <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.text}</div>}
