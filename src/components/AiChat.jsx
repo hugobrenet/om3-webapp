@@ -10,6 +10,7 @@ import AiPromptTips from "./AiPromptTips.jsx";
 import AiToolsDialog from "./AiToolsDialog.jsx";
 import AiComposer from "./AiComposer.jsx";
 import AiMessages from "./AiMessages.jsx";
+import AiPrintView from "./AiPrintView.jsx";
 import {ConfigText} from "./ConfigText.jsx";
 import {parseObjectPath} from "../utils/objectUtils.jsx";
 import {URL_OBJECT} from "../config/apiPath.js";
@@ -18,11 +19,14 @@ import {Alert} from "../ui/components/Alert";
 import {Button, IconButton} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
 import {Input} from "../ui/components/Field";
+import {MenuButton} from "../ui/components/MenuButton";
 import {Spinner} from "../ui/components/Spinner";
-import {AlertTriangleIcon, InfoIcon, PencilIcon, PlusIcon, PuzzleIcon, SearchIcon, SidebarIcon, SparklesIcon, TrashIcon} from "../ui/icons";
+import {AlertTriangleIcon, DownloadIcon, FileMarkdownIcon, FilePdfIcon, InfoIcon, PencilIcon, PlusIcon, PuzzleIcon, SearchIcon, SidebarIcon, SparklesIcon, TrashIcon} from "../ui/icons";
 import {NARROW_QUERY, useMediaQuery} from "../ui/lib/media";
 import {cn} from "../ui/cn";
 import {untrustedT} from "../utils/untrustedText";
+import {conversationMarkdown, downloadText, ExportTooLong, exportFileName, wholeHistory} from "../utils/conversationExport.js";
+import {AiAgentError} from "../services/ai-agent.js";
 
 const PANEL = "flex min-h-0 min-w-0 flex-col rounded-(--radius-panel) border border-line bg-surface-raised";
 const PANEL_HEADER = "flex flex-wrap items-center gap-2 border-b border-line px-3 py-2";
@@ -465,7 +469,7 @@ function ConfirmationCard({confirmation, doc, busy, previewing, queued, onApprov
  * same conversation over them. `status`, the state of the cluster.
  */
 const AiChat = ({status}) => {
-    const {t} = useTranslation();
+    const {t, i18n} = useTranslation();
     const auth = useAuth();
     const shared = useSharedAiChat();
     if (shared === null) throw new Error("AiChat needs an AiChatProvider");
@@ -482,6 +486,20 @@ const AiChat = ({status}) => {
     const [deleting, setDeleting] = useState(null);
     // The dialog of the composer replacing the message queued tells the error.
     const [replacing, setReplacing] = useState(false);
+    // The export of the conversation on display: running, saved, or what
+    // stopped it, {tone, text}.
+    const [exporting, setExporting] = useState(false);
+    const [exported, setExported] = useState(false);
+    const [exportAlert, setExportAlert] = useState(null);
+    // The whole history read for an export, {key, doc}, the key that of the
+    // transcript it was read for; the one being read, {key, run, promise}.
+    const [prepared, setPrepared] = useState(null);
+    const loading = useRef(null);
+    // The frame printing `prepared`, once its document is in it, and the key
+    // it holds; the offer to print once it is ready, after a click too early.
+    const printWindow = useRef(null);
+    const [frameKey, setFrameKey] = useState(null);
+    const [pdfOffer, setPdfOffer] = useState(false);
     // The page on display: the chat is read, and the turns that end now are seen.
     useEffect(() => attach(), [attach]);
     // The tools are read as the session: one that ends closes them, and they
@@ -554,6 +572,130 @@ const AiChat = ({status}) => {
         };
         void chat.loadOlderMessages();
     };
+
+    // What the transcript holds now: a history read for another is read again.
+    // Its title too: a conversation renamed is read again, named as it is.
+    const historyKey = chat.conversation
+        ? JSON.stringify([chat.conversation.id, chat.messages.length, chat.messages.at(-1)?.id ?? "", titleOf(chat.conversation)])
+        : null;
+    const exportOff = busy || waiting || !chat.messages.length;
+
+    // The whole history of the conversation, read again from the agent, the
+    // earlier messages not loaded included, once per state of the transcript:
+    // the document of the export, null when the read was dropped.
+    const loadHistory = () => {
+        const conversation = chat.conversation;
+        const key = historyKey;
+        if (prepared?.key === key) return Promise.resolve(prepared.doc);
+        if (loading.current?.key === key) return loading.current.promise;
+        loading.current?.run.abort();
+        const run = new AbortController();
+        const promise = (async () => {
+            let messages;
+            try {
+                messages = await wholeHistory(client, conversation.id, {signal: run.signal});
+            } catch (error) {
+                // Dropped: another conversation, or the page left.
+                if (run.signal.aborted) return null;
+                throw error;
+            }
+            if (run.signal.aborted) return null;
+            const doc = {title: titleOf(conversation), clusterName, messages, exportedAt: new Date()};
+            setPrepared({key, doc});
+            return doc;
+        })();
+        loading.current = {key, run, promise};
+        const done = () => {
+            if (loading.current?.run === run) loading.current = null;
+        };
+        promise.then(done, done);
+        return promise;
+    };
+
+    // Opening the menu reads the history, and makes the print ready with it:
+    // Safari prints only on a click of the user, the click on the entry.
+    // A print made ready a while ago is dated again: the date of the export its own.
+    const prepareExport = () => {
+        if (exportOff || !chat.conversation) return;
+        if (prepared?.key === historyKey && Date.now() - prepared.doc.exportedAt.getTime() > 60000) {
+            setPrepared({key: prepared.key, doc: {...prepared.doc, exportedAt: new Date()}});
+            return;
+        }
+        loadHistory().catch(() => {
+            // Told if the user asks for the export.
+        });
+    };
+
+    // The print of the frame made ready, at once: within the click.
+    const printNow = () => {
+        setPdfOffer(false);
+        try {
+            printWindow.current.focus();
+            printWindow.current.print();
+        } catch {
+            setExportAlert({tone: "error", text: t("ai.export.printFailed")});
+        }
+    };
+
+    // The conversation as a Markdown file, or printed to be saved as a PDF
+    // (`format`, "md" or "pdf"). Nothing runs or waits meanwhile, the turn of
+    // the moment not stored yet. A print not ready at the click is offered
+    // once it is: Safari would not print it once the history is read.
+    const exportConversation = async (format) => {
+        if (!chat.conversation) return;
+        const ready = prepared?.key === historyKey && prepared.doc.messages.length > 0;
+        if (format === "pdf" && ready && frameKey === historyKey && printWindow.current) {
+            printNow();
+            return;
+        }
+        setExporting(true);
+        setExported(false);
+        setExportAlert(null);
+        setPdfOffer(false);
+        try {
+            const doc = await loadHistory();
+            if (doc === null) return;
+            // Its turns stopped or failed only: the agent stored none.
+            if (!doc.messages.length) {
+                setExportAlert({tone: "info", text: t("ai.export.empty")});
+                return;
+            }
+            if (format === "pdf") {
+                setPdfOffer(true);
+                return;
+            }
+            const exportedAt = new Date();
+            downloadText(conversationMarkdown({...doc, exportedAt, t, i18n}), exportFileName(doc.title, exportedAt));
+            setExported(true);
+        } catch (error) {
+            // What the agent answered, as for a turn: a session ended says so.
+            const text =
+                error instanceof ExportTooLong
+                    ? t("ai.export.tooLong")
+                    : error instanceof AiAgentError
+                        ? error.message
+                        : t("ai.export.failed");
+            setExportAlert({tone: "error", text});
+        } finally {
+            setExporting(false);
+        }
+    };
+    // Another conversation on display, or leaving the page, drops the export
+    // running, its history and what the last one told: the user left it.
+    useEffect(
+        () => () => {
+            loading.current?.run.abort();
+            loading.current = null;
+            printWindow.current = null;
+            setPrepared(null);
+            setFrameKey(null);
+            setPdfOffer(false);
+            setExporting(false);
+            setExported(false);
+            setExportAlert(null);
+        },
+        [chat.conversation?.id]
+    );
 
     const confirmDialog = async () => {
         const result = await chat.deleteConversation(deleting?.id);
@@ -686,6 +828,7 @@ const AiChat = ({status}) => {
                                                     <IconButton
                                                         size="sm"
                                                         label={untrustedT(t, "ai.conversations.delete", {title: titleOf(conversation)})}
+                                                        title={untrustedT(t, "ai.conversations.delete", {title: titleOf(conversation)})}
                                                         disabled={busy}
                                                         className="text-ink-muted hover:text-state-down"
                                                         onClick={() => {
@@ -708,6 +851,7 @@ const AiChat = ({status}) => {
                         <div className={PANEL_HEADER}>
                             <IconButton
                                 label={conversationsOpen ? t("ai.conversations.hide") : t("ai.conversations.show")}
+                                title={conversationsOpen ? t("ai.conversations.hide") : t("ai.conversations.show")}
                                 aria-expanded={conversationsOpen}
                                 aria-controls={CONVERSATIONS_PANEL}
                                 onClick={toggleConversations}
@@ -740,6 +884,7 @@ const AiChat = ({status}) => {
                                 <IconButton
                                     size="sm"
                                     label={t("ai.transcript.rename")}
+                                    title={t("ai.transcript.rename")}
                                     disabled={busy}
                                     className="text-ink-muted hover:text-ink"
                                     onClick={startRenaming}
@@ -748,10 +893,55 @@ const AiChat = ({status}) => {
                                 </IconButton>
                             )}
                             <div className="ml-auto flex gap-2">
-                                <IconButton label={t("ai.tips.open")} onClick={() => setTipsOpen(true)}>
+                                {/* Told once saved, the button keeping the focus while it runs. */}
+                                <span role="status" className="sr-only">
+                                    {exporting ? t("ai.export.exporting") : exported ? t("ai.export.done") : ""}
+                                </span>
+                                {/* While one runs, the menu stays, with the focus, its entries off. */}
+                                {/* A title, the tooltip the browser shows after a while, as on the dock. */}
+                                {chat.conversation && (
+                                    <span
+                                        title={t("ai.export.open")}
+                                        className="inline-flex"
+                                        onPointerDownCapture={prepareExport}
+                                        onKeyDownCapture={(event) => {
+                                            if (["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key)) prepareExport();
+                                        }}
+                                    >
+                                        <MenuButton
+                                            label={t("ai.export.open")}
+                                            align="end"
+                                            disabled={exportOff}
+                                            icon={
+                                                exporting ? (
+                                                    <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent"/>
+                                                ) : (
+                                                    <DownloadIcon width={14} height={14}/>
+                                                )
+                                            }
+                                            items={[
+                                                {
+                                                    key: "md",
+                                                    label: t("ai.export.markdown"),
+                                                    icon: <FileMarkdownIcon width={16} height={16}/>,
+                                                    disabled: exporting,
+                                                    onSelect: () => void exportConversation("md"),
+                                                },
+                                                {
+                                                    key: "pdf",
+                                                    label: t("ai.export.pdf"),
+                                                    icon: <FilePdfIcon width={16} height={16}/>,
+                                                    disabled: exporting,
+                                                    onSelect: () => void exportConversation("pdf"),
+                                                },
+                                            ]}
+                                        />
+                                    </span>
+                                )}
+                                <IconButton label={t("ai.tips.open")} title={t("ai.tips.open")} onClick={() => setTipsOpen(true)}>
                                     <InfoIcon width={14} height={14}/>
                                 </IconButton>
-                                <IconButton label={t("ai.tools.open")} onClick={() => setToolsOpen(true)}>
+                                <IconButton label={t("ai.tools.open")} title={t("ai.tools.open")} onClick={() => setToolsOpen(true)}>
                                     <PuzzleIcon width={14} height={14}/>
                                 </IconButton>
                                 {/* Folded, the panel still lets a conversation start from here. */}
@@ -823,6 +1013,32 @@ const AiChat = ({status}) => {
                             />
                         )}
                         {chat.error && !replacing && <Alert className="mx-3 mb-2">{chat.error}</Alert>}
+                        {pdfOffer && frameKey === historyKey && (
+                            <Alert
+                                tone="info"
+                                className="mx-3 mb-2"
+                                action={
+                                    <Button size="sm" onClick={printNow}>
+                                        {t("ai.export.print")}
+                                    </Button>
+                                }
+                            >
+                                {t("ai.export.printReady")}
+                            </Alert>
+                        )}
+                        {exportAlert && (
+                            <Alert
+                                tone={exportAlert.tone}
+                                className="mx-3 mb-2"
+                                action={
+                                    <Button size="sm" onClick={() => setExportAlert(null)}>
+                                        {t("ai.export.dismiss")}
+                                    </Button>
+                                }
+                            >
+                                {exportAlert.text}
+                            </Alert>
+                        )}
                         {chat.notice && <Alert tone="info" className="mx-3 mb-2">{chat.notice}</Alert>}
                         <AiComposer inputRef={composer} onReplacingChange={setReplacing}/>
                     </section>
@@ -853,6 +1069,16 @@ const AiChat = ({status}) => {
                 <AiPromptTips/>
             </Dialog>
             <AiToolsDialog open={ready && toolsOpen} client={client} onClose={() => setToolsOpen(false)}/>
+            {prepared && prepared.doc.messages.length > 0 && (
+                <AiPrintView
+                    key={prepared.key}
+                    doc={prepared.doc}
+                    onReady={(frame) => {
+                        printWindow.current = frame;
+                        setFrameKey(prepared.key);
+                    }}
+                />
+            )}
         </div>
     );
 };

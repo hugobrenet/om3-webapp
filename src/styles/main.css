@@ -58,4 +58,76 @@
         caret-color: var(--ink) !important;
         transition: background-color 5000s ease-in-out 0s;
     }
+
+    /*
+     * A conversation of the assistant printed, to be saved as a PDF
+     * (AiPrintView): it alone, on pages the length of the document, the page
+     * of the application under it hidden. Nowhere on the screen.
+     */
+    .ai-print {
+        display: none;
+    }
+
+    @media print {
+        /* For any print of the application: a page rule takes no selector. */
+        @page {
+            margin: 15mm;
+        }
+
+        html:has(body > .ai-print),
+        body:has(> .ai-print) {
+            position: static;
+            height: auto;
+            overflow: visible !important;
+            background: #fff;
+        }
+
+        body:has(> .ai-print) > :not(.ai-print) {
+            display: none !important;
+        }
+
+        .ai-print {
+            display: block;
+            color: var(--ink);
+            font-size: 11pt;
+        }
+
+        /* What the screen offers to click, such as copying a code. */
+        .ai-print button {
+            display: none !important;
+        }
+
+        .ai-print-meta {
+            break-after: avoid;
+        }
+
+        .ai-print pre,
+        .ai-print table,
+        .ai-print li {
+            break-inside: avoid;
+        }
+
+        /*
+         * Paper does not scroll: a code block and a cell of a table wrap their
+         * long lines, a command printed whole. Important, to win over the
+         * utilities of the transcript, a later layer; the right of a block
+         * kept for its copy button given back.
+         */
+        .ai-print pre {
+            white-space: pre-wrap !important;
+            overflow: visible !important;
+            overflow-wrap: anywhere !important;
+            padding-right: 0.5rem !important;
+        }
+
+        .ai-print td {
+            overflow-wrap: anywhere !important;
+        }
+
+        /* Where a link leads, which paper does not show. */
+        .ai-print a[href]::after {
+            content: " (" attr(href) ")";
+            overflow-wrap: anywhere;
+        }
+    }
 }

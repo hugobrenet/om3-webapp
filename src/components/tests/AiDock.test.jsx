@@ -8,6 +8,7 @@ import AskAssistantLink from '../AskAssistantLink.jsx';
 import {AiChatProvider} from '../../context/AiChatProvider.jsx';
 import useAddressPrompt from '../../hooks/useAddressPrompt.js';
 import {replayRun} from '../../services/tests/agui-fixtures.js';
+import {AiAgentError} from '../../services/ai-agent.js';
 
 const mocks = vi.hoisted(() => ({auth: null, client: null}));
 vi.mock('../../context/AuthProvider.jsx', () => ({useAuth: () => mocks.auth, useAuthSession: () => mocks.auth}));
@@ -455,6 +456,173 @@ describe('the dock of the assistant', () => {
             await act(async () => view.rerender());
             expect(await screen.findByRole('button', {name: 'Open the assistant'})).toBeInTheDocument();
             expect(screen.queryByTestId('dock-activity')).toBeNull();
+        });
+    });
+
+    describe('once a turn ends out of sight', () => {
+        // A prompt sent on the page of the assistant, then another page shown.
+        const send = async () => {
+            renderApp({path: '/ai', withLink: false});
+            await waitFor(() => expect(screen.getByRole('button', {name: 'New conversation'})).toBeEnabled());
+            fireEvent.change(screen.getByRole('textbox', {name: 'Message'}), {target: {value: 'hello'}});
+            fireEvent.click(screen.getByRole('button', {name: 'Send'}));
+        };
+        const sendThenLeave = async () => {
+            await send();
+            await act(async () => navigate('/'));
+        };
+        // The words of the notice, as the region always there tells them.
+        const told = () => document.querySelector('p[role="status"]')?.textContent ?? null;
+        const toast = () => screen.queryByRole('button', {name: /^See the (answer|action)$/});
+
+        test('tells it where the dock opens, and opens the dock on its answer', async () => {
+            const run = hangingRun();
+            await sendThenLeave();
+            expect(told()).toBe('');
+            await act(async () => run.finish());
+            await waitFor(() => expect(told()).toBe('Your analysis is done.'));
+            fireEvent.click(screen.getByRole('button', {name: 'See the answer'}));
+            expect(within(dock()).getByText('Checking.')).toBeInTheDocument();
+            expect(toast()).toBeNull();
+        });
+
+        test('is closed by its button or Escape, the focus on the button of the dock, which still tells it', async () => {
+            const run = hangingRun();
+            await sendThenLeave();
+            await act(async () => run.finish());
+            await screen.findByRole('button', {name: 'See the answer'});
+            fireEvent.click(screen.getByRole('button', {name: 'Dismiss'}));
+            expect(toast()).toBeNull();
+            expect(told()).toBe('');
+            const button = screen.getByRole('button', {name: 'Open the assistant · The assistant has finished'});
+            expect(button).toHaveFocus();
+        });
+
+        test('is closed by Escape', async () => {
+            const run = hangingRun();
+            await sendThenLeave();
+            await act(async () => run.finish());
+            fireEvent.keyDown(await screen.findByRole('button', {name: 'See the answer'}), {key: 'Escape'});
+            expect(toast()).toBeNull();
+        });
+
+        test('tells an answer that failed, as the button of the dock does', async () => {
+            let fail;
+            mocks.client.run.mockImplementation(
+                (_id, _input, options) =>
+                    new Promise((_resolve, reject) => {
+                        for (const event of text('Checking.')) options.onEvent(event);
+                        fail = () => reject(new AiAgentError('agent_unavailable', 'The agent is unavailable.'));
+                    })
+            );
+            await sendThenLeave();
+            await act(async () => fail());
+            await waitFor(() => expect(told()).toBe('Your analysis failed: its answer is incomplete.'));
+            expect(screen.getByRole('button', {name: 'Open the assistant · The answer of the assistant failed'})).toBeInTheDocument();
+        });
+
+        test('tells an action that began to wait out of sight, the dock opening on it, not one seen waiting', async () => {
+            let release;
+            const gate = new Promise((resolve) => {
+                release = resolve;
+            });
+            const confirmation = replayRun('confirmation');
+            mocks.client.run.mockImplementationOnce(async (...args) => {
+                await gate;
+                return confirmation(...args);
+            });
+            await sendThenLeave();
+            await act(async () => release());
+            await waitFor(() => expect(told()).toBe('Your analysis waits for your decision on an action.'));
+            fireEvent.click(screen.getByRole('button', {name: 'See the action'}));
+            expect(await within(dock()).findByRole('group', {name: 'Action waiting for a decision'})).toBeInTheDocument();
+            // Seen, then folded: not told again, the button of the dock still telling it.
+            fireEvent.click(within(dock()).getByRole('button', {name: 'Fold'}));
+            await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+            expect(toast()).toBeNull();
+            expect(screen.getByRole('button', {name: /The action of the assistant waits for your decision|waits for your decision/})).toBeInTheDocument();
+        });
+
+        test('tells the end of a message queued once it ends too, not while it runs', async () => {
+            const runs = [];
+            mocks.client.run.mockImplementation(
+                (_id, _input, options) =>
+                    new Promise((resolve) => {
+                        for (const event of text(`Checking ${runs.length + 1}.`, `turn-${runs.length + 1}:2`)) options.onEvent(event);
+                        runs.push(resolve);
+                    })
+            );
+            await send();
+            await screen.findByRole('button', {name: 'Stop'});
+            fireEvent.change(screen.getByRole('textbox', {name: 'Message'}), {target: {value: 'second'}});
+            fireEvent.click(screen.getByRole('button', {name: 'Queue'}));
+            await act(async () => navigate('/'));
+            // The first ends, the message queued runs at once: nothing to tell yet.
+            await act(async () => runs[0]({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-1', tokens: null}));
+            await waitFor(() => expect(runs).toHaveLength(2));
+            expect(toast()).toBeNull();
+            await act(async () => runs[1]({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-2', tokens: null}));
+            await waitFor(() => expect(told()).toBe('Your analysis is done.'));
+        });
+
+        test('tells nothing on the page of the assistant, which shows the answer', async () => {
+            const run = hangingRun();
+            await send();
+            await act(async () => run.finish());
+            await screen.findByText('Checking.');
+            expect(told()).toBeNull();
+            expect(toast()).toBeNull();
+        });
+
+        test('says it in the title of a hidden tab, given back once a turn runs again or the tab is shown', async () => {
+            let visibility = 'visible';
+            const property = vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+            try {
+                document.title = 'Lab cluster';
+                const run = hangingRun();
+                await send();
+                await screen.findByRole('button', {name: 'Stop'});
+                // Another tab: the page of the assistant stays on display there.
+                visibility = 'hidden';
+                await act(async () => run.finish());
+                await waitFor(() => expect(document.title).toBe('✓ Analysis done · Lab cluster'));
+                // The next turn: the title is given back while it runs.
+                const next = hangingRun();
+                fireEvent.change(screen.getByRole('textbox', {name: 'Message'}), {target: {value: 'again'}});
+                fireEvent.click(screen.getByRole('button', {name: 'Send'}));
+                await waitFor(() => expect(document.title).toBe('Lab cluster'));
+                await act(async () => next.finish());
+                await waitFor(() => expect(document.title).toBe('✓ Analysis done · Lab cluster'));
+                visibility = 'visible';
+                act(() => {
+                    document.dispatchEvent(new Event('visibilitychange'));
+                });
+                expect(document.title).toBe('Lab cluster');
+            } finally {
+                property.mockRestore();
+            }
+        });
+
+        test('says nothing in the title of a turn ended by another identity', async () => {
+            let visibility = 'visible';
+            const property = vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+            try {
+                document.title = 'Lab cluster';
+                hangingRun();
+                const view = renderApp({path: '/ai', withLink: false});
+                await waitFor(() => expect(screen.getByRole('button', {name: 'New conversation'})).toBeEnabled());
+                fireEvent.change(screen.getByRole('textbox', {name: 'Message'}), {target: {value: 'hello'}});
+                fireEvent.click(screen.getByRole('button', {name: 'Send'}));
+                await screen.findByRole('button', {name: 'Stop'});
+                visibility = 'hidden';
+                // Signed out in another tab: the chat starts afresh for the next one.
+                mocks.auth = {...mocks.auth, user: 'other'};
+                view.rerender();
+                await waitFor(() => expect(screen.queryByRole('button', {name: 'Stop'})).toBeNull());
+                expect(document.title).toBe('Lab cluster');
+            } finally {
+                property.mockRestore();
+            }
         });
     });
 });

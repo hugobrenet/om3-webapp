@@ -4405,7 +4405,43 @@
     "activity": {
       "answering": "L'assistant répond",
       "ended": "L'assistant a terminé",
+      "failed": "La réponse de l'assistant a échoué",
       "waiting": "Une action de l'assistant attend votre décision"
+    },
+    "notice": {
+      "ended": "Votre analyse est terminée.",
+      "failed": "Votre analyse a échoué : sa réponse est incomplète.",
+      "waiting": "Votre analyse attend votre décision sur une action.",
+      "see": "Voir la réponse",
+      "seeAction": "Voir l'action",
+      "dismiss": "Fermer",
+      "tab": {
+        "ended": "✓ Analyse terminée",
+        "failed": "✕ Analyse en échec",
+        "waiting": "● Décision attendue"
+      }
+    },
+    "export": {
+      "open": "Exporter la conversation",
+      "markdown": "Télécharger la conversation en Markdown",
+      "pdf": "Télécharger la conversation en PDF",
+      "exporting": "Export de la conversation…",
+      "done": "La conversation est exportée.",
+      "failed": "La conversation n'a pas pu être exportée. Réessayez.",
+      "tooLong": "La conversation est trop longue pour être exportée.",
+      "printFailed": "Le navigateur n'a pas pu ouvrir l'impression : le PDF n'a pas été produit.",
+      "printReady": "La conversation est prête à être enregistrée en PDF.",
+      "print": "Ouvrir l'impression",
+      "empty": "Rien à exporter : aucun tour de cette conversation n'est enregistré.",
+      "dismiss": "Fermer",
+      "cluster": "Cluster : {{name}}",
+      "exportedAt": "Exportée le {{date}}",
+      "timeZone": "Heures en {{zone}}",
+      "steps": "Étapes",
+      "stepsOmitted_one": "{{count}} étape non conservée dans l'historique",
+      "stepsOmitted_other": "{{count}} étapes non conservées dans l'historique",
+      "model": "Modèle : {{model}}",
+      "unstored": "Les réponses arrêtées ou en échec ne sont pas enregistrées, ni exportées."
     }
   }
 }

@@ -1,11 +1,13 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {useLocation} from 'react-router-dom';
+import {useTranslation} from 'react-i18next';
 import {interfaceContext} from '../app/interface-context';
 import {checkedRows} from '../app/checked-rows';
 import {useAuth} from './AuthProvider.jsx';
 import useClusterConfig from '../hooks/useClusterConfig.js';
 import useAiAgent from '../hooks/useAiAgent.js';
 import useAiChat from '../hooks/useAiChat.js';
+import useTabNotice from '../hooks/useTabNotice.js';
 import {AiActivityContext, AiChatContext, AiDockContext} from './AiChatContext.js';
 
 /**
@@ -24,6 +26,7 @@ import {AiActivityContext, AiChatContext, AiDockContext} from './AiChatContext.j
  * shown attach again (`attach` changes with the scope), the dock folded.
  */
 export function AiChatProvider({children}) {
+    const {t} = useTranslation();
     const auth = useAuth();
     // The configuration of the cluster, from the event stream of the menu,
     // names the cluster and its agent: no cluster status is read.
@@ -35,6 +38,11 @@ export function AiChatProvider({children}) {
     const [enabled, setEnabled] = useState(false);
     const [viewing, setViewing] = useState(false);
     const [ended, setEnded] = useState(false);
+    // The turn that ended so failed: its answer is incomplete.
+    const [endedFailed, setEndedFailed] = useState(false);
+    // An action began to wait for the decision of the user while no view
+    // showed the chat: one seen waiting is not told again.
+    const [waitedUnseen, setWaitedUnseen] = useState(false);
     const [draft, setDraft] = useState('');
     const [prompt, setPrompt] = useState(null);
     const [promptDropped, setPromptDropped] = useState(false);
@@ -50,6 +58,8 @@ export function AiChatProvider({children}) {
         setShownScope(scope);
         setEnabled(false);
         setEnded(false);
+        setEndedFailed(false);
+        setWaitedUnseen(false);
         setDraft('');
         setPrompt(null);
         setPromptDropped(false);
@@ -79,6 +89,7 @@ export function AiChatProvider({children}) {
         setViewing(true);
         setEnabled(true);
         setEnded(false);
+        setWaitedUnseen(false);
         return () => {
             viewers.current--;
             if (viewers.current === 0) setViewing(false);
@@ -129,11 +140,54 @@ export function AiChatProvider({children}) {
     // A turn that ends while no view shows it, answered, stopped or failed, is to
     // be seen: the folded dock counts as not shown. The scope it ran for is kept:
     // one stopped by another identity or cluster is not the new one's to see.
+    // The tab hidden meanwhile says it in its title, the view shown or not.
+    const tab = useTabNotice(t);
+    const turnError = useRef(chat.error);
+    turnError.current = chat.error;
+    const waitingNow = useRef(waiting);
+    waitingNow.current = waiting;
+    const viewingNow = useRef(viewing);
+    viewingNow.current = viewing;
     const answeringScope = useRef(null);
     useEffect(() => {
-        if (answeringScope.current === scope && !answering && !viewing) setEnded(true);
+        const endedHere = answeringScope.current === scope && !answering;
         answeringScope.current = answering ? scope : null;
-    }, [answering, viewing, scope]);
+        // A turn runs again, such as a message queued: what the title and the
+        // dock told is over, the end of this one to be told in turn.
+        if (answering) {
+            setEnded(false);
+            setEndedFailed(false);
+            tab.clear();
+            return;
+        }
+        if (!endedHere) return;
+        // Failed when the chat tells an error: an answer stopped tells none.
+        const failedTurn = turnError.current !== '';
+        if (!viewing) {
+            setEnded(true);
+            setEndedFailed(failedTurn);
+        }
+        // A turn that ends on an action waiting tells that rather.
+        if (!waitingNow.current) tab.tell(failedTurn ? 'failed' : 'ended');
+    }, [answering, viewing, scope, tab]);
+
+    // An action that begins to wait, for the scope shown.
+    const waitingScope = useRef(null);
+    useEffect(() => {
+        const began = waiting && waitingScope.current !== scope;
+        waitingScope.current = waiting ? scope : null;
+        if (!waiting) {
+            setWaitedUnseen(false);
+            tab.clear('waiting');
+            return;
+        }
+        if (!began) return;
+        if (!viewingNow.current) setWaitedUnseen(true);
+        tab.tell('waiting');
+    }, [waiting, scope, tab]);
+
+    // Another identity or cluster: the title told nothing of it.
+    useEffect(() => () => tab.clear(), [scope, tab]);
 
     // What the menu and the folded dock show while no view shows the chat: in
     // one, the chat says so.
@@ -141,9 +195,13 @@ export function AiChatProvider({children}) {
         () => ({
             answering: answering && !viewing,
             ended: ended && !viewing,
+            failed: ended && endedFailed && !viewing,
             waiting: waiting && !viewing,
+            // What the folded dock tells, once: an action that began to wait
+            // out of sight, else a turn that ended so.
+            notice: viewing ? null : waiting && waitedUnseen ? 'waiting' : ended ? (endedFailed ? 'failed' : 'ended') : null,
         }),
-        [answering, ended, viewing, waiting]
+        [answering, ended, endedFailed, viewing, waiting, waitedUnseen]
     );
 
     const dockControls = useMemo(
