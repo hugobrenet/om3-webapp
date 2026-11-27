@@ -144,7 +144,19 @@ function Message({message, feedback, status}) {
                     streaming={message.status === "running"}
                 />
             )}
-            {message.text && user && <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.text}</div>}
+            {/* The procedure the message asked. */}
+            {user && message.skill && (
+                <p className="mb-1 flex flex-wrap items-center gap-1 text-data">
+                    <span className="text-ink-muted">{t("ai.skills.tag")}</span>{" "}
+                    <span className="rounded-(--radius-control) border border-line bg-surface-raised px-1.5 font-mono [overflow-wrap:anywhere]">
+                        /{message.skill}
+                    </span>
+                </p>
+            )}
+            {/* Sent without words, the message is the procedure named, told above. */}
+            {message.text && user && message.text !== (message.skill ? `/${message.skill}` : null) && (
+                <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">{message.text}</div>
+            )}
             {message.status === "awaiting_confirmation" && (
                 <p className="mt-1 text-data text-state-warn">{t("ai.message.awaiting")}</p>
             )}

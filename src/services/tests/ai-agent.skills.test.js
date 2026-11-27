@@ -78,4 +78,21 @@ describe('AI agent skills client', () => {
             message: 'This procedure is not available to you now: choose another, or send your message without it.',
         });
     });
+    it('reads the skill a prompt asked in the history, on the message of the user only', async () => {
+        const page = (user = {}, answer = {}) => ({
+            messages: [
+                {id: 'turn-1:1', turn_id: 'turn-1', role: 'user', text: 'on n1', created_at: '2026-10-05T12:00:00Z', ...user},
+                {id: 'turn-1:2', turn_id: 'turn-1', role: 'assistant', text: 'Done.', created_at: '2026-10-05T12:00:01Z', ...answer},
+            ],
+            next_cursor: '',
+        });
+        fetchMock.mockResolvedValueOnce(Response.json(page({skill: 'node-maintenance'})));
+        const {messages} = await client.getMessages('conversation-1');
+        expect(messages[0].skill).toBe('node-maintenance');
+        expect(messages[1]).not.toHaveProperty('skill');
+        for (const [user, answer] of [[{skill: 'Node Maintenance'}, {}], [{skill: 7}, {}], [{}, {skill: 'node-maintenance'}]]) {
+            fetchMock.mockResolvedValueOnce(Response.json(page(user, answer)));
+            await expect(client.getMessages('conversation-1')).rejects.toMatchObject({code: 'invalid_response'});
+        }
+    });
 });

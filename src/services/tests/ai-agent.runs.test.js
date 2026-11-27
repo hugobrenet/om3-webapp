@@ -394,6 +394,23 @@ describe('AI agent AG-UI runs', () => {
             expect(types(onEvent)).toEqual(['RUN_STARTED']);
         });
 
+        it('reads the skill a prompt of a snapshot asked, and refuses one not shaped as one', async () => {
+            const onEvent = vi.fn();
+            const snapshot = (skill) => streamResponse([
+                aguiFrame(runStarted),
+                aguiFrame({type: 'MESSAGES_SNAPSHOT', messages: [{id: 'u-1', role: 'user', content: 'on n1', skill}, {id: 'u-2', role: 'user', content: 'and n2'}]}),
+                aguiFrame(runFinished()),
+            ]);
+            fetchMock.mockResolvedValueOnce(snapshot('node-maintenance'));
+            await client.run(GOLDEN_THREAD, prompt('hello', 'u-3'), {onEvent});
+            expect(onEvent.mock.calls[1][0].messages).toEqual([
+                {id: 'u-1', role: 'user', content: 'on n1', skill: 'node-maintenance'},
+                {id: 'u-2', role: 'user', content: 'and n2'},
+            ]);
+            fetchMock.mockResolvedValueOnce(snapshot('Node Maintenance'));
+            await expect(client.run(GOLDEN_THREAD, prompt('hello', 'u-3'), {onEvent: () => {}})).rejects.toMatchObject({code: 'invalid_response'});
+        });
+
         it('reads the text parts of a content, and does not show a text of another role', async () => {
             const onEvent = vi.fn();
             fetchMock.mockResolvedValue(

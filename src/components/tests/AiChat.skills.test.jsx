@@ -317,4 +317,43 @@ describe('the skills of the assistant, asked with /', () => {
             again.unmount();
         }
     });
+    test('shows the procedure asked on the message sent, alone when sent without words', async () => {
+        await renderReady();
+        fireEvent.change(box(), {target: {value: '/node-m'}});
+        fireEvent.keyDown(box(), {key: 'Enter'});
+        fireEvent.change(box(), {target: {value: 'on n1'}});
+        fireEvent.keyDown(box(), {key: 'Enter'});
+        const bubble = (await screen.findByText('on n1')).closest('li');
+        expect(within(bubble).getByText('/node-maintenance')).toBeInTheDocument();
+        expect(within(bubble).getByText('Procedure')).toBeInTheDocument();
+        await screen.findByText('Done.');
+        fireEvent.change(box(), {target: {value: '/morning-check '}});
+        fireEvent.keyDown(box(), {key: 'Enter'});
+        await waitFor(() => expect(mocks.client.run).toHaveBeenCalledTimes(2));
+        expect(sent(1)).toMatchObject({prompt: '/morning-check', skill: 'morning-check'});
+        // Sent without words: its tag, the text not shown again.
+        const alone = (await screen.findByText('/morning-check')).closest('li');
+        expect(within(alone).getByText('Procedure')).toBeInTheDocument();
+        expect(screen.getAllByText('/morning-check')).toHaveLength(1);
+    });
+
+    test('shows the procedure a prompt of the history asked', async () => {
+        mocks.client.getMessages.mockResolvedValue({
+            messages: [
+                {id: 'turn-1:1', turn_id: 'turn-1', role: 'user', text: 'on n1', created_at: '2026-11-27T10:00:00Z', skill: 'node-maintenance'},
+                {id: 'turn-1:2', turn_id: 'turn-1', role: 'assistant', text: 'Done.', created_at: '2026-11-27T10:00:05Z'},
+                {id: 'turn-2:1', turn_id: 'turn-2', role: 'user', text: '/morning-check', created_at: '2026-11-27T10:01:00Z', skill: 'morning-check'},
+                {id: 'turn-2:2', turn_id: 'turn-2', role: 'assistant', text: 'Fine.', created_at: '2026-11-27T10:01:05Z'},
+            ],
+            next_cursor: '',
+        });
+        await renderReady();
+        fireEvent.click(screen.getByRole('button', {name: 'Previous diagnostic'}));
+        // Sent without words: its tag alone, the text not shown again.
+        const alone = (await screen.findByText('/morning-check')).closest('li');
+        expect(within(alone).getByText('Procedure')).toBeInTheDocument();
+        expect(screen.getAllByText('/morning-check')).toHaveLength(1);
+        const bubble = (await screen.findByText('on n1')).closest('li');
+        expect(within(bubble).getByText('/node-maintenance')).toBeInTheDocument();
+    });
 });

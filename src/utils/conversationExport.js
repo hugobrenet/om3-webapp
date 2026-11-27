@@ -185,7 +185,10 @@ export function conversationMarkdown({title, clusterName, messages, exportedAt, 
         if (turn.prompt) {
             out.push(`### ${messageMeta(t("ai.message.you"), turn.prompt, dates)}`);
             blank();
-            out.push(...promptBlock(turn.prompt.text));
+            // The skill asked, then the words, as the message box shows them;
+            // the skill alone when it was sent without words.
+            const {skill, text} = turn.prompt;
+            out.push(...promptBlock(!skill || text === `/${skill}` ? text : `/${skill} ${text.trimStart()}`));
             blank();
         }
         if (!turn.answer) continue;

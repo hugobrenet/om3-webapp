@@ -231,4 +231,17 @@ describe('the export of a conversation', () => {
         expect(exportFileName('   ', day)).toBe('conversation-2026-11-26.md');
         expect(exportFileName('a'.repeat(59) + ' b', day)).toBe(`${'a'.repeat(59)}-2026-11-26.md`);
     });
+    test('writes the procedure a prompt asked before its words, alone when sent without', () => {
+        const text = markdown([
+            {...prompt('t1', 'on n1'), skill: 'node-maintenance'},
+            answer('t1', 'Done.'),
+            {...prompt('t2', '/morning-check', '2026-11-26T09:05:00Z'), skill: 'morning-check'},
+            answer('t2', 'Fine.'),
+        ]);
+        expect(text).toContain('/node-maintenance on n1');
+        expect(text).toContain('/morning-check');
+        expect(text).not.toContain('/morning-check /morning-check');
+        // Words that start with blank lines follow the procedure on its line.
+        expect(markdown([{...prompt('t1', '\n\non n2'), skill: 'node-maintenance'}])).toContain('/node-maintenance on n2');
+    });
 });

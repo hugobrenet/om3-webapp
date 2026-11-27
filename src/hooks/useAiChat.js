@@ -252,7 +252,10 @@ const snapshotThread = (messages) => {
     const thread = [];
     for (const message of messages) {
         if (message.role === 'user') {
-            thread.push({id: message.id, role: 'user', text: message.content, status: 'completed', steps: [], usage: null});
+            thread.push({
+                id: message.id, role: 'user', text: message.content, status: 'completed', steps: [], usage: null,
+                ...(message.skill ? {skill: message.skill} : {}),
+            });
             continue;
         }
         if (message.role === 'tool') {
@@ -287,8 +290,19 @@ const snapshotThread = (messages) => {
 // another tab ran turns: it replaces the messages, the answer the run streams
 // following it, or going on with the answer so far of the turn it resumes.
 // The ratings are kept by turn.
-const applySnapshot = (previous, snapshot, answerId) => {
-    const thread = snapshotThread(snapshot.messages);
+// The skill of a prompt the snapshot does not name: the one the webapp holds
+// under the same ID, as the history gave it, and, for the prompt of the run,
+// which goes under another ID out of phase, the one it was sent with
+// (promptSkill).
+const applySnapshot = (previous, snapshot, answerId, promptSkill) => {
+    const held = new Map(previous.messages.filter((message) => message.role === 'user' && message.skill).map((message) => [message.id, message.skill]));
+    const prompts = snapshotThread(snapshot.messages);
+    const lastPrompt = prompts.findLastIndex((message) => message.role === 'user');
+    const thread = prompts.map((message, index) => {
+        if (message.role !== 'user' || message.skill) return message;
+        const skill = held.get(message.id) ?? (index === lastPrompt ? promptSkill : undefined);
+        return skill ? {...message, skill} : message;
+    });
     const running = previous.messages.find((message) => message.id === answerId);
     const last = thread[thread.length - 1];
     const messages =
@@ -761,14 +775,16 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     // Stream the events of a run into the answer it belongs to; a snapshot
     // replaces the thread first. resumed applies to the first result of a
     // resumed run, the one of the confirmed call.
-    const runEvents = (answerId, update, resumed) => {
+    // promptSkill, the skill the prompt of a new turn asked, which a snapshot
+    // keeps on it.
+    const runEvents = (answerId, update, resumed, promptSkill) => {
         let pending = resumed;
         return (event) => {
             const call = event.type === 'TOOL_CALL_RESULT' ? pending : undefined;
             if (call) pending = undefined;
             update((previous) =>
                 event.type === 'MESSAGES_SNAPSHOT'
-                    ? applySnapshot(previous, event, answerId)
+                    ? applySnapshot(previous, event, answerId, promptSkill)
                     : {
                           ...previous,
                           messages: previous.messages.map((message) =>
@@ -869,7 +885,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
                 ...previous,
                 messages: [
                     ...previous.messages,
-                    {id: promptId, role: 'user', text: prompt},
+                    {id: promptId, role: 'user', text: prompt, ...(skill ? {skill} : {})},
                     assistantMessage(answerId),
                 ],
             }));
@@ -889,7 +905,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
                 result = await client.run(
                     conversation.id,
                     {prompt, promptId, held, context, ...(runModel ? {model: runModel} : {}), ...(skill ? {skill} : {})},
-                    {signal, onEvent: runEvents(answerId, update)}
+                    {signal, onEvent: runEvents(answerId, update, undefined, skill)}
                 );
             } catch (error) {
                 // An operation stopped, as for another session or cluster,

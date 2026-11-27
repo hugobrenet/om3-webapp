@@ -370,6 +370,9 @@ const readMessagePage = async (response, signal, limit, before) => {
             // And the model its turn last ran on.
             if (message.model_id !== undefined && (!isModelId(message.model_id) || message.role !== 'assistant'))
                 throw protocolError();
+            // Only the message of the user that starts a turn names the skill it asked.
+            if (message.skill !== undefined && (!isSkillName(message.skill) || message.role !== 'user'))
+                throw protocolError();
             ids.add(message.id);
             return {
                 id: message.id,
@@ -380,6 +383,7 @@ const readMessagePage = async (response, signal, limit, before) => {
                 ...(feedback ? {feedback} : {}),
                 ...(history ? {history} : {}),
                 ...(message.model_id ? {model_id: message.model_id} : {}),
+                ...(message.skill ? {skill: message.skill} : {}),
             };
         });
         // The steps go with the last assistant message of their turn.
@@ -639,7 +643,9 @@ const parseSnapshot = (event) => {
         if (!message || typeof message !== 'object' || !isEventId(message.id)) throw protocolError();
         const content = contentText(message.content);
         if (message.role === 'user') {
-            messages.push({id: message.id, role: 'user', content});
+            // The skill a prompt asked, an extension of the agent.
+            if (message.skill !== undefined && !isSkillName(message.skill)) throw protocolError();
+            messages.push({id: message.id, role: 'user', content, ...(message.skill ? {skill: message.skill} : {})});
         } else if (message.role === 'assistant') {
             const calls = message.toolCalls ?? [];
             if (!Array.isArray(calls)) throw protocolError();
