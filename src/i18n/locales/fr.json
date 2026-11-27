@@ -4189,7 +4189,15 @@
       "queuedHint": "La réponse est en cours : votre message sera envoyé une fois celle-ci terminée.",
       "queuedDuringConfirmation": "Votre message sera envoyé après votre décision ; il ne répond pas à la confirmation.",
       "model": "Modèle",
-      "modelHint": "Le modèle des messages que vous envoyez"
+      "modelHint": "Le modèle des messages que vous envoyez",
+      "skillsHint": "Tapez / en début de message pour suivre une procédure de l'assistant."
+    },
+    "skills": {
+      "tag": "Procédure",
+      "remove": "Retirer la procédure « {{skill}} »",
+      "list": "Procédures correspondant à votre saisie",
+      "chosen": "Procédure /{{skill}} choisie",
+      "gone": "La procédure « {{skill}} » ne vous est plus disponible : elle a été retirée de votre message."
     },
     "dialog": {
       "deleteTitle": "Supprimer la conversation",
@@ -4395,7 +4403,8 @@
       "unavailable": "L'assistant n'est pas disponible : voir sa page",
       "expand": "Ouvrir dans la page de l'assistant",
       "fold": "Réduire",
-      "move": "Déplacer l'assistant : glissez-le, ou utilisez les flèches gauche et droite, Début pour le remettre",
+      "move": "Déplacer ou redimensionner l'assistant",
+      "moveHelp": "Glissez sa barre de titre pour le déplacer, un bord ou un coin pour le redimensionner. Sur cette poignée, les flèches le déplacent, Maj et les flèches le redimensionnent, Début le remet en place.",
       "empty": "Posez une question sur le cluster, ou sur ce que montre la page : la fiche ouverte, les lignes cochées.",
       "waitingLabel": "Action en attente de décision",
       "waiting": "L'assistant attend votre décision sur l'action « {{action}} ».",

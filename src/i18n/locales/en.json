@@ -4189,7 +4189,15 @@
       "queuedHint": "The answer is running: your message will be sent once it ends.",
       "queuedDuringConfirmation": "Your message will be sent after your decision; it does not answer the confirmation.",
       "model": "Model",
-      "modelHint": "The model of the messages you send"
+      "modelHint": "The model of the messages you send",
+      "skillsHint": "Type / at the start to follow a procedure of the assistant."
+    },
+    "skills": {
+      "tag": "Procedure",
+      "remove": "Remove the procedure “{{skill}}”",
+      "list": "Procedures matching what you type",
+      "chosen": "Procedure /{{skill}} chosen",
+      "gone": "The procedure “{{skill}}” is no longer available to you: it was removed from your message."
     },
     "dialog": {
       "deleteTitle": "Delete conversation",
@@ -4395,7 +4403,8 @@
       "unavailable": "The assistant is not available: see its page",
       "expand": "Open in the assistant page",
       "fold": "Fold",
-      "move": "Move the assistant: drag it, or use the Left and Right arrows, Home to put it back",
+      "move": "Move or size the assistant",
+      "moveHelp": "Drag its title bar to move it, an edge or a corner to size it. On this handle, the arrows move it, Shift and the arrows size it, Home puts it back.",
       "empty": "Ask a question about the cluster, or about what the page shows: the record open on it, the rows ticked.",
       "waitingLabel": "Action waiting for a decision",
       "waiting": "The assistant waits for your decision on the action “{{action}}”.",

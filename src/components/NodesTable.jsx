@@ -28,6 +28,7 @@ import {facetCounts, matches, toggled} from "../app/facets";
 import {FilterRail, FilterToolbar} from "./FilterRail";
 import {rangeSelect, withShift} from "../app/range-select";
 import {useShareCheckedRows} from "../app/checked-rows";
+import {useShareListFilters} from "../app/list-filters";
 import {anyOf, useClusterConfigChanges, useNodeConfigChanges} from "../hooks/useLiveChanges";
 
 const ZERO_DATE = "0001-01-01T00:00:00Z";
@@ -48,7 +49,7 @@ const isNodeFrozen = (status) => !!status?.frozen_at && status?.frozen_at !== ZE
  * state of its monitor, frozen or not, its env, the version of its agent, its labels
  * ("key=value", a node kept by any of them). Several values of each kept at once.
  */
-const NODE_FILTERS = ["state", "frozen", "env", "version", "label"];
+export const NODE_FILTERS = ["state", "frozen", "env", "version", "label"];
 const nodeValues = ({monitor, status, info}) => ({
     state: [monitor?.state || "unknown"],
     frozen: [isNodeFrozen(status) ? "frozen" : "thawed"],
@@ -265,6 +266,16 @@ const NodesTable = () => {
     // The nodes the name searched and the filters keep; each value of the filters
     // counted under the others, in the rail or the popovers.
     const valuesOf = (node) => nodeValues({monitor: nodeMonitor[node], status: nodeStatus[node], info: nodeInfo[node]});
+    // The filters the list applies, as it applies them, for a question to the assistant,
+    // with the values the nodes have, a link naming no other.
+    const appliedFilters = useMemo(() => ({
+        chosen: filters,
+        contains: {name: search.trim()},
+        offered: Object.fromEntries(NODE_FILTERS.map((key) => [key, [...new Set(sortedNodes.flatMap((node) => nodeValues({
+            monitor: nodeMonitor[node], status: nodeStatus[node], info: nodeInfo[node],
+        })[key]))]])),
+    }), [filters, search, sortedNodes, nodeMonitor, nodeStatus, nodeInfo]);
+    useShareListFilters("nodes", appliedFilters);
     const counts = facetCounts(sortedNodes, {
         match: (node) => matches(search, node),
         facets: Object.fromEntries(NODE_FILTERS.map((key) => [key, {selected: filters[key], valuesOf: (node) => valuesOf(node)[key]}])),

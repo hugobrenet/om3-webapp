@@ -3,6 +3,7 @@ import '@testing-library/jest-dom';
 import {render, screen, fireEvent, waitFor, within, cleanup, act} from '@testing-library/react';
 import {MemoryRouter, useRouterLocation} from 'react-router-dom';
 import {beforeEach, vi} from 'vitest';
+import {listFilters, listFiltersEntry} from '../../app/list-filters';
 import {axe} from 'vitest-axe';
 import Objects, {PROPERTY_COLUMNS, orderObjects} from '../Objects';
 import i18n from '../../i18n';
@@ -873,6 +874,30 @@ describe('Objects Component', () => {
             cleanup();
             render(<MemoryRouter><Objects/></MemoryRouter>);
             await waitFor(() => expect(reads()).toBe(2));
+        });
+
+        test('tells the assistant the filters it applies, those of its tab only', async () => {
+            setup(mixed, '?list=any&avail=down,warn&not=avail&validation=warning&namespace=prod&kind=svc&up=>=1&name=%20Web');
+            await waitForLoad();
+            await waitFor(() => expect(listFilters()).toEqual({
+                list: 'objects',
+                applied: expect.objectContaining({
+                    tab: 'any',
+                    chosen: expect.objectContaining({avail: ['down', 'warn'], config_validation: ['warning'], namespace: ['prod'], kind: ['svc']}),
+                    reversed: ['avail'],
+                    counts: {up: '>=1'},
+                    // Searched as the list searches it: untrimmed.
+                    contains: {name: ' Web'},
+                    offered: {namespace: expect.arrayContaining(['test-ns'])},
+                }),
+            }));
+            cleanup();
+            // On configs, no State filter, reversed or not, no up instances, no kind: none told.
+            setup(mixed, '?list=configs&avail=down&not=avail&up=5&kind=svc&namespace=test-ns');
+            await waitForLoad();
+            await waitFor(() => expect(listFiltersEntry(listFilters())).toEqual([{description: 'list filters', value: 'configs; namespace is test-ns'}]));
+            cleanup();
+            expect(listFilters()).toBeNull();
         });
 
         test.each(['configs', 'secrets', 'users'])('list=%s has no State filter nor up instances, those in the URL filtering nothing', async (tab) => {

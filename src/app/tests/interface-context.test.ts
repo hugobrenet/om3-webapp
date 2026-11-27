@@ -66,14 +66,42 @@ describe("interfaceContext", () => {
   });
 });
 
+describe("the filters of the list on display", () => {
+  it("are told after the page and its panel, before the rows ticked and the clock, the time zone left out first", () => {
+    const entries = interfaceContext("/objects", new URLSearchParams("sel=a/svc/b&tab=logs&view=last"), {
+      now: new Date(2026, 10, 16, 15, 40, 12),
+      timeZone: "Europe/Paris",
+      filters: { list: "objects", applied: { tab: "services", chosen: { avail: ["down"] } } },
+      checked: { kind: "objects", ids: ["a/svc/b", "a/svc/c"] },
+    });
+    expect(entries.map((entry) => entry.description)).toEqual([
+      "page",
+      "selected object",
+      "open tab",
+      "open view",
+      "list filters",
+      "checked objects",
+      "checked objects count",
+      "local time",
+    ]);
+    expect(entries[4].value).toBe("services; avail is down");
+  });
+
+  it("are not told on the page of the assistant, nor when the list tells none", () => {
+    const filters = { list: "nodes" as const, applied: { chosen: { frozen: ["frozen"] } } };
+    expect(interfaceContext("/ai", new URLSearchParams(), { filters })).toEqual([]);
+    expect(interfaceContext("/nodes", new URLSearchParams(), { filters: null })).toEqual([{ description: "page", value: "/nodes" }]);
+  });
+});
+
 describe("the session", () => {
   const now = new Date(2026, 10, 16, 15, 40, 12);
   const session = { now, timeZone: "Europe/Paris" };
 
   it("gives the clock of the user, on the page of the assistant too", () => {
     const clock = [
-      { description: "time zone", value: "Europe/Paris" },
       { description: "local time", value: localTime(now) },
+      { description: "time zone", value: "Europe/Paris" },
     ];
     expect(interfaceContext("/ai", new URLSearchParams(), session)).toEqual(clock);
     expect(interfaceContext("/nodes", new URLSearchParams(), session)).toEqual([{ description: "page", value: "/nodes" }, ...clock]);
@@ -128,8 +156,8 @@ describe("the session", () => {
       "open view",
       "checked nodes",
       "checked nodes count",
-      "time zone",
       "local time",
+      "time zone",
     ]);
     expect(context).toHaveLength(MAX_CONTEXT_ENTRIES);
   });

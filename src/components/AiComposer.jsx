@@ -1,12 +1,13 @@
-import {useEffect, useState} from "react";
+import {useEffect, useId, useState} from "react";
 import {useTranslation} from "react-i18next";
 import {useSharedAiChat} from "../context/AiChatContext.js";
+import {promptOf} from "../hooks/useAiChat.js";
 import {Alert} from "../ui/components/Alert";
 import {Button} from "../ui/components/Button";
 import {Dialog} from "../ui/components/Dialog";
 import {Field, Textarea} from "../ui/components/Field";
 import AiModelSelect from "./AiModelSelect.jsx";
-import {ClockIcon, SendIcon, StopIcon} from "../ui/icons";
+import {ClockIcon, CloseIcon, SendIcon, StopIcon} from "../ui/icons";
 import {cn} from "../ui/cn";
 import {untrustedT} from "../utils/untrustedText";
 
@@ -25,6 +26,13 @@ export const MAX_PROMPT_BYTES = 32 * 1024;
  * with its first turn; else put in the message box, never sent, as the question
  * of an address, the agent asked for nothing.
  *
+ * Where the agent serves skills (`chat.skills`), a `/` that starts the message box
+ * lists them, filtered by what follows it: chosen with the arrows and Enter or
+ * Tab, or a click, the skill is a tag over the box, the words typed after it the
+ * message, and goes with it, the agent loading it first (forwardedProps.skill).
+ * Sent without words, the message is the `/` and its name, as the conversation
+ * shows it. Escape closes the list; a `/` elsewhere is text.
+ *
  * `inputRef`, the message box; `compact`, the dock's, a line shorter;
  * `onReplacingChange`, told while the dialog replacing the queued message is
  * open, which says the error then.
@@ -33,9 +41,11 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
     const {t} = useTranslation();
     const shared = useSharedAiChat();
     if (shared === null) throw new Error("AiComposer needs an AiChatProvider");
-    const {chat, ready, draft, setDraft} = shared;
-    // The text the dialog would put in the queue, in place of the message queued.
+    const {chat, ready, draft, setDraft, draftSkill, setDraftSkill} = shared;
+    // The message the dialog would put in the queue, {text, skill}, in place of
+    // the message queued.
     const [replacement, setReplacement] = useState(null);
+    const listId = useId();
     const busy = Boolean(chat.pending);
     const waiting = Boolean(chat.confirmation);
     // The message box stays open while a turn runs and while a confirmation
@@ -47,6 +57,58 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
     const queueing = answering || (waiting && !busy);
     const composerClosed = !ready || !chat.historyReady || (busy && !answering);
     const promptTooLarge = new TextEncoder().encode(draft).length > MAX_PROMPT_BYTES;
+    // A skill named whole at the start of the box, `/name` then a space or
+    // nothing, is that skill, the rest the words: as if it was chosen.
+    const named = (text) => {
+        const match = !draftSkill && chat.skills ? /^\/([a-z0-9-]+)(?:\s+([\s\S]*))?$/.exec(text) : null;
+        return match && chat.skills.some((skill) => skill.name === match[1]) ? {skill: match[1], words: match[2] ?? ""} : null;
+    };
+    // The skill and the words the box sends, and its prompt: the words typed,
+    // or the skill alone named.
+    const asked = named(draft);
+    const skill = draftSkill ?? asked?.skill ?? null;
+    const words = asked ? asked.words : draft;
+    const message = promptOf(words, skill);
+
+    // The skills a / at the start of the box lists, the one named whole first,
+    // then those whose name begins with what follows it, then those holding it;
+    // none once a skill is chosen, a space typed, Escape pressed on what is
+    // typed or the box left.
+    const [dismissed, setDismissed] = useState(false);
+    const [active, setActive] = useState(0);
+    const typed = draft.toLowerCase();
+    const query = !draftSkill && chat.skills && /^\/[a-z0-9-]*$/.test(typed) ? typed.slice(1) : null;
+    const matches = query === null
+        ? []
+        : [
+            ...chat.skills.filter((item) => item.name === query),
+            ...chat.skills.filter((item) => item.name !== query && item.name.startsWith(query)),
+            ...chat.skills.filter((item) => !item.name.startsWith(query) && item.name.includes(query)),
+        ];
+    const listOpen = matches.length > 0 && !dismissed && !composerClosed;
+    const activeIndex = Math.min(active, matches.length - 1);
+    const choose = (name, rest = "") => {
+        setDraftSkill(name);
+        setDraft(rest);
+        setActive(0);
+        inputRef.current?.focus();
+    };
+    const clearMessage = () => {
+        setDraft("");
+        setDraftSkill(null);
+    };
+    // The option the arrows reach stays in sight.
+    useEffect(() => {
+        if (!listOpen) return;
+        document.getElementById(`${listId}-${activeIndex}`)?.scrollIntoView?.({block: "nearest"});
+    }, [listOpen, activeIndex, listId]);
+    // A skill chosen that the list read again no longer holds goes, said so.
+    const [skillGone, setSkillGone] = useState(null);
+    useEffect(() => {
+        if (!draftSkill || !chat.skills || chat.skills.some((item) => item.name === draftSkill)) return;
+        setSkillGone(draftSkill);
+        setDraftSkill(null);
+    }, [draftSkill, chat.skills, setDraftSkill]);
 
     useEffect(() => {
         onReplacingChange?.(replacement !== null);
@@ -73,7 +135,10 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
         }
         shared.takePrompt();
         if (prompt.send) void chat.send(prompt.text);
-        else setDraft(prompt.text);
+        else {
+            setDraft(prompt.text);
+            setDraftSkill(null);
+        }
         inputRef.current?.focus();
         // On the question, and what the chat does, only.
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,21 +146,23 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
 
     const submit = (event) => {
         event.preventDefault();
-        if (composerClosed || !draft.trim() || promptTooLarge) return;
+        if (composerClosed || !message.trim() || promptTooLarge) return;
         shared.clearPromptDropped();
+        setSkillGone(null);
+        const sentSkill = skill ?? undefined;
         if (queueing) {
-            // One message queued at most: replacing it is asked first.
+            // One message queued at most: replacing it is asked first. The
+            // queue keeps the words and the skill apart.
             if (chat.queued) {
-                setReplacement(draft);
+                setReplacement({text: words, skill: sentSkill});
                 return;
             }
-            if (chat.queue(draft)) setDraft("");
+            if (chat.queue(words, sentSkill)) clearMessage();
             inputRef.current?.focus();
             return;
         }
-        const text = draft;
-        setDraft("");
-        void chat.send(text);
+        clearMessage();
+        void chat.send(message, undefined, undefined, sentSkill);
     };
 
     // After a stop or a failure, nothing goes alone: the user sends the queued
@@ -104,12 +171,13 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
     const resend = () => {
         const context = chat.queued?.context;
         const model = chat.queued?.model;
-        const text = chat.takeQueued();
-        if (text) void chat.send(text, context, model);
+        const queuedSkill = chat.queued?.skill;
+        const prompt = promptOf(chat.takeQueued() ?? "", queuedSkill);
+        if (prompt) void chat.send(prompt, context, model, queuedSkill);
     };
 
     const replace = () => {
-        if (replacement !== null && chat.queue(replacement)) setDraft("");
+        if (replacement !== null && chat.queue(replacement.text, replacement.skill)) clearMessage();
         setReplacement(null);
         inputRef.current?.focus();
     };
@@ -120,8 +188,15 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
             <form onSubmit={submit} className={cn("space-y-2 border-t border-line", compact ? "p-2" : "p-3")}>
                 {/* Always there, so that the first message queued is announced too. */}
                 <p aria-live="polite" className="sr-only">
-                    {chat.queued ? untrustedT(t, "ai.queue.announce", {text: chat.queued.text}) : ""}
+                    {chat.queued
+                        ? untrustedT(t, "ai.queue.announce", {text: [chat.queued.skill && `/${chat.queued.skill}`, chat.queued.text].filter(Boolean).join(" ")})
+                        : ""}
                 </p>
+                {/* The skill chosen, told as it is. */}
+                <p aria-live="polite" className="sr-only">
+                    {draftSkill ? t("ai.skills.chosen", {skill: draftSkill}) : ""}
+                </p>
+                {skillGone && <Alert tone="info">{t("ai.skills.gone", {skill: skillGone})}</Alert>}
                 {chat.queued && (
                     <div
                         role="group"
@@ -130,8 +205,9 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
                     >
                         <ClockIcon width={14} height={14} className="shrink-0 text-ink-muted"/>
                         <span className="text-ink-muted">{t("ai.queue.label")}</span>
-                        {/* The text of the user, as typed. */}
+                        {/* The skill asked, then the text of the user, as typed. */}
                         <span className="min-w-0 flex-1 truncate">
+                            {chat.queued.skill && <span className="mr-1 font-mono">/{chat.queued.skill}</span>}
                             {chat.queued.text}
                         </span>
                         {!queueing && !busy && (
@@ -142,9 +218,11 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
                         <Button
                             size="sm"
                             // Never over what the user types.
-                            disabled={Boolean(draft.trim())}
+                            disabled={Boolean(draft.trim() || draftSkill)}
                             onClick={() => {
+                                const skill = chat.queued?.skill ?? null;
                                 setDraft(chat.takeQueued() ?? "");
+                                setDraftSkill(skill);
                                 inputRef.current?.focus();
                             }}
                         >
@@ -155,6 +233,54 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
                         </Button>
                     </div>
                 )}
+                {draftSkill && (
+                    <div className="flex items-center gap-2 text-data">
+                        <span className="text-ink-muted">{t("ai.skills.tag")}</span>
+                        <span className="inline-flex min-w-0 items-center gap-1 rounded-(--radius-control) border border-line bg-surface-sunken py-0.5 pr-0.5 pl-2 font-mono">
+                            <span className="truncate">/{draftSkill}</span>
+                            <button
+                                type="button"
+                                aria-label={t("ai.skills.remove", {skill: draftSkill})}
+                                title={t("ai.skills.remove", {skill: draftSkill})}
+                                disabled={composerClosed}
+                                onClick={() => {
+                                    setDraftSkill(null);
+                                    inputRef.current?.focus();
+                                }}
+                                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-(--radius-control) text-ink-muted hover:bg-surface-raised hover:text-ink"
+                            >
+                                <CloseIcon width={12} height={12}/>
+                            </button>
+                        </span>
+                    </div>
+                )}
+                {listOpen && (
+                    <ul
+                        id={listId}
+                        role="listbox"
+                        aria-label={t("ai.skills.list")}
+                        className="max-h-48 overflow-y-auto rounded-(--radius-control) border border-line bg-surface-raised py-1 shadow-md"
+                    >
+                        {matches.map((skill, index) => (
+                            <li
+                                key={skill.name}
+                                id={`${listId}-${index}`}
+                                role="option"
+                                aria-selected={index === activeIndex}
+                                // The box keeps the focus.
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => choose(skill.name)}
+                                className={cn("cursor-pointer px-2 py-1", index === activeIndex && "bg-surface-sunken")}
+                            >
+                                <span className="font-mono">/{skill.name}</span>
+                                {/* Written by the authors of the skills, shown as text. */}
+                                {skill.description && (
+                                    <span className="line-clamp-2 text-ink-muted [overflow-wrap:anywhere]">{skill.description}</span>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
                 <Field
                     label={t("ai.composer.label")}
                     hint={
@@ -164,7 +290,9 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
                                 ? t("ai.composer.queuedDuringConfirmation")
                                 : answering
                                     ? t("ai.composer.queuedHint")
-                                    : t("ai.composer.hint")
+                                    : chat.skills && !draftSkill
+                                        ? `${t("ai.composer.hint")} ${t("ai.composer.skillsHint")}`
+                                        : t("ai.composer.hint")
                     }
                     error={promptTooLarge ? t("ai.composer.tooLarge") : undefined}
                 >
@@ -176,18 +304,52 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
                             className={cn("resize-y", compact ? "max-h-32" : "max-h-48")}
                             value={draft}
                             disabled={composerClosed}
+                            {...(chat.skills ? {
+                                "aria-autocomplete": "list",
+                                "aria-controls": listOpen ? listId : undefined,
+                                "aria-activedescendant": listOpen ? `${listId}-${activeIndex}` : undefined,
+                            } : {})}
                             onChange={(event) => {
-                                setDraft(event.target.value);
+                                const value = event.target.value;
+                                setActive(0);
+                                setDismissed(false);
                                 shared.clearPromptDropped();
+                                // A skill named whole, then a space: chosen.
+                                const whole = /\s$/.test(value) ? named(value) : null;
+                                if (whole) choose(whole.skill, whole.words);
+                                else setDraft(value);
                             }}
+                            onBlur={() => setDismissed(true)}
+                            onFocus={() => setDismissed(false)}
                             onKeyDown={(event) => {
-                                if (
-                                    event.key !== "Enter" ||
-                                    event.shiftKey ||
-                                    event.nativeEvent.isComposing ||
-                                    event.nativeEvent.keyCode === 229
-                                )
+                                const composing = event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+                                if (listOpen && !composing) {
+                                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                                        event.preventDefault();
+                                        const step = event.key === "ArrowDown" ? 1 : -1;
+                                        setActive((activeIndex + step + matches.length) % matches.length);
+                                        return;
+                                    }
+                                    if (!event.shiftKey && (event.key === "Enter" || event.key === "Tab")) {
+                                        event.preventDefault();
+                                        choose(matches[activeIndex].name);
+                                        return;
+                                    }
+                                    if (event.key === "Escape") {
+                                        // The list closes; the dock stays open.
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        setDismissed(true);
+                                        return;
+                                    }
+                                }
+                                // Backspace in an empty box takes the skill back.
+                                if (event.key === "Backspace" && !event.repeat && !composing && draft === "" && draftSkill) {
+                                    event.preventDefault();
+                                    setDraftSkill(null);
                                     return;
+                                }
+                                if (event.key !== "Enter" || event.shiftKey || composing) return;
                                 event.preventDefault();
                                 submit(event);
                             }}
@@ -211,7 +373,7 @@ export default function AiComposer({inputRef, compact = false, onReplacingChange
                         type="submit"
                         variant="create"
                         icon={queueing ? <ClockIcon/> : <SendIcon/>}
-                        disabled={composerClosed || !draft.trim() || promptTooLarge}
+                        disabled={composerClosed || !message.trim() || promptTooLarge}
                     >
                         {queueing ? t("ai.composer.queue") : t("ai.composer.send")}
                     </Button>

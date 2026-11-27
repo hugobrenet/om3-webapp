@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useId, useRef, useState} from "react";
+import {useCallback, useEffect, useId, useRef, useState, useSyncExternalStore} from "react";
 import {useLocation, useNavigate} from "react-router-dom";
 import {useTranslation} from "react-i18next";
 import {activityState, useAiActivity, useAiDock, useSharedAiChat} from "../context/AiChatContext.js";
@@ -14,89 +14,259 @@ import {typing, useShortcut} from "../ui/lib/shortcuts";
 import {cn} from "../ui/cn";
 import {untrustedT} from "../utils/untrustedText";
 
-/** Where the user moved the open dock: its distance to the right of the window, in pixels. */
+/**
+ * Where the user moved the open dock in the window and the size they gave it: its
+ * distances to the right and to the bottom of the window, its width and its height,
+ * in pixels, null where it keeps its own. What the user chose, kept as it is: a smaller
+ * window holds the dock within it for as long, and gives it back after.
+ */
+const DOCK_GEOMETRY_KEY = "om3.ai.dock.geometry";
+/** Where an older version kept the dock moved along the bottom: its distance to the right. */
 const DOCK_RIGHT_KEY = "om3.ai.dock.right";
-/** The margin of the dock to the edges of the window, as `right-4`. */
+/** The margin of the dock to the edges of the window, as `right-4` and `bottom-4`. */
 const DOCK_MARGIN = 16;
-/** The width of the notice of the folded dock, as `w-[24rem]`. */
+/** What the dock leaves above it, the top bar, as its height `calc(100dvh-6rem)` does. */
+const DOCK_TOP = 80;
+/** Its own width, `w-[26rem]`, and height, `h-[min(36rem,…)]`, in rem: they follow the font. */
+const DOCK_WIDTH_REM = 26;
+const DOCK_HEIGHT_REM = 36;
+/** The smallest it is made. */
+const DOCK_MIN_WIDTH = 320;
+const DOCK_MIN_HEIGHT = 320;
+/** Closer to an edge of the window than this, moved, it goes against it. */
+const DOCK_SNAP = 24;
+/** Less than this, a pointer pressed and released is a click: nothing moves. */
+const DOCK_DRAG_THRESHOLD = 4;
+/** The width of the notice of the folded dock, as `w-[24rem]`, and about its height. */
 const NOTICE_WIDTH = 384;
-/** A step of the arrows of the keyboard moving the dock. */
+const NOTICE_HEIGHT = 96;
+/** A step of the arrows of the keyboard moving the dock, or sizing it. */
 const DOCK_STEP = 32;
 
-const readDockRight = () => {
-    try {
-        const value = Number(localStorage.getItem(DOCK_RIGHT_KEY));
-        return Number.isFinite(value) && value > DOCK_MARGIN ? value : null;
-    } catch {
-        return null;
-    }
-};
+const NO_GEOMETRY = {right: null, bottom: null, width: null, height: null};
 
-const storeDockRight = (value) => {
+const length = (value) => (typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null);
+
+/** The geometry the browser keeps, that of an older version read as it. */
+function readDockGeometry() {
     try {
-        if (value === null) localStorage.removeItem(DOCK_RIGHT_KEY);
-        else localStorage.setItem(DOCK_RIGHT_KEY, String(value));
+        const kept = JSON.parse(localStorage.getItem(DOCK_GEOMETRY_KEY) ?? "null");
+        if (kept && typeof kept === "object" && !Array.isArray(kept)) {
+            return {right: length(kept.right), bottom: length(kept.bottom), width: length(kept.width), height: length(kept.height)};
+        }
+        const right = Number(localStorage.getItem(DOCK_RIGHT_KEY));
+        return {...NO_GEOMETRY, right: Number.isFinite(right) && right > DOCK_MARGIN ? right : null};
+    } catch {
+        return NO_GEOMETRY;
+    }
+}
+
+function storeDockGeometry(geometry) {
+    try {
+        localStorage.removeItem(DOCK_RIGHT_KEY);
+        if (Object.values(geometry).every((value) => value === null)) localStorage.removeItem(DOCK_GEOMETRY_KEY);
+        else localStorage.setItem(DOCK_GEOMETRY_KEY, JSON.stringify(geometry));
     } catch {
         // Kept for this page only.
     }
+}
+
+/** The size of a rem, as the browser sets the font. */
+function remPixels() {
+    const size = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    return Number.isFinite(size) && size > 0 ? size : 16;
+}
+
+/** The size the dock takes of its own in a window `height` high. */
+function ownSize(height) {
+    const rem = remPixels();
+    return {width: DOCK_WIDTH_REM * rem, height: Math.min(DOCK_HEIGHT_REM * rem, height - DOCK_TOP - DOCK_MARGIN)};
+}
+
+/** The size of the window, a snapshot of its own: the dock follows it. */
+const subscribeWindow = (onChange) => {
+    window.addEventListener("resize", onChange);
+    return () => window.removeEventListener("resize", onChange);
 };
+const windowSize = () => `${window.innerWidth}x${window.innerHeight}`;
 
 /**
- * The open dock moved along the bottom of the window, to the left or back, not to
- * hide what the page shows there: by its handle, dragged, or with the arrows of
- * the keyboard, Home taking it back to the right. Remembered by the browser; held
- * within the window. On a narrow window the dock takes its width: it stays.
+ * Where the dock shows in a window of `width` by `height`: what the user chose, held
+ * within the window, its own values for those they did not choose.
  */
-function useDockPlace(panel) {
-    const wide = useMediaQuery(BREAKPOINTS.sm);
-    const [right, setRight] = useState(readDockRight);
-    const clamp = useCallback((value) => {
-        const width = panel.current?.offsetWidth ?? 0;
-        return Math.max(DOCK_MARGIN, Math.min(value, window.innerWidth - width - DOCK_MARGIN));
-    }, [panel]);
-    const place = useCallback((value) => {
-        const next = value === null ? null : clamp(value);
-        const kept = next !== null && next > DOCK_MARGIN ? next : null;
-        setRight(kept);
-        storeDockRight(kept);
-    }, [clamp]);
-    // A window made narrower keeps the dock in it.
-    useEffect(() => {
-        const keep = () => setRight((current) => (current === null ? null : clamp(current)));
-        keep();
-        window.addEventListener("resize", keep);
-        return () => window.removeEventListener("resize", keep);
-    }, [clamp]);
+function shownGeometry(geometry, width, height) {
+    const own = ownSize(height);
+    const shownWidth = Math.min(Math.max(DOCK_MIN_WIDTH, width - 2 * DOCK_MARGIN), Math.max(DOCK_MIN_WIDTH, geometry.width ?? own.width));
+    const shownHeight = Math.min(Math.max(DOCK_MIN_HEIGHT, height - DOCK_TOP - DOCK_MARGIN), Math.max(DOCK_MIN_HEIGHT, geometry.height ?? own.height));
+    return {
+        right: Math.max(DOCK_MARGIN, Math.min(geometry.right ?? DOCK_MARGIN, width - shownWidth - DOCK_MARGIN)),
+        bottom: Math.max(DOCK_MARGIN, Math.min(geometry.bottom ?? DOCK_MARGIN, height - shownHeight - DOCK_TOP)),
+        width: shownWidth,
+        height: shownHeight,
+    };
+}
 
-    const onPointerDown = (event) => {
-        if (event.button !== 0) return;
-        event.preventDefault();
-        const handle = event.currentTarget;
-        const startX = event.clientX;
-        const start = right ?? DOCK_MARGIN;
-        const at = (clientX) => start - (clientX - startX);
-        handle.setPointerCapture?.(event.pointerId);
-        const move = (next) => setRight(clamp(at(next.clientX)));
-        const end = (last) => {
-            handle.removeEventListener("pointermove", move);
-            handle.removeEventListener("pointerup", end);
-            handle.removeEventListener("pointercancel", end);
-            place(at(last.clientX));
-        };
-        handle.addEventListener("pointermove", move);
-        handle.addEventListener("pointerup", end);
-        handle.addEventListener("pointercancel", end);
+/** What the user chose from where the dock is put: its own values null again. */
+function chosenGeometry(shown) {
+    const own = ownSize(window.innerHeight);
+    return {
+        right: shown.right > DOCK_MARGIN ? shown.right : null,
+        bottom: shown.bottom > DOCK_MARGIN ? shown.bottom : null,
+        width: Math.abs(shown.width - own.width) < 1 ? null : shown.width,
+        height: Math.abs(shown.height - own.height) < 1 ? null : shown.height,
+    };
+}
+
+/** A distance moved close to an edge of the window, against it. */
+function snap(value, far) {
+    if (value - DOCK_MARGIN < DOCK_SNAP) return DOCK_MARGIN;
+    if (far - value < DOCK_SNAP) return far;
+    return value;
+}
+
+/**
+ * The open dock moved anywhere in the window and sized, not to hide what the page
+ * shows there: moved by its title bar or its handle, dragged, against an edge of the
+ * window once close to it, never over the top bar; sized by each of its edges and
+ * corners, the opposite ones staying; with the keyboard on its handle, the arrows
+ * moving it, with Shift sizing it by its left and top edges, Home putting it back. Its title bar double clicked puts
+ * it back too. Remembered by the browser; held within the window. On a narrow window
+ * the dock takes its width: it stays.
+ */
+function useDockGeometry() {
+    const wide = useMediaQuery(BREAKPOINTS.sm);
+    const [chosen, setChosen] = useState(readDockGeometry);
+    // Where it is while dragged, put once the pointer is released.
+    const [dragged, setDragged] = useState(null);
+    const drag = useRef(null);
+    const [innerWidth, innerHeight] = useSyncExternalStore(subscribeWindow, windowSize, () => "0x0").split("x").map(Number);
+    const shown = dragged ?? shownGeometry(chosen, innerWidth, innerHeight);
+
+    const place = useCallback((next) => {
+        setChosen(next);
+        storeDockGeometry(next);
+    }, []);
+    // An older version's place, read: kept under the key of this one.
+    useEffect(() => {
+        try {
+            if (localStorage.getItem(DOCK_RIGHT_KEY) !== null) storeDockGeometry(chosen);
+        } catch {
+            // Read again next time.
+        }
+        // On opening only.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    /** What a drag of `kind` from `start` gives, the pointer moved by dx, dy. */
+    const follow = (kind, start, dx, dy) => {
+        if (kind === "move") {
+            const farRight = innerWidth - start.width - DOCK_MARGIN;
+            const farBottom = innerHeight - start.height - DOCK_TOP;
+            return {
+                ...start,
+                right: Math.max(DOCK_MARGIN, Math.min(snap(start.right - dx, farRight), farRight)),
+                bottom: Math.max(DOCK_MARGIN, Math.min(snap(start.bottom - dy, farBottom), farBottom)),
+            };
+        }
+        // Sized by an edge, the opposite one stays: no larger than the window leaves
+        // on the side of the edge, no smaller than its smallest size.
+        const next = {...start};
+        if (kind.includes("left")) next.width = Math.min(innerWidth - start.right - DOCK_MARGIN, Math.max(DOCK_MIN_WIDTH, start.width - dx));
+        if (kind.includes("right")) {
+            next.right = Math.max(DOCK_MARGIN, Math.min(start.right - dx, start.right + start.width - DOCK_MIN_WIDTH));
+            next.width = start.width + start.right - next.right;
+        }
+        if (kind.includes("top")) next.height = Math.min(innerHeight - start.bottom - DOCK_TOP, Math.max(DOCK_MIN_HEIGHT, start.height - dy));
+        if (kind.includes("bottom")) {
+            next.bottom = Math.max(DOCK_MARGIN, Math.min(start.bottom - dy, start.bottom + start.height - DOCK_MIN_HEIGHT));
+            next.height = start.height + start.bottom - next.bottom;
+        }
+        return next;
+    };
+
+    /** The handlers of an element dragged as `kind`: the title bar moving, an edge sizing. */
+    const dragHandlers = (kind) => ({
+        onPointerDown: (event) => {
+            if (event.button !== 0 || drag.current !== null) return;
+            const target = event.target instanceof Element ? event.target : null;
+            if (kind === "move" && target?.closest("button:not([data-dock-handle])")) return;
+            // No text selected in the page under the pointer while dragging; the
+            // handle pressed takes the focus all the same, for its arrows.
+            event.preventDefault();
+            target?.closest("[data-dock-handle]")?.focus({preventScroll: true});
+            event.currentTarget.setPointerCapture?.(event.pointerId);
+            drag.current = {kind, pointerId: event.pointerId, x: event.clientX, y: event.clientY, start: shown, moved: false};
+        },
+        onPointerMove: (event) => {
+            const current = drag.current;
+            if (current === null || event.pointerId !== current.pointerId) return;
+            const dx = event.clientX - current.x;
+            const dy = event.clientY - current.y;
+            if (!current.moved && Math.abs(dx) < DOCK_DRAG_THRESHOLD && Math.abs(dy) < DOCK_DRAG_THRESHOLD) return;
+            current.moved = true;
+            setDragged(follow(current.kind, current.start, dx, dy));
+        },
+        onPointerUp: (event) => end(event),
+        onPointerCancel: (event) => end(event),
+        onLostPointerCapture: (event) => end(event),
+    });
+    /** The drag ends: put where it was dragged, a plain click changing nothing. */
+    const end = (event) => {
+        const current = drag.current;
+        if (current === null || event.pointerId !== current.pointerId) return;
+        drag.current = null;
+        if (event.type !== "lostpointercapture") event.currentTarget.releasePointerCapture?.(event.pointerId);
+        if (!current.moved) return;
+        const dx = event.clientX - current.x;
+        const dy = event.clientY - current.y;
+        setDragged(null);
+        // A capture lost carries no position: where it was last dragged.
+        place(chosenGeometry(event.type === "lostpointercapture" ? dragged ?? current.start : follow(current.kind, current.start, dx, dy)));
+    };
+
+    const reset = () => place(NO_GEOMETRY);
+    const onDoubleClick = (event) => {
+        if (event.target instanceof Element && event.target.closest("button:not([data-dock-handle])")) return;
+        reset();
     };
     const onKeyDown = (event) => {
-        const from = right ?? DOCK_MARGIN;
-        if (event.key === "ArrowLeft") place(from + DOCK_STEP);
-        else if (event.key === "ArrowRight") place(from - DOCK_STEP);
-        else if (event.key === "Home") place(null);
-        else return;
+        if (event.key === "Home") {
+            reset();
+            event.preventDefault();
+            return;
+        }
+        const step = {ArrowLeft: [DOCK_STEP, 0], ArrowRight: [-DOCK_STEP, 0], ArrowUp: [0, DOCK_STEP], ArrowDown: [0, -DOCK_STEP]}[event.key];
+        if (!step) return;
+        const [x, y] = step;
+        place(chosenGeometry(event.shiftKey ? follow(["left", "top"], shown, -x, -y) : follow("move", shown, -x, -y)));
         event.preventDefault();
     };
-    return {movable: wide, style: wide && right !== null ? {right} : undefined, onPointerDown, onKeyDown};
+
+    let style;
+    if (wide && dragged !== null) style = {right: shown.right, bottom: shown.bottom, width: shown.width, height: shown.height};
+    else if (wide) {
+        // Its own values left to its classes: the height follows the window.
+        style = Object.fromEntries(["right", "bottom", "width", "height"].filter((key) => chosen[key] !== null).map((key) => [key, shown[key]]));
+        if (Object.keys(style).length === 0) style = undefined;
+    }
+    return {
+        movable: wide, dragging: dragged !== null, style,
+        bar: {...dragHandlers("move"), onDoubleClick},
+        edge: dragHandlers, onKeyDown,
+    };
 }
+
+/** The edges and corners that size the dock, the sides each moves, and where they lie. */
+const DOCK_EDGES = [
+    {edge: "left", sides: ["left"], className: "top-3.5 bottom-3.5 left-0 w-2 cursor-ew-resize"},
+    {edge: "right", sides: ["right"], className: "top-3.5 bottom-3.5 right-0 w-2 cursor-ew-resize"},
+    {edge: "top", sides: ["top"], className: "top-0 right-3.5 left-3.5 h-1.5 cursor-ns-resize"},
+    {edge: "bottom", sides: ["bottom"], className: "bottom-0 right-3.5 left-3.5 h-1.5 cursor-ns-resize"},
+    {edge: "top-left", sides: ["left", "top"], className: "top-0 left-0 h-3.5 w-3.5 cursor-nwse-resize"},
+    {edge: "top-right", sides: ["right", "top"], className: "top-0 right-0 h-3.5 w-3.5 cursor-nesw-resize"},
+    {edge: "bottom-left", sides: ["left", "bottom"], className: "bottom-0 left-0 h-2 w-2 cursor-nesw-resize"},
+    {edge: "bottom-right", sides: ["right", "bottom"], className: "bottom-0 right-0 h-2 w-2 cursor-nwse-resize"},
+];
 
 const ICON_BUTTON =
     "flex h-7 w-7 shrink-0 items-center justify-center rounded-(--radius-control) text-ink-muted hover:bg-surface-sunken hover:text-ink disabled:opacity-60";
@@ -166,9 +336,15 @@ export function ActivityNotice({onOpen}) {
     const {t} = useTranslation();
     const notice = useAiActivity()?.notice ?? null;
     const wide = useMediaQuery(BREAKPOINTS.sm);
-    // Where the dock was moved, kept within a window narrower since.
-    const right = readDockRight();
-    const kept = wide && right !== null ? Math.min(right, window.innerWidth - NOTICE_WIDTH - DOCK_MARGIN) : null;
+    // Where the dock opens, its bottom right, held within the window; narrow, at its own place.
+    const geometry = readDockGeometry();
+    const opens = shownGeometry(geometry, window.innerWidth, window.innerHeight);
+    const right = wide && geometry.right !== null ? Math.min(opens.right, window.innerWidth - NOTICE_WIDTH - DOCK_MARGIN) : null;
+    const bottom = wide && geometry.bottom !== null ? Math.min(opens.bottom, window.innerHeight - NOTICE_HEIGHT - DOCK_TOP) : null;
+    const placed = {
+        ...(right !== null && right > DOCK_MARGIN ? {right} : {}),
+        ...(bottom !== null && bottom > DOCK_MARGIN ? {bottom} : {}),
+    };
     // The notice the user closed: the next one shows.
     const [closed, setClosed] = useState(null);
     if (closed !== null && notice !== closed) setClosed(null);
@@ -189,7 +365,7 @@ export function ActivityNotice({onOpen}) {
                         event.stopPropagation();
                         close();
                     }}
-                    style={kept !== null && kept > DOCK_MARGIN ? {right: kept} : undefined}
+                    style={Object.keys(placed).length > 0 ? placed : undefined}
                     className={cn(
                         "fixed right-4 bottom-4 z-(--z-dock) flex w-[24rem] max-w-[calc(100vw-2rem)] items-start gap-2 rounded-(--radius-panel) border bg-surface-raised p-3 shadow-xl max-sm:right-2",
                         shown === "waiting" ? "border-state-warn" : shown === "failed" ? "border-state-down" : "border-line"
@@ -286,11 +462,12 @@ function DockPanel({dock, status, onFold}) {
     const {chat, attach} = shared;
     const navigate = useNavigate();
     const titleId = useId();
+    const moveHelpId = useId();
     const heading = useRef(null);
     const log = useRef(null);
     const composer = useRef(null);
     const panel = useRef(null);
-    const placement = useDockPlace(panel);
+    const placement = useDockGeometry();
     // The dialog of the composer replacing the message queued tells the error.
     const [replacing, setReplacing] = useState(false);
     const busy = Boolean(chat.pending);
@@ -365,23 +542,43 @@ function DockPanel({dock, status, onFold}) {
     return (
         <aside
             ref={panel}
+            data-ai-dock=""
             aria-labelledby={titleId}
             onKeyDown={onKeyDown}
             style={placement.style}
-            className="fixed right-4 bottom-4 z-(--z-dock) flex h-[min(36rem,calc(100dvh-6rem))] w-[26rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-(--radius-panel) border border-line bg-surface-raised shadow-xl max-sm:right-2 max-sm:left-2 max-sm:w-auto max-sm:max-w-none"
+            className={cn(
+                "fixed right-4 bottom-4 z-(--z-dock) flex h-[min(36rem,calc(100dvh-6rem))] w-[26rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-(--radius-panel) border border-line bg-surface-raised shadow-xl max-sm:right-2 max-sm:left-2 max-sm:w-auto max-sm:max-w-none",
+                placement.dragging && "select-none"
+            )}
         >
-            <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
+            {/* Each edge and each corner size it, the opposite ones staying. */}
+            {placement.movable && DOCK_EDGES.map(({edge, sides, className}) => (
+                <div key={edge} aria-hidden="true" data-dock-edge={edge} {...placement.edge(sides)}
+                     className={cn("absolute z-10 touch-none", className)}/>
+            ))}
+            <div
+                {...(placement.movable ? placement.bar : {})}
+                className={cn(
+                    "flex items-center gap-1 border-b border-line px-2 py-1.5",
+                    placement.movable && "cursor-grab touch-none pl-3.5",
+                    placement.dragging && "cursor-grabbing"
+                )}
+            >
                 {placement.movable && (
-                    <button
-                        type="button"
-                        aria-label={t("ai.dock.move")}
-                        title={t("ai.dock.move")}
-                        onPointerDown={placement.onPointerDown}
-                        onKeyDown={placement.onKeyDown}
-                        className={cn(ICON_BUTTON, "-ml-1 w-5 cursor-grab touch-none active:cursor-grabbing")}
-                    >
-                        <GripIcon width={14} height={14}/>
-                    </button>
+                    <>
+                        <button
+                            type="button"
+                            data-dock-handle=""
+                            aria-label={t("ai.dock.move")}
+                            aria-describedby={moveHelpId}
+                            title={t("ai.dock.moveHelp")}
+                            onKeyDown={placement.onKeyDown}
+                            className={cn(ICON_BUTTON, "w-5 cursor-grab active:cursor-grabbing")}
+                        >
+                            <GripIcon width={14} height={14}/>
+                        </button>
+                        <span id={moveHelpId} hidden>{t("ai.dock.moveHelp")}</span>
+                    </>
                 )}
                 <SparklesIcon width={16} height={16} className="shrink-0 text-accent"/>
                 <h2 id={titleId} ref={heading} tabIndex={-1} className="min-w-0 flex-1 truncate font-semibold outline-none">

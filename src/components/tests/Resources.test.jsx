@@ -1,6 +1,7 @@
 import React from 'react';
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {MemoryRouter, useLocation} from 'react-router-dom';
+import {listFilters} from '../../app/list-filters';
 import {vi} from 'vitest';
 import Resources, {resourceColumns, resourceLayout} from '../Resources';
 import {toLine} from '../../app/resource-lines';
@@ -361,6 +362,22 @@ describe('Resources', () => {
         pick('Node', 'n1');
         await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent(/^\?status=up,warn$/));
         expect(rows()).toHaveLength(3);
+    });
+
+    test('tells the assistant the filters it applies, the problems only and the words searched too', async () => {
+        const view = render(<MemoryRouter initialEntries={['/resources?status=up,warn&node=n1&problems=1']}><Resources/><Search/></MemoryRouter>);
+        await waitFor(() => expect(listFilters()).toEqual({
+            list: 'resources',
+            applied: {
+                chosen: {status: ['up', 'warn'], node: ['n1'], group: [], reason: []}, flags: ['problems'], contains: {text: ''},
+                offered: {node: expect.arrayContaining(['n1']), group: expect.any(Array)},
+            },
+        }));
+        // The words searched, trimmed as the list trims them.
+        fireEvent.change(screen.getByRole('searchbox', {name: 'Filter the resources'}), {target: {value: '  dns '}});
+        await waitFor(() => expect(listFilters()?.applied.contains).toEqual({text: 'dns'}));
+        view.unmount();
+        expect(listFilters()).toBeNull();
     });
 
     describe('scaled down to its room', () => {

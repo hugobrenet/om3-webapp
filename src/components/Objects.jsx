@@ -38,6 +38,7 @@ import {CLEAR_ACTION, noteFixAction, postAction} from "./objectActions";
 import {INSTANCE_ACTIONS, OBJECT_ACTIONS, actionLabel} from "../constants/actions";
 import {rangeSelect, withShift} from "../app/range-select";
 import {useShareCheckedRows} from "../app/checked-rows";
+import {useShareListFilters} from "../app/list-filters";
 
 // The breakpoints of the MUI theme the view used: below md (900px) the filters fold
 // behind a button, from lg (1200px) the node columns are shown.
@@ -685,6 +686,23 @@ const Objects = () => {
         () => [...new Set(allObjectNames.map(extractNamespace))].sort(),
         [allObjectNames]
     );
+    // The filters the list applies, as it applies them, for a question to the assistant:
+    // the State filter and the instances up on the lists that have them, the kind on All,
+    // and the namespaces there are, a link naming no other.
+    const appliedFilters = useMemo(() => ({
+        tab: list,
+        chosen: {
+            ...(hasState ? deferredSelectedStates : {}),
+            namespace: deferredSelectedNamespaces,
+            ...(hasKindFilter ? {kind: deferredSelectedKinds} : {}),
+        },
+        reversed: deferredReversedStates,
+        counts: hasState ? {up: deferredUpInstances} : {},
+        contains: {name: deferredSearchQuery},
+        offered: {namespace: allNamespaces},
+    }), [list, hasState, hasKindFilter, deferredSelectedStates, deferredReversedStates, deferredUpInstances,
+        deferredSelectedNamespaces, deferredSelectedKinds, deferredSearchQuery, allNamespaces]);
+    useShareListFilters("objects", appliedFilters);
 
     // The nodes of the cluster, in the order of its configuration as om mon shows
     // them: a node gone keeps its column. Then the nodes reporting an instance that

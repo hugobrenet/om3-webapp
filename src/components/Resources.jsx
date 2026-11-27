@@ -25,6 +25,7 @@ import {actionIcon, useActionRunner} from "./InstanceActions";
 import {CrossLink} from "../app/CrossLink";
 import {resourceId} from "../app/peek";
 import {facetCounts, matches, toggled} from "../app/facets";
+import {useShareListFilters} from "../app/list-filters";
 import {useMediaQuery} from "../ui/lib/media";
 import {FilterRail, FilterToolbar} from "./FilterRail";
 import {InstanceLink, ResourceSessionLinks} from "./RecordLinks";
@@ -102,6 +103,10 @@ const SORTS = {
     flags: (a, b) => a.flags.join().localeCompare(b.flags.join()) || SORTS.object(a, b),
     label: (a, b) => byText("label")(a, b) || SORTS.object(a, b),
 };
+
+/** The filters of closed choices of the list, and the value of a line for each. */
+export const RESOURCE_FILTERS = ["status", "node", "group", "reason"];
+const RESOURCE_VALUES = {status: (l) => l.status, node: (l) => l.node, group: (l) => l.group, reason: downReason};
 
 const Resources = () => {
     const {t} = useTranslation();
@@ -202,18 +207,26 @@ const Resources = () => {
     const groups = useMemo(() => [...new Set(lines.map((l) => l.group))].filter(Boolean).sort(), [lines]);
     // The reasons some line is down for, and those kept: one of none, from the address, still to untick.
     const reasons = useMemo(() => DOWN_REASONS.filter((r) => reason.includes(r) || lines.some((l) => downReason(l) === r)), [lines, reason]);
+    // The values chosen of each filter, which the list keeps and tells the assistant.
+    const chosen = useMemo(() => ({status, node, group, reason}), [status, node, group, reason]);
     const shown = useMemo(() => {
         const sort = SORTS[sortColumn] ?? SORTS.object;
         const keeps = (selected, value) => selected.length === 0 || selected.includes(value);
         return lines
-            .filter((l) => keeps(status, l.status)
+            .filter((l) => RESOURCE_FILTERS.every((key) => keeps(chosen[key], RESOURCE_VALUES[key](l)))
                 && (!problemsOnly || isProblem(l))
-                && keeps(node, l.node)
-                && keeps(group, l.group)
-                && keeps(reason, downReason(l))
                 && matches(filter, l.object, l.rid, l.type, l.label, l.node))
             .sort((a, b) => (sortDirection === "asc" ? sort(a, b) : -sort(a, b)));
-    }, [lines, status, node, group, reason, problemsOnly, filter, sortColumn, sortDirection]);
+    }, [lines, chosen, problemsOnly, filter, sortColumn, sortDirection]);
+    // The filters the list applies, as it applies them, for a question to the assistant.
+    // The nodes and the driver groups there are, a link naming no other.
+    const appliedFilters = useMemo(() => ({
+        chosen,
+        flags: problemsOnly ? ["problems"] : [],
+        contains: {text: filter.trim()},
+        offered: {node: nodes, group: groups},
+    }), [chosen, problemsOnly, filter, nodes, groups]);
+    useShareListFilters("resources", appliedFilters);
     // Each value of the filters counted under the others, in the rail or the popovers.
     const counts = useMemo(() => facetCounts(lines, {
         match: (l) => (!problemsOnly || isProblem(l)) && matches(filter, l.object, l.rid, l.type, l.label, l.node),

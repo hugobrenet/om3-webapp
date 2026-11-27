@@ -36,11 +36,12 @@ import {
  */
 /**
  * What answers a click and therefore must not close the panel: controls and fields,
- * anything carrying a role or a keyboard shortcut, and tables, whose rows open their
- * own panel.
+ * anything carrying a role or a keyboard shortcut, tables, whose rows open their own
+ * panel, and the dock of the assistant floating over the page (`data-ai-dock`), moved
+ * or read beside the record it is asked about.
  */
 const INTERACTIVE =
-  'a, button, input, select, textarea, label, summary, details, table, [role="dialog"], [role="button"], [role="menu"], [role="menuitem"], [role="tab"], [role="listbox"], [role="option"], [role="combobox"], [tabindex]';
+  'a, button, input, select, textarea, label, summary, details, table, [role="dialog"], [role="button"], [role="menu"], [role="menuitem"], [role="tab"], [role="listbox"], [role="option"], [role="combobox"], [tabindex], [data-ai-dock]';
 
 /** Pixels an arrow key moves the left edge by. */
 const KEY_STEP = 32;

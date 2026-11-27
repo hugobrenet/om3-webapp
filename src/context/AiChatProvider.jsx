@@ -3,6 +3,7 @@ import {useLocation} from 'react-router-dom';
 import {useTranslation} from 'react-i18next';
 import {interfaceContext} from '../app/interface-context';
 import {checkedRows} from '../app/checked-rows';
+import {listFilters} from '../app/list-filters';
 import {useAuth} from './AuthProvider.jsx';
 import useClusterConfig from '../hooks/useClusterConfig.js';
 import useAiAgent from '../hooks/useAiAgent.js';
@@ -44,6 +45,9 @@ export function AiChatProvider({children}) {
     // showed the chat: one seen waiting is not told again.
     const [waitedUnseen, setWaitedUnseen] = useState(false);
     const [draft, setDraft] = useState('');
+    // The skill the message typed asks, chosen with / in the message box: it
+    // goes with the draft from the dock to the page.
+    const [draftSkill, setDraftSkill] = useState(null);
     const [prompt, setPrompt] = useState(null);
     const [promptDropped, setPromptDropped] = useState(false);
     const [dock, setDock] = useState('folded');
@@ -61,13 +65,14 @@ export function AiChatProvider({children}) {
         setEndedFailed(false);
         setWaitedUnseen(false);
         setDraft('');
+        setDraftSkill(null);
         setPrompt(null);
         setPromptDropped(false);
         setDock('folded');
     }
     const ready = agent.ready && enabled;
     // What the page under the dock shows, read when a prompt is sent or queued,
-    // with the rows ticked there and the clock of the user: the clock only on
+    // with the filters of its list, the rows ticked there and the clock of the user: the clock only on
     // the page of the assistant, nothing being under the conversation there.
     const location = useLocation();
     const page = useRef(location);
@@ -76,6 +81,7 @@ export function AiChatProvider({children}) {
         () => interfaceContext(page.current.pathname, new URLSearchParams(page.current.search), {
             now: new Date(),
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            filters: listFilters(),
             checked: checkedRows(),
         }),
         []
@@ -132,7 +138,9 @@ export function AiChatProvider({children}) {
         if (previous === key) return;
         shownConversation.current = key;
         if (chat.pending === 'turn' && previous === JSON.stringify([scope, ready, null])) return;
+        const skill = chat.queued?.skill ?? null;
         setDraft(chat.takeQueued() ?? '');
+        setDraftSkill(skill);
         // The conversation shown only: the queue is read when it changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [scope, ready, chat.conversation?.id, chat.pending, chat.historyReady]);
@@ -234,6 +242,8 @@ export function AiChatProvider({children}) {
                 attach,
                 draft,
                 setDraft,
+                draftSkill,
+                setDraftSkill,
                 prompt,
                 ask,
                 takePrompt,

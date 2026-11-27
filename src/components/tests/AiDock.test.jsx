@@ -1,11 +1,12 @@
-import React, {useEffect, useState} from 'react';
-import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import React, {useEffect, useMemo, useState} from 'react';
+import {act, fireEvent, render, renderHook, screen, waitFor, within} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useLocation, useNavigate} from 'react-router-dom';
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import AiChat from '../AiChat.jsx';
 import AiDock, {AiDockButton} from '../AiDock.jsx';
 import AskAssistantLink from '../AskAssistantLink.jsx';
 import {AiChatProvider} from '../../context/AiChatProvider.jsx';
+import {useShareListFilters} from '../../app/list-filters';
 import useAddressPrompt from '../../hooks/useAddressPrompt.js';
 import {replayRun} from '../../services/tests/agui-fixtures.js';
 import {AiAgentError} from '../../services/ai-agent.js';
@@ -32,6 +33,16 @@ const text = (delta, messageId = 'turn-9:2') => [
 ];
 const completed = () => ({type: 'RUN_FINISHED', outcome: 'success', turnId: 'turn-9', tokens: null});
 const existing = {id: 'existing', title: 'Previous diagnostic'};
+
+// jsdom has no PointerEvent: a mouse event with the id of its pointer, for the dock dragged.
+if (typeof window.PointerEvent === 'undefined') {
+    window.PointerEvent = class PointerEvent extends MouseEvent {
+        constructor(type, init = {}) {
+            super(type, init);
+            this.pointerId = init.pointerId ?? 0;
+        }
+    };
+}
 
 const dock = () => screen.getByRole('complementary');
 const dockBox = () => within(dock()).getByRole('textbox', {name: 'Message'});
@@ -265,6 +276,25 @@ describe('the dock of the assistant', () => {
         expect(screen.getByRole('button', {name: 'Open the assistant'})).toBeInTheDocument();
     });
 
+    test('Escape closes the list of the skills, the dock staying open; the tag chosen goes with the draft to the page', async () => {
+        mocks.client.getCapabilities = vi.fn().mockResolvedValue({feedback: false, models: false, skills: true});
+        mocks.client.listSkills = vi.fn().mockResolvedValue([{name: 'morning-check', description: 'Check the cluster in the morning.'}]);
+        renderApp({withLink: false});
+        fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
+        await waitFor(() => expect(dockBox()).toBeEnabled());
+        await waitFor(() => expect(mocks.client.listSkills).toHaveBeenCalled());
+        fireEvent.change(dockBox(), {target: {value: '/mor'}});
+        expect(within(dock()).getByRole('listbox')).toBeInTheDocument();
+        fireEvent.keyDown(dockBox(), {key: 'Escape'});
+        expect(within(dock()).queryByRole('listbox')).toBeNull();
+        expect(dock()).toBeInTheDocument();
+        fireEvent.change(dockBox(), {target: {value: '/morning-check '}});
+        expect(within(dock()).getByRole('button', {name: 'Remove the procedure “morning-check”'})).toBeInTheDocument();
+        // To the page of the assistant: the tag goes with the draft.
+        fireEvent.click(within(dock()).getByRole('button', {name: 'Open in the assistant page'}));
+        expect(await screen.findByRole('button', {name: 'Remove the procedure “morning-check”'})).toBeInTheDocument();
+    });
+
     test('opens and folds from its button of the top bar, which it leaves without the focus', async () => {
         renderApp({withLink: false});
         const button = await screen.findByRole('button', {name: 'Open the assistant'});
@@ -284,32 +314,227 @@ describe('the dock of the assistant', () => {
         expect(button).not.toHaveFocus();
     });
 
-    test('moves along the bottom, by its handle, not to hide the page, and remembers where', async () => {
+    const wideWindow = () => {
         const matchMedia = window.matchMedia;
         window.matchMedia = (query) => ({matches: query.includes('40rem'), addEventListener() {}, removeEventListener() {}});
-        localStorage.removeItem('om3.ai.dock.right');
-        try {
-            renderApp({withLink: false});
-            fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
-            const handle = within(dock()).getByRole('button', {name: /^Move the assistant/});
-            fireEvent.keyDown(handle, {key: 'ArrowLeft'});
-            fireEvent.keyDown(handle, {key: 'ArrowLeft'});
-            expect(dock().style.right).toBe('80px');
-            expect(localStorage.getItem('om3.ai.dock.right')).toBe('80');
-            fireEvent.keyDown(handle, {key: 'ArrowRight'});
-            expect(dock().style.right).toBe('48px');
-            // Folded and opened again, where the user left it.
-            fireEvent.click(screen.getByRole('button', {name: 'Open the assistant'}));
-            await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
-            fireEvent.click(screen.getByRole('button', {name: 'Open the assistant'}));
-            await waitFor(() => expect(dock().style.right).toBe('48px'));
-            // Home takes it back to the right.
-            fireEvent.keyDown(within(dock()).getByRole('button', {name: /^Move the assistant/}), {key: 'Home'});
-            expect(dock().style.right).toBe('');
-            expect(localStorage.getItem('om3.ai.dock.right')).toBeNull();
-        } finally {
+        return () => {
             window.matchMedia = matchMedia;
+        };
+    };
+    const geometry = () => JSON.parse(localStorage.getItem('om3.ai.dock.geometry') ?? 'null');
+    /** Its own height in the window of jsdom, as its classes say it. */
+    const ownHeight = () => Math.min(576, window.innerHeight - 96);
+    /** Drags `element` from x, y by dx, dy, as a pointer pressed, moved and released. */
+    const dragBy = (element, [x, y], [dx, dy], {pointerId = 1, end = 'pointerUp'} = {}) => {
+        fireEvent.pointerDown(element, {button: 0, clientX: x, clientY: y, pointerId});
+        fireEvent.pointerMove(element, {clientX: x + dx, clientY: y + dy, pointerId});
+        fireEvent[end](element, {clientX: x + dx, clientY: y + dy, pointerId});
+    };
+    const handle = () => within(dock()).getByRole('button', {name: 'Move or size the assistant'});
+    const bar = () => within(dock()).getByRole('heading').parentElement;
+    const openWide = async () => {
+        renderApp({withLink: false});
+        fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
+        return dock();
+    };
+    /** A test on a wide window, the place of the dock forgotten before and after. */
+    const onWideWindow = (name, body) => test(name, async () => {
+        const restore = wideWindow();
+        localStorage.removeItem('om3.ai.dock.geometry');
+        localStorage.removeItem('om3.ai.dock.right');
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        try {
+            await body();
+        } finally {
+            restore();
+            window.innerWidth = width;
+            window.innerHeight = height;
+            localStorage.removeItem('om3.ai.dock.geometry');
             localStorage.removeItem('om3.ai.dock.right');
+        }
+    });
+
+    onWideWindow('moves anywhere and is sized with the keyboard on its handle, and remembers where', async () => {
+        await openWide();
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        fireEvent.keyDown(handle(), {key: 'ArrowUp'});
+        expect(dock().style.right).toBe('80px');
+        expect(dock().style.bottom).toBe('48px');
+        expect(geometry()).toEqual({right: 80, bottom: 48, width: null, height: null});
+        fireEvent.keyDown(handle(), {key: 'ArrowRight'});
+        fireEvent.keyDown(handle(), {key: 'ArrowDown'});
+        expect(dock().style.right).toBe('48px');
+        expect(dock().style.bottom).toBe('');
+        // With Shift, the arrows size it, from its own size, the bottom right staying.
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft', shiftKey: true});
+        fireEvent.keyDown(handle(), {key: 'ArrowDown', shiftKey: true});
+        expect(dock().style.width).toBe('448px');
+        expect(dock().style.height).toBe(`${ownHeight() - 32}px`);
+        expect(dock().style.right).toBe('48px');
+        // Folded and opened again, where the user left it.
+        fireEvent.click(screen.getByRole('button', {name: 'Open the assistant'}));
+        await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+        fireEvent.click(screen.getByRole('button', {name: 'Open the assistant'}));
+        await waitFor(() => expect(dock().style.right).toBe('48px'));
+        expect(dock().style.width).toBe('448px');
+        // Home puts it back, at its own place and size.
+        fireEvent.keyDown(handle(), {key: 'Home'});
+        expect(dock().style.right).toBe('');
+        expect(dock().style.width).toBe('');
+        expect(localStorage.getItem('om3.ai.dock.geometry')).toBeNull();
+    });
+
+    onWideWindow('gives its handle the focus when pressed, for its arrows', async () => {
+        await openWide();
+        fireEvent.pointerDown(handle(), {button: 0, clientX: 20, clientY: 300, pointerId: 1});
+        fireEvent.pointerUp(handle(), {clientX: 20, clientY: 300, pointerId: 1});
+        expect(handle()).toHaveFocus();
+        fireEvent.keyDown(document.activeElement, {key: 'ArrowLeft'});
+        expect(dock().style.right).toBe('48px');
+    });
+
+    onWideWindow('moves by its title bar anywhere, against an edge once close to it, never over the top bar, and is put back by a double click', async () => {
+        await openWide();
+        fireEvent.pointerDown(bar(), {button: 0, clientX: 500, clientY: 500, pointerId: 1});
+        fireEvent.pointerMove(bar(), {clientX: 300, clientY: 450, pointerId: 1});
+        // While dragged it follows, and nothing is kept until released.
+        expect(dock().style.right).toBe('216px');
+        expect(dock().style.bottom).toBe('66px');
+        expect(localStorage.getItem('om3.ai.dock.geometry')).toBeNull();
+        fireEvent.pointerUp(bar(), {clientX: 300, clientY: 450, pointerId: 1});
+        expect(geometry()).toEqual({right: 216, bottom: 66, width: null, height: null});
+        // Close to the right edge, it goes against it; past the top bar, it stays under it.
+        dragBy(bar(), [300, 450], [190, -950]);
+        const top = window.innerHeight - ownHeight() - 80;
+        expect(geometry()).toMatchObject({right: null, bottom: top});
+        fireEvent.doubleClick(bar());
+        expect(localStorage.getItem('om3.ai.dock.geometry')).toBeNull();
+        expect(dock().style.right).toBe('');
+        expect(dock().style.bottom).toBe('');
+    });
+
+    onWideWindow('is not moved by a button of its bar, a plain click, another button or another pointer', async () => {
+        await openWide();
+        dragBy(within(dock()).getByRole('button', {name: 'Fold'}), [300, 400], [-200, -50]);
+        expect(dock().style.right).toBe('');
+        // A plain click, or a move of less than its threshold, changes nothing, keeps nothing.
+        dragBy(bar(), [300, 400], [-3, 2]);
+        expect(dock().style.right).toBe('');
+        expect(localStorage.getItem('om3.ai.dock.geometry')).toBeNull();
+        // The right button does not drag it.
+        fireEvent.pointerDown(bar(), {button: 2, clientX: 300, clientY: 400, pointerId: 1});
+        fireEvent.pointerMove(bar(), {clientX: 100, clientY: 400, pointerId: 1});
+        expect(dock().style.right).toBe('');
+        fireEvent.pointerUp(bar(), {clientX: 100, clientY: 400, pointerId: 1});
+        // Another pointer moving meanwhile does not move it.
+        fireEvent.pointerDown(bar(), {button: 0, clientX: 300, clientY: 400, pointerId: 1});
+        fireEvent.pointerMove(bar(), {clientX: 100, clientY: 400, pointerId: 7});
+        expect(dock().style.right).toBe('');
+        fireEvent.pointerMove(bar(), {clientX: 200, clientY: 400, pointerId: 1});
+        expect(dock().style.right).toBe('116px');
+        // A drag cancelled keeps it where it was dragged.
+        fireEvent.pointerCancel(bar(), {clientX: 200, clientY: 400, pointerId: 1});
+        expect(geometry()).toMatchObject({right: 116});
+    });
+
+    onWideWindow('is not snapped nor written by a plain click, close to an edge', async () => {
+        localStorage.setItem('om3.ai.dock.geometry', JSON.stringify({right: 30, bottom: 30, width: null, height: null}));
+        await openWide();
+        dragBy(bar(), [300, 400], [2, -3]);
+        expect(dock().style.right).toBe('30px');
+        expect(geometry()).toEqual({right: 30, bottom: 30, width: null, height: null});
+    });
+
+    onWideWindow('is sized by each edge and corner, the opposite ones staying, within its bounds', async () => {
+        await openWide();
+        const edge = (name) => dock().querySelector(`[data-dock-edge="${name}"]`);
+        expect([...dock().querySelectorAll('[data-dock-edge]')].map((element) => element.dataset.dockEdge)).toEqual([
+            'left', 'right', 'top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right',
+        ]);
+        dragBy(edge('top-left'), [600, 300], [-100, -50]);
+        expect(geometry()).toEqual({right: null, bottom: null, width: 516, height: Math.min(ownHeight() + 50, window.innerHeight - 96)});
+        // Never smaller than its smallest size.
+        dragBy(edge('left'), [500, 300], [1000, 0]);
+        expect(geometry().width).toBe(320);
+        // Never larger than the window leaves on the side of its edge: the bottom right stays.
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        dragBy(edge('left'), [500, 300], [-2000, 0]);
+        expect(geometry()).toMatchObject({right: 80, width: window.innerWidth - 80 - 16});
+        dragBy(edge('top'), [500, 300], [0, -2000]);
+        expect(geometry().height).toBe(window.innerHeight - 96);
+        fireEvent.keyDown(handle(), {key: 'Home'});
+        // Its right edge, its left one staying: wider to the right, down to the margin.
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        dragBy(edge('right'), [900, 300], [40, 0]);
+        expect(geometry()).toMatchObject({right: 72, width: 416 + 40});
+        dragBy(edge('right'), [900, 300], [500, 0]);
+        expect(geometry()).toMatchObject({right: null, width: 416 + 96});
+        dragBy(edge('right'), [900, 300], [-1000, 0]);
+        expect(geometry().width).toBe(320);
+        // Its bottom edge, its top one staying: taller to the bottom, down to the margin.
+        fireEvent.keyDown(handle(), {key: 'Home'});
+        fireEvent.keyDown(handle(), {key: 'ArrowUp'});
+        fireEvent.keyDown(handle(), {key: 'ArrowUp'});
+        dragBy(edge('bottom'), [500, 700], [0, 30]);
+        expect(geometry()).toMatchObject({bottom: 50, height: ownHeight() + 30});
+        // Its bottom right corner, both: against the right margin already, taller only.
+        dragBy(edge('bottom-right'), [900, 700], [20, 20]);
+        expect(geometry()).toEqual({right: null, bottom: 30, width: null, height: ownHeight() + 50});
+        // Its top right corner, away from the right margin: wider and taller.
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        dragBy(edge('top-right'), [900, 300], [24, -10]);
+        expect(geometry()).toMatchObject({right: 56, width: 416 + 24, height: ownHeight() + 60});
+    });
+
+    onWideWindow('keeps what the user chose through a smaller window, and gives it back after', async () => {
+        window.innerWidth = 1600;
+        window.innerHeight = 1200;
+        localStorage.setItem('om3.ai.dock.geometry', JSON.stringify({right: 600, bottom: 300, width: 700, height: 700}));
+        await openWide();
+        expect(dock().style.width).toBe('700px');
+        act(() => {
+            window.innerWidth = 1000;
+            window.innerHeight = 500;
+            window.dispatchEvent(new Event('resize'));
+        });
+        // Held within the smaller window...
+        expect(dock().style.right).toBe('284px');
+        expect(dock().style.height).toBe(`${500 - 96}px`);
+        act(() => {
+            window.innerWidth = 1600;
+            window.innerHeight = 1200;
+            window.dispatchEvent(new Event('resize'));
+        });
+        // ...and given back as chosen, nothing written meanwhile.
+        expect(dock().style.right).toBe('600px');
+        expect(dock().style.bottom).toBe('300px');
+        expect(dock().style.height).toBe('700px');
+        expect(geometry()).toEqual({right: 600, bottom: 300, width: 700, height: 700});
+    });
+
+    onWideWindow('reads where an older version moved it, along the bottom, and keeps it under its own key', async () => {
+        localStorage.setItem('om3.ai.dock.right', '120');
+        await openWide();
+        await waitFor(() => expect(dock().style.right).toBe('120px'));
+        expect(localStorage.getItem('om3.ai.dock.right')).toBeNull();
+        expect(geometry()).toMatchObject({right: 120});
+    });
+
+    onWideWindow('takes a place the browser kept broken as none', async () => {
+        for (const kept of ['not json', '"x"', '[1,2]', '42', '{"right":"a","bottom":"b","width":-5,"height":1e999}', '{"enlarged":true}']) {
+            localStorage.setItem('om3.ai.dock.geometry', kept);
+            const view = renderApp({withLink: false});
+            fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
+            expect(dock().style.right).toBe('');
+            expect(dock().style.bottom).toBe('');
+            expect(dock().style.width).toBe('');
+            view.unmount();
         }
     });
 
@@ -317,7 +542,7 @@ describe('the dock of the assistant', () => {
         renderApp({withLink: false});
         fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
         await waitFor(() => expect(dockBox()).toBeEnabled());
-        expect(within(dock()).queryByRole('button', {name: /^Move the assistant/})).toBeNull();
+        expect(within(dock()).queryByRole('button', {name: 'Move or size the assistant'})).toBeNull();
     });
 
     test('opens with the key a out of a field, as the other shortcuts, and folds with it', async () => {
@@ -372,6 +597,24 @@ describe('the dock of the assistant', () => {
             expect(dock()).toBeInTheDocument();
         } finally {
             field.remove();
+        }
+    });
+
+    test('sends with a prompt the filters of the list on display, as its page tells them', async () => {
+        const list = renderHook(() => useShareListFilters('nodes', useMemo(() => ({chosen: {frozen: ['frozen']}}), [])));
+        try {
+            renderApp({withLink: false});
+            fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
+            await waitFor(() => expect(dockBox()).toBeEnabled());
+            fireEvent.change(dockBox(), {target: {value: 'which are frozen?'}});
+            fireEvent.click(within(dock()).getByRole('button', {name: 'Send'}));
+            await waitFor(() => expect(mocks.client.run).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.objectContaining({context: expect.arrayContaining([{description: 'list filters', value: 'nodes; frozen is frozen'}])}),
+                expect.any(Object)
+            ));
+        } finally {
+            list.unmount();
         }
     });
 
@@ -496,6 +739,21 @@ describe('the dock of the assistant', () => {
             expect(told()).toBe('');
             const button = screen.getByRole('button', {name: 'Open the assistant · The assistant has finished'});
             expect(button).toHaveFocus();
+        });
+
+        test('shows where the dock was moved to open', async () => {
+            const restore = wideWindow();
+            localStorage.setItem('om3.ai.dock.geometry', JSON.stringify({right: 200, width: null, height: null}));
+            try {
+                const run = hangingRun();
+                await sendThenLeave();
+                await act(async () => run.finish());
+                const notice = (await screen.findByRole('button', {name: 'See the answer'})).closest('div[style]');
+                expect(notice.style.right).toBe('200px');
+            } finally {
+                restore();
+                localStorage.removeItem('om3.ai.dock.geometry');
+            }
         });
 
         test('is closed by Escape', async () => {

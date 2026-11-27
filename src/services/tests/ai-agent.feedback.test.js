@@ -38,17 +38,18 @@ describe('parseFeedback', () => {
 
 describe('parseCapabilities', () => {
     it.each([
-        [{custom: {feedback: true}}, true, false],
-        [{custom: {feedback: false}}, false, false],
-        // An agent older than the settings: the feedback is on, no model to choose.
-        [{tools: {supported: true}}, true, false],
-        [{custom: {}}, true, false],
-        [{custom: {feedback: true, models: true}}, true, true],
-        [{custom: {models: false}}, true, false],
-    ])('reads %j', (value, feedback, models) => {
-        expect(parseCapabilities(value)).toEqual({feedback, models});
+        [{custom: {feedback: true}}, true, false, false],
+        [{custom: {feedback: false}}, false, false, false],
+        // An agent older than the settings: the feedback is on, no model to choose, no skill to ask.
+        [{tools: {supported: true}}, true, false, false],
+        [{custom: {}}, true, false, false],
+        [{custom: {feedback: true, models: true}}, true, true, false],
+        [{custom: {models: false}}, true, false, false],
+        [{custom: {skills: true}}, true, false, true],
+    ])('reads %j', (value, feedback, models, skills) => {
+        expect(parseCapabilities(value)).toEqual({feedback, models, skills});
     });
-    it.each([null, [], 'x', {custom: []}, {custom: 'x'}, {custom: {feedback: 'false'}}, {custom: {feedback: 0}}, {custom: {models: 'true'}}, {custom: {models: 1}}])('refuses %j', (value) => {
+    it.each([null, [], 'x', {custom: []}, {custom: 'x'}, {custom: {feedback: 'false'}}, {custom: {feedback: 0}}, {custom: {models: 'true'}}, {custom: {models: 1}}, {custom: {skills: 'true'}}])('refuses %j', (value) => {
         expect(() => parseCapabilities(value)).toThrow(AiAgentError);
     });
 });
@@ -90,7 +91,7 @@ describe('AI agent feedback client', () => {
     });
     it('reads the capabilities of the agent', async () => {
         fetchMock.mockResolvedValueOnce(Response.json({transport: {streaming: true}, custom: {feedback: false}}));
-        await expect(client.getCapabilities()).resolves.toEqual({feedback: false, models: false});
+        await expect(client.getCapabilities()).resolves.toEqual({feedback: false, models: false, skills: false});
         const [url, options] = fetchMock.mock.calls[0];
         expect(url).toBe(`${baseUrl}/v1/om3/capabilities`);
         expect(options).toMatchObject({method: 'GET', credentials: 'omit', headers: {Authorization: 'Bearer token', 'X-OpenSVC-Cluster-ID': 'cluster-id'}});

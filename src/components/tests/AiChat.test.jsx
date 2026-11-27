@@ -120,8 +120,8 @@ describe('AI chatbot page', () => {
                 prompt: 'Keyboard diagnostic', promptId: 'prompt-1', held: [],
                 // On the page of the assistant, the clock of the user only.
                 context: [
-                    {description: 'time zone', value: expect.any(String)},
                     {description: 'local time', value: expect.stringMatching(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d\d:\d\d$/)},
+                    {description: 'time zone', value: expect.any(String)},
                 ],
             },
             expect.any(Object)
