@@ -27,6 +27,9 @@ function Harness({
         Open node
       </button>
       <p>Page background</p>
+      <aside data-ai-dock="">
+        <div>Dock title bar</div>
+      </aside>
       <SlideOver
         open={open}
         title="node-1"
@@ -192,6 +195,8 @@ describe("SlideOver", () => {
     await user.click(screen.getByRole("button", { name: "Open node" }));
     fireEvent.pointerDown(screen.getByRole("heading", { name: "node-1" }));
     fireEvent.pointerDown(screen.getByRole("button", { name: "Open node" }));
+    // The dock of the assistant, moved or read beside the record, keeps it open.
+    fireEvent.pointerDown(screen.getByText("Dock title bar"));
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.pointerDown(screen.getByText("Page background"));
     expect(onClose).toHaveBeenCalledTimes(1);
