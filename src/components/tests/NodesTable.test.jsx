@@ -1,5 +1,6 @@
 import React from 'react';
 import {render, screen, waitFor, fireEvent, act, within} from '@testing-library/react';
+import {listFilters} from '../../app/list-filters';
 import {BrowserRouter} from 'react-router-dom';
 import {vi} from 'vitest';
 import NodesTable from '../NodesTable.jsx';
@@ -242,6 +243,27 @@ describe('NodesTable', () => {
             expect(mockRetainEventReception.mock.calls[0][1]).toContain('NodeMonitorDeleted');
         } finally {
             mockClusterOrder.value = null;
+        }
+    });
+
+    test('tells the assistant the filters it applies, and the name searched', async () => {
+        window.history.pushState({}, '', '/nodes?frozen=frozen&label=zone=a');
+        try {
+            const view = renderWithRouter(<NodesTable/>);
+            await waitFor(() => expect(listFilters()).toEqual({
+                list: 'nodes',
+                applied: {
+                    chosen: {state: [], frozen: ['frozen'], env: [], version: [], label: ['zone=a']}, contains: {name: ''},
+                    offered: expect.objectContaining({frozen: expect.any(Array), state: expect.any(Array)}),
+                },
+            }));
+            // The name searched, trimmed as the list trims it.
+            fireEvent.change(screen.getByRole('searchbox', {name: 'Name'}), {target: {value: ' node-1  '}});
+            await waitFor(() => expect(listFilters()?.applied.contains).toEqual({name: 'node-1'}));
+            view.unmount();
+            expect(listFilters()).toBeNull();
+        } finally {
+            window.history.pushState({}, '', '/');
         }
     });
 

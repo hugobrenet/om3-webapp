@@ -3,6 +3,7 @@ import {useLocation} from 'react-router-dom';
 import {useTranslation} from 'react-i18next';
 import {interfaceContext} from '../app/interface-context';
 import {checkedRows} from '../app/checked-rows';
+import {listFilters} from '../app/list-filters';
 import {useAuth} from './AuthProvider.jsx';
 import useClusterConfig from '../hooks/useClusterConfig.js';
 import useAiAgent from '../hooks/useAiAgent.js';
@@ -67,7 +68,7 @@ export function AiChatProvider({children}) {
     }
     const ready = agent.ready && enabled;
     // What the page under the dock shows, read when a prompt is sent or queued,
-    // with the rows ticked there and the clock of the user: the clock only on
+    // with the filters of its list, the rows ticked there and the clock of the user: the clock only on
     // the page of the assistant, nothing being under the conversation there.
     const location = useLocation();
     const page = useRef(location);
@@ -76,6 +77,7 @@ export function AiChatProvider({children}) {
         () => interfaceContext(page.current.pathname, new URLSearchParams(page.current.search), {
             now: new Date(),
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            filters: listFilters(),
             checked: checkedRows(),
         }),
         []

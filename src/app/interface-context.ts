@@ -1,4 +1,5 @@
 import type { CheckedRows } from "./checked-rows";
+import { listFiltersEntry, type SharedListFilters } from "./list-filters";
 import { parseStep } from "./peek";
 
 /**
@@ -12,8 +13,10 @@ import { parseStep } from "./peek";
  * with no space, and the others are left out.
  *
  * With them, what the user did or set in their session, never the content of a
- * record: the rows they ticked in the list on display (`checked-rows.ts`), which a
- * link cannot tick, and their time zone and clock, for "an hour ago" or "at 2 pm".
+ * record: the filters of the list on display, as the page applies them
+ * (`list-filters.ts`), what "these services" or "those down" are; the rows they ticked
+ * there (`checked-rows.ts`), which a link cannot tick; and their time zone and clock,
+ * for "an hour ago" or "at 2 pm".
  *
  * On the page of the assistant nothing is under the conversation: the session only.
  */
@@ -25,7 +28,8 @@ export interface InterfaceEntry {
 /** The bounds of the agent: past them, it refuses the run (`invalid_context`). */
 export const MAX_CONTEXT_ENTRIES = 8;
 const MAX_DESCRIPTION_BYTES = 128;
-const MAX_VALUE_BYTES = 1024;
+/** The largest value of an entry kept, under the 2 KiB of the agent (`list-filters.ts` holds to it). */
+export const MAX_VALUE_BYTES = 1024;
 const MAX_CONTEXT_BYTES = 4096;
 
 /** What the row open in the panel of a view is, by the path of the view. */
@@ -61,6 +65,8 @@ export interface InterfaceSession {
   now?: Date;
   /** Their time zone, as the browser tells it. */
   timeZone?: string;
+  /** The filters of the list on display, as its page applies them. */
+  filters?: SharedListFilters | null;
   /** The rows ticked in the list on display. */
   checked?: CheckedRows | null;
 }
@@ -91,8 +97,9 @@ function checkedEntries(checked: CheckedRows): InterfaceEntry[] {
 
 function sessionEntries({ now, timeZone }: InterfaceSession): InterfaceEntry[] {
   const entries: InterfaceEntry[] = [];
-  if (timeZone !== undefined && TIME_ZONE.test(timeZone)) entries.push({ description: "time zone", value: timeZone });
+  // The clock first, its offset with it: past the bounds, the time zone goes first.
   if (now !== undefined && !Number.isNaN(now.getTime())) entries.push({ description: "local time", value: localTime(now) });
+  if (timeZone !== undefined && TIME_ZONE.test(timeZone)) entries.push({ description: "time zone", value: timeZone });
   return entries;
 }
 
@@ -161,6 +168,7 @@ export function interfaceContext(pathname: string, search: URLSearchParams, sess
   }
   const view = read("view");
   if (open && name(view)) entries.push({ description: "open view", value: view! });
+  entries.push(...listFiltersEntry(session.filters));
   if (session.checked && session.checked.ids.length > 0) entries.push(...checkedEntries(session.checked));
   entries.push(...sessionEntries(session));
   return boundContext(entries);

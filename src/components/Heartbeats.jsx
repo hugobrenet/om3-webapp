@@ -35,6 +35,7 @@ import {MoreRows, useRowsOnDemand} from "../ui/components/RowsOnDemand";
 import {CloseIcon} from "../ui/icons";
 import {useMediaQuery} from "../ui/lib/media";
 import {facetCounts, toggled} from "../app/facets";
+import {useShareListFilters} from "../app/list-filters";
 import {FilterRail, FilterToolbar} from "./FilterRail";
 
 /**
@@ -42,7 +43,7 @@ import {FilterRail, FilterToolbar} from "./FilterRail";
  * each kept at once, comma-separated, none keeping every stream. A heartbeat by its
  * name alone, "1" of "hb#1" or of its stream "hb#1.rx", as the overview links it.
  */
-const FILTER_KEYS = ["state", "status", "node", "id", "type"];
+export const FILTER_KEYS = ["state", "status", "node", "id", "type"];
 const heartbeatOf = (id) => id.replace(/^hb#/, "").replace(/\.(rx|tx)$/, "");
 const filtersOf = (search) => {
     const params = new URLSearchParams(search);
@@ -393,6 +394,14 @@ const Heartbeats = () => {
     const filteredRows = useMemo(() => sortedRows.filter((row) => FILTER_KEYS.every((key) => (
         deferredFilters[key].length === 0 || STREAM_VALUES[key](row).some((value) => deferredFilters[key].includes(value))
     ))), [sortedRows, deferredFilters]);
+
+    // The filters the streams apply, on their view only, for a question to the assistant,
+    // with the values the streams have, a link naming no other.
+    const appliedFilters = useMemo(() => (view === "data" ? {
+        chosen: deferredFilters,
+        offered: Object.fromEntries(FILTER_KEYS.map((key) => [key, [...new Set(streamRows.flatMap(STREAM_VALUES[key]))]])),
+    } : null), [view, deferredFilters, streamRows]);
+    useShareListFilters("heartbeats", appliedFilters);
 
     // The drivers of the streams, for their filter.
     const availableTypes = useMemo(() => [...new Set(streamRows.map((row) => row.type))]

@@ -1,6 +1,7 @@
 import React from "react";
 import {render, screen, waitFor, within, fireEvent, act, cleanup} from "@testing-library/react";
 import {MemoryRouter} from "react-router-dom";
+import {listFilters} from "../../app/list-filters";
 import userEvent from "@testing-library/user-event";
 import Heartbeats from "../Heartbeats";
 import {clearGrants} from "../../hooks/useGrants";
@@ -262,6 +263,26 @@ describe("Heartbeats Component", () => {
         ]}]));
         renderWithRouter(<Heartbeats/>, {route: "/heartbeats?type=disk"});
         expect(getDataRows().map(streamOf)).toEqual(["2.rx"]);
+    });
+
+    test("tells the assistant the filters of its streams, on their tab only", async () => {
+        mockHeartbeatStore(buildStatus([{node: "n1", streams: [
+            {id: "hb#1.rx", state: "running", type: "unicast", peers: {n2: {is_beating: true, desc: "d"}}},
+        ]}]));
+        const view = renderWithRouter(<Heartbeats/>, {route: "/heartbeats?type=disk&status=stale"});
+        await waitFor(() => expect(listFilters()).toEqual({
+            list: "heartbeats",
+            applied: {
+                chosen: {state: [], status: ["stale"], node: [], id: [], type: ["disk"]},
+                offered: expect.objectContaining({type: ["unicast"], node: ["n1"]}),
+            },
+        }));
+        // Another tab shown, the filters filter nothing there: none told.
+        showTab("Overview");
+        await waitFor(() => expect(listFilters()).toBeNull());
+        view.unmount();
+        renderWithRouter(<Heartbeats/>, {route: "/heartbeats?type=disk", overview: true});
+        expect(listFilters()).toBeNull();
     });
 
     test("renders table structure and basic heartbeat rows", async () => {

@@ -1,11 +1,12 @@
-import React, {useEffect, useState} from 'react';
-import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import React, {useEffect, useMemo, useState} from 'react';
+import {act, fireEvent, render, renderHook, screen, waitFor, within} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useLocation, useNavigate} from 'react-router-dom';
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import AiChat from '../AiChat.jsx';
 import AiDock, {AiDockButton} from '../AiDock.jsx';
 import AskAssistantLink from '../AskAssistantLink.jsx';
 import {AiChatProvider} from '../../context/AiChatProvider.jsx';
+import {useShareListFilters} from '../../app/list-filters';
 import useAddressPrompt from '../../hooks/useAddressPrompt.js';
 import {replayRun} from '../../services/tests/agui-fixtures.js';
 import {AiAgentError} from '../../services/ai-agent.js';
@@ -372,6 +373,24 @@ describe('the dock of the assistant', () => {
             expect(dock()).toBeInTheDocument();
         } finally {
             field.remove();
+        }
+    });
+
+    test('sends with a prompt the filters of the list on display, as its page tells them', async () => {
+        const list = renderHook(() => useShareListFilters('nodes', useMemo(() => ({chosen: {frozen: ['frozen']}}), [])));
+        try {
+            renderApp({withLink: false});
+            fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
+            await waitFor(() => expect(dockBox()).toBeEnabled());
+            fireEvent.change(dockBox(), {target: {value: 'which are frozen?'}});
+            fireEvent.click(within(dock()).getByRole('button', {name: 'Send'}));
+            await waitFor(() => expect(mocks.client.run).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.objectContaining({context: expect.arrayContaining([{description: 'list filters', value: 'nodes; frozen is frozen'}])}),
+                expect.any(Object)
+            ));
+        } finally {
+            list.unmount();
         }
     });
 
