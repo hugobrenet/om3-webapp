@@ -4404,7 +4404,7 @@
       "expand": "Ouvrir dans la page de l'assistant",
       "fold": "Réduire",
       "move": "Déplacer ou redimensionner l'assistant",
-      "moveHelp": "Glissez sa barre de titre pour le déplacer le long du bas, son bord gauche ou haut pour le redimensionner. Sur cette poignée, les flèches gauche et droite le déplacent, Maj et les flèches le redimensionnent, Début le remet en place.",
+      "moveHelp": "Glissez sa barre de titre pour le déplacer, un bord ou un coin pour le redimensionner. Sur cette poignée, les flèches le déplacent, Maj et les flèches le redimensionnent, Début le remet en place.",
       "empty": "Posez une question sur le cluster, ou sur ce que montre la page : la fiche ouverte, les lignes cochées.",
       "waitingLabel": "Action en attente de décision",
       "waiting": "L'assistant attend votre décision sur l'action « {{action}} ».",

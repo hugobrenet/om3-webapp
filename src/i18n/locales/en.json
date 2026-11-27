@@ -4404,7 +4404,7 @@
       "expand": "Open in the assistant page",
       "fold": "Fold",
       "move": "Move or size the assistant",
-      "moveHelp": "Drag its title bar to move it along the bottom, its left or top edge to size it. On this handle, Left and Right move it, Shift and the arrows size it, Home puts it back.",
+      "moveHelp": "Drag its title bar to move it, an edge or a corner to size it. On this handle, the arrows move it, Shift and the arrows size it, Home puts it back.",
       "empty": "Ask a question about the cluster, or about what the page shows: the record open on it, the rows ticked.",
       "waitingLabel": "Action waiting for a decision",
       "waiting": "The assistant waits for your decision on the action “{{action}}”.",

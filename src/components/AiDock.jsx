@@ -15,9 +15,9 @@ import {cn} from "../ui/cn";
 import {untrustedT} from "../utils/untrustedText";
 
 /**
- * Where the user moved the open dock along the bottom of the window and the size they
- * gave it: its distance to the right of the window, its width and its height, in
- * pixels, null where it keeps its own. What the user chose, kept as it is: a smaller
+ * Where the user moved the open dock in the window and the size they gave it: its
+ * distances to the right and to the bottom of the window, its width and its height,
+ * in pixels, null where it keeps its own. What the user chose, kept as it is: a smaller
  * window holds the dock within it for as long, and gives it back after.
  */
 const DOCK_GEOMETRY_KEY = "om3.ai.dock.geometry";
@@ -37,12 +37,13 @@ const DOCK_MIN_HEIGHT = 320;
 const DOCK_SNAP = 24;
 /** Less than this, a pointer pressed and released is a click: nothing moves. */
 const DOCK_DRAG_THRESHOLD = 4;
-/** The width of the notice of the folded dock, as `w-[24rem]`. */
+/** The width of the notice of the folded dock, as `w-[24rem]`, and about its height. */
 const NOTICE_WIDTH = 384;
+const NOTICE_HEIGHT = 96;
 /** A step of the arrows of the keyboard moving the dock, or sizing it. */
 const DOCK_STEP = 32;
 
-const NO_GEOMETRY = {right: null, width: null, height: null};
+const NO_GEOMETRY = {right: null, bottom: null, width: null, height: null};
 
 const length = (value) => (typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null);
 
@@ -51,7 +52,7 @@ function readDockGeometry() {
     try {
         const kept = JSON.parse(localStorage.getItem(DOCK_GEOMETRY_KEY) ?? "null");
         if (kept && typeof kept === "object" && !Array.isArray(kept)) {
-            return {right: length(kept.right), width: length(kept.width), height: length(kept.height)};
+            return {right: length(kept.right), bottom: length(kept.bottom), width: length(kept.width), height: length(kept.height)};
         }
         const right = Number(localStorage.getItem(DOCK_RIGHT_KEY));
         return {...NO_GEOMETRY, right: Number.isFinite(right) && right > DOCK_MARGIN ? right : null};
@@ -99,6 +100,7 @@ function shownGeometry(geometry, width, height) {
     const shownHeight = Math.min(Math.max(DOCK_MIN_HEIGHT, height - DOCK_TOP - DOCK_MARGIN), Math.max(DOCK_MIN_HEIGHT, geometry.height ?? own.height));
     return {
         right: Math.max(DOCK_MARGIN, Math.min(geometry.right ?? DOCK_MARGIN, width - shownWidth - DOCK_MARGIN)),
+        bottom: Math.max(DOCK_MARGIN, Math.min(geometry.bottom ?? DOCK_MARGIN, height - shownHeight - DOCK_TOP)),
         width: shownWidth,
         height: shownHeight,
     };
@@ -109,6 +111,7 @@ function chosenGeometry(shown) {
     const own = ownSize(window.innerHeight);
     return {
         right: shown.right > DOCK_MARGIN ? shown.right : null,
+        bottom: shown.bottom > DOCK_MARGIN ? shown.bottom : null,
         width: Math.abs(shown.width - own.width) < 1 ? null : shown.width,
         height: Math.abs(shown.height - own.height) < 1 ? null : shown.height,
     };
@@ -122,11 +125,11 @@ function snap(value, far) {
 }
 
 /**
- * The open dock moved along the bottom of the window and sized, not to hide what the
- * page shows there: moved by its title bar or its handle, dragged, against an edge of
- * the window once close to it; sized by its left and top edges and their corner, its
- * bottom right staying; with the keyboard on its handle, Left and Right moving it, with
- * Shift the arrows sizing it, Home putting it back. Its title bar double clicked puts
+ * The open dock moved anywhere in the window and sized, not to hide what the page
+ * shows there: moved by its title bar or its handle, dragged, against an edge of the
+ * window once close to it, never over the top bar; sized by each of its edges and
+ * corners, the opposite ones staying; with the keyboard on its handle, the arrows
+ * moving it, with Shift sizing it by its left and top edges, Home putting it back. Its title bar double clicked puts
  * it back too. Remembered by the browser; held within the window. On a narrow window
  * the dock takes its width: it stays.
  */
@@ -157,13 +160,28 @@ function useDockGeometry() {
     /** What a drag of `kind` from `start` gives, the pointer moved by dx, dy. */
     const follow = (kind, start, dx, dy) => {
         if (kind === "move") {
-            const far = innerWidth - start.width - DOCK_MARGIN;
-            return {...start, right: Math.max(DOCK_MARGIN, Math.min(snap(start.right - dx, far), far))};
+            const farRight = innerWidth - start.width - DOCK_MARGIN;
+            const farBottom = innerHeight - start.height - DOCK_TOP;
+            return {
+                ...start,
+                right: Math.max(DOCK_MARGIN, Math.min(snap(start.right - dx, farRight), farRight)),
+                bottom: Math.max(DOCK_MARGIN, Math.min(snap(start.bottom - dy, farBottom), farBottom)),
+            };
         }
-        // Sized, the bottom right stays: no larger than the window leaves on its side.
-        const width = kind.includes("left") ? Math.min(innerWidth - start.right - DOCK_MARGIN, Math.max(DOCK_MIN_WIDTH, start.width - dx)) : start.width;
-        const height = kind.includes("top") ? Math.min(innerHeight - DOCK_MARGIN - DOCK_TOP, Math.max(DOCK_MIN_HEIGHT, start.height - dy)) : start.height;
-        return {...start, width, height};
+        // Sized by an edge, the opposite one stays: no larger than the window leaves
+        // on the side of the edge, no smaller than its smallest size.
+        const next = {...start};
+        if (kind.includes("left")) next.width = Math.min(innerWidth - start.right - DOCK_MARGIN, Math.max(DOCK_MIN_WIDTH, start.width - dx));
+        if (kind.includes("right")) {
+            next.right = Math.max(DOCK_MARGIN, Math.min(start.right - dx, start.right + start.width - DOCK_MIN_WIDTH));
+            next.width = start.width + start.right - next.right;
+        }
+        if (kind.includes("top")) next.height = Math.min(innerHeight - start.bottom - DOCK_TOP, Math.max(DOCK_MIN_HEIGHT, start.height - dy));
+        if (kind.includes("bottom")) {
+            next.bottom = Math.max(DOCK_MARGIN, Math.min(start.bottom - dy, start.bottom + start.height - DOCK_MIN_HEIGHT));
+            next.height = start.height + start.bottom - next.bottom;
+        }
+        return next;
     };
 
     /** The handlers of an element dragged as `kind`: the title bar moving, an edge sizing. */
@@ -218,18 +236,17 @@ function useDockGeometry() {
             return;
         }
         const step = {ArrowLeft: [DOCK_STEP, 0], ArrowRight: [-DOCK_STEP, 0], ArrowUp: [0, DOCK_STEP], ArrowDown: [0, -DOCK_STEP]}[event.key];
-        // Up and Down size it only: it moves along the bottom.
-        if (!step || (!event.shiftKey && step[0] === 0)) return;
+        if (!step) return;
         const [x, y] = step;
-        place(chosenGeometry(event.shiftKey ? follow(["left", "top"], shown, -x, -y) : follow("move", shown, -x, 0)));
+        place(chosenGeometry(event.shiftKey ? follow(["left", "top"], shown, -x, -y) : follow("move", shown, -x, -y)));
         event.preventDefault();
     };
 
     let style;
-    if (wide && dragged !== null) style = {right: shown.right, width: shown.width, height: shown.height};
+    if (wide && dragged !== null) style = {right: shown.right, bottom: shown.bottom, width: shown.width, height: shown.height};
     else if (wide) {
         // Its own values left to its classes: the height follows the window.
-        style = Object.fromEntries(["right", "width", "height"].filter((key) => chosen[key] !== null).map((key) => [key, shown[key]]));
+        style = Object.fromEntries(["right", "bottom", "width", "height"].filter((key) => chosen[key] !== null).map((key) => [key, shown[key]]));
         if (Object.keys(style).length === 0) style = undefined;
     }
     return {
@@ -238,6 +255,18 @@ function useDockGeometry() {
         edge: dragHandlers, onKeyDown,
     };
 }
+
+/** The edges and corners that size the dock, the sides each moves, and where they lie. */
+const DOCK_EDGES = [
+    {edge: "left", sides: ["left"], className: "top-3.5 bottom-3.5 left-0 w-2 cursor-ew-resize"},
+    {edge: "right", sides: ["right"], className: "top-3.5 bottom-3.5 right-0 w-2 cursor-ew-resize"},
+    {edge: "top", sides: ["top"], className: "top-0 right-3.5 left-3.5 h-1.5 cursor-ns-resize"},
+    {edge: "bottom", sides: ["bottom"], className: "bottom-0 right-3.5 left-3.5 h-1.5 cursor-ns-resize"},
+    {edge: "top-left", sides: ["left", "top"], className: "top-0 left-0 h-3.5 w-3.5 cursor-nwse-resize"},
+    {edge: "top-right", sides: ["right", "top"], className: "top-0 right-0 h-3.5 w-3.5 cursor-nesw-resize"},
+    {edge: "bottom-left", sides: ["left", "bottom"], className: "bottom-0 left-0 h-2 w-2 cursor-nesw-resize"},
+    {edge: "bottom-right", sides: ["right", "bottom"], className: "bottom-0 right-0 h-2 w-2 cursor-nwse-resize"},
+];
 
 const ICON_BUTTON =
     "flex h-7 w-7 shrink-0 items-center justify-center rounded-(--radius-control) text-ink-muted hover:bg-surface-sunken hover:text-ink disabled:opacity-60";
@@ -307,11 +336,15 @@ export function ActivityNotice({onOpen}) {
     const {t} = useTranslation();
     const notice = useAiActivity()?.notice ?? null;
     const wide = useMediaQuery(BREAKPOINTS.sm);
-    // Where the dock opens, held within the window; narrow, at its own place.
+    // Where the dock opens, its bottom right, held within the window; narrow, at its own place.
     const geometry = readDockGeometry();
-    const right = wide && geometry.right !== null
-        ? Math.min(shownGeometry(geometry, window.innerWidth, window.innerHeight).right, window.innerWidth - NOTICE_WIDTH - DOCK_MARGIN)
-        : null;
+    const opens = shownGeometry(geometry, window.innerWidth, window.innerHeight);
+    const right = wide && geometry.right !== null ? Math.min(opens.right, window.innerWidth - NOTICE_WIDTH - DOCK_MARGIN) : null;
+    const bottom = wide && geometry.bottom !== null ? Math.min(opens.bottom, window.innerHeight - NOTICE_HEIGHT - DOCK_TOP) : null;
+    const placed = {
+        ...(right !== null && right > DOCK_MARGIN ? {right} : {}),
+        ...(bottom !== null && bottom > DOCK_MARGIN ? {bottom} : {}),
+    };
     // The notice the user closed: the next one shows.
     const [closed, setClosed] = useState(null);
     if (closed !== null && notice !== closed) setClosed(null);
@@ -332,7 +365,7 @@ export function ActivityNotice({onOpen}) {
                         event.stopPropagation();
                         close();
                     }}
-                    style={right !== null && right > DOCK_MARGIN ? {right} : undefined}
+                    style={Object.keys(placed).length > 0 ? placed : undefined}
                     className={cn(
                         "fixed right-4 bottom-4 z-(--z-dock) flex w-[24rem] max-w-[calc(100vw-2rem)] items-start gap-2 rounded-(--radius-panel) border bg-surface-raised p-3 shadow-xl max-sm:right-2",
                         shown === "waiting" ? "border-state-warn" : shown === "failed" ? "border-state-down" : "border-line"
@@ -518,17 +551,11 @@ function DockPanel({dock, status, onFold}) {
                 placement.dragging && "select-none"
             )}
         >
-            {/* Its left and top edges and their corner size it: the bottom right stays. */}
-            {placement.movable && (
-                <>
-                    <div aria-hidden="true" data-dock-edge="left" {...placement.edge(["left"])}
-                         className="absolute top-3.5 bottom-3.5 left-0 z-10 w-2 cursor-ew-resize touch-none"/>
-                    <div aria-hidden="true" data-dock-edge="top" {...placement.edge(["top"])}
-                         className="absolute top-0 right-3.5 left-3.5 z-10 h-1.5 cursor-ns-resize touch-none"/>
-                    <div aria-hidden="true" data-dock-edge="corner" {...placement.edge(["left", "top"])}
-                         className="absolute top-0 left-0 z-10 h-3.5 w-3.5 cursor-nwse-resize touch-none"/>
-                </>
-            )}
+            {/* Each edge and each corner size it, the opposite ones staying. */}
+            {placement.movable && DOCK_EDGES.map(({edge, sides, className}) => (
+                <div key={edge} aria-hidden="true" data-dock-edge={edge} {...placement.edge(sides)}
+                     className={cn("absolute z-10 touch-none", className)}/>
+            ))}
             <div
                 {...(placement.movable ? placement.bar : {})}
                 className={cn(

@@ -355,18 +355,18 @@ describe('the dock of the assistant', () => {
         }
     });
 
-    onWideWindow('moves along the bottom and is sized with the keyboard on its handle, and remembers where', async () => {
+    onWideWindow('moves anywhere and is sized with the keyboard on its handle, and remembers where', async () => {
         await openWide();
         fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
         fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
-        expect(dock().style.right).toBe('80px');
-        expect(geometry()).toEqual({right: 80, width: null, height: null});
-        // Up and Down do not move it: it stays along the bottom.
         fireEvent.keyDown(handle(), {key: 'ArrowUp'});
-        expect(dock().style.bottom).toBe('');
-        expect(geometry()).toEqual({right: 80, width: null, height: null});
+        expect(dock().style.right).toBe('80px');
+        expect(dock().style.bottom).toBe('48px');
+        expect(geometry()).toEqual({right: 80, bottom: 48, width: null, height: null});
         fireEvent.keyDown(handle(), {key: 'ArrowRight'});
+        fireEvent.keyDown(handle(), {key: 'ArrowDown'});
         expect(dock().style.right).toBe('48px');
+        expect(dock().style.bottom).toBe('');
         // With Shift, the arrows size it, from its own size, the bottom right staying.
         fireEvent.keyDown(handle(), {key: 'ArrowLeft', shiftKey: true});
         fireEvent.keyDown(handle(), {key: 'ArrowDown', shiftKey: true});
@@ -395,24 +395,24 @@ describe('the dock of the assistant', () => {
         expect(dock().style.right).toBe('48px');
     });
 
-    onWideWindow('moves by its title bar along the bottom, against an edge once close to it, and is put back by a double click', async () => {
+    onWideWindow('moves by its title bar anywhere, against an edge once close to it, never over the top bar, and is put back by a double click', async () => {
         await openWide();
         fireEvent.pointerDown(bar(), {button: 0, clientX: 500, clientY: 500, pointerId: 1});
-        fireEvent.pointerMove(bar(), {clientX: 300, clientY: 300, pointerId: 1});
-        // While dragged it follows, along the bottom, and nothing is kept until released.
+        fireEvent.pointerMove(bar(), {clientX: 300, clientY: 450, pointerId: 1});
+        // While dragged it follows, and nothing is kept until released.
         expect(dock().style.right).toBe('216px');
-        expect(dock().style.bottom).toBe('');
+        expect(dock().style.bottom).toBe('66px');
         expect(localStorage.getItem('om3.ai.dock.geometry')).toBeNull();
-        fireEvent.pointerUp(bar(), {clientX: 300, clientY: 300, pointerId: 1});
-        expect(geometry()).toEqual({right: 216, width: null, height: null});
-        // Close to the right edge, it goes against it.
-        dragBy(bar(), [300, 450], [190, 0]);
-        expect(localStorage.getItem('om3.ai.dock.geometry')).toBeNull();
-        dragBy(bar(), [300, 450], [-200, 0]);
-        expect(geometry()).toMatchObject({right: 216});
+        fireEvent.pointerUp(bar(), {clientX: 300, clientY: 450, pointerId: 1});
+        expect(geometry()).toEqual({right: 216, bottom: 66, width: null, height: null});
+        // Close to the right edge, it goes against it; past the top bar, it stays under it.
+        dragBy(bar(), [300, 450], [190, -950]);
+        const top = window.innerHeight - ownHeight() - 80;
+        expect(geometry()).toMatchObject({right: null, bottom: top});
         fireEvent.doubleClick(bar());
         expect(localStorage.getItem('om3.ai.dock.geometry')).toBeNull();
         expect(dock().style.right).toBe('');
+        expect(dock().style.bottom).toBe('');
     });
 
     onWideWindow('is not moved by a button of its bar, a plain click, another button or another pointer', async () => {
@@ -440,33 +440,62 @@ describe('the dock of the assistant', () => {
     });
 
     onWideWindow('is not snapped nor written by a plain click, close to an edge', async () => {
-        localStorage.setItem('om3.ai.dock.geometry', JSON.stringify({right: 30, width: null, height: null}));
+        localStorage.setItem('om3.ai.dock.geometry', JSON.stringify({right: 30, bottom: 30, width: null, height: null}));
         await openWide();
         dragBy(bar(), [300, 400], [2, -3]);
         expect(dock().style.right).toBe('30px');
-        expect(geometry()).toEqual({right: 30, width: null, height: null});
+        expect(geometry()).toEqual({right: 30, bottom: 30, width: null, height: null});
     });
 
-    onWideWindow('is sized by its left and top edges, the bottom right staying, within its bounds', async () => {
+    onWideWindow('is sized by each edge and corner, the opposite ones staying, within its bounds', async () => {
         await openWide();
-        dragBy(dock().querySelector('[data-dock-edge="corner"]'), [600, 300], [-100, -50]);
-        expect(geometry()).toEqual({right: null, width: 516, height: Math.min(ownHeight() + 50, window.innerHeight - 96)});
+        const edge = (name) => dock().querySelector(`[data-dock-edge="${name}"]`);
+        expect([...dock().querySelectorAll('[data-dock-edge]')].map((element) => element.dataset.dockEdge)).toEqual([
+            'left', 'right', 'top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right',
+        ]);
+        dragBy(edge('top-left'), [600, 300], [-100, -50]);
+        expect(geometry()).toEqual({right: null, bottom: null, width: 516, height: Math.min(ownHeight() + 50, window.innerHeight - 96)});
         // Never smaller than its smallest size.
-        dragBy(dock().querySelector('[data-dock-edge="left"]'), [500, 300], [1000, 0]);
+        dragBy(edge('left'), [500, 300], [1000, 0]);
         expect(geometry().width).toBe(320);
         // Never larger than the window leaves on the side of its edge: the bottom right stays.
         fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
         fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
-        dragBy(dock().querySelector('[data-dock-edge="left"]'), [500, 300], [-2000, 0]);
+        dragBy(edge('left'), [500, 300], [-2000, 0]);
         expect(geometry()).toMatchObject({right: 80, width: window.innerWidth - 80 - 16});
-        dragBy(dock().querySelector('[data-dock-edge="top"]'), [500, 300], [0, -2000]);
+        dragBy(edge('top'), [500, 300], [0, -2000]);
         expect(geometry().height).toBe(window.innerHeight - 96);
+        fireEvent.keyDown(handle(), {key: 'Home'});
+        // Its right edge, its left one staying: wider to the right, down to the margin.
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        dragBy(edge('right'), [900, 300], [40, 0]);
+        expect(geometry()).toMatchObject({right: 72, width: 416 + 40});
+        dragBy(edge('right'), [900, 300], [500, 0]);
+        expect(geometry()).toMatchObject({right: null, width: 416 + 96});
+        dragBy(edge('right'), [900, 300], [-1000, 0]);
+        expect(geometry().width).toBe(320);
+        // Its bottom edge, its top one staying: taller to the bottom, down to the margin.
+        fireEvent.keyDown(handle(), {key: 'Home'});
+        fireEvent.keyDown(handle(), {key: 'ArrowUp'});
+        fireEvent.keyDown(handle(), {key: 'ArrowUp'});
+        dragBy(edge('bottom'), [500, 700], [0, 30]);
+        expect(geometry()).toMatchObject({bottom: 50, height: ownHeight() + 30});
+        // Its bottom right corner, both: against the right margin already, taller only.
+        dragBy(edge('bottom-right'), [900, 700], [20, 20]);
+        expect(geometry()).toEqual({right: null, bottom: 30, width: null, height: ownHeight() + 50});
+        // Its top right corner, away from the right margin: wider and taller.
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        fireEvent.keyDown(handle(), {key: 'ArrowLeft'});
+        dragBy(edge('top-right'), [900, 300], [24, -10]);
+        expect(geometry()).toMatchObject({right: 56, width: 416 + 24, height: ownHeight() + 60});
     });
 
     onWideWindow('keeps what the user chose through a smaller window, and gives it back after', async () => {
         window.innerWidth = 1600;
         window.innerHeight = 1200;
-        localStorage.setItem('om3.ai.dock.geometry', JSON.stringify({right: 600, width: 700, height: 700}));
+        localStorage.setItem('om3.ai.dock.geometry', JSON.stringify({right: 600, bottom: 300, width: 700, height: 700}));
         await openWide();
         expect(dock().style.width).toBe('700px');
         act(() => {
@@ -484,8 +513,9 @@ describe('the dock of the assistant', () => {
         });
         // ...and given back as chosen, nothing written meanwhile.
         expect(dock().style.right).toBe('600px');
+        expect(dock().style.bottom).toBe('300px');
         expect(dock().style.height).toBe('700px');
-        expect(geometry()).toEqual({right: 600, width: 700, height: 700});
+        expect(geometry()).toEqual({right: 600, bottom: 300, width: 700, height: 700});
     });
 
     onWideWindow('reads where an older version moved it, along the bottom, and keeps it under its own key', async () => {
@@ -496,8 +526,8 @@ describe('the dock of the assistant', () => {
         expect(geometry()).toMatchObject({right: 120});
     });
 
-    onWideWindow('takes a place the browser kept broken as none, and no more its vertical place', async () => {
-        for (const kept of ['not json', '"x"', '[1,2]', '42', '{"right":"a","width":-5,"height":1e999}', '{"bottom":300,"enlarged":true}']) {
+    onWideWindow('takes a place the browser kept broken as none', async () => {
+        for (const kept of ['not json', '"x"', '[1,2]', '42', '{"right":"a","bottom":"b","width":-5,"height":1e999}', '{"enlarged":true}']) {
             localStorage.setItem('om3.ai.dock.geometry', kept);
             const view = renderApp({withLink: false});
             fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
