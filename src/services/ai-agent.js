@@ -36,11 +36,13 @@ const FEEDBACK_HTTP_MESSAGES = (status, code) =>
 const RUN_ERROR_MESSAGES = {
     request_timeout: 'The agent did not answer in time. It was not retried.',
     tool_name_conflict: 'A tool of the webapp is named as a tool of the agent. It was not retried.',
+    skill_unavailable: 'This procedure is not available to you now: choose another, or send your message without it.',
 };
 // The refusals of a run the webapp explains by their code: the answer to a
 // confirmation that no longer waits, or that expired.
 const RUN_HTTP_CODE_MESSAGES = {
     model_unknown: 'This model is no longer available: the default model is selected. Send your message again.',
+    invalid_skill: 'The agent refused the name of this procedure. Choose it again in the list.',
     confirmation_not_pending: 'This action no longer waits for a decision.',
     confirmation_expired: 'The confirmation request expired. The action was not run.',
     invalid_edited_arguments: 'The agent refused the edited arguments. Check the form; the action still waits.',
@@ -86,6 +88,7 @@ const checkAborted = (signal) => {
 // The agent serves each backend under its own routes; the webapp talks to om3.
 const CONVERSATIONS_PATH = '/v1/om3/conversations';
 const TOOLS_PATH = '/v1/om3/tools';
+const SKILLS_PATH = '/v1/om3/skills';
 const CAPABILITIES_PATH = '/v1/om3/capabilities';
 const MODELS_PATH = '/v1/om3/models';
 const conversationPath = (id) => {
@@ -216,21 +219,49 @@ const parseTools = (result) => {
     });
 };
 // What the webapp reads of the AG-UI AgentCapabilities of the agent: whether
-// its turns take a feedback, custom.feedback, and whether its runs choose
-// their model, custom.models. An agent older than the settings gives no
-// custom group: its feedback is on, and it offers no choice of model.
+// its turns take a feedback, custom.feedback, whether its runs choose their
+// model, custom.models, and whether a run may ask a skill, custom.skills. An
+// agent older than the settings gives no custom group: its feedback is on,
+// and it offers no choice of model nor any skill.
 export const parseCapabilities = (result) => {
     if (!isPlainObject(result)) throw protocolError();
     const custom = result.custom;
     if (custom !== undefined && !isPlainObject(custom)) throw protocolError();
     const feedback = custom?.feedback;
     const models = custom?.models;
+    const skills = custom?.skills;
     if (
         (feedback !== undefined && typeof feedback !== 'boolean') ||
-        (models !== undefined && typeof models !== 'boolean')
+        (models !== undefined && typeof models !== 'boolean') ||
+        (skills !== undefined && typeof skills !== 'boolean')
     )
         throw protocolError();
-    return {feedback: feedback !== false, models: models === true};
+    return {feedback: feedback !== false, models: models === true, skills: skills === true};
+};
+
+// The skills a run may ask, in the order of the agent: their name, as the
+// agent takes it in forwardedProps.skill, and their description, written by
+// the authors of the skills, shown as text.
+export const MAX_SKILLS = 32;
+const MAX_SKILL_DESCRIPTION_BYTES = 300;
+const skillNamePattern = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/;
+export const isSkillName = (name) => typeof name === 'string' && skillNamePattern.test(name);
+export const parseSkills = (result) => {
+    const skills = result?.skills;
+    if (!isPlainObject(result) || !Array.isArray(skills) || skills.length > MAX_SKILLS) throw protocolError();
+    const names = new Set();
+    return skills.map((skill) => {
+        if (
+            !isPlainObject(skill) ||
+            !isSkillName(skill.name) ||
+            names.has(skill.name) ||
+            typeof skill.description !== 'string' ||
+            new TextEncoder().encode(skill.description).length > MAX_SKILL_DESCRIPTION_BYTES
+        )
+            throw protocolError();
+        names.add(skill.name);
+        return {name: skill.name, description: skill.description};
+    });
 };
 
 // The models a run chooses from, the default first: their ID, opaque, the
@@ -264,6 +295,11 @@ export const parseModels = (result) => {
     if (parsed.filter((model) => model.default).length !== 1) throw protocolError();
     return parsed;
 };
+
+const SKILLS_MESSAGES = (status, code) =>
+    status === 502 && code === 'skills_unavailable'
+        ? ['skills_unavailable', 'The agent could not read its procedures.']
+        : [undefined, status === 404 ? 'This agent does not list its procedures.' : HTTP_MESSAGES[status]];
 
 const TOOLS_MESSAGES = (status, code) =>
     status === 502 && code === 'tools_unavailable'
@@ -1090,6 +1126,25 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                 signal,
                 TOOLS_MESSAGES
             ),
+        // The skills a run may ask for the user.
+        listSkills: ({signal} = {}) =>
+            request(
+                SKILLS_PATH,
+                {method: 'GET', headers: {Accept: 'application/json'}},
+                async (response, requestSignal) => {
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch {
+                        checkAborted(requestSignal);
+                        throw protocolError();
+                    }
+                    checkAborted(requestSignal);
+                    return parseSkills(result);
+                },
+                signal,
+                SKILLS_MESSAGES
+            ),
         // The models a run chooses from, the default first.
         listModels: ({signal} = {}) =>
             request(
@@ -1217,9 +1272,10 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
         // shows (interface-context.ts), sent with a new prompt only: a resumed
         // turn keeps the one of its prompt. model, the ID of a model of
         // listModels, chooses the model of a new prompt, the default when
-        // absent; a resumed turn keeps its own. A run resolves with its
-        // RUN_FINISHED.
-        run: (id, {prompt, promptId, held = [], resume, context = [], model} = {}, {signal, onEvent} = {}) => {
+        // absent; a resumed turn keeps its own. skill, the name of a skill of
+        // listSkills, has the agent load it first for a new prompt. A run
+        // resolves with its RUN_FINISHED.
+        run: (id, {prompt, promptId, held = [], resume, context = [], model, skill} = {}, {signal, onEvent} = {}) => {
             const path = conversationPath(id);
             if (
                 !Array.isArray(held) ||
@@ -1240,7 +1296,12 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                         'A non-empty prompt of at most 32 KiB is required.'
                     );
                 }
-                if (typeof promptId !== 'string' || !promptIdPattern.test(promptId) || (model !== undefined && !isModelId(model))) {
+                if (
+                    typeof promptId !== 'string' ||
+                    !promptIdPattern.test(promptId) ||
+                    (model !== undefined && !isModelId(model)) ||
+                    (skill !== undefined && !isSkillName(skill))
+                ) {
                     throw new AiAgentError('invalid_run', 'The messages of the run are invalid.');
                 }
                 messages.push({id: promptId, role: 'user', content: prompt});
@@ -1285,7 +1346,7 @@ export const createAiAgentClient = ({baseUrl, getCredentials, newId = randomId})
                 tools: [],
                 context: answer || !Array.isArray(context) ? [] : boundContext(context),
                 state: {},
-                forwardedProps: !answer && model !== undefined ? {model} : {},
+                forwardedProps: answer ? {} : {...(model !== undefined ? {model} : {}), ...(skill !== undefined ? {skill} : {})},
                 ...(answer ? {resume: answer} : {}),
             };
             return request(

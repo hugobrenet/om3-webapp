@@ -311,6 +311,13 @@ const applySnapshot = (previous, snapshot, answerId) => {
 // The bound of a prompt, as the agent takes it.
 const MAX_QUEUED_BYTES = 32 * 1024;
 
+// The prompt of a message: its words, or, a skill asked without any, the skill
+// named as `/name`, which the conversation shows as the message of the user.
+export const promptOf = (words, skill) => (typeof words === 'string' && words.trim() ? words : skill ? `/${skill}` : '');
+// The words of a prompt sent with a skill: none when the prompt is the skill
+// named alone.
+const wordsOf = (prompt, skill) => (skill && prompt === `/${skill}` ? '' : prompt);
+
 // interfaceContext gives what the page under the dock shows when a prompt is
 // sent, none on the page of the assistant (interface-context.ts).
 const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
@@ -336,7 +343,8 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     // action of the user (retryCapabilities).
     // Whether its runs choose their model is read with it: models, true or
     // false, null as feedback when it could not be read.
-    const [capabilities, setCapabilities] = useState({client: null, scope: null, feedback: null, models: null});
+    // Whether a run may ask a skill, skills, too.
+    const [capabilities, setCapabilities] = useState({client: null, scope: null, feedback: null, models: null, skills: null});
     const [capabilitiesRetry, setCapabilitiesRetry] = useState(0);
     // A read under way, which an action of the user does not start again.
     const capabilitiesReading = useRef(false);
@@ -354,6 +362,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
                 scope,
                 feedback: result ? result.feedback === true : null,
                 models: result ? result.models === true : null,
+                skills: result ? result.skills === true : null,
             });
         };
         Promise.resolve()
@@ -393,6 +402,38 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
             modelsReading.current = false;
         };
     }, [client, scope, modelsOffered, modelsKnown, modelsRetry]);
+    // The skills a run may ask, read once the agent says its runs take one:
+    // the list, or null when it could not be read, tried again with the next
+    // action of the user. None to ask, no list is offered.
+    const [skills, setSkills] = useState({client: null, scope: null, list: null});
+    const [skillsRetry, setSkillsRetry] = useState(0);
+    const skillsReading = useRef(false);
+    const skillsOwn = skills.client === client && skills.scope === scope;
+    const skillsOffered = Boolean(ready && capabilitiesOwn && capabilities.skills === true);
+    const skillsKnown = skillsOwn && skills.list !== null;
+    useEffect(() => {
+        if (!skillsOffered || !client || skillsKnown) return undefined;
+        const controller = new AbortController();
+        skillsReading.current = true;
+        const settle = (list) => {
+            if (controller.signal.aborted) return;
+            skillsReading.current = false;
+            setSkills({client, scope, list});
+        };
+        Promise.resolve()
+            .then(() => client.listSkills({signal: controller.signal}))
+            .then(settle, () => settle(null));
+        return () => {
+            controller.abort();
+            skillsReading.current = false;
+        };
+    }, [client, scope, skillsOffered, skillsKnown, skillsRetry]);
+    // Read again, as for a skill the agent no longer serves to the user.
+    const readSkillsAgain = () => {
+        setSkills((previous) => (previous.client === client && previous.scope === scope ? {...previous, list: null} : previous));
+        setSkillsRetry((count) => count + 1);
+    };
+    const skillList = skillsOffered && skillsOwn && skills.list?.length > 0 ? skills.list : null;
     // Read again, as for a model the agent no longer offers: no choice is
     // offered until the new list comes, a message sent meanwhile going on
     // the default model.
@@ -406,6 +447,8 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
             setCapabilitiesRetry((count) => count + 1);
         if (modelsOffered && modelsOwn && models.list === null && !modelsReading.current)
             setModelsRetry((count) => count + 1);
+        if (skillsOffered && skillsOwn && skills.list === null && !skillsReading.current)
+            setSkillsRetry((count) => count + 1);
     };
     const modelList = modelsOffered && modelsOwn && models.list?.length >= 2 ? models.list : null;
     // The model chosen, by its ID: the choice of the user or the model of
@@ -808,8 +851,9 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     // The context is the page the prompt is asked from: read when it is
     // sent, or, for a queued message, when it was queued.
     // The model is the one chosen when it is sent, or, for a queued message,
-    // when it was queued.
-    const send = (prompt, context = interfaceContext(), runModel = model) => {
+    // when it was queued. skill, the name of a skill of the list, the agent
+    // loads first.
+    const send = (prompt, context = interfaceContext(), runModel = model, skill = undefined) => {
         if (!state.historyReady || state.confirmation || typeof prompt !== 'string' || !prompt.trim()) return;
         retryCapabilities();
         const current = state.scope === scope ? state.conversation : null;
@@ -844,7 +888,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
             try {
                 result = await client.run(
                     conversation.id,
-                    {prompt, promptId, held, context, ...(runModel ? {model: runModel} : {})},
+                    {prompt, promptId, held, context, ...(runModel ? {model: runModel} : {}), ...(skill ? {skill} : {})},
                     {signal, onEvent: runEvents(answerId, update)}
                 );
             } catch (error) {
@@ -860,6 +904,23 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
                 // from, for the user to send it again; a message queued
                 // meanwhile is not replaced: the prompt then stays in the
                 // thread, failed.
+                // The skill is no longer served to the user, or was refused:
+                // the list is read again, its step told failed, the agent of
+                // before telling no error of its own tools; the prompt stays
+                // failed in the thread, and its words go to the queue, without
+                // the skill, for the user to send them again.
+                if (error?.code === 'skill_unavailable' || error?.code === 'invalid_skill') {
+                    readSkillsAgain();
+                    update((previous) => ({
+                        ...previous,
+                        messages: previous.messages.map((message) => message.id !== answerId ? message : {
+                            ...message,
+                            steps: message.steps.map((step) => (step.tool === 'load_skill' && step.status === 'completed' ? {...step, status: 'failed'} : step)),
+                        }),
+                    }));
+                    const words = wordsOf(prompt, skill);
+                    if (words.trim() && !queuedRef.current) setQueued({conversationId: conversation.id, text: words, context});
+                }
                 if (error?.code === 'model_unknown') {
                     if (runModel && kept === runModel) {
                         keepModelChoice(null);
@@ -868,7 +929,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
                     if (runModel === model) setChoice({scope, id: modelList?.find((item) => item.default)?.id ?? null});
                     readModelsAgain();
                     if (!queuedRef.current) {
-                        setQueued({conversationId: conversation.id, text: prompt, context});
+                        setQueued({conversationId: conversation.id, text: wordsOf(prompt, skill), context, ...(skill ? {skill} : {})});
                         update((previous) => ({
                             ...previous,
                             messages: previous.messages.filter((message) => message.id !== promptId && message.id !== answerId),
@@ -908,11 +969,20 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
     // in memory only: it goes once a run of its conversation ends normally,
     // never after a stop, a failure or on a confirmation. One at most, the
     // last one replacing it. Its text is the user's, sent as typed.
-    const queue = (text) => {
-        if (typeof text !== 'string' || !text.trim() || new TextEncoder().encode(text).length > MAX_QUEUED_BYTES) return false;
-        // The page it is asked from and the model chosen go with it, whatever
-        // page the user is on, and model chosen, once it is sent.
-        setQueued({conversationId: state.scope === scope ? state.conversation?.id ?? null : null, text, context: interfaceContext(), ...(model ? {model} : {})});
+    // Its text is the words of the user, none for a skill asked alone, the
+    // skill kept apart: its prompt is made as it is sent (promptOf).
+    const queue = (text, skill = undefined) => {
+        if (typeof text !== 'string' || !promptOf(text, skill).trim() || new TextEncoder().encode(text).length > MAX_QUEUED_BYTES) return false;
+        // The page it is asked from, the model chosen and the skill asked go
+        // with it, whatever page the user is on, and model chosen, once it is
+        // sent.
+        setQueued({
+            conversationId: state.scope === scope ? state.conversation?.id ?? null : null,
+            text,
+            context: interfaceContext(),
+            ...(model ? {model} : {}),
+            ...(skill ? {skill} : {}),
+        });
         return true;
     };
     const unqueue = () => setQueued(null);
@@ -936,7 +1006,7 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
         if (!item || state.confirmation || conversationId !== release.conversationId) return;
         if (item.conversationId !== null && item.conversationId !== conversationId) return;
         setQueued(null);
-        void send(item.text, item.context, item.model);
+        void send(promptOf(item.text, item.skill), item.context, item.model, item.skill);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [release, state.pending]);
 
@@ -1002,6 +1072,8 @@ const useAiChat = ({client, ready, scope, interfaceContext = () => []}) => {
         models: modelList,
         model,
         selectModel,
+        // The skills a run may ask, null when none is to ask.
+        skills: skillList,
         rate: (turnId, feedback) => rateTurn(turnId, feedback),
         unrate: (turnId) => rateTurn(turnId, null),
     };

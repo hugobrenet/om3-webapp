@@ -45,6 +45,9 @@ export function AiChatProvider({children}) {
     // showed the chat: one seen waiting is not told again.
     const [waitedUnseen, setWaitedUnseen] = useState(false);
     const [draft, setDraft] = useState('');
+    // The skill the message typed asks, chosen with / in the message box: it
+    // goes with the draft from the dock to the page.
+    const [draftSkill, setDraftSkill] = useState(null);
     const [prompt, setPrompt] = useState(null);
     const [promptDropped, setPromptDropped] = useState(false);
     const [dock, setDock] = useState('folded');
@@ -62,6 +65,7 @@ export function AiChatProvider({children}) {
         setEndedFailed(false);
         setWaitedUnseen(false);
         setDraft('');
+        setDraftSkill(null);
         setPrompt(null);
         setPromptDropped(false);
         setDock('folded');
@@ -134,7 +138,9 @@ export function AiChatProvider({children}) {
         if (previous === key) return;
         shownConversation.current = key;
         if (chat.pending === 'turn' && previous === JSON.stringify([scope, ready, null])) return;
+        const skill = chat.queued?.skill ?? null;
         setDraft(chat.takeQueued() ?? '');
+        setDraftSkill(skill);
         // The conversation shown only: the queue is read when it changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [scope, ready, chat.conversation?.id, chat.pending, chat.historyReady]);
@@ -236,6 +242,8 @@ export function AiChatProvider({children}) {
                 attach,
                 draft,
                 setDraft,
+                draftSkill,
+                setDraftSkill,
                 prompt,
                 ask,
                 takePrompt,

@@ -4189,7 +4189,15 @@
       "queuedHint": "La réponse est en cours : votre message sera envoyé une fois celle-ci terminée.",
       "queuedDuringConfirmation": "Votre message sera envoyé après votre décision ; il ne répond pas à la confirmation.",
       "model": "Modèle",
-      "modelHint": "Le modèle des messages que vous envoyez"
+      "modelHint": "Le modèle des messages que vous envoyez",
+      "skillsHint": "Tapez / en début de message pour suivre une procédure de l'assistant."
+    },
+    "skills": {
+      "tag": "Procédure",
+      "remove": "Retirer la procédure « {{skill}} »",
+      "list": "Procédures correspondant à votre saisie",
+      "chosen": "Procédure /{{skill}} choisie",
+      "gone": "La procédure « {{skill}} » ne vous est plus disponible : elle a été retirée de votre message."
     },
     "dialog": {
       "deleteTitle": "Supprimer la conversation",

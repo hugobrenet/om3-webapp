@@ -276,6 +276,25 @@ describe('the dock of the assistant', () => {
         expect(screen.getByRole('button', {name: 'Open the assistant'})).toBeInTheDocument();
     });
 
+    test('Escape closes the list of the skills, the dock staying open; the tag chosen goes with the draft to the page', async () => {
+        mocks.client.getCapabilities = vi.fn().mockResolvedValue({feedback: false, models: false, skills: true});
+        mocks.client.listSkills = vi.fn().mockResolvedValue([{name: 'morning-check', description: 'Check the cluster in the morning.'}]);
+        renderApp({withLink: false});
+        fireEvent.click(await screen.findByRole('button', {name: 'Open the assistant'}));
+        await waitFor(() => expect(dockBox()).toBeEnabled());
+        await waitFor(() => expect(mocks.client.listSkills).toHaveBeenCalled());
+        fireEvent.change(dockBox(), {target: {value: '/mor'}});
+        expect(within(dock()).getByRole('listbox')).toBeInTheDocument();
+        fireEvent.keyDown(dockBox(), {key: 'Escape'});
+        expect(within(dock()).queryByRole('listbox')).toBeNull();
+        expect(dock()).toBeInTheDocument();
+        fireEvent.change(dockBox(), {target: {value: '/morning-check '}});
+        expect(within(dock()).getByRole('button', {name: 'Remove the procedure “morning-check”'})).toBeInTheDocument();
+        // To the page of the assistant: the tag goes with the draft.
+        fireEvent.click(within(dock()).getByRole('button', {name: 'Open in the assistant page'}));
+        expect(await screen.findByRole('button', {name: 'Remove the procedure “morning-check”'})).toBeInTheDocument();
+    });
+
     test('opens and folds from its button of the top bar, which it leaves without the focus', async () => {
         renderApp({withLink: false});
         const button = await screen.findByRole('button', {name: 'Open the assistant'});

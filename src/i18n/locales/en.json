@@ -4189,7 +4189,15 @@
       "queuedHint": "The answer is running: your message will be sent once it ends.",
       "queuedDuringConfirmation": "Your message will be sent after your decision; it does not answer the confirmation.",
       "model": "Model",
-      "modelHint": "The model of the messages you send"
+      "modelHint": "The model of the messages you send",
+      "skillsHint": "Type / at the start to follow a procedure of the assistant."
+    },
+    "skills": {
+      "tag": "Procedure",
+      "remove": "Remove the procedure “{{skill}}”",
+      "list": "Procedures matching what you type",
+      "chosen": "Procedure /{{skill}} chosen",
+      "gone": "The procedure “{{skill}}” is no longer available to you: it was removed from your message."
     },
     "dialog": {
       "deleteTitle": "Delete conversation",
